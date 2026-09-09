@@ -600,7 +600,38 @@ export const StorageService = {
 
   // Current User & Employees
   getEmployees(): Employee[] {
-    return getItem(STORAGE_KEYS.EMPLOYEES, initialEmployees);
+    const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, initialEmployees);
+    
+    // Auto-inject Benny if missing by phone
+    if (!list.find((e) => e.phone === '88988323081')) {
+      const benny: Employee = {
+        id: 'emp-benny',
+        name: 'Benny',
+        phone: '88988323081',
+        email: 'benny@assistencia.com',
+        role: 'VENDEDOR',
+        status: 'ATIVO',
+        commissionRate: 5,
+        permissions: {
+          canAccessAdminSettings: false,
+          canViewFinancialReports: false,
+          canViewProductCost: false,
+          canManageEmployees: false,
+          canManageProducts: false,
+          canManageCustomers: true,
+          canManageOrders: true,
+          canOperatePos: true,
+          canOperateCash: true,
+          canManageExpenses: false,
+          canDeleteRecords: false,
+        },
+        createdAt: new Date().toISOString()
+      };
+      list.push(benny);
+      setItem(STORAGE_KEYS.EMPLOYEES, list);
+    }
+    
+    return list;
   },
 
   saveEmployee(employee: Employee): void {
