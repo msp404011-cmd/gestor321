@@ -20,15 +20,23 @@ import {
   Printer,
   Layers,
   Filter,
+  Crown,
+  Lock,
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
+import { PaywallModal } from '../subscription/PaywallModal';
 import { formatCurrency } from '../../services/formatters';
 import { useTheme } from '../../context/ThemeContext';
 
 type TabType = 'OVERVIEW' | 'SALES' | 'SERVICES' | 'PRODUCTS' | 'FINANCE' | 'COMPARATIVE' | 'HISTORY';
 type DreViewMode = 'SINTETICO' | 'ANALITICO' | 'CATEGORIA';
 
-export const ReportsView: React.FC = () => {
+interface ReportsViewProps {
+  onOpenPlans?: () => void;
+}
+
+export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<TabType>('OVERVIEW');
   const [dreMode, setDreMode] = useState<DreViewMode>('SINTETICO');
@@ -36,12 +44,26 @@ export const ReportsView: React.FC = () => {
   const [selectedDreType, setSelectedDreType] = useState('DRE Gerencial');
   const [tick, setTick] = useState(0);
 
+  const [paywallModalState, setPaywallModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    feature: 'ADVANCED_REPORTS' | 'EXPORT_PDF';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    feature: 'ADVANCED_REPORTS',
+  });
+
   useEffect(() => {
     const unsub = StorageService.subscribe(() => {
       setTick((t) => t + 1);
     });
     return unsub;
   }, []);
+
+  const subLimits = useMemo(() => SubscriptionService.checkSubscriptionLimits(), [tick]);
 
   // Dynamic storage data calculation
   const sales = useMemo(() => StorageService.getSales() || [], [tick]);
@@ -57,17 +79,26 @@ export const ReportsView: React.FC = () => {
   const profitMargin = grossRevenue > 0 ? Math.round((netProfit / grossRevenue) * 100) : 0;
 
   const handleExport = (type: string) => {
+    if (!subLimits.canExportPdf) {
+      setPaywallModalState({
+        isOpen: true,
+        title: 'Exportação em PDF Bloqueada',
+        description: 'A exportação de relatórios em formato PDF e relatórios executivos é um recurso exclusivo do Plano Pro.',
+        feature: 'EXPORT_PDF',
+      });
+      return;
+    }
     alert(`Exportando relatório (${type})... O arquivo em formato ${type} foi gerado com sucesso!`);
   };
 
   const tabs = [
-    { id: 'OVERVIEW', label: 'Visão Geral', icon: BarChart3 },
-    { id: 'SALES', label: 'Vendas', icon: ShoppingCart },
-    { id: 'SERVICES', label: 'Serviços (OS)', icon: Wrench },
-    { id: 'PRODUCTS', label: 'Produtos / Estoque', icon: Package },
-    { id: 'FINANCE', label: 'Financeiro', icon: DollarSign },
-    { id: 'COMPARATIVE', label: 'Comparativos', icon: Layers },
-    { id: 'HISTORY', label: 'Histórico', icon: Clock },
+    { id: 'OVERVIEW', label: 'Visão Geral', icon: BarChart3, isPro: false },
+    { id: 'SALES', label: 'Vendas', icon: ShoppingCart, isPro: false },
+    { id: 'SERVICES', label: 'Serviços (OS)', icon: Wrench, isPro: false },
+    { id: 'PRODUCTS', label: 'Produtos / Estoque', icon: Package, isPro: false },
+    { id: 'FINANCE', label: 'Financeiro', icon: DollarSign, isPro: true },
+    { id: 'COMPARATIVE', label: 'Comparativos', icon: Layers, isPro: true },
+    { id: 'HISTORY', label: 'Histórico', icon: Clock, isPro: true },
   ];
 
   // Expenses breakdown from real data
@@ -165,10 +196,23 @@ export const ReportsView: React.FC = () => {
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;
+          const isLocked = t.isPro && !subLimits.canAccessAdvancedReports;
+
           return (
             <button
               key={t.id}
-              onClick={() => setActiveTab(t.id as TabType)}
+              onClick={() => {
+                if (isLocked) {
+                  setPaywallModalState({
+                    isOpen: true,
+                    title: `Relatório ${t.label} Bloqueado`,
+                    description: 'Relatórios avançados, demonstrativos financeiros detalhados e análises comparativas são recursos exclusivos do Plano Pro e Enterprise.',
+                    feature: 'ADVANCED_REPORTS',
+                  });
+                  return;
+                }
+                setActiveTab(t.id as TabType);
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-md border border-blue-500'
@@ -179,6 +223,16 @@ export const ReportsView: React.FC = () => {
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
               <span>{t.label}</span>
+              {t.isPro && (
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-1 ${
+                  isLocked
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400'
+                }`}>
+                  {isLocked && <Lock className="w-2.5 h-2.5" />}
+                  PRO
+                </span>
+              )}
             </button>
           );
         })}
@@ -708,6 +762,16 @@ export const ReportsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Paywall Gate Modal */}
+      <PaywallModal
+        isOpen={paywallModalState.isOpen}
+        onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
+        title={paywallModalState.title}
+        description={paywallModalState.description}
+        feature={paywallModalState.feature}
+        onOpenPlans={onOpenPlans}
+      />
     </div>
   );
 };

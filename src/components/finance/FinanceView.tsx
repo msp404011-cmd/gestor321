@@ -280,6 +280,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
   const [historyEndDate, setHistoryEndDate] = useState<string>('2026-09-30');
   const [historySearchTerm, setHistorySearchTerm] = useState<string>('');
   const [historyCategoryFilter, setHistoryCategoryFilter] = useState<string>('ALL');
+  const [isZeroConfirmOpen, setIsZeroConfirmOpen] = useState(false);
 
   const [tick, setTick] = useState(0);
 
@@ -743,6 +744,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
           >
             <Plus className="w-4 h-4" />
             <span>Nova Despesa</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsZeroConfirmOpen(true)}
+            className={`px-3 py-2.5 border rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              isDark
+                ? 'border-slate-700 bg-slate-800/80 text-slate-300 hover:text-rose-400 hover:border-rose-500/50'
+                : 'border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 shadow-sm'
+            }`}
+            title="Zerar Saldo Atual, Entradas e Resultado Líquido"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Zerar Caixa / Financeiro</span>
           </button>
         </div>
       </div>
@@ -1809,6 +1824,23 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
         message={`Tem certeza que deseja excluir a despesa "${expenseToDelete?.description}"?`}
         onConfirm={handleDeleteExpenseConfirm}
         onCancel={() => setExpenseToDelete(null)}
+      />
+
+      {/* Zero Cash and Financial Dialog */}
+      <ConfirmDialog
+        isOpen={isZeroConfirmOpen}
+        title="Zerar Saldo Atual, Entradas e Resultado"
+        message="Deseja realmente zerar o saldo atual do caixa, entradas do período e resultado líquido? O caixa ficará aberto com R$ 0,00 e as movimentações serão limpas."
+        confirmText="Sim, Zerar Tudo"
+        cancelText="Cancelar"
+        onConfirm={() => {
+          StorageService.zeroCashAndFinancialData();
+          setTick((t) => t + 1);
+          setRawExpenses(StorageService.getExpenses() || []);
+          setIsZeroConfirmOpen(false);
+        }}
+        onCancel={() => setIsZeroConfirmOpen(false)}
+        onClose={() => setIsZeroConfirmOpen(false)}
       />
     </div>
   );

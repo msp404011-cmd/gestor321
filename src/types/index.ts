@@ -638,16 +638,38 @@ export interface Supplier {
   notes?: string;
 }
 
+export type PlanType = 'TRIAL' | 'LOJA' | 'REVENDA' | 'FREE' | 'PRO' | 'ENTERPRISE' | 'TESTE_REAL';
+export type SubscriptionStatus = 'active' | 'expired' | 'canceled' | 'trial' | 'ATIVO' | 'EXPIRANDO' | 'VENCIDO' | 'TRIAL';
+export type BillingCycle = 'monthly' | 'annual';
+
+export interface PlanLimits {
+  maxMonthlyOrders: number | null; // null = unlimited
+  maxProducts: number | null;     // null = unlimited
+  maxCollaborators: number | null; // null = unlimited
+  advancedReports: boolean;
+  pdfExport: boolean;
+  cloudBackup: boolean;
+  auditLogs: boolean;
+  prioritySupport?: boolean;
+}
+
 export interface SubscriptionPlanInfo {
+  planType: PlanType;
   planName: string;
   planPrice: number;
+  billingCycle: BillingCycle;
   billingPeriod: 'MENSAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'VITALÍCIO';
   expiryDate: string; // YYYY-MM-DD
-  status: 'ATIVO' | 'EXPIRANDO' | 'VENCIDO' | 'TRIAL';
+  status: SubscriptionStatus;
   clientName?: string;
   autoRenew?: boolean;
   contractNumber?: string;
   paymentMethod?: string;
   notes?: string;
+  startDate?: string;
+  canceledAt?: string;
+  isTrial?: boolean;
+  trialDaysRemaining?: number;
 }
+
 

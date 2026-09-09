@@ -616,6 +616,16 @@ export const PosView: React.FC<PosViewProps> = ({
       const parentHeight = parent.clientHeight || window.innerHeight;
       const parentWidth = parent.clientWidth || window.innerWidth;
 
+      // On mobile or small screens (< 1024px), NEVER use CSS transform scale!
+      // This prevents the PDV from becoming microscopic and disproportionate on phones.
+      if (parentWidth < 1024) {
+        setZoomRatio(1);
+        element.style.transform = 'none';
+        element.style.width = '100%';
+        element.style.height = 'auto';
+        return;
+      }
+
       // Reset transform temporarily to measure natural scroll dimensions
       element.style.transform = 'none';
       element.style.width = '100%';
@@ -632,8 +642,8 @@ export const PosView: React.FC<PosViewProps> = ({
         scale = Math.min(scale, parentWidth / naturalWidth);
       }
 
-      // Clamp scale (min 0.35, max 1.0) to fit screen perfectly with no arbitrary margin
-      const clampedScale = Math.max(0.35, Math.min(1.0, scale));
+      // Clamp scale (min 0.65, max 1.0) on desktop monitors
+      const clampedScale = Math.max(0.65, Math.min(1.0, scale));
       setZoomRatio(clampedScale);
     };
 
@@ -658,38 +668,47 @@ export const PosView: React.FC<PosViewProps> = ({
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#020813]">
+    <div className="relative w-full h-full overflow-y-auto lg:overflow-hidden bg-[#020813]">
       <div
         ref={posOuterRef}
         style={{
           transform: zoomRatio < 1 ? `scale(${zoomRatio})` : 'none',
           transformOrigin: 'top center',
           width: zoomRatio < 1 ? `${(1 / zoomRatio) * 100}%` : '100%',
-          height: zoomRatio < 1 ? `${(1 / zoomRatio) * 100}%` : '100%',
+          height: zoomRatio < 1 ? `${(1 / zoomRatio) * 100}%` : 'auto',
+          minHeight: '100%',
         }}
-        className="bg-[#020813] text-slate-100 font-sans p-1.5 sm:p-2 flex flex-col justify-between gap-1.5 sm:gap-2 antialiased selection:bg-cyan-500 selection:text-white select-none overflow-hidden h-full"
+        className="bg-[#020813] text-slate-100 font-sans p-2 sm:p-2.5 flex flex-col justify-between gap-2 antialiased selection:bg-cyan-500 selection:text-white select-none overflow-y-auto lg:overflow-hidden min-h-full lg:h-full"
       >
       
       {/* 1. TOP HEADER BAR */}
-      <header className="bg-[#071328] border border-blue-900/60 rounded-lg px-2.5 py-1 shadow-sm flex flex-wrap items-center justify-between gap-2 shrink-0">
+      <header className="bg-[#071328] border border-blue-900/60 rounded-xl px-2.5 py-1.5 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 shrink-0">
         
         {/* Left: Brand Logo & Title */}
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-700 text-white flex items-center justify-center shadow-md shrink-0 border border-cyan-400/30">
-            <ShoppingCart className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between sm:justify-start gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-700 text-white flex items-center justify-center shadow-md shrink-0 border border-cyan-400/30">
+              <ShoppingCart className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black italic tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-cyan-400 leading-none">
+                {company.commercialName || company.name || 'TECHNOVA Informática'}
+              </h1>
+              <p className="text-[8px] uppercase font-bold tracking-wider text-blue-300/80 leading-none mt-0.5">
+                PDV - PONTO DE VENDA
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-black italic tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-cyan-400 leading-none">
-              {company.commercialName || company.name || 'TECHNOVA Informática'}
-            </h1>
-            <p className="text-[8px] uppercase font-bold tracking-wider text-blue-300/80 leading-none mt-0.5">
-              PDV - PONTO DE VENDA
-            </p>
+
+          {/* Terminal ID Badge (visible on mobile next to brand) */}
+          <div className="flex md:hidden items-center gap-1 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 font-black text-[10px] text-cyan-300">
+            <Tv className="w-3 h-3 text-cyan-400" />
+            <span>PDV 01</span>
           </div>
         </div>
 
         {/* Center: Search & Barcode Input Field with F4 button */}
-        <div className="flex-1 max-w-lg mx-2">
+        <div className="w-full md:flex-1 md:max-w-lg md:mx-2">
           <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
             <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400">
               <Search className="w-3.5 h-3.5" />
@@ -706,7 +725,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 if (barcodeSearchInput.trim().length > 0) setIsSearchDropdownOpen(true);
               }}
               placeholder="Digite o código ou nome do produto..."
-              className="w-full pl-8 pr-12 py-1 bg-[#040b19] border border-blue-800/80 hover:border-cyan-400/80 focus:border-cyan-400 rounded text-xs text-white placeholder-slate-400 font-medium focus:outline-none transition-all"
+              className="w-full pl-8 pr-12 py-1.5 md:py-1 bg-[#040b19] border border-blue-800/80 hover:border-cyan-400/80 focus:border-cyan-400 rounded-lg text-xs text-white placeholder-slate-400 font-medium focus:outline-none transition-all"
             />
             <button
               type="submit"
@@ -719,31 +738,31 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* Right: Operator, Date/Time, Fullscreen, Terminal Badge */}
-        <div className="flex items-center gap-2 text-[11px]">
+        <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px]">
           {/* Operator Pill */}
           <div
             onClick={() => setIsCustomerModalOpen(true)}
-            className="flex items-center gap-1.5 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 cursor-pointer hover:border-cyan-500/60 transition-all"
+            className="flex-1 sm:flex-none flex items-center gap-1.5 bg-[#040b19] border border-blue-900/80 rounded px-2 py-1 md:py-0.5 cursor-pointer hover:border-cyan-500/60 transition-all"
           >
-            <div className="w-5 h-5 rounded-full bg-blue-600/80 text-cyan-200 flex items-center justify-center font-bold text-[10px]">
+            <div className="w-5 h-5 rounded-full bg-blue-600/80 text-cyan-200 flex items-center justify-center font-bold text-[10px] shrink-0">
               <User className="w-3 h-3" />
             </div>
-            <div>
+            <div className="truncate">
               <p className="text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">Operador</p>
-              <div className="flex items-center gap-0.5 font-bold text-white text-[11px] leading-tight">
-                <span>{currentUser.name || 'Marcos Silva'}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-slate-400 animate-pulse" />
+              <div className="flex items-center gap-0.5 font-bold text-white text-[10px] sm:text-[11px] leading-tight truncate">
+                <span className="truncate">{currentUser.name || 'Marcos Silva'}</span>
+                <ChevronDown className="w-2.5 h-2.5 text-slate-400 animate-pulse shrink-0" />
               </div>
             </div>
           </div>
 
           {/* Live Date & Clock Card */}
-          <div className="bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 text-right flex flex-col justify-center">
+          <div className="bg-[#040b19] border border-blue-900/80 rounded px-2 py-1 md:py-0.5 text-right flex flex-col justify-center shrink-0">
             <div className="flex items-center justify-end gap-1 text-[9px] font-bold text-cyan-300 leading-none">
               <Calendar className="w-2.5 h-2.5 text-cyan-400" />
               <span>{formattedDateTime.dateText}</span>
             </div>
-            <div className="flex items-center justify-end gap-1 text-[11px] font-black text-emerald-400 leading-none mt-0.5 tracking-wider">
+            <div className="flex items-center justify-end gap-1 text-[10px] sm:text-[11px] font-black text-emerald-400 leading-none mt-0.5 tracking-wider font-mono">
               <Clock className="w-3 h-3 text-emerald-400" />
               <span>{formattedDateTime.timeText}</span>
             </div>
@@ -759,31 +778,29 @@ export const PosView: React.FC<PosViewProps> = ({
                 document.exitFullscreen().catch(() => {});
               }
             }}
-            className="w-6 h-6 rounded bg-[#040b19] border border-blue-900/80 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 flex items-center justify-center cursor-pointer transition-all"
+            className="hidden sm:flex w-6 h-6 rounded bg-[#040b19] border border-blue-900/80 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 items-center justify-center cursor-pointer transition-all shrink-0"
             title="Alternar Tela Cheia"
           >
             <Monitor className="w-3 h-3" />
           </button>
 
-          {/* Terminal ID Badge */}
-          <div className="flex items-center gap-1 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 font-black text-[11px] text-white">
+          {/* Terminal ID Badge (desktop) */}
+          <div className="hidden md:flex items-center gap-1 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 font-black text-[11px] text-white shrink-0">
             <Tv className="w-3.5 h-3.5 text-cyan-400" />
             <span>PDV 01</span>
           </div>
-
-
         </div>
       </header>
 
-      {/* 2. SECOND TOP BAR: 4 CONFIGURATION SELECTORS (Identical to Image) */}
-      <div className="grid grid-cols-2 lg:grid-cols-12 gap-2 sm:gap-3 shrink-0">
+      {/* 2. SECOND TOP BAR: 4 CONFIGURATION SELECTORS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 shrink-0">
         
         {/* Selector 1: Tipo de Venda */}
         <div className="col-span-1 lg:col-span-2 flex flex-col">
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
             Tipo de Venda
           </label>
-          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
+          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               <span>Venda (PDV)</span>
@@ -793,13 +810,13 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* Selector 2: Cliente */}
-        <div className="col-span-1 lg:col-span-6 flex flex-col">
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
+        <div className="col-span-1 lg:col-span-5 flex flex-col">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
             Cliente
           </label>
           <div
             onClick={() => setIsCustomerModalOpen(true)}
-            className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors group truncate"
+            className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors group truncate"
           >
             <div className="flex items-center gap-2 truncate">
               <User className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -813,13 +830,13 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Selector 3: Vendedor */}
         <div className="col-span-1 lg:col-span-2 flex flex-col">
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
             Vendedor
           </label>
-          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
+            <div className="flex items-center gap-2 truncate">
               <Store className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span>{sellerName}</span>
+              <span className="truncate">{sellerName}</span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           </div>
@@ -827,10 +844,10 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Selector 4: Tabela de Preço (Venda Cliente Final vs Venda Revendedor) */}
         <div className="col-span-1 lg:col-span-3 flex flex-col">
-          <label className="text-xs font-semibold text-slate-300 block mb-1">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
             Tipo de Venda / Tabela
           </label>
-          <div className="grid grid-cols-2 gap-1 bg-[#040b19]/90 border border-blue-900/60 rounded p-1">
+          <div className="grid grid-cols-2 gap-1 bg-[#040b19]/90 border border-blue-900/60 rounded-lg p-1">
             <button
               type="button"
               onClick={() => {
@@ -898,7 +915,7 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* 3. MAIN SPLIT BODY: LEFT PRODUCT SCAN & SPECS (5 COLS), RIGHT SALES ITEMS & KPIS (7 COLS) */}
-      <div className="grid grid-cols-1 gap-3 sm:gap-4.5 items-stretch flex-1 min-h-0 overflow-y-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch flex-1 min-h-0">
         
         {/* LEFT COLUMN: PRODUCT SCAN, ACTIVE PRODUCT DETAILS, METRICS & PHOTO (5 Cols) */}
         <div className="lg:col-span-5 bg-[#071328] border border-blue-900/60 rounded-xl p-2 space-y-2 shadow-[0_4px_25px_rgba(0,0,0,0.5)] flex flex-col justify-between min-h-0 relative">
@@ -1094,7 +1111,7 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           {/* 4 Inputs / Badges: Quantidade, Unidade, Preço Unitário, Total do Item */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {/* Quantidade */}
             <div className="space-y-0.5">
               <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -1147,10 +1164,10 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           {/* Bottom Row: Product Image (Left) & Technical Specs List (Right) */}
-          <div className="grid grid-cols-12 gap-3 items-stretch flex-1 min-h-0 overflow-hidden py-0.5">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 sm:gap-3 items-stretch flex-1 min-h-0 py-0.5">
             
             {/* Product Image / Empty State Scanner */}
-            <div className="col-span-6 bg-[#020712] border border-blue-900/40 rounded-xl p-2 flex items-center justify-center relative overflow-hidden group min-h-[130px] lg:h-[180px] flex-1 shadow-inner">
+            <div className="col-span-1 sm:col-span-6 bg-[#020712] border border-blue-900/40 rounded-xl p-2 flex items-center justify-center relative overflow-hidden group min-h-[140px] sm:min-h-[160px] lg:h-[180px] flex-1 shadow-inner">
               {activeProduct?.photoUrl ? (
                 <img
                   src={activeProduct.photoUrl}
@@ -1177,7 +1194,7 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
 
             {/* Technical Specs List & Stock Badge */}
-            <div className="col-span-6 flex flex-col justify-between py-0.5 text-[11px]">
+            <div className="col-span-1 sm:col-span-6 flex flex-col justify-between py-0.5 text-[11px]">
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
                   <span className="font-extrabold text-slate-400">Marca:</span>
@@ -1254,8 +1271,74 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           {/* Table Container */}
-          <div className="flex-1 bg-[#040b19] border border-blue-900/70 rounded-xl overflow-hidden shadow-inner flex flex-col min-h-[150px] overflow-y-auto">
-            <div className="overflow-x-auto flex-1">
+          <div className="flex-1 bg-[#040b19] border border-blue-900/70 rounded-xl overflow-hidden shadow-inner flex flex-col min-h-[160px] overflow-y-auto">
+            {/* Mobile Cards View (< sm screens) */}
+            <div className="block sm:hidden divide-y divide-blue-950/80 p-2 space-y-2">
+              {cart.length === 0 ? (
+                <div className="p-6 text-center text-slate-500 font-medium text-xs">
+                  Nenhum item adicionado à venda. Digite o código de barras ou use F3 para consultar.
+                </div>
+              ) : (
+                cart.map((item, idx) => {
+                  const isSelected = idx === selectedItemIndex;
+                  return (
+                    <div
+                      key={`mob-${item.productId}-${idx}`}
+                      onClick={() => setSelectedItemIndex(idx)}
+                      className={`p-2.5 rounded-lg border transition-all ${
+                        isSelected
+                          ? 'bg-blue-600/30 border-cyan-400 text-white shadow-md'
+                          : 'bg-[#061021] border-blue-900/60 text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs text-white truncate">{item.productName}</p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            Cód: {item.barcode || '---'} • {item.unit || 'UN'}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-black text-emerald-400 font-mono block">
+                            R$ {item.total.toFixed(2).replace('.', ',')}
+                          </span>
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            {item.quantity} x R$ {item.unitPrice.toFixed(2).replace('.', ',')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-blue-900/40">
+                        <span className="text-[10px] font-bold text-slate-400">Item #{idx + 1}</span>
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedItemIndex(idx);
+                              setIsQtyModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Qtd</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(idx)}
+                            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table View (>= sm screens) */}
+            <div className="hidden sm:block overflow-x-auto flex-1">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-blue-900/60 bg-[#061021] text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
@@ -1414,22 +1497,22 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* 4. BOTTOM FUNCTION KEY ACTION BAR (13 BUTTONS: F1 to ESC) */}
-      <div className="grid grid-cols-4 sm:grid-cols-7 lg:grid-cols-13 gap-1.5 sm:gap-2 shrink-0">
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-13 gap-1.5 sm:gap-2 shrink-0 pb-3 lg:pb-0">
         
         {/* F1: Iniciar ou Finalizar Venda */}
         <button
           type="button"
           id="btn-f1"
           onClick={handleF1Action}
-          className={`py-2.5 px-1 ${
+          className={`col-span-3 sm:col-span-1 py-2.5 px-2 ${
             cart.length === 0
               ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400/50 shadow-emerald-900/30'
               : 'bg-blue-600 hover:bg-blue-500 border-blue-400/40 shadow-blue-950/50'
-          } active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border shadow-lg`}
+          } active:scale-95 text-white rounded-xl flex sm:flex-col items-center justify-center gap-1.5 sm:gap-1 transition-all cursor-pointer border shadow-lg`}
         >
-          <span className="text-[10px] font-extrabold uppercase text-blue-100 leading-none">F1</span>
+          <span className="text-xs sm:text-[10px] font-extrabold uppercase text-blue-100 leading-none">F1</span>
           <ShoppingCart className="w-4 h-4 shrink-0" />
-          <span className="text-[10px] font-black leading-none text-center truncate w-full">
+          <span className="text-xs sm:text-[10px] font-black leading-none text-center truncate">
             {cart.length === 0 ? 'Iniciar Venda' : isCheckoutModalOpen ? 'Concluir Venda' : 'Finalizar Venda'}
           </span>
         </button>

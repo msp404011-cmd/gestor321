@@ -38,6 +38,7 @@ interface SidebarProps {
   isOpenMobile?: boolean;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  onOpenPlans?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   isMobileOpen,
   onCloseMobile,
+  onOpenPlans,
 }) => {
   const { isDark } = useTheme();
   const [company, setCompany] = React.useState(() => StorageService.getCompanySettings());
@@ -451,11 +453,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {company.slogan || 'Tecnologia que mantém você sempre conectado!'}
               </p>
 
+              {/* Meu Plano & Assinatura Button */}
+              {onOpenPlans && (
+                <button
+                  type="button"
+                  id="btn-sidebar-plan"
+                  onClick={onOpenPlans}
+                  className={`mt-2 w-full py-1.5 px-3 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+                    isDark
+                      ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Meu Plano / Assinatura</span>
+                </button>
+              )}
+
               {/* Suporte / Ajuda Button */}
               <button
                 type="button"
                 onClick={() => window.open('https://web.whatsapp.com', '_blank')}
-                className={`mt-2.5 w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                className={`mt-1.5 w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   isDark
                     ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:brightness-110'
                     : 'bg-[#0066ff] hover:bg-blue-700 text-white shadow-sm'

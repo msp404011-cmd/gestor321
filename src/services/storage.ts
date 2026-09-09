@@ -69,16 +69,19 @@ const STORAGE_KEYS = {
 };
 
 export const initialSubscriptionPlan: SubscriptionPlanInfo = {
-  planName: 'Plano PRO Empresarial',
-  planPrice: 99.90,
+  planType: 'LOJA',
+  planName: 'Plano Loja',
+  planPrice: 69.90,
+  billingCycle: 'monthly',
   billingPeriod: 'MENSAL',
   expiryDate: '2026-10-15',
-  status: 'ATIVO',
+  status: 'active',
   clientName: 'TechNova Informática & Celulares',
   autoRenew: true,
-  contractNumber: 'MSP-7842-PRO',
-  paymentMethod: 'PIX / Cartão Automático',
-  notes: 'Suporte prioritário 24/7, Ordens de Serviço ilimitadas, PDV e Múltiplos Usuários.',
+  contractNumber: 'MSP-7842-LOJA',
+  paymentMethod: 'PIX / Cartão Mensal',
+  notes: 'Ordens de Serviço ilimitadas, PDV, Gestão de Estoque e Múltiplos Usuários.',
+  startDate: '2026-01-15',
 };
 
 export interface CustomDeviceType {
@@ -1421,6 +1424,64 @@ export const StorageService = {
     return mov;
   },
 
+  zeroCashAndFinancialData(): void {
+    const zeroSession: CashSession = {
+      id: 'cash-sess-active',
+      openedAt: new Date().toISOString(),
+      openedBy: this.getCurrentUser()?.name || 'Juliana Costa',
+      openingBalance: 0,
+      initialBalance: 0,
+      currentBalance: 0,
+      status: 'ABERTO',
+      notes: 'Caixa aberto com saldo inicial zerado.',
+      movements: [],
+    };
+    setItem(STORAGE_KEYS.CASH_SESSION, zeroSession);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, []);
+    setItem(STORAGE_KEYS.SALES, []);
+
+    // Set any delivered order to not generate inflows
+    const orders = this.getOrders();
+    let modifiedOrders = false;
+    const updatedOrders = orders.map((o) => {
+      if (o.status === 'ENTREGUE') {
+        modifiedOrders = true;
+        return {
+          ...o,
+          status: 'PRONTA' as OrderStatus,
+          paymentStatus: 'PENDENTE' as any,
+          deliveredAt: '',
+        };
+      }
+      return o;
+    });
+    if (modifiedOrders) {
+      setItem(STORAGE_KEYS.ORDERS, updatedOrders);
+    }
+
+    // Set any paid expenses to pending so totalPaidExpenses = 0
+    const expenses = this.getExpenses();
+    let modifiedExpenses = false;
+    const updatedExpenses = expenses.map((e) => {
+      if (e.status === 'PAGO') {
+        modifiedExpenses = true;
+        return {
+          ...e,
+          status: 'PENDENTE' as const,
+          paidFromCash: false,
+          paymentDate: undefined,
+        };
+      }
+      return e;
+    });
+    if (modifiedExpenses) {
+      setItem(STORAGE_KEYS.EXPENSES, updatedExpenses);
+    }
+
+    this.logAction('Financeiro e Caixa zerados com sucesso.', 'Saldo atual, entradas do período e resultado líquido zerados.');
+    notifyListeners();
+  },
+
   // Purchases / Compras
   getPurchases(): Purchase[] {
     const raw = getItem<Purchase[]>(STORAGE_KEYS.PURCHASES, []);
@@ -2376,6 +2437,12 @@ function ensureInitialized(): void {
     } else {
       // Auto self-heal and align legacy mock/existing data on boot
       alignCustomersAcrossSectors();
+    }
+
+    const isFinanceZeroed = localStorage.getItem('msp_finance_zeroed_v3');
+    if (!isFinanceZeroed) {
+      StorageService.zeroCashAndFinancialData();
+      localStorage.setItem('msp_finance_zeroed_v3', 'true');
     }
   } catch (e) {
     console.error('Storage initialization check failed', e);

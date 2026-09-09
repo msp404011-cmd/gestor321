@@ -45,7 +45,9 @@ import {
   Key,
   Square,
   Database,
+  Crown,
 } from 'lucide-react';
+import { SubscriptionTab } from '../subscription/SubscriptionTab';
 import {
   StorageService,
   CustomCategory,
@@ -134,7 +136,7 @@ const samplePreviewOrder: ServiceOrder = {
 export const SettingsView: React.FC = () => {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<
-    'COMPANY' | 'OS_CONFIG' | 'CATEGORIES' | 'USERS' | 'AUDIT' | 'BACKUP' | 'PURCHASES_CONFIG' | 'SYSTEM_FORMAT'
+    'COMPANY' | 'SUBSCRIPTION' | 'OS_CONFIG' | 'CATEGORIES' | 'USERS' | 'AUDIT' | 'BACKUP' | 'PURCHASES_CONFIG' | 'SYSTEM_FORMAT'
   >('COMPANY');
 
   // System Formatter (Zerar Sistema) States
@@ -777,7 +779,8 @@ export const SettingsView: React.FC = () => {
       <div className={`flex items-center gap-2 border-b-2 pb-2 overflow-x-auto ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         {[
           { id: 'COMPANY', label: 'Logotipo & Dados da Loja', icon: Building2 },
-          { id: 'OS_CONFIG', label: 'Personalização da OS (Ordem de Serviço)', icon: Sliders, highlight: true },
+          { id: 'SUBSCRIPTION', label: 'Meu Plano / Assinatura', icon: Crown, highlight: true },
+          { id: 'OS_CONFIG', label: 'Personalização da OS (Ordem de Serviço)', icon: Sliders },
           { id: 'CATEGORIES', label: 'Categorias de Produtos', icon: Layers },
           { id: 'USERS', label: 'Usuários & Permissões', icon: Users },
           { id: 'AUDIT', label: 'Histórico de Auditoria', icon: Clock },
@@ -829,6 +832,9 @@ export const SettingsView: React.FC = () => {
           );
         })}
       </div>
+
+      {/* TAB: MY PLAN & SUBSCRIPTION */}
+      {activeTab === 'SUBSCRIPTION' && <SubscriptionTab />}
 
       {/* TAB 1: LOGO & COMPANY */}
       {activeTab === 'COMPANY' && (

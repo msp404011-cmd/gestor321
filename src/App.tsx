@@ -27,6 +27,9 @@ import { SettingsView } from './components/settings/SettingsView';
 import { EmployeesView } from './components/employees/EmployeesView';
 import { ReceivablesView } from './components/receivables/ReceivablesView';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
+import { SubscriptionModal } from './components/subscription/SubscriptionModal';
+import { PaywallModal } from './components/subscription/PaywallModal';
+import { SubscriptionService } from './services/subscriptionService';
 
 // Models & Services
 import { NavigationTab, Customer, Device, ServiceOrder, Product } from './types';
@@ -88,6 +91,20 @@ export default function App() {
     productToEdit?: Product | null;
   }>({ isOpen: false });
 
+  // Subscription and Paywall Modals State
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [paywallModalState, setPaywallModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    feature: 'ORDERS_LIMIT' | 'PRODUCTS_LIMIT' | 'ADVANCED_REPORTS' | 'EXPORT_PDF';
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    feature: 'ORDERS_LIMIT',
+  });
+
   // Subscribe to storage changes
   useEffect(() => {
     const unsubscribe = StorageService.subscribe(() => {
@@ -119,6 +136,44 @@ export default function App() {
     }
   }, [tick]);
 
+  // Subscription-gated order and product openers
+  const handleOpenNewOrder = (initialCustomerId?: string, initialDeviceId?: string) => {
+    const limits = SubscriptionService.checkSubscriptionLimits();
+    if (!limits.canCreateOrder) {
+      setPaywallModalState({
+        isOpen: true,
+        title: 'Limite de Ordens de Serviço Atingido',
+        description:
+          limits.orderLimitReason ||
+          'Você atingiu o limite de 10 Ordens de Serviço neste mês no Plano Gratuito. Faça upgrade para o Plano Pro para cadastrar OS ilimitadas!',
+        feature: 'ORDERS_LIMIT',
+      });
+      return;
+    }
+    setOrderModalState({
+      isOpen: true,
+      orderToEdit: null,
+      initialCustomerId,
+      initialDeviceId,
+    });
+  };
+
+  const handleOpenNewProduct = () => {
+    const limits = SubscriptionService.checkSubscriptionLimits();
+    if (!limits.canCreateProduct) {
+      setPaywallModalState({
+        isOpen: true,
+        title: 'Limite de Estoque Atingido',
+        description:
+          limits.productLimitReason ||
+          'Você atingiu o limite de 20 produtos cadastrados no Plano Gratuito. Faça upgrade para o Plano Pro para ter estoque ilimitado!',
+        feature: 'PRODUCTS_LIMIT',
+      });
+      return;
+    }
+    setProductModalState({ isOpen: true, productToEdit: null });
+  };
+
   // Customer Actions
   const handleSaveCustomer = (customer: Customer) => {
     StorageService.saveCustomer(customer);
@@ -137,14 +192,46 @@ export default function App() {
     setDeviceModalState({ isOpen: false });
   };
 
-  // Order Actions
+  // Order Actions (With Gating Protection)
   const handleSaveOrder = (order: ServiceOrder) => {
+    const existingOrders = StorageService.getOrders();
+    const isNew = !existingOrders.some((o) => o.id === order.id);
+    if (isNew) {
+      const limits = SubscriptionService.checkSubscriptionLimits();
+      if (!limits.canCreateOrder) {
+        setPaywallModalState({
+          isOpen: true,
+          title: 'Limite de Ordens de Serviço Atingido',
+          description:
+            limits.orderLimitReason ||
+            'Você atingiu o limite de 10 Ordens de Serviço deste mês no Plano Gratuito.',
+          feature: 'ORDERS_LIMIT',
+        });
+        return;
+      }
+    }
     StorageService.saveOrder(order);
     setOrderModalState({ isOpen: false });
   };
 
-  // Product Actions
+  // Product Actions (With Gating Protection)
   const handleSaveProduct = (product: Product) => {
+    const existingProducts = StorageService.getProducts();
+    const isNew = !existingProducts.some((p) => p.id === product.id);
+    if (isNew) {
+      const limits = SubscriptionService.checkSubscriptionLimits();
+      if (!limits.canCreateProduct) {
+        setPaywallModalState({
+          isOpen: true,
+          title: 'Limite de Estoque Atingido',
+          description:
+            limits.productLimitReason ||
+            'Você atingiu o limite de 20 produtos cadastrados no Plano Gratuito.',
+          feature: 'PRODUCTS_LIMIT',
+        });
+        return;
+      }
+    }
     StorageService.saveProduct(product);
     setProductModalState({ isOpen: false });
   };
@@ -170,6 +257,7 @@ export default function App() {
           }}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
+          onOpenPlans={() => setIsSubscriptionModalOpen(true)}
         />
       )}
 
@@ -184,10 +272,11 @@ export default function App() {
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenNotifications={() => setIsNotificationOpen(true)}
-            onOpenNewOrder={() => setOrderModalState({ isOpen: true, orderToEdit: null })}
+            onOpenNewOrder={() => handleOpenNewOrder()}
             onOpenNewCustomer={() => setCustomerModalState({ isOpen: true, customerToEdit: null })}
             onOpenPDV={() => setActiveTab('POS')}
             onSwitchUser={() => setIsLoginOpen(true)}
+            onOpenPlans={() => setIsSubscriptionModalOpen(true)}
           />
         )}
 
@@ -199,11 +288,12 @@ export default function App() {
         }>
           {activeTab === 'DASHBOARD' && (
             <DashboardView
-              onOpenNewOrder={() => setOrderModalState({ isOpen: true, orderToEdit: null })}
+              onOpenNewOrder={() => handleOpenNewOrder()}
               onOpenPDV={() => setActiveTab('POS')}
               onViewOrder={(order) => setOrderDetailState({ isOpen: true, order })}
               onNavigate={(tab) => setActiveTab(tab as NavigationTab)}
-              onOpenNewProduct={() => setProductModalState({ isOpen: true, productToEdit: null })}
+              onOpenNewProduct={() => handleOpenNewProduct()}
+              onOpenPlans={() => setIsSubscriptionModalOpen(true)}
             />
           )}
 
@@ -219,11 +309,7 @@ export default function App() {
                 setCustomerDetailState({ isOpen: true, customer })
               }
               onOpenNewOrderForCustomer={(customer) =>
-                setOrderModalState({
-                  isOpen: true,
-                  orderToEdit: null,
-                  initialCustomerId: customer.id,
-                })
+                handleOpenNewOrder(customer.id)
               }
             />
           )}
@@ -237,21 +323,14 @@ export default function App() {
                 setDeviceModalState({ isOpen: true, deviceToEdit: device })
               }
               onOpenNewOrderForDevice={(device) =>
-                setOrderModalState({
-                  isOpen: true,
-                  orderToEdit: null,
-                  initialCustomerId: device.customerId,
-                  initialDeviceId: device.id,
-                })
+                handleOpenNewOrder(device.customerId, device.id)
               }
             />
           )}
 
           {activeTab === 'ORDERS' && (
             <OrderListView
-              onOpenNewOrder={() =>
-                setOrderModalState({ isOpen: true, orderToEdit: null })
-              }
+              onOpenNewOrder={() => handleOpenNewOrder()}
               onEditOrder={(order) =>
                 setOrderModalState({ isOpen: true, orderToEdit: order })
               }
@@ -287,9 +366,7 @@ export default function App() {
 
           {activeTab === 'PRODUCTS' && (
             <ProductListView
-              onOpenNewProduct={() =>
-                setProductModalState({ isOpen: true, productToEdit: null })
-              }
+              onOpenNewProduct={() => handleOpenNewProduct()}
               onEditProduct={(product) =>
                 setProductModalState({ isOpen: true, productToEdit: product })
               }
@@ -298,9 +375,7 @@ export default function App() {
 
           {activeTab === 'PURCHASES' && (
             <PurchasesView
-              onOpenNewProduct={() =>
-                setProductModalState({ isOpen: true, productToEdit: null })
-              }
+              onOpenNewProduct={() => handleOpenNewProduct()}
             />
           )}
 
@@ -310,7 +385,7 @@ export default function App() {
 
           {activeTab === 'FINANCE' && <FinanceView initialTab="EXPENSES" key="finance-view" />}
 
-          {activeTab === 'REPORTS' && <ReportsView />}
+          {activeTab === 'REPORTS' && <ReportsView onOpenPlans={() => setIsSubscriptionModalOpen(true)} />}
 
           {activeTab === 'EMPLOYEES' && <EmployeesView />}
 
@@ -337,11 +412,7 @@ export default function App() {
           setCustomerModalState({ isOpen: true, customerToEdit: customer })
         }
         onOpenNewOrder={(customer) =>
-          setOrderModalState({
-            isOpen: true,
-            orderToEdit: null,
-            initialCustomerId: customer.id,
-          })
+          handleOpenNewOrder(customer.id)
         }
       />
 
@@ -443,6 +514,25 @@ export default function App() {
           setCurrentUser(user);
           setIsLoginOpen(false);
           setTick((prev) => prev + 1);
+        }}
+      />
+
+      {/* Subscription Plans Modal */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+      />
+
+      {/* Paywall Blocking Modal */}
+      <PaywallModal
+        isOpen={paywallModalState.isOpen}
+        onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
+        title={paywallModalState.title}
+        description={paywallModalState.description}
+        feature={paywallModalState.feature}
+        onOpenPlans={() => {
+          setPaywallModalState((prev) => ({ ...prev, isOpen: false }));
+          setIsSubscriptionModalOpen(true);
         }}
       />
 

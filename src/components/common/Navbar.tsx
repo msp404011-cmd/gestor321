@@ -8,6 +8,7 @@ import {
   Moon,
   LogOut,
   UserCheck,
+  Crown,
 } from 'lucide-react';
 import { Employee, CashSession } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -26,6 +27,7 @@ interface NavbarProps {
   onOpenNewCustomer?: () => void;
   onOpenPDV?: () => void;
   onSwitchUser?: () => void;
+  onOpenPlans?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,8 +38,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadNotificationsCount,
   currentUser: propCurrentUser,
   onSwitchUser,
+  onOpenPlans,
 }) => {
   const currentUser = propCurrentUser || StorageService.getCurrentUser();
+  const currentPlan = StorageService.getSubscriptionPlan();
   const { isDark, toggleTheme } = useTheme();
 
   const orders = StorageService.getOrders();
@@ -149,6 +153,32 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
         </button>
+
+        {/* Plan & Subscription Badge Button */}
+        {onOpenPlans && (
+          <button
+            type="button"
+            id="btn-navbar-plan"
+            onClick={onOpenPlans}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+              currentPlan.planType === 'TRIAL' || currentPlan.planType === 'FREE'
+                ? isDark
+                  ? 'bg-blue-950/50 hover:bg-blue-900/60 text-blue-300 border-blue-700/60'
+                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                : currentPlan.planType === 'REVENDA' || currentPlan.planType === 'ENTERPRISE'
+                ? isDark
+                  ? 'bg-purple-950/60 hover:bg-purple-900/70 text-purple-300 border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200'
+                : isDark
+                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
+            }`}
+            title="Meu Plano / Assinatura (Gerenciar)"
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate max-w-[120px]">{currentPlan.planName || 'Meu Plano'}</span>
+          </button>
+        )}
 
         <div className={`h-6 w-[1px] hidden sm:block ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
 

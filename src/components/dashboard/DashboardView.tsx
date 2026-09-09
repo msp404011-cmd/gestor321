@@ -56,6 +56,7 @@ interface DashboardViewProps {
   onOpenPDV?: () => void;
   onViewOrder?: (order: ServiceOrder) => void;
   onOpenNewProduct?: () => void;
+  onOpenPlans?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -65,6 +66,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenPDV,
   onViewOrder,
   onOpenNewProduct,
+  onOpenPlans,
 }) => {
   const { isDark } = useTheme();
   // Real-time synchronization state
@@ -1012,29 +1014,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </div>
 
                         {/* Botões do Rodapé */}
-                        <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingPlan(true)}
-                            className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                              isDark
-                                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
-                                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                            }`}
-                          >
-                            <Edit3 className="w-4 h-4 text-blue-400" />
-                            <span>Editar Informações do Plano</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsPlanMenuOpen(false);
-                              setIsEditingPlan(false);
-                            }}
-                            className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all cursor-pointer"
-                          >
-                            Fechar
-                          </button>
+                        <div className="pt-2 space-y-2 border-t border-slate-200 dark:border-slate-800">
+                          {onOpenPlans && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsPlanMenuOpen(false);
+                                onOpenPlans();
+                              }}
+                              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md hover:brightness-105 cursor-pointer"
+                            >
+                              <Crown className="w-4 h-4" />
+                              <span>Ver Todos os Planos & Fazer Upgrade</span>
+                            </button>
+                          )}
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingPlan(true)}
+                              className={`flex-1 py-2 px-3 rounded-xl border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                isDark
+                                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                              }`}
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+                              <span>Editar Plano</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsPlanMenuOpen(false);
+                                setIsEditingPlan(false);
+                              }}
+                              className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-all cursor-pointer"
+                            >
+                              Fechar
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
