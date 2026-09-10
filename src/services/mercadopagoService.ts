@@ -127,93 +127,89 @@ export const MercadoPagoService = {
     const firstName = params.payer?.firstName || 'Assinante';
     const lastName = params.payer?.lastName || params.planName;
 
-    // If real production / test credentials are configured, execute real API call to Mercado Pago
-    if (isConfigured) {
-      try {
-        const payload = {
-          transaction_amount: Number(params.amount.toFixed(2)),
-          amount: Number(params.amount.toFixed(2)),
-          description: `Assinatura ${params.planName} - Sistema de Gestao`,
+    // Always execute real API call to backend /api/pix (Vercel Serverless Function)
+    try {
+      const payload = {
+        transaction_amount: Number(params.amount.toFixed(2)),
+        amount: Number(params.amount.toFixed(2)),
+        description: `Assinatura ${params.planName} - Sistema de Gestao`,
+        email,
+        firstName,
+        payer: {
           email,
+          first_name: firstName,
+          last_name: lastName,
           firstName,
-          payer: {
-            email,
-            first_name: firstName,
-            last_name: lastName,
-            firstName,
-            lastName,
-            cpf: cleanCpf,
+          lastName,
+          cpf: cleanCpf,
+        },
+      };
+
+      // Call backend route /api/pix (Vercel Serverless Function)
+      let response: Response;
+      try {
+        response = await fetch('/api/pix', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
-        };
-
-        // Call backend route /api/pix (Vercel API / Express API)
-        let response: Response;
-        try {
-          response = await fetch('/api/pix', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            },
-            body: JSON.stringify(payload),
-          });
-        } catch {
-          // Fallback to /api/mercadopago/pix
-          response = await fetch('/api/mercadopago/pix', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            },
-            body: JSON.stringify(payload),
-          });
-        }
-
-        if (response.ok) {
-          const data = await response.json();
-          let qrCode = data.qr_code || data.point_of_interaction?.transaction_data?.qr_code || '';
-          let qrCodeBase64 =
-            data.qr_code_base64 || data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
-          const ticketUrl = data.ticket_url || data.point_of_interaction?.transaction_data?.ticket_url;
-
-          if (!qrCode) {
-            qrCode = this.generateSimulatedCopiaECola(params.amount, String(data.id));
-          }
-
-          let formattedQrImage = '';
-          if (qrCodeBase64) {
-            formattedQrImage = qrCodeBase64.startsWith('data:')
-              ? qrCodeBase64
-              : `data:image/png;base64,${qrCodeBase64}`;
-          } else {
-            formattedQrImage = await this.generateQrCodeDataUrl(qrCode);
-          }
-
-          return {
-            success: true,
-            paymentId: String(data.id),
-            status: data.status || 'pending',
-            statusDetail: data.statusDetail,
-            qrCode,
-            qrCodeBase64: formattedQrImage,
-            ticketUrl,
-            amount: params.amount,
-            createdAt: new Date().toISOString(),
-            isSimulation: false,
-          };
-        } else {
-          const errData = await response.json().catch(() => ({}));
-          console.warn('Mercado Pago API error response:', errData);
-          return await this.createSimulatedPixPayment(params, errData.error || errData.message || 'Erro na resposta do Mercado Pago');
-        }
-      } catch (err: any) {
-        console.warn('Mercado Pago fetch failed, falling back to simulated checkout:', err);
-        return await this.createSimulatedPixPayment(params, err?.message || 'Falha na conexão com Mercado Pago');
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // Fallback to /api/mercadopago/pix
+        response = await fetch('/api/mercadopago/pix', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
       }
-    }
 
-    // Default: Return realistic simulated PIX payment with prompt to add credentials
-    return await this.createSimulatedPixPayment(params);
+      if (response.ok) {
+        const data = await response.json();
+        let qrCode = data.qr_code || data.point_of_interaction?.transaction_data?.qr_code || '';
+        let qrCodeBase64 =
+          data.qr_code_base64 || data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
+        const ticketUrl = data.ticket_url || data.point_of_interaction?.transaction_data?.ticket_url;
+
+        if (!qrCode) {
+          qrCode = this.generateSimulatedCopiaECola(params.amount, String(data.payment_id || data.id));
+        }
+
+        let formattedQrImage = '';
+        if (qrCodeBase64) {
+          formattedQrImage = qrCodeBase64.startsWith('data:')
+            ? qrCodeBase64
+            : `data:image/png;base64,${qrCodeBase64}`;
+        } else {
+          formattedQrImage = await this.generateQrCodeDataUrl(qrCode);
+        }
+
+        return {
+          success: true,
+          paymentId: String(data.payment_id || data.id),
+          status: data.status || 'pending',
+          statusDetail: data.statusDetail,
+          qrCode,
+          qrCodeBase64: formattedQrImage,
+          ticketUrl,
+          amount: params.amount,
+          createdAt: new Date().toISOString(),
+          isSimulation: false,
+        };
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        console.warn('Mercado Pago API error response:', errData);
+        // Fallback to simulation only if server returns error or missing token
+        return await this.createSimulatedPixPayment(params, errData.error || errData.message || 'Erro na resposta do Mercado Pago');
+      }
+    } catch (err: any) {
+      console.warn('Mercado Pago fetch failed, falling back to simulated checkout:', err);
+      return await this.createSimulatedPixPayment(params, err?.message || 'Falha na conexão com Mercado Pago');
+    }
   },
 
   /**
