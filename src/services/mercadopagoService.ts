@@ -130,43 +130,38 @@ export const MercadoPagoService = {
     // If real production / test credentials are configured, execute real API call to Mercado Pago
     if (isConfigured) {
       try {
-        const idempotencyKey = `sub-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
         const payload = {
+          amount: Number(params.amount.toFixed(2)),
           transaction_amount: Number(params.amount.toFixed(2)),
           description: `Assinatura ${params.planName} - Sistema de Gestao`,
-          payment_method_id: 'pix',
           payer: {
             email,
             first_name: firstName,
             last_name: lastName,
-            identification: {
-              type: 'CPF',
-              number: cleanCpf,
-            },
+            firstName,
+            lastName,
+            cpf: cleanCpf,
           },
         };
 
-        // Try Vite proxy first (to avoid browser CORS), fallback to direct MP API
+        // Call backend route /api/pix (Vercel API / Express API)
         let response: Response;
         try {
-          response = await fetch('/api/mercadopago/v1/payments', {
+          response = await fetch('/api/pix', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-              'X-Idempotency-Key': idempotencyKey,
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             },
             body: JSON.stringify(payload),
           });
         } catch {
-          // Direct fallback if proxy is unavailable
-          response = await fetch('https://api.mercadopago.com/v1/payments', {
+          // Fallback to /api/mercadopago/pix
+          response = await fetch('/api/mercadopago/pix', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-              'X-Idempotency-Key': idempotencyKey,
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             },
             body: JSON.stringify(payload),
           });
@@ -174,9 +169,10 @@ export const MercadoPagoService = {
 
         if (response.ok) {
           const data = await response.json();
-          let qrCode = data.point_of_interaction?.transaction_data?.qr_code || '';
-          let qrCodeBase64 = data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
-          const ticketUrl = data.point_of_interaction?.transaction_data?.ticket_url;
+          let qrCode = data.qr_code || data.point_of_interaction?.transaction_data?.qr_code || '';
+          let qrCodeBase64 =
+            data.qr_code_base64 || data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
+          const ticketUrl = data.ticket_url || data.point_of_interaction?.transaction_data?.ticket_url;
 
           if (!qrCode) {
             qrCode = this.generateSimulatedCopiaECola(params.amount, String(data.id));
@@ -195,7 +191,7 @@ export const MercadoPagoService = {
             success: true,
             paymentId: String(data.id),
             status: data.status || 'pending',
-            statusDetail: data.status_detail,
+            statusDetail: data.statusDetail,
             qrCode,
             qrCodeBase64: formattedQrImage,
             ticketUrl,
@@ -206,8 +202,7 @@ export const MercadoPagoService = {
         } else {
           const errData = await response.json().catch(() => ({}));
           console.warn('Mercado Pago API error response:', errData);
-          // Fall back to simulation with explanatory message
-          return await this.createSimulatedPixPayment(params, errData.message || 'Erro na resposta do Mercado Pago');
+          return await this.createSimulatedPixPayment(params, errData.error || errData.message || 'Erro na resposta do Mercado Pago');
         }
       } catch (err: any) {
         console.warn('Mercado Pago fetch failed, falling back to simulated checkout:', err);
