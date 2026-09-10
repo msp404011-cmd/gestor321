@@ -689,4 +689,17 @@ export interface GoogleUserProfile {
   sub?: string;
 }
 
+export interface UserAccount {
+  id: string;
+  shopName: string;
+  ownerName: string;
+  email: string;
+  phone?: string;
+  passwordHash: string;
+  securityQuestion?: string;
+  securityAnswer?: string;
+  createdAt: string;
+  lastLoginAt: string;
+}
+
 

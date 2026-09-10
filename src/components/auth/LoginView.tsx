@@ -1,34 +1,32 @@
 import React, { useState } from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
 import {
   Wrench,
   ShieldCheck,
   Sparkles,
-  Zap,
-  CheckCircle2,
-  Lock,
-  ArrowRight,
   Store,
-  Layers,
   Receipt,
-  Smartphone,
   CreditCard,
-  UserCheck,
   AlertCircle,
-  HelpCircle,
   Mail,
   Sun,
   Moon,
-  Users,
+  Lock,
+  Eye,
+  EyeOff,
+  UserPlus,
+  LogIn,
+  CheckCircle2,
+  HelpCircle,
   KeyRound,
-  Trash2,
-  PlusCircle,
+  ArrowRight,
+  RefreshCw,
+  Phone,
+  Building2,
+  User,
 } from 'lucide-react';
-import { Employee, SubscriptionPlanInfo, GoogleUserProfile } from '../../types';
+import { Employee, SubscriptionPlanInfo } from '../../types';
 import { StorageService } from '../../services/storage';
 import { useTheme } from '../../context/ThemeContext';
-import { AccountRecoveryModal } from './AccountRecoveryModal';
-import { GoogleDriveBackupService } from '../../services/googleDriveBackupService';
 
 interface LoginViewProps {
   onLoginSuccess: (result: {
@@ -39,143 +37,174 @@ interface LoginViewProps {
   }) => void;
 }
 
+type AuthMode = 'login' | 'register' | 'forgot_password';
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { isDark, toggleTheme } = useTheme();
+  const [mode, setMode] = useState<AuthMode>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showManualGoogleModal, setShowManualGoogleModal] = useState(false);
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
-  const [customEmail, setCustomEmail] = useState('');
-  const [customName, setCustomName] = useState('');
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // List of saved/remembered accounts on this device
-  const [savedAccounts, setSavedAccounts] = useState<GoogleUserProfile[]>(() =>
-    StorageService.getSavedAccounts()
-  );
+  // Form Fields - Login
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Process login with user profile data & Drive sync
-  const processGoogleLogin = async (profile: GoogleUserProfile, token?: string) => {
+  // Form Fields - Register
+  const [regShopName, setRegShopName] = useState('');
+  const [regOwnerName, setRegOwnerName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
+  // Form Fields - Forgot Password / Direct Reset
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  // 1. Submit Login (Email + Password)
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    if (!loginEmail.trim() || !loginEmail.includes('@')) {
+      setError('Por favor, informe um e-mail válido.');
+      return;
+    }
+
+    if (!loginPassword) {
+      setError('Por favor, digite sua senha.');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      setError(null);
-      if (token) {
-        GoogleDriveBackupService.setAccessToken(token);
-      }
-      const result = StorageService.loginWithGoogle(profile);
-      setSavedAccounts(StorageService.getSavedAccounts());
+      const result = StorageService.loginWithEmailPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
 
-      // If token is present, attempt automatic isolated restore or backup on login
-      if (token) {
-        try {
-          if (!result.isFirstAccess) {
-            // Backup fresh state to user's Google Drive
-            GoogleDriveBackupService.uploadBackupToGoogleDrive(profile.email, token).catch(console.warn);
-          } else {
-            // First access on this device: check if existing backup in Google Drive
-            GoogleDriveBackupService.restoreBackupFromGoogleDrive(profile.email, token).catch(console.warn);
-          }
-        } catch (e) {
-          console.warn('Drive sync background warning:', e);
-        }
-      }
-
-      onLoginSuccess(result);
-    } catch (err) {
-      console.error('Erro ao processar login:', err);
-      setError('Ocorreu um erro ao processar seu login. Tente novamente.');
-    } finally {
+      setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
+      setTimeout(() => {
+        onLoginSuccess(result);
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao realizar login. Verifique seus dados.');
       setIsLoading(false);
     }
   };
 
-  // Google OAuth hook - configured with prompt: 'select_account' to allow choosing existing accounts and Drive scopes
-  const handleGoogleOAuth = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const accessToken = tokenResponse.access_token;
-        GoogleDriveBackupService.setAccessToken(accessToken);
+  // 2. Submit Register (Create Shop Account + 7 Days Free Trial)
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
 
-        // Fetch user profile from Google API
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+    if (!regShopName.trim()) {
+      setError('Informe o nome da sua assistência técnica ou loja.');
+      return;
+    }
+
+    if (!regOwnerName.trim()) {
+      setError('Informe o seu nome completo ou do responsável.');
+      return;
+    }
+
+    if (!regEmail.trim() || !regEmail.includes('@')) {
+      setError('Informe um e-mail válido para a sua conta.');
+      return;
+    }
+
+    if (regPassword.length < 4) {
+      setError('A senha deve ter pelo menos 4 caracteres.');
+      return;
+    }
+
+    if (regPassword !== regConfirmPassword) {
+      setError('As senhas digitadas não coincidem. Digite novamente.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = StorageService.registerUserAccount({
+        shopName: regShopName,
+        ownerName: regOwnerName,
+        email: regEmail,
+        password: regPassword,
+        phone: regPhone,
+      });
+
+      setSuccessMsg('🎉 Conta criada com sucesso! 7 dias grátis ativados.');
+      setTimeout(() => {
+        onLoginSuccess({
+          user: result.user,
+          plan: result.plan,
+          isFirstAccess: true,
         });
+      }, 800);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao criar conta. Tente outro e-mail.');
+      setIsLoading(false);
+    }
+  };
 
-        if (!res.ok) {
-          throw new Error('Falha ao obter dados da conta Google');
-        }
+  // 3. Submit Reset Password
+  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
 
-        const data = await res.json();
-        const profile: GoogleUserProfile = {
-          email: data.email || 'usuario@gmail.com',
-          name: data.name || data.given_name || 'Usuário Google',
-          picture: data.picture,
-          sub: data.sub,
-        };
+    if (!resetEmail.trim() || !resetEmail.includes('@')) {
+      setError('Informe o e-mail cadastrado da sua conta.');
+      return;
+    }
 
-        await processGoogleLogin(profile, accessToken);
-      } catch (err: any) {
-        console.warn('Falha na requisição ao endpoint do Google:', err);
-        // Fallback to manual selection modal
-        setShowManualGoogleModal(true);
-      } finally {
+    if (resetNewPassword.length < 4) {
+      setError('A nova senha deve ter pelo menos 4 caracteres.');
+      return;
+    }
+
+    if (resetNewPassword !== resetConfirmPassword) {
+      setError('As novas senhas não coincidem.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      StorageService.resetPasswordDirect({
+        email: resetEmail,
+        newPassword: resetNewPassword,
+      });
+
+      setSuccessMsg('Senha alterada com sucesso! Você já pode entrar com sua nova senha.');
+      setTimeout(() => {
+        setLoginEmail(resetEmail);
+        setLoginPassword(resetNewPassword);
+        setMode('login');
         setIsLoading(false);
-      }
-    },
-    onError: (err) => {
-      console.warn('Google Login Error:', err);
-      // If blocked by iframe or browser restrictions, offer account modal
-      setShowManualGoogleModal(true);
-    },
-    // CRITICAL: Forces Google to show the account picker so the client can pick between multiple Google accounts
-    prompt: 'select_account',
-    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata',
-  });
+      }, 1200);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao redefinir senha.');
+      setIsLoading(false);
+    }
+  };
 
+  // 4. Demo Login Access
   const handleDemoLogin = () => {
     setIsLoading(true);
     try {
       const result = StorageService.loginAsDemo();
-      onLoginSuccess({
-        user: result.user,
-        plan: result.plan,
-        isFirstAccess: false,
-        isExpiredOrCanceled: false,
-      });
+      onLoginSuccess(result);
     } catch (err) {
-      setError('Erro ao iniciar modo demonstrativo.');
-    } finally {
+      console.error(err);
       setIsLoading(false);
     }
-  };
-
-  const handleManualGoogleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customEmail.trim() || !customEmail.includes('@')) {
-      setError('Informe um e-mail Google válido (ex: seuemail@gmail.com)');
-      return;
-    }
-
-    const cleanEmail = customEmail.trim().toLowerCase();
-    const cleanName = customName.trim() || cleanEmail.split('@')[0];
-
-    const profile: GoogleUserProfile = {
-      email: cleanEmail,
-      name: cleanName,
-      picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0284c7&color=ffffff&size=128`,
-    };
-
-    setShowManualGoogleModal(false);
-    processGoogleLogin(profile);
-  };
-
-  const handleRemoveAccount = (e: React.MouseEvent, email: string) => {
-    e.stopPropagation();
-    StorageService.removeSavedAccount(email);
-    setSavedAccounts(StorageService.getSavedAccounts());
   };
 
   return (
@@ -209,20 +238,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            id="btn-nav-recover-account"
-            onClick={() => setShowRecoveryModal(true)}
-            className={`hidden md:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-              isDark
-                ? 'bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border-purple-500/30'
-                : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5 text-purple-400" />
-            <span>Recuperar Conta</span>
-          </button>
-
-          <button
-            type="button"
             onClick={toggleTheme}
             className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
               isDark
@@ -245,12 +260,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Acesso Rápido Demo</span>
+            <span>Acesso Demonstrativo</span>
           </button>
         </div>
       </header>
 
-      {/* Hero Presentation & Login Card */}
+      {/* Hero Presentation & Login/Register Form */}
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-1 flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-14 relative z-10">
         {/* Left Column: Software Showcase & Highlights */}
         <div className="flex-1 space-y-6 text-left max-w-2xl">
@@ -268,7 +283,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </h1>
 
           <p className={`text-sm sm:text-base leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-            O <strong>MSP Informática</strong> foi desenvolvido sob medida para assistências técnicas de celulares, computadores, eletrônicos e revendas. Escolha sua conta Google ou recupere seu acesso para começar com <strong>7 dias grátis</strong>.
+            O <strong>MSP Informática</strong> é o sistema completo para gestão de assistências de celulares, informática e revendas. Crie sua conta em menos de 1 minuto e ganhe <strong>7 dias de teste grátis</strong> sem compromisso.
           </p>
 
           {/* Feature Badges Grid */}
@@ -323,7 +338,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </div>
         </div>
 
-        {/* Right Column: Google Sign-In & Accounts Card */}
+        {/* Right Column: Direct Auth Card */}
         <div className="w-full max-w-md shrink-0">
           <div
             className={`p-6 sm:p-8 rounded-3xl border-2 shadow-2xl relative overflow-hidden transition-all ${
@@ -336,174 +351,422 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <div className="absolute -top-12 -right-12 w-36 h-36 bg-cyan-500/20 rounded-full blur-2xl pointer-events-none" />
 
             <div className="space-y-5 relative z-10">
-              {/* Header Box */}
-              <div className="text-center space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-black uppercase tracking-wider">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>7 Dias Grátis no 1º Acesso</span>
+              {/* Tabs Switcher: Entrar / Criar Conta */}
+              {mode !== 'forgot_password' && (
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#030712] rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    id="tab-btn-login"
+                    onClick={() => {
+                      setMode('login');
+                      setError(null);
+                      setSuccessMsg(null);
+                    }}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      mode === 'login'
+                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Entrar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="tab-btn-register"
+                    onClick={() => {
+                      setMode('register');
+                      setError(null);
+                      setSuccessMsg(null);
+                    }}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      mode === 'register'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Criar Conta</span>
+                  </button>
                 </div>
+              )}
+
+              {/* Title & Badge */}
+              <div className="text-center space-y-1.5">
+                {mode === 'register' && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-black uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>7 Dias Grátis no Cadastro</span>
+                  </div>
+                )}
 
                 <h3 className="text-2xl font-black tracking-tight text-white dark:text-white">
-                  Acessar Sistema
+                  {mode === 'login' && 'Acessar Minha Conta'}
+                  {mode === 'register' && 'Cadastrar Assistência'}
+                  {mode === 'forgot_password' && 'Redefinir Minha Senha'}
                 </h3>
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Escolha sua conta Google ou selecione uma conta existente para entrar.
+                  {mode === 'login' && 'Digite seu e-mail e senha para entrar no sistema.'}
+                  {mode === 'register' && 'Preencha os dados da sua loja para iniciar seu teste grátis.'}
+                  {mode === 'forgot_password' && 'Digite seu e-mail e defina uma nova senha de acesso.'}
                 </p>
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 bg-rose-950/80 border border-rose-500/60 rounded-2xl text-rose-300 text-xs font-bold flex items-center gap-2 animate-bounce">
+                <div className="p-3 bg-rose-950/80 border border-rose-500/60 rounded-2xl text-rose-300 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
-              {/* Saved Accounts Quick Picker (If exists) */}
-              {savedAccounts.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Contas Existentes Neste Dispositivo:</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowManualGoogleModal(true)}
-                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer"
-                    >
-                      + Outra Conta
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {savedAccounts.map((acc) => (
-                      <div
-                        key={acc.email}
-                        onClick={() => processGoogleLogin(acc)}
-                        className={`p-2.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer group ${
-                          isDark
-                            ? 'bg-[#08152e] hover:bg-[#0c1f44] border-cyan-500/30 hover:border-cyan-400'
-                            : 'bg-slate-50 hover:bg-cyan-50 border-slate-200 hover:border-cyan-300 shadow-xs'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <img
-                            src={acc.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name)}`}
-                            alt={acc.name}
-                            className="w-8 h-8 rounded-xl object-cover shrink-0 border border-cyan-500/40"
-                          />
-                          <div className="min-w-0 text-left">
-                            <h4 className="text-xs font-bold truncate group-hover:text-cyan-400 transition-colors">
-                              {acc.name}
-                            </h4>
-                            <p className="text-[10px] text-slate-400 truncate">{acc.email}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                            Entrar
-                          </span>
-                          {savedAccounts.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleRemoveAccount(e, acc.email)}
-                              className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer rounded"
-                              title="Remover da lista rápida"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {/* Success Message */}
+              {successMsg && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-500/60 rounded-2xl text-emerald-300 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{successMsg}</span>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="space-y-3 pt-1">
-                {/* 1. Main Google Sign-In Button (Opens Google Account Picker) */}
-                <button
-                  type="button"
-                  id="btn-login-google-main"
-                  onClick={() => handleGoogleOAuth()}
-                  disabled={isLoading}
-                  className="w-full py-3.5 px-5 bg-white hover:bg-slate-100 text-slate-900 font-black text-xs sm:text-sm uppercase tracking-wider rounded-2xl border-2 border-slate-200 shadow-lg shadow-white/10 flex items-center justify-center gap-3 transition-all cursor-pointer transform active:scale-98 disabled:opacity-50"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
+              {/* --- 1. FORM DE LOGIN --- */}
+              {mode === 'login' && (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>E-mail:</span>
+                    </label>
+                    <input
+                      type="email"
+                      id="input-login-email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="ex: contato@minhaloja.com"
+                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-cyan-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
                     />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                  <span>{isLoading ? 'Conectando...' : 'Escolher Conta Google'}</span>
-                </button>
+                  </div>
 
-                {/* 2. Direct Account Recovery Button */}
-                <button
-                  type="button"
-                  id="btn-trigger-account-recovery"
-                  onClick={() => setShowRecoveryModal(true)}
-                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer border ${
-                    isDark
-                      ? 'bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 border-purple-500/40'
-                      : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Recuperar Conta (Código / Gmail / Celular)</span>
-                </button>
+                  <div className="space-y-1 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Senha:</span>
+                      </label>
+                      <button
+                        type="button"
+                        id="btn-forgot-password-link"
+                        onClick={() => {
+                          setMode('forgot_password');
+                          setError(null);
+                          setSuccessMsg(null);
+                          setResetEmail(loginEmail);
+                        }}
+                        className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
 
-                <div className="relative py-1 flex items-center justify-center">
-                  <div className={`w-full border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
-                  <span className={`px-3 text-[10px] font-bold uppercase tracking-wider absolute ${
-                    isDark ? 'bg-[#060d1f] text-slate-500' : 'bg-white text-slate-400'
-                  }`}>
-                    Ou teste agora
-                  </span>
-                </div>
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        id="input-login-password"
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 pr-10 bg-[#030712] border border-slate-700 focus:border-cyan-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-                {/* 3. Secondary Demo / Test Button */}
-                <button
-                  type="button"
-                  id="btn-login-demo-main"
-                  onClick={handleDemoLogin}
-                  disabled={isLoading}
-                  className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border ${
-                    isDark
-                      ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-600'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Entrar como Demonstrativo / Teste</span>
-                  <ArrowRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
+                  <button
+                    type="submit"
+                    id="btn-submit-login"
+                    disabled={isLoading}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Entrando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="w-4 h-4" />
+                        <span>Entrar no Sistema</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {/* --- 2. FORM DE CADASTRO / CRIAR CONTA --- */}
+              {mode === 'register' && (
+                <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Nome da Loja / Assistência:</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="input-reg-shop"
+                      required
+                      value={regShopName}
+                      onChange={(e) => setRegShopName(e.target.value)}
+                      placeholder="Ex: TechCell Celulares & Informática"
+                      className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Seu Nome (Responsável):</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="input-reg-owner"
+                      required
+                      value={regOwnerName}
+                      onChange={(e) => setRegOwnerName(e.target.value)}
+                      placeholder="Ex: Carlos Silva"
+                      className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1 text-left">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>E-mail:</span>
+                      </label>
+                      <input
+                        type="email"
+                        id="input-reg-email"
+                        required
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="contato@loja.com"
+                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1 text-left">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>WhatsApp / Telefone:</span>
+                      </label>
+                      <input
+                        type="tel"
+                        id="input-reg-phone"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="(11) 99999-9999"
+                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1 text-left">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Criar Senha:</span>
+                      </label>
+                      <input
+                        type={showRegPassword ? 'text' : 'password'}
+                        id="input-reg-password"
+                        required
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Mínimo 4 dígitos"
+                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1 text-left">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Confirmar Senha:</span>
+                      </label>
+                      <input
+                        type={showRegPassword ? 'text' : 'password'}
+                        id="input-reg-password-confirm"
+                        required
+                        value={regConfirmPassword}
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        placeholder="Repita a senha"
+                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      className="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1"
+                    >
+                      {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showRegPassword ? 'Ocultar Senhas' : 'Ver Senhas'}</span>
+                    </button>
+                    <span className="text-emerald-400 font-bold">✓ Teste Grátis de 7 Dias</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    id="btn-submit-register"
+                    disabled={isLoading}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Criando sua conta...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Criar Conta & Iniciar Teste Grátis</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {/* --- 3. FORM DE REDEFINIÇÃO DE SENHA DIRETA --- */}
+              {mode === 'forgot_password' && (
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-purple-400" />
+                      <span>E-mail da sua conta:</span>
+                    </label>
+                    <input
+                      type="email"
+                      id="input-reset-email"
+                      required
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="ex: contato@minhaloja.com"
+                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Nova Senha:</span>
+                    </label>
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      id="input-reset-new-password"
+                      required
+                      value={resetNewPassword}
+                      onChange={(e) => setResetNewPassword(e.target.value)}
+                      placeholder="Digite a nova senha (mínimo 4 dígitos)"
+                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Confirmar Nova Senha:</span>
+                    </label>
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      id="input-reset-confirm-password"
+                      required
+                      value={resetConfirmPassword}
+                      onChange={(e) => setResetConfirmPassword(e.target.value)}
+                      placeholder="Repita a nova senha"
+                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    id="btn-submit-reset-password"
+                    disabled={isLoading}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98 disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Redefinindo Senha...</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4" />
+                        <span>Salvar Nova Senha</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('login');
+                        setError(null);
+                        setSuccessMsg(null);
+                      }}
+                      className="text-xs text-slate-400 hover:text-white cursor-pointer font-bold"
+                    >
+                      ← Voltar para a tela de Login
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Demo Mode Action Divider */}
+              <div className="relative py-1 flex items-center justify-center">
+                <div className={`w-full border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
+                <span className={`px-3 text-[10px] font-bold uppercase tracking-wider absolute ${
+                  isDark ? 'bg-[#060d1f] text-slate-500' : 'bg-white text-slate-400'
+                }`}>
+                  Ou experimente agora
+                </span>
               </div>
+
+              {/* Secondary Demo / Test Button */}
+              <button
+                type="button"
+                id="btn-login-demo-main"
+                onClick={handleDemoLogin}
+                disabled={isLoading}
+                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border ${
+                  isDark
+                    ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-600'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Entrar como Demonstrativo / Teste</span>
+                <ArrowRight className="w-3.5 h-3.5 opacity-60" />
+              </button>
 
               {/* Security & Guarantee Info */}
               <div className="pt-2 border-t border-slate-800/60 space-y-1.5 text-[11px] text-slate-400">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>Acesso protegido com autenticação oficial Google.</span>
+                  <span>Acesso individual e banco de dados 100% isolado por loja.</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Sem necessidade de cartão para os 7 primeiros dias.</span>
+                  <span>Sem necessidade de cartão de crédito para os 7 dias grátis.</span>
                 </div>
               </div>
             </div>
@@ -511,132 +774,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         </div>
       </main>
 
-      {/* Manual / Existing Google Account Selector Modal */}
-      {showManualGoogleModal && (
-        <div
-          id="modal-manual-google-login"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setShowManualGoogleModal(false)}
-        >
-          <div
-            className={`w-full max-w-md p-6 rounded-3xl border-2 shadow-2xl space-y-5 ${
-              isDark ? 'bg-[#070e22] border-cyan-500/50 text-white' : 'bg-white border-blue-300 text-slate-900'
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
-                <Mail className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-black">Escolher ou Adicionar Conta</h3>
-                <p className="text-xs text-slate-400">Digite seu e-mail do Google para vincular sua conta</p>
-              </div>
-            </div>
-
-            {/* Saved Accounts if any exist */}
-            {savedAccounts.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                  Contas Salvas Neste Dispositivo:
-                </span>
-                <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
-                  {savedAccounts.map((acc) => (
-                    <button
-                      key={acc.email}
-                      type="button"
-                      onClick={() => {
-                        setCustomEmail(acc.email);
-                        setCustomName(acc.name);
-                      }}
-                      className={`p-2 rounded-xl border text-left flex items-center justify-between text-xs font-bold transition-all cursor-pointer ${
-                        customEmail === acc.email
-                          ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                          : 'bg-[#040814] border-slate-800 hover:border-slate-700 text-slate-300'
-                      }`}
-                    >
-                      <div className="truncate">
-                        <span className="block text-xs font-bold truncate">{acc.email}</span>
-                        <span className="text-[10px] text-slate-400 font-normal">{acc.name}</span>
-                      </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 shrink-0">Selecionar</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleManualGoogleSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-300">E-mail do Google:</label>
-                <input
-                  type="email"
-                  required
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  placeholder="exemplo@gmail.com"
-                  className="w-full px-3.5 py-2.5 bg-[#030712] border border-cyan-500/40 rounded-xl text-sm font-medium text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-300">Nome do Usuário / Loja (Opcional):</label>
-                <input
-                  type="text"
-                  value={customName}
-                  onChange={(e) => setCustomName(e.target.value)}
-                  placeholder="Ex: Carlos - Tech Cell"
-                  className="w-full px-3.5 py-2.5 bg-[#030712] border border-cyan-500/40 rounded-xl text-sm font-medium text-white focus:outline-none focus:border-cyan-400"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowManualGoogleModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/30 cursor-pointer"
-                >
-                  Entrar com este E-mail
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Comprehensive Account Recovery Modal */}
-      <AccountRecoveryModal
-        isOpen={showRecoveryModal}
-        onClose={() => setShowRecoveryModal(false)}
-        onRecoverySuccess={(result) => {
-          setShowRecoveryModal(false);
-          onLoginSuccess(result);
-        }}
-      />
-
       {/* Footer */}
-      <footer className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 border-t border-slate-800/40 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <span>© 2026 MSP Informática — Gestão Especializada para Assistências Técnicas</span>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowRecoveryModal(true)}
-            className="text-[11px] text-cyan-400 hover:underline cursor-pointer flex items-center gap-1"
-          >
-            <KeyRound className="w-3 h-3" />
-            <span>Recuperar Conta</span>
-          </button>
-          <span className="flex items-center gap-1.5 text-[11px]">
-            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Ambiente Seguro com Criptografia & Backup em Nuvem</span>
-          </span>
-        </div>
+      <footer className="w-full max-w-7xl mx-auto px-4 py-4 text-center text-xs text-slate-500 border-t border-slate-800/40">
+        MSP Informática &copy; {new Date().getFullYear()} — Plataforma Especializada para Assistências Técnicas e Lojas de Eletrônicos.
       </footer>
     </div>
   );

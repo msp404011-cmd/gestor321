@@ -21,6 +21,7 @@ import {
   SubscriptionPlanInfo,
   AuthSession,
   GoogleUserProfile,
+  UserAccount,
 } from '../types';
 import {
   initialCustomers,
@@ -70,6 +71,7 @@ const STORAGE_KEYS = {
   USER_SUBSCRIPTIONS: 'msp_user_subscriptions_v1',
   AUTH_SESSION: 'msp_auth_session_v1',
   SAVED_ACCOUNTS: 'msp_saved_accounts_v1',
+  USER_ACCOUNTS: 'msp_user_accounts_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -2086,6 +2088,304 @@ export const StorageService = {
     notifyListeners();
   },
 
+  getUserAccounts(): UserAccount[] {
+    return getItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+  },
+
+  saveUserAccount(account: UserAccount): void {
+    const list = this.getUserAccounts();
+    const idx = list.findIndex((a) => a.email.toLowerCase() === account.email.toLowerCase());
+    if (idx >= 0) {
+      list[idx] = account;
+    } else {
+      list.unshift(account);
+    }
+    setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
+    notifyListeners();
+  },
+
+  registerUserAccount(params: {
+    shopName: string;
+    ownerName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    securityQuestion?: string;
+    securityAnswer?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    account: UserAccount;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanShop = params.shopName.trim() || 'Minha Assistência Técnica';
+    const cleanOwner = params.ownerName.trim() || cleanShop;
+
+    // Check if email is already registered
+    const accounts = this.getUserAccounts();
+    if (accounts.some((a) => a.email.toLowerCase() === cleanEmail)) {
+      throw new Error('Este e-mail já está cadastrado. Faça login ou recupere sua senha.');
+    }
+
+    // 1. Create UserAccount object
+    const newAccount: UserAccount = {
+      id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      shopName: cleanShop,
+      ownerName: cleanOwner,
+      email: cleanEmail,
+      phone: params.phone?.trim() || '',
+      passwordHash: params.password, // In-browser client storage
+      securityQuestion: params.securityQuestion?.trim() || 'Qual o telefone de cadastro da loja?',
+      securityAnswer: params.securityAnswer?.trim().toLowerCase() || (params.phone ? params.phone.replace(/\D/g, '') : ''),
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    this.saveUserAccount(newAccount);
+
+    // 2. Configure company settings with shop name
+    const currentSettings = this.getCompanySettings();
+    this.saveCompanySettings({
+      ...currentSettings,
+      name: cleanShop,
+      tradeName: cleanShop,
+      responsibleName: cleanOwner,
+      email: cleanEmail,
+      phone: params.phone || currentSettings.phone,
+      whatsapp: params.phone || currentSettings.whatsapp,
+    });
+
+    // 3. Create administrator employee
+    const employees = this.getEmployees();
+    let adminEmp = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+    if (!adminEmp) {
+      adminEmp = {
+        id: `emp-adm-${Date.now()}`,
+        name: cleanOwner,
+        email: cleanEmail,
+        phone: params.phone,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanOwner)}&background=0284c7&color=ffffff`,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(adminEmp);
+    }
+    this.setCurrentUser(adminEmp);
+
+    // 4. Activate 7-day Free Trial
+    const trialExpiry = new Date();
+    trialExpiry.setDate(trialExpiry.getDate() + 7);
+    const expiryStr = trialExpiry.toISOString().split('T')[0];
+
+    const trialPlan: SubscriptionPlanInfo = {
+      planType: 'TRIAL',
+      planName: 'Teste Grátis (7 Dias)',
+      planPrice: 0,
+      billingCycle: 'monthly',
+      billingPeriod: 'MENSAL',
+      expiryDate: expiryStr,
+      status: 'active',
+      clientName: cleanShop,
+      accountEmail: cleanEmail,
+      autoRenew: false,
+      contractNumber: `MSP-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
+      paymentMethod: 'Teste Grátis de Boas-Vindas (7 Dias)',
+      notes: 'Período de avaliação de 7 dias com todos os módulos liberados.',
+      startDate: new Date().toISOString().split('T')[0],
+      isTrial: true,
+      trialDaysRemaining: 7,
+    };
+    this.saveSubscriptionPlan(trialPlan);
+    this.saveSubscriptionForEmail(cleanEmail, trialPlan);
+
+    // 5. Save active auth session
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: cleanOwner,
+      avatarUrl: adminEmp.avatarUrl,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    // Also register in saved accounts
+    this.saveAccountProfile({
+      email: cleanEmail,
+      name: `${cleanOwner} (${cleanShop})`,
+      picture: adminEmp.avatarUrl,
+    });
+
+    this.logAction(`Nova conta criada: ${cleanShop} (${cleanEmail})`, 'Teste Grátis de 7 dias ativado');
+
+    return {
+      user: adminEmp,
+      plan: trialPlan,
+      account: newAccount,
+    };
+  },
+
+  loginWithEmailPassword(params: {
+    email: string;
+    password: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const accounts = this.getUserAccounts();
+    const account = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    if (!account) {
+      // If not yet in user accounts, check if there's an employee or existing google sub
+      const existingEmployee = this.getEmployees().find((e) => e.email?.toLowerCase() === cleanEmail);
+      if (existingEmployee) {
+        // Allow fallback access for registered employee
+        this.setCurrentUser(existingEmployee);
+        const plan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
+        const session: AuthSession = {
+          isAuthenticated: true,
+          provider: 'email',
+          email: cleanEmail,
+          name: existingEmployee.name,
+          avatarUrl: existingEmployee.avatarUrl,
+          loggedAt: new Date().toISOString(),
+        };
+        this.setAuthSession(session);
+        return {
+          user: existingEmployee,
+          plan,
+          isFirstAccess: false,
+          isExpiredOrCanceled: plan.status === 'expired' || plan.status === 'canceled',
+        };
+      }
+      throw new Error('Conta não encontrada com este e-mail. Crie sua conta grátis.');
+    }
+
+    if (account.passwordHash && account.passwordHash !== params.password) {
+      throw new Error('Senha incorreta. Verifique sua senha ou use a recuperação de acesso.');
+    }
+
+    // Update last login
+    account.lastLoginAt = new Date().toISOString();
+    this.saveUserAccount(account);
+
+    // Get or create employee
+    const employees = this.getEmployees();
+    let employee = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+    if (!employee) {
+      employee = {
+        id: `emp-adm-${Date.now()}`,
+        name: account.ownerName || account.shopName,
+        email: cleanEmail,
+        phone: account.phone,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(account.ownerName)}&background=0284c7&color=ffffff`,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(employee);
+    }
+    this.setCurrentUser(employee);
+
+    // Check subscription
+    let userPlan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
+    this.saveSubscriptionPlan(userPlan);
+
+    // Check expiration
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let isExpiredOrCanceled = userPlan.status === 'expired' || userPlan.status === 'canceled' || userPlan.status === 'VENCIDO';
+    if (userPlan.expiryDate) {
+      const [y, m, d] = userPlan.expiryDate.split('-').map(Number);
+      const expDate = new Date(y, (m || 1) - 1, d || 1);
+      if (expDate.getTime() < now.getTime()) {
+        isExpiredOrCanceled = true;
+        userPlan.status = 'expired';
+        this.saveSubscriptionPlan(userPlan);
+      }
+    }
+
+    // Set active auth session
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: employee.name,
+      avatarUrl: employee.avatarUrl,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.saveAccountProfile({
+      email: cleanEmail,
+      name: `${account.ownerName} (${account.shopName})`,
+      picture: employee.avatarUrl,
+    });
+
+    this.logAction(`Login efetuado com sucesso: ${cleanEmail}`);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess: false,
+      isExpiredOrCanceled,
+    };
+  },
+
+  resetPasswordDirect(params: {
+    email: string;
+    newPassword: string;
+    securityAnswer?: string;
+  }): boolean {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const accounts = this.getUserAccounts();
+    const account = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    if (!account) {
+      // Create new account entry if none existed
+      const newAcc: UserAccount = {
+        id: `acc-${Date.now()}`,
+        shopName: 'Minha Loja',
+        ownerName: cleanEmail.split('@')[0],
+        email: cleanEmail,
+        passwordHash: params.newPassword,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      };
+      this.saveUserAccount(newAcc);
+      return true;
+    }
+
+    account.passwordHash = params.newPassword;
+    account.lastLoginAt = new Date().toISOString();
+    this.saveUserAccount(account);
+    this.logAction(`Senha redefinida com sucesso para o e-mail ${cleanEmail}`);
+    return true;
+  },
+
   recoverAccount(params: {
     identifier: string; // Email or phone or master code
     method: 'email' | 'phone' | 'code';
@@ -2573,6 +2873,55 @@ export const StorageService = {
     this.logAction(`Pagamento recebido do revendedor ${reseller.name} (#${invoiceNum} - R$ ${paymentAmount.toFixed(2)})`);
 
     return { transaction: newTransaction, reseller: updatedReseller };
+  },
+
+  // Bulk Save Methods for Backup & Migration
+  saveCustomers(customers: Customer[]): void {
+    setItem(STORAGE_KEYS.CUSTOMERS, customers);
+    notifyListeners();
+  },
+
+  saveDevices(devices: Device[]): void {
+    setItem(STORAGE_KEYS.DEVICES, devices);
+    notifyListeners();
+  },
+
+  saveProducts(products: Product[]): void {
+    setItem(STORAGE_KEYS.PRODUCTS, products);
+    notifyListeners();
+  },
+
+  saveOrders(orders: ServiceOrder[]): void {
+    setItem(STORAGE_KEYS.ORDERS, orders);
+    notifyListeners();
+  },
+
+  saveSales(sales: Sale[]): void {
+    setItem(STORAGE_KEYS.SALES, sales);
+    notifyListeners();
+  },
+
+  saveExpenses(expenses: Expense[]): void {
+    setItem(STORAGE_KEYS.EXPENSES, expenses);
+    notifyListeners();
+  },
+
+  saveEmployees(employees: Employee[]): void {
+    setItem(STORAGE_KEYS.EMPLOYEES, employees);
+    notifyListeners();
+  },
+
+  saveReceivables(receivables: AccountReceivable[]): void {
+    setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    notifyListeners();
+  },
+
+  saveSettings(settings: CompanySettings): void {
+    this.saveCompanySettings(settings);
+  },
+
+  getCustomOsStatuses(): CustomOSStatusItem[] {
+    return this.getCustomOSStatuses();
   },
 };
 
