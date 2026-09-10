@@ -11,16 +11,25 @@ import {
   UserCheck,
   AlertCircle,
   Sparkles,
+  X,
+  LogOut,
 } from 'lucide-react';
-import { Employee, UserRole } from '../../types';
+import { Employee, UserRole, GoogleUserProfile } from '../../types';
 import { StorageService } from '../../services/storage';
 
 interface LoginModalProps {
   isOpen: boolean;
   onLoginSuccess: (user: Employee) => void;
+  onClose?: () => void;
+  onLogout?: () => void;
 }
 
-export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess }) => {
+export const LoginModal: React.FC<LoginModalProps> = ({
+  isOpen,
+  onLoginSuccess,
+  onClose,
+  onLogout,
+}) => {
   const employees = StorageService.getEmployees();
   const [selectedUser, setSelectedUser] = useState<Employee | null>(
     employees[0] || null
@@ -93,30 +102,45 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess }
   };
 
   const handleGoogleLogin = useGoogleLogin({
-    onSuccess: (codeResponse) => {
-      console.log('Google login successful', codeResponse);
-      // Determine if a user is selected, if not pick first admin or the first user
-      let userToLog = selectedUser;
-      if (!userToLog) {
-         userToLog = employees.find(e => e.role === 'ADMINISTRADOR' || e.role === 'ADMIN') || employees[0];
-      }
-      
-      if (userToLog) {
+    onSuccess: async (tokenResponse) => {
+      try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.access_token}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const profile: GoogleUserProfile = {
+            email: data.email || 'usuario@gmail.com',
+            name: data.name || data.given_name || 'Usuário Google',
+            picture: data.picture,
+            sub: data.sub,
+          };
+          const result = StorageService.loginWithGoogle(profile);
+          onLoginSuccess(result.user);
+        } else {
+          let userToLog = selectedUser || employees[0];
+          if (userToLog) {
+            StorageService.setCurrentUser(userToLog);
+            onLoginSuccess(userToLog);
+          }
+        }
+      } catch (err) {
+        let userToLog = selectedUser || employees[0];
+        if (userToLog) {
           StorageService.setCurrentUser(userToLog);
-          StorageService.logAction(
-            `Acesso ao sistema liberado via Google`,
-            `Operador autenticado: ${userToLog.name} (${userToLog.role})`
-          );
           onLoginSuccess(userToLog);
-      } else {
-          setError("Nenhum usuário cadastrado no sistema.");
+        }
       }
     },
     onError: (error) => {
       console.error('Login Failed:', error);
-      setError('Falha ao autenticar com o Google. Tente novamente.');
+      setError('Falha ao autenticar com o Google. Tente selecionar seu operador acima.');
     },
-    scope: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+    prompt: 'select_account',
+    scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
   });
 
   return (
@@ -124,6 +148,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess }
       <div className="relative w-full max-w-2xl bg-[#060d1f] border-2 border-cyan-500/50 rounded-3xl shadow-[0_0_80px_rgba(6,182,212,0.3)] text-slate-100 flex flex-col overflow-hidden">
         {/* Top Header */}
         <div className="p-6 bg-gradient-to-r from-[#08152e] via-[#0b1f42] to-[#08152e] border-b border-cyan-500/30 text-center relative">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
             <ShieldCheck className="w-4 h-4 text-cyan-400" />
             <span>Controle de Acesso & Identificação de Operador</span>

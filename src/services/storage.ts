@@ -19,6 +19,8 @@ import {
   Reseller,
   ResellerTransaction,
   SubscriptionPlanInfo,
+  AuthSession,
+  GoogleUserProfile,
 } from '../types';
 import {
   initialCustomers,
@@ -65,6 +67,9 @@ const STORAGE_KEYS = {
   RESELLERS: 'msp_resellers_v1',
   RESELLER_TRANSACTIONS: 'msp_reseller_transactions_v1',
   SUBSCRIPTION_PLAN: 'msp_subscription_plan_v1',
+  USER_SUBSCRIPTIONS: 'msp_user_subscriptions_v1',
+  AUTH_SESSION: 'msp_auth_session_v1',
+  SAVED_ACCOUNTS: 'msp_saved_accounts_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -1868,9 +1873,302 @@ export const StorageService = {
 
   saveSubscriptionPlan(plan: SubscriptionPlanInfo): void {
     setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, plan);
+    if (plan.accountEmail) {
+      this.saveSubscriptionForEmail(plan.accountEmail, plan);
+    }
     this.logAction(`Plano de assinatura atualizado: ${plan.planName} (${plan.planPrice})`);
     notifyListeners();
   },
+
+  // Per-Email Subscriptions Database
+  getUserSubscriptions(): Record<string, SubscriptionPlanInfo> {
+    return getItem<Record<string, SubscriptionPlanInfo>>(STORAGE_KEYS.USER_SUBSCRIPTIONS, {});
+  },
+
+  getSubscriptionForEmail(email: string): SubscriptionPlanInfo | null {
+    if (!email) return null;
+    const cleanEmail = email.trim().toLowerCase();
+    const subs = this.getUserSubscriptions();
+    return subs[cleanEmail] || null;
+  },
+
+  saveSubscriptionForEmail(email: string, plan: SubscriptionPlanInfo): void {
+    if (!email) return;
+    const cleanEmail = email.trim().toLowerCase();
+    const subs = this.getUserSubscriptions();
+    subs[cleanEmail] = {
+      ...plan,
+      accountEmail: cleanEmail,
+    };
+    setItem(STORAGE_KEYS.USER_SUBSCRIPTIONS, subs);
+  },
+
+  // Auth Session
+  getAuthSession(): AuthSession | null {
+    return getItem<AuthSession | null>(STORAGE_KEYS.AUTH_SESSION, null);
+  },
+
+  setAuthSession(session: AuthSession | null): void {
+    if (!session) {
+      this.clearAuthSession();
+      return;
+    }
+    setItem(STORAGE_KEYS.AUTH_SESSION, session);
+    notifyListeners();
+  },
+
+  clearAuthSession(): void {
+    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    notifyListeners();
+  },
+
+  loginWithGoogle(profile: GoogleUserProfile): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = (profile.email || '').trim().toLowerCase();
+    const cleanName = profile.name || cleanEmail.split('@')[0] || 'Usuário Google';
+    const avatar =
+      profile.picture ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0284c7&color=ffffff`;
+
+    // 1. Locate or create Employee in local directory
+    const employees = this.getEmployees();
+    let employee = employees.find(
+      (e) => (e.email && e.email.toLowerCase() === cleanEmail) || e.name.toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (!employee) {
+      // Create new Admin employee for this shop owner
+      employee = {
+        id: `emp-google-${Date.now()}`,
+        name: cleanName,
+        email: cleanEmail,
+        role: 'ADMINISTRADOR',
+        avatarUrl: avatar,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(employee);
+    } else {
+      // Update avatar if newer
+      if (profile.picture && employee.avatarUrl !== profile.picture) {
+        employee.avatarUrl = profile.picture;
+        this.saveEmployee(employee);
+      }
+    }
+
+    // Set current active employee
+    this.setCurrentUser(employee);
+
+    // 2. Check subscription for this email
+    let userPlan = this.getSubscriptionForEmail(cleanEmail);
+    let isFirstAccess = false;
+
+    if (!userPlan) {
+      // First access for this Google account: automatically start 7-day Free Trial!
+      isFirstAccess = true;
+      const trialExpiry = new Date();
+      trialExpiry.setDate(trialExpiry.getDate() + 7);
+      const expiryStr = trialExpiry.toISOString().split('T')[0];
+
+      userPlan = {
+        planType: 'TRIAL',
+        planName: 'Teste Grátis (7 Dias)',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'MENSAL',
+        expiryDate: expiryStr,
+        status: 'active',
+        clientName: cleanName,
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        contractNumber: `MSP-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
+        paymentMethod: 'Teste Grátis de Boas-Vindas (7 Dias)',
+        notes: 'Período de avaliação de 7 dias com todos os recursos liberados.',
+        startDate: new Date().toISOString().split('T')[0],
+        isTrial: true,
+        trialDaysRemaining: 7,
+      };
+
+      this.saveSubscriptionForEmail(cleanEmail, userPlan);
+    }
+
+    // Apply this plan to active workspace
+    this.saveSubscriptionPlan(userPlan);
+
+    // 3. Determine if subscription is expired or canceled
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let isExpiredOrCanceled = userPlan.status === 'expired' || userPlan.status === 'canceled' || userPlan.status === 'VENCIDO';
+
+    if (userPlan.expiryDate) {
+      const [y, m, d] = userPlan.expiryDate.split('-').map(Number);
+      const expDate = new Date(y, (m || 1) - 1, d || 1);
+      if (expDate.getTime() < now.getTime()) {
+        isExpiredOrCanceled = true;
+        userPlan.status = 'expired';
+        this.saveSubscriptionPlan(userPlan);
+      }
+    }
+
+    // 4. Save active auth session
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'google',
+      email: cleanEmail,
+      name: cleanName,
+      avatarUrl: avatar,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction(
+      `Login com Google efetuado (${cleanEmail})`,
+      isFirstAccess
+        ? 'Primeiro acesso: Teste Grátis de 7 Dias ativado automaticamente.'
+        : `Plano atual: ${userPlan.planName} (${userPlan.status})`
+    );
+
+    // Also save in remembered accounts list
+    this.saveAccountProfile(profile);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess,
+      isExpiredOrCanceled,
+    };
+  },
+
+  getSavedAccounts(): GoogleUserProfile[] {
+    return getItem<GoogleUserProfile[]>(STORAGE_KEYS.SAVED_ACCOUNTS, []);
+  },
+
+  saveAccountProfile(profile: GoogleUserProfile): void {
+    if (!profile.email) return;
+    const cleanEmail = profile.email.trim().toLowerCase();
+    const accounts = this.getSavedAccounts();
+    const existingIndex = accounts.findIndex((a) => a.email.toLowerCase() === cleanEmail);
+    const updated: GoogleUserProfile = {
+      ...profile,
+      email: cleanEmail,
+      name: profile.name || cleanEmail.split('@')[0],
+      picture:
+        profile.picture ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || cleanEmail)}&background=0284c7&color=ffffff`,
+    };
+
+    if (existingIndex >= 0) {
+      accounts[existingIndex] = updated;
+    } else {
+      accounts.unshift(updated);
+    }
+    setItem(STORAGE_KEYS.SAVED_ACCOUNTS, accounts.slice(0, 10)); // Keep up to 10 accounts
+  },
+
+  removeSavedAccount(email: string): void {
+    const cleanEmail = email.trim().toLowerCase();
+    const accounts = this.getSavedAccounts().filter((a) => a.email.toLowerCase() !== cleanEmail);
+    setItem(STORAGE_KEYS.SAVED_ACCOUNTS, accounts);
+    notifyListeners();
+  },
+
+  recoverAccount(params: {
+    identifier: string; // Email or phone or master code
+    method: 'email' | 'phone' | 'code';
+    name?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanIdentifier = params.identifier.trim();
+    let email = '';
+    let displayName = params.name || 'Operador Recuperado';
+
+    if (params.method === 'email') {
+      email = cleanIdentifier.toLowerCase();
+      displayName = params.name || email.split('@')[0] || 'Usuário Recuperado';
+    } else if (params.method === 'phone') {
+      // Find employee with this phone or generate alias
+      const employees = this.getEmployees();
+      const matched = employees.find(
+        (e) => (e.phone && e.phone.replace(/\D/g, '') === cleanIdentifier.replace(/\D/g, ''))
+      );
+      if (matched && matched.email) {
+        email = matched.email.toLowerCase();
+        displayName = matched.name;
+      } else {
+        email = `recuperado-${cleanIdentifier.replace(/\D/g, '')}@mspinformatica.com.br`;
+        displayName = params.name || `Celular ${cleanIdentifier}`;
+      }
+    } else {
+      // Master code recovery
+      email = 'admin-recuperado@mspinformatica.com.br';
+      displayName = 'Administrador (Chave Mestra)';
+    }
+
+    const profile: GoogleUserProfile = {
+      email,
+      name: displayName,
+      picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&size=128`,
+    };
+
+    const loginResult = this.loginWithGoogle(profile);
+
+    // Override session provider to 'recovery'
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'recovery',
+      email,
+      name: displayName,
+      avatarUrl: profile.picture,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction(
+      `Conta recuperada com sucesso via ${params.method.toUpperCase()}`,
+      `Identificador: ${cleanIdentifier} | Operador: ${displayName}`
+    );
+
+    return loginResult;
+  },
+
+  loginAsDemo(): { user: Employee; plan: SubscriptionPlanInfo } {
+    const employees = this.getEmployees();
+    const demoUser = employees[0] || initialEmployees[0];
+    this.setCurrentUser(demoUser);
+
+    const plan = this.getSubscriptionPlan();
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'demo',
+      email: demoUser.email || 'demo@mspinformatica.com.br',
+      name: `${demoUser.name} (Demonstração)`,
+      avatarUrl: demoUser.avatarUrl,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction('Acesso em Modo Demonstração', `Operador ativo: ${demoUser.name}`);
+    return { user: demoUser, plan };
+  },
+
 
   // Helper & Alias methods for component interoperability
   getUsers(): Employee[] {

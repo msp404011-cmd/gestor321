@@ -670,6 +670,23 @@ export interface SubscriptionPlanInfo {
   canceledAt?: string;
   isTrial?: boolean;
   trialDaysRemaining?: number;
+  accountEmail?: string;
+}
+
+export interface AuthSession {
+  isAuthenticated: boolean;
+  provider: 'google' | 'demo' | 'pin' | 'recovery' | 'email';
+  email?: string;
+  name?: string;
+  avatarUrl?: string;
+  loggedAt: string;
+}
+
+export interface GoogleUserProfile {
+  email: string;
+  name: string;
+  picture?: string;
+  sub?: string;
 }
 
 

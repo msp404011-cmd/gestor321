@@ -30,11 +30,13 @@ import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { SubscriptionModal } from './components/subscription/SubscriptionModal';
 import { PaywallModal } from './components/subscription/PaywallModal';
 import { SubscriptionService } from './services/subscriptionService';
+import { LoginView } from './components/auth/LoginView';
 
 // Models & Services
-import { NavigationTab, Customer, Device, ServiceOrder, Product } from './types';
+import { NavigationTab, Customer, Device, ServiceOrder, Product, Employee, SubscriptionPlanInfo } from './types';
 import { StorageService } from './services/storage';
 import { useTheme } from './context/ThemeContext';
+import { GoogleDriveBackupService } from './services/googleDriveBackupService';
 
 export default function App() {
   const { isDark } = useTheme();
@@ -43,7 +45,8 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
-  // Authentication State
+  // Authentication & Session State
+  const [authSession, setAuthSession] = useState(() => StorageService.getAuthSession());
   const [currentUser, setCurrentUser] = useState(() => StorageService.getCurrentUser());
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
@@ -242,6 +245,41 @@ export default function App() {
       setGlobalOrderToDelete(null);
     }
   };
+
+  const handleLoginSuccess = (result: {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess?: boolean;
+    isExpiredOrCanceled?: boolean;
+  }) => {
+    setCurrentUser(result.user);
+    setAuthSession(StorageService.getAuthSession());
+    setTick((prev) => prev + 1);
+
+    if (result.isExpiredOrCanceled) {
+      setIsSubscriptionModalOpen(true);
+    }
+  };
+
+  const handleLogout = async () => {
+    const session = StorageService.getAuthSession();
+    if (session?.email) {
+      try {
+        await GoogleDriveBackupService.uploadBackupToGoogleDrive(session.email);
+      } catch (e) {
+        console.warn('Backup on logout error:', e);
+      }
+    }
+    GoogleDriveBackupService.setAccessToken(null);
+    StorageService.clearAuthSession();
+    setAuthSession(null);
+    setIsLoginOpen(false);
+  };
+
+  // If user is not authenticated, render Login/Landing View
+  if (!authSession || !authSession.isAuthenticated) {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className={`flex h-screen w-full font-sans antialiased overflow-hidden selection:bg-cyan-500 selection:text-white transition-colors duration-300 ${
@@ -512,9 +550,12 @@ export default function App() {
         isOpen={isLoginOpen}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
+          setAuthSession(StorageService.getAuthSession());
           setIsLoginOpen(false);
           setTick((prev) => prev + 1);
         }}
+        onClose={() => setIsLoginOpen(false)}
+        onLogout={handleLogout}
       />
 
       {/* Subscription Plans Modal */}
