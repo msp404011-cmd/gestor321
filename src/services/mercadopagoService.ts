@@ -3,6 +3,7 @@
  * Endpoints for PIX Dinâmico and Credit Card billing for subscriptions.
  */
 
+import QRCode from 'qrcode';
 import { PlanType } from '../types';
 
 export interface MercadoPagoCredentials {
@@ -24,7 +25,7 @@ export interface PixPaymentResponse {
   status: string;
   statusDetail?: string;
   qrCode: string; // PIX Copia e Cola
-  qrCodeBase64: string; // Base64 image
+  qrCodeBase64: string; // Base64 or Data URL image
   ticketUrl?: string;
   amount: number;
   createdAt: string;
@@ -133,7 +134,7 @@ export const MercadoPagoService = {
 
         const payload = {
           transaction_amount: Number(params.amount.toFixed(2)),
-          description: `Assinatura ${params.planName} - Sistema de Gestão`,
+          description: `Assinatura ${params.planName} - Sistema de Gestao`,
           payment_method_id: 'pix',
           payer: {
             email,
@@ -173,17 +174,30 @@ export const MercadoPagoService = {
 
         if (response.ok) {
           const data = await response.json();
-          const qrCode = data.point_of_interaction?.transaction_data?.qr_code || '';
-          const qrCodeBase64 = data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
+          let qrCode = data.point_of_interaction?.transaction_data?.qr_code || '';
+          let qrCodeBase64 = data.point_of_interaction?.transaction_data?.qr_code_base64 || '';
           const ticketUrl = data.point_of_interaction?.transaction_data?.ticket_url;
+
+          if (!qrCode) {
+            qrCode = this.generateSimulatedCopiaECola(params.amount, String(data.id));
+          }
+
+          let formattedQrImage = '';
+          if (qrCodeBase64) {
+            formattedQrImage = qrCodeBase64.startsWith('data:')
+              ? qrCodeBase64
+              : `data:image/png;base64,${qrCodeBase64}`;
+          } else {
+            formattedQrImage = await this.generateQrCodeDataUrl(qrCode);
+          }
 
           return {
             success: true,
             paymentId: String(data.id),
             status: data.status || 'pending',
             statusDetail: data.status_detail,
-            qrCode: qrCode || this.generateSimulatedCopiaECola(params.amount, String(data.id)),
-            qrCodeBase64: qrCodeBase64 ? `data:image/png;base64,${qrCodeBase64}` : this.generateQrCodeDataUrl(qrCode),
+            qrCode,
+            qrCodeBase64: formattedQrImage,
             ticketUrl,
             amount: params.amount,
             createdAt: new Date().toISOString(),
@@ -193,16 +207,16 @@ export const MercadoPagoService = {
           const errData = await response.json().catch(() => ({}));
           console.warn('Mercado Pago API error response:', errData);
           // Fall back to simulation with explanatory message
-          return this.createSimulatedPixPayment(params, errData.message || 'Erro na resposta do Mercado Pago');
+          return await this.createSimulatedPixPayment(params, errData.message || 'Erro na resposta do Mercado Pago');
         }
       } catch (err: any) {
         console.warn('Mercado Pago fetch failed, falling back to simulated checkout:', err);
-        return this.createSimulatedPixPayment(params, err?.message || 'Falha na conexão com Mercado Pago');
+        return await this.createSimulatedPixPayment(params, err?.message || 'Falha na conexão com Mercado Pago');
       }
     }
 
     // Default: Return realistic simulated PIX payment with prompt to add credentials
-    return this.createSimulatedPixPayment(params);
+    return await this.createSimulatedPixPayment(params);
   },
 
   /**
@@ -380,13 +394,13 @@ export const MercadoPagoService = {
 
   /* ================= Internal Helpers ================= */
 
-  createSimulatedPixPayment(
+  async createSimulatedPixPayment(
     params: { planType: PlanType; planName: string; amount: number; payer?: Partial<PayerInfo> },
     errorMessage?: string
-  ): PixPaymentResponse {
+  ): Promise<PixPaymentResponse> {
     const simId = `SIM-PIX-${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     const copiaECola = this.generateSimulatedCopiaECola(params.amount, simId);
-    const qrCodeBase64 = this.generateQrCodeDataUrl(copiaECola);
+    const qrCodeBase64 = await this.generateQrCodeDataUrl(copiaECola);
 
     const payments = this.getAllSimulatedPayments();
     payments[simId] = {
@@ -434,25 +448,40 @@ export const MercadoPagoService = {
   },
 
   /**
-   * Generates a valid visual QR Code SVG Data URL without external heavy libraries
+   * Generates a valid scannable visual QR Code Data URL using standard qrcode library
    */
-  generateQrCodeDataUrl(text: string): string {
-    // Generate a clean matrix representation SVG data URL
-    const size = 250;
+  async generateQrCodeDataUrl(text: string): Promise<string> {
+    try {
+      if (text && text.trim().length > 0) {
+        const url = await QRCode.toDataURL(text, {
+          width: 320,
+          margin: 2,
+          color: {
+            dark: '#0f172a',
+            light: '#ffffff',
+          },
+          errorCorrectionLevel: 'M',
+        });
+        if (url) return url;
+      }
+    } catch (e) {
+      console.warn('QRCode.toDataURL generation error, using fallback:', e);
+    }
+
+    // Fallback QR code matrix SVG
+    const size = 260;
     const modules = 25;
     const cellSize = size / modules;
 
-    // Deterministic pseudo-random pattern based on text hash
     let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash << 5) - hash + text.charCodeAt(i);
+    for (let i = 0; i < (text || 'PIX').length; i++) {
+      hash = (hash << 5) - hash + (text || 'PIX').charCodeAt(i);
       hash |= 0;
     }
 
     let rects = '';
     for (let row = 0; row < modules; row++) {
       for (let col = 0; col < modules; col++) {
-        // Standard corner locator squares
         const isTopLeft = row < 7 && col < 7;
         const isTopRight = row < 7 && col >= modules - 7;
         const isBottomLeft = row >= modules - 7 && col < 7;
@@ -477,7 +506,7 @@ export const MercadoPagoService = {
       }
     }
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="#ffffff" rx="12" />${rects}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="#ffffff" rx="8" />${rects}</svg>`;
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   },
 };
