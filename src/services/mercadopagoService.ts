@@ -131,9 +131,11 @@ export const MercadoPagoService = {
     if (isConfigured) {
       try {
         const payload = {
-          amount: Number(params.amount.toFixed(2)),
           transaction_amount: Number(params.amount.toFixed(2)),
+          amount: Number(params.amount.toFixed(2)),
           description: `Assinatura ${params.planName} - Sistema de Gestao`,
+          email,
+          firstName,
           payer: {
             email,
             first_name: firstName,
