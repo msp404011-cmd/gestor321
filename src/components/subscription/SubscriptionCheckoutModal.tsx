@@ -117,7 +117,7 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
     }
   };
 
-  // Start 5-second interval verification
+  // Start 3-second interval verification
   const startStatusPolling = (paymentId: string) => {
     stopPolling();
     setStatusCheckCount(0);
@@ -137,10 +137,10 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
       } catch (e) {
         setIsCheckingStatus(false);
       }
-    }, 5000);
+    }, 3000);
   };
 
-  // Handle Payment Success (Immediate activation)
+  // Handle Payment Success (Immediate activation and auto reload)
   const handlePaymentSuccess = (paymentId: string, amount: number) => {
     const updated = SubscriptionService.activatePlanWithPayment(normalizedPlan, {
       method: 'pix',
@@ -152,6 +152,11 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
     setIsApproved(true);
     setApprovedPlanInfo(updated);
     onSuccess(updated);
+
+    // Auto reload after 2.5 seconds to refresh the application state with active plan
+    setTimeout(() => {
+      window.location.reload();
+    }, 2500);
   };
 
   // Copy PIX Code to clipboard
@@ -272,7 +277,10 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
               <button
                 type="button"
                 id="btn-close-after-approval"
-                onClick={onClose}
+                onClick={() => {
+                  onClose();
+                  window.location.reload();
+                }}
                 className="w-full max-w-md mx-auto py-3.5 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
               >
                 <span>Acessar Sistema com Plano Liberado</span>

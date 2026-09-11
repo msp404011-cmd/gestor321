@@ -241,39 +241,39 @@ export const MercadoPagoService = {
       };
     }
 
-    // Real Mercado Pago query
+    // Real Mercado Pago query via backend serverless route /api/check-status
     try {
       let response: Response;
       try {
-        response = await fetch(`/api/mercadopago/v1/payments/${pId}`, {
+        response = await fetch(`/api/check-status?id=${pId}`, {
           method: 'GET',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
         });
       } catch {
-        response = await fetch(`https://api.mercadopago.com/v1/payments/${pId}`, {
+        response = await fetch(`/api/mercadopago/status/${pId}`, {
           method: 'GET',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
         });
       }
 
       if (response.ok) {
         const data = await response.json();
-        const isApproved = data.status === 'approved';
+        const isApproved = data.is_approved || data.isApproved || data.status === 'approved';
 
         return {
-          id: String(data.id),
+          id: String(data.id || pId),
           status: data.status,
-          statusDetail: data.status_detail,
+          statusDetail: data.status_detail || data.statusDetail,
           isApproved,
-          dateApproved: data.date_approved,
+          dateApproved: data.date_approved || data.dateApproved,
           paymentMethodId: data.payment_method_id,
-          transactionAmount: data.transaction_amount,
+          transactionAmount: data.transaction_amount || data.transactionAmount,
           isSimulation: false,
         };
       } else {
@@ -282,7 +282,7 @@ export const MercadoPagoService = {
           id: pId,
           status: 'pending',
           isApproved: false,
-          error: errJson.message || 'Não foi possível obter status',
+          error: errJson.error || errJson.message || 'Não foi possível obter status',
         };
       }
     } catch (err: any) {

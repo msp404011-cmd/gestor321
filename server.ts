@@ -81,9 +81,10 @@ app.post('/api/pix', handlePixRequest);
 app.post('/api/mercadopago/pix', handlePixRequest);
 
 // Mercado Pago Payment Status Check Endpoint
-app.get('/api/mercadopago/status/:id', async (req: express.Request, res: express.Response) => {
+const handleStatusCheck = async (req: express.Request, res: express.Response) => {
   try {
-    const { id } = req.params;
+    const paymentId =
+      req.params.id || req.query.id || req.query.payment_id || req.body?.payment_id || req.body?.id;
     const accessToken =
       process.env.MERCADOPAGO_ACCESS_TOKEN ||
       process.env.VITE_MP_ACCESS_TOKEN ||
@@ -95,24 +96,35 @@ app.get('/api/mercadopago/status/:id', async (req: express.Request, res: express
       return res.status(400).json({ error: 'Access token do Mercado Pago não configurado.' });
     }
 
+    if (!paymentId) {
+      return res.status(400).json({ error: 'ID do pagamento não fornecido.' });
+    }
+
     const client = new MercadoPagoConfig({ accessToken });
     const payment = new Payment(client);
 
-    const result = await payment.get({ id });
+    const result = await payment.get({ id: String(paymentId) });
+    const isApproved = result.status === 'approved';
 
     return res.json({
+      success: true,
       id: String(result.id),
       status: result.status,
-      statusDetail: result.status_detail,
-      isApproved: result.status === 'approved',
-      dateApproved: result.date_approved,
-      transactionAmount: result.transaction_amount,
+      status_detail: result.status_detail,
+      is_approved: isApproved,
+      isApproved,
+      date_approved: result.date_approved,
+      transaction_amount: result.transaction_amount,
     });
   } catch (error: any) {
     console.error('Erro ao consultar status do Pix:', error);
     return res.status(500).json({ error: error.message || 'Erro ao consultar status' });
   }
-});
+};
+
+app.get('/api/check-status', handleStatusCheck);
+app.post('/api/check-status', handleStatusCheck);
+app.get('/api/mercadopago/status/:id', handleStatusCheck);
 
 // Vite middleware or static serving
 async function startServer() {
