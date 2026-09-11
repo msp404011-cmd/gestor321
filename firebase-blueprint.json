@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Store or Technical Assistance account settings and subscription status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "commercialName": { "type": "string" },
+        "cnpjCpf": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "plan": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "commercialName", "status", "plan"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Pix payments log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "plan": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "amount", "status"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Collection of subscriber stores"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Collection of payment transactions"
+    }
+  }
+}
