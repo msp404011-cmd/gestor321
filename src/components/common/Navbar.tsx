@@ -27,6 +27,7 @@ interface NavbarProps {
   onOpenNewCustomer?: () => void;
   onOpenPDV?: () => void;
   onSwitchUser?: () => void;
+  onLogout?: () => void;
   onOpenPlans?: () => void;
 }
 
@@ -38,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   unreadNotificationsCount,
   currentUser: propCurrentUser,
   onSwitchUser,
+  onLogout,
   onOpenPlans,
 }) => {
   const currentUser = propCurrentUser || StorageService.getCurrentUser();
@@ -183,24 +185,24 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className={`h-6 w-[1px] hidden sm:block ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
 
         {/* User Profile */}
-        <div className="flex items-center gap-2.5 pl-1">
+        <div className="flex items-center gap-2 pl-1">
           <div className="relative">
             <img
               src={
-                currentUser.avatarUrl ||
+                currentUser?.avatarUrl ||
                 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
               }
-              alt={currentUser.name}
+              alt={currentUser?.name || 'Operador'}
               className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]"
             />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#070b14] rounded-full" />
           </div>
           <div className="hidden md:block text-left">
             <p className={`text-xs font-bold leading-none tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {currentUser.name}
+              {currentUser?.name || 'Operador'}
             </p>
             <p className={`text-[10px] font-semibold mt-0.5 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
-              {currentUser.role}
+              {currentUser?.role || 'Acesso Básico'}
             </p>
           </div>
 
@@ -213,7 +215,29 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
               }`}
-              title="Trocar Operador / Sair"
+              title="Trocar Operador Ativo (PIN)"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden xl:inline text-[11px]">Trocar Operador</span>
+            </button>
+          )}
+
+          {(onLogout || onSwitchUser) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (onLogout) {
+                  onLogout();
+                } else if (onSwitchUser) {
+                  onSwitchUser();
+                }
+              }}
+              className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                isDark
+                  ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border-rose-500/30'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+              }`}
+              title="Desconectar / Sair do Sistema"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-400" />
               <span className="hidden lg:inline text-[11px]">Sair</span>

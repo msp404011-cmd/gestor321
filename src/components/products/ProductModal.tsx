@@ -26,6 +26,7 @@ import {
 import { Product } from '../../types';
 import { formatCurrency } from '../../services/formatters';
 import { StorageService, CustomCategory } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -631,28 +632,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <p className="text-[9px] text-slate-400 mt-0.5">Preço para cliente balcão</p>
               </div>
 
-              {/* Preço Revenda */}
-              <div className="md:col-span-3">
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                  Preço Revenda (R$) <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
-                    <Users className="w-3.5 h-3.5" />
+              {/* Preço Revenda - Only shown if plan allows reseller features */}
+              {SubscriptionService.isResellerFeatureAllowed() && (
+                <div className="md:col-span-3">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Preço Revenda (R$) <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
+                      <Users className="w-3.5 h-3.5" />
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required={SubscriptionService.isResellerFeatureAllowed()}
+                      value={resellerPrice}
+                      onChange={(e) => setResellerPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-2 py-1.5 bg-[#030814] border border-blue-500/50 hover:border-cyan-400 focus:border-cyan-400 rounded-lg text-xs text-cyan-300 font-mono font-bold focus:outline-none transition-all"
+                    />
                   </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    value={resellerPrice}
-                    onChange={(e) => setResellerPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                    placeholder="0.00"
-                    className="w-full pl-8 pr-2 py-1.5 bg-[#030814] border border-blue-500/50 hover:border-cyan-400 focus:border-cyan-400 rounded-lg text-xs text-cyan-300 font-mono font-bold focus:outline-none transition-all"
-                  />
+                  <p className="text-[9px] text-slate-400 mt-0.5">Preço para revendedores/técnicos</p>
                 </div>
-                <p className="text-[9px] text-slate-400 mt-0.5">Preço para revendedores/técnicos</p>
-              </div>
+              )}
 
               {/* Profit Cards Column */}
               <div className="md:col-span-3 space-y-1.5">

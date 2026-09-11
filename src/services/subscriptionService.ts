@@ -1,5 +1,5 @@
 import { StorageService } from './storage';
-import { PlanType, SubscriptionStatus, BillingCycle, SubscriptionPlanInfo, PlanLimits } from '../types';
+import { PlanType, SubscriptionStatus, BillingCycle, SubscriptionPlanInfo, PlanLimits, NavigationTab } from '../types';
 
 export interface PlanDefinition {
   id: PlanType;
@@ -30,24 +30,47 @@ const TRIAL_PLAN: PlanDefinition = {
   },
   features: [
     { text: '7 Dias de Acesso Total com tudo 100% liberado', included: true, highlight: true },
-    { text: 'Ordens de Serviço Ilimitadas durante o teste', included: true, highlight: true },
-    { text: 'Produtos e Estoque Ilimitados', included: true, highlight: true },
+    { text: 'Ordens de Serviço e Aparelhos Ilimitados', included: true, highlight: true },
     { text: 'Frente de Caixa (PDV) Rápido e Completo', included: true },
-    { text: 'Gestão de Clientes e Aparelhos', included: true },
-    { text: 'Checklist de Entrada e Saída com Fotos', included: true },
-    { text: 'Emissão e Impressão Térmica de Recibos (80mm/58mm)', included: true },
-    { text: 'Relatórios Gerenciais Avançados & DRE', included: true },
-    { text: 'Múltiplos Técnicos e Vendedores', included: true },
+    { text: 'Módulo de Revenda e Tabela de Atacado Liberados', included: true },
+    { text: 'Produtos e Peças no Estoque Ilimitados', included: true },
+    { text: 'Controle de Caixa e Relatórios Financeiros', included: true },
   ],
 };
 
-const LOJA_PLAN: PlanDefinition = {
-  id: 'LOJA',
-  name: 'Plano Loja',
-  tagline: 'Solução completa para assistência técnica e vendas balcão da sua loja.',
-  badge: 'MAIS ESCOLHIDO',
+const PDV_VENDAS_PLAN: PlanDefinition = {
+  id: 'PDV_VENDAS',
+  name: 'Plano PDV & Vendas',
+  tagline: 'Focado exclusivamente em Frente de Caixa (PDV), Vendas Balcão, Estoque e Clientes.',
+  badge: 'SÓ VENDAS & PDV',
+  popular: false,
+  monthlyPrice: 34.90,
+  limits: {
+    maxMonthlyOrders: 0,
+    maxProducts: null,
+    maxCollaborators: null,
+    advancedReports: true,
+    pdfExport: true,
+    cloudBackup: true,
+    auditLogs: true,
+  },
+  features: [
+    { text: 'Frente de Caixa (PDV) Rápido e Ágil', included: true, highlight: true },
+    { text: 'Vendas Balcão e Emissão de Recibos Térmicos', included: true, highlight: true },
+    { text: 'Cadastro de Produtos e Controle de Estoque', included: true, highlight: true },
+    { text: 'Gestão de Clientes e Crediário / A Prazo', included: true },
+    { text: 'Abertura, Sangria e Fechamento de Caixa', included: true },
+    { text: 'Relatórios de Vendas e Faturamento Balcão', included: true },
+  ],
+};
+
+const ASSISTENCIA_PLAN: PlanDefinition = {
+  id: 'ASSISTENCIA',
+  name: 'Plano Assistência Técnica',
+  tagline: 'Solução completa para Assistência Técnica: OS, Aparelhos, Checklists, PDV e Peças.',
+  badge: 'MAIS POPULAR',
   popular: true,
-  monthlyPrice: 69.9,
+  monthlyPrice: 69.90,
   limits: {
     maxMonthlyOrders: null,
     maxProducts: null,
@@ -59,24 +82,22 @@ const LOJA_PLAN: PlanDefinition = {
   },
   features: [
     { text: 'Ordens de Serviço Ilimitadas todo mês', included: true, highlight: true },
-    { text: 'Produtos e Peças no Estoque Ilimitados', included: true, highlight: true },
-    { text: 'Frente de Caixa (PDV) Ágil e Completo', included: true, highlight: true },
-    { text: 'Gestão Completa de Clientes e Aparelhos', included: true },
-    { text: 'Checklist de Entrada e Saída com Fotos', included: true },
-    { text: 'Emissão e Impressão Térmica de Recibos (80mm/58mm)', included: true },
-    { text: 'Controle Financeiro de Caixa, Entradas e Despesas', included: true },
-    { text: 'Relatórios Gerenciais de Faturamento & DRE', included: true },
-    { text: 'Múltiplos Técnicos e Colaboradores', included: true },
+    { text: 'Gestão de Aparelhos e Equipamentos', included: true, highlight: true },
+    { text: 'Checklist de Entrada e Saída com Fotos', included: true, highlight: true },
+    { text: 'Frente de Caixa (PDV) e Vendas Balcão', included: true },
+    { text: 'Produtos, Peças e Insumos Ilimitados', included: true },
+    { text: 'Controle Financeiro de Caixa e DRE', included: true },
+    { text: 'Relatórios Gerenciais e Exportação PDF', included: true },
   ],
 };
 
 const REVENDA_PLAN: PlanDefinition = {
   id: 'REVENDA',
-  name: 'Plano Loja / Revenda',
-  tagline: 'Para lojas que também trabalham com revendedores, atacado ou consignado.',
-  badge: 'LOJA + REVENDA',
+  name: 'Plano Completo + Revenda',
+  tagline: 'Tudo da Assistência Técnica + Módulo de Revenda, Atacado e Consignados.',
+  badge: 'COMPLETO + REVENDA',
   popular: false,
-  monthlyPrice: 119.9,
+  monthlyPrice: 79.90,
   limits: {
     maxMonthlyOrders: null,
     maxProducts: null,
@@ -87,13 +108,12 @@ const REVENDA_PLAN: PlanDefinition = {
     auditLogs: true,
   },
   features: [
-    { text: 'Tudo incluso do Plano Loja sem restrições', included: true, highlight: true },
-    { text: 'Tabela de Preço Diferenciada (Cliente Final vs Revenda/Atacado)', included: true, highlight: true },
-    { text: 'Cadastro e Gestão de Revendedores Parceiros', included: true, highlight: true },
-    { text: 'Controle Automático de Comissões de Revenda', included: true, highlight: true },
-    { text: 'Vendas Consignadas e Fechamento no PDV', included: true, highlight: true },
-    { text: 'Relatórios de Desempenho e Margem por Revendedor', included: true },
-    { text: 'Multi-setores e Níveis de Permissão de Acesso', included: true },
+    { text: 'Tudo do Plano Assistência Técnica incluso', included: true, highlight: true },
+    { text: 'Módulo de Revendedores e Atacado Completo', included: true, highlight: true },
+    { text: 'Tabela de Preços Diferenciada (Varejo vs Revenda)', included: true, highlight: true },
+    { text: 'Cadastro e Gestão de Revendedores Parceiros', included: true },
+    { text: 'Controle Automático de Comissões de Revenda', included: true },
+    { text: 'Vendas Consignadas e Fechamento no PDV', included: true },
   ],
 };
 
@@ -116,17 +136,17 @@ const TESTE_REAL_PLAN: PlanDefinition = {
   features: [
     { text: 'Valor simbólico de R$ 1,00 para testar cobrança real', included: true, highlight: true },
     { text: 'Gera cobrança PIX oficial de R$ 1,00 via Mercado Pago', included: true, highlight: true },
-    { text: 'Aceita Cartão de Crédito e PIX Dinâmico', included: true, highlight: true },
     { text: 'Ativação automática imediata por 30 dias após pagar', included: true, highlight: true },
-    { text: 'Plano temporário: pode ser excluído a qualquer momento', included: true },
   ],
 };
 
 export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   TRIAL: TRIAL_PLAN,
   FREE: TRIAL_PLAN,
-  LOJA: LOJA_PLAN,
-  PRO: LOJA_PLAN,
+  PDV_VENDAS: PDV_VENDAS_PLAN,
+  ASSISTENCIA: ASSISTENCIA_PLAN,
+  LOJA: ASSISTENCIA_PLAN,
+  PRO: ASSISTENCIA_PLAN,
   REVENDA: REVENDA_PLAN,
   ENTERPRISE: REVENDA_PLAN,
   TESTE_REAL: TESTE_REAL_PLAN,
@@ -443,7 +463,49 @@ export const SubscriptionService = {
   },
 
   resetToDefaultPlan(): SubscriptionPlanInfo {
-    return this.upgradePlan('LOJA', 'monthly');
+    return this.upgradePlan('ASSISTENCIA', 'monthly');
+  },
+
+  isTabAllowed(tab: NavigationTab, targetPlanType?: PlanType): boolean {
+    const currentPlan = StorageService.getSubscriptionPlan();
+    const rawType: PlanType = targetPlanType || currentPlan.planType || 'ASSISTENCIA';
+    const norm: PlanType =
+      rawType === 'PRO' || rawType === 'LOJA' ? 'ASSISTENCIA' :
+      rawType === 'ENTERPRISE' ? 'REVENDA' :
+      rawType === 'FREE' ? 'TRIAL' : rawType;
+
+    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL') {
+      return true; // Todos os módulos 100% liberados
+    }
+
+    if (norm === 'PDV_VENDAS') {
+      // Plano PDV & Vendas R$ 34,90: Sem OS, Sem Aparelhos, Sem Revenda
+      if (tab === 'ORDERS' || tab === 'DEVICES' || tab === 'RESELLERS') {
+        return false;
+      }
+      return true;
+    }
+
+    if (norm === 'ASSISTENCIA') {
+      // Plano Assistência Técnica R$ 69,90: Com OS, Aparelhos, PDV. Sem Revenda
+      if (tab === 'RESELLERS') {
+        return false;
+      }
+      return true;
+    }
+
+    return true;
+  },
+
+  isResellerFeatureAllowed(targetPlanType?: PlanType): boolean {
+    const currentPlan = StorageService.getSubscriptionPlan();
+    const rawType: PlanType = targetPlanType || currentPlan.planType || 'ASSISTENCIA';
+    const norm: PlanType =
+      rawType === 'PRO' || rawType === 'LOJA' ? 'ASSISTENCIA' :
+      rawType === 'ENTERPRISE' ? 'REVENDA' :
+      rawType === 'FREE' ? 'TRIAL' : rawType;
+
+    return norm === 'REVENDA' || norm === 'TRIAL' || norm === 'TESTE_REAL';
   },
 };
 

@@ -261,19 +261,25 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
-    const session = StorageService.getAuthSession();
-    if (session?.email) {
-      try {
-        await GoogleDriveBackupService.uploadBackupToGoogleDrive(session.email);
-      } catch (e) {
-        console.warn('Backup on logout error:', e);
+  const handleLogout = () => {
+    // Attempt non-blocking backup if account is connected
+    try {
+      const session = StorageService.getAuthSession();
+      if (session?.email && GoogleDriveBackupService.getAccessToken()) {
+        GoogleDriveBackupService.uploadBackupToGoogleDrive(session.email).catch((e) => {
+          console.warn('Backup on logout non-blocking warning:', e);
+        });
       }
+    } catch (e) {
+      console.warn('Backup on logout error:', e);
     }
+
+    // Immediately clear tokens and auth session synchronously
     GoogleDriveBackupService.setAccessToken(null);
     StorageService.clearAuthSession();
     setAuthSession(null);
     setIsLoginOpen(false);
+    setActiveTab('DASHBOARD');
   };
 
   // If user is not authenticated, render Login/Landing View
@@ -314,6 +320,7 @@ export default function App() {
             onOpenNewCustomer={() => setCustomerModalState({ isOpen: true, customerToEdit: null })}
             onOpenPDV={() => setActiveTab('POS')}
             onSwitchUser={() => setIsLoginOpen(true)}
+            onLogout={handleLogout}
             onOpenPlans={() => setIsSubscriptionModalOpen(true)}
           />
         )}

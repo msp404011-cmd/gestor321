@@ -150,7 +150,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
             className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
           >
             <Crown className="w-4 h-4" />
-            <span>Assinar Plano Loja (R$ 69,90/mês)</span>
+            <span>Assinar Plano Assistência (R$ 69,90/mês)</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
@@ -176,7 +176,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
       {showCheckout && (
         <SubscriptionCheckoutModal
           isOpen={showCheckout}
-          planType="LOJA"
+          planType="ASSISTENCIA"
           onClose={() => {
             setShowCheckout(false);
             onClose();

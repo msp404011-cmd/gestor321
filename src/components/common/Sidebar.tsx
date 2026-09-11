@@ -22,8 +22,9 @@ import {
   ChevronRight,
   Clock,
 } from 'lucide-react';
-import { Employee } from '../../types';
+import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { useTheme } from '../../context/ThemeContext';
 
 interface SidebarProps {
@@ -187,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Configurações',
       icon: Settings,
     },
-  ];
+  ].filter((item) => SubscriptionService.isTabAllowed(item.id as NavigationTab));
 
   const handleSelect = (id: string) => {
     onSelectTab(id as any);

@@ -36,6 +36,7 @@ import {
 import { Product } from '../../types';
 import { StorageService } from '../../services/storage';
 import { formatCurrency } from '../../services/formatters';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { StockAdjustModal } from './StockAdjustModal';
 import { BrandLogo } from '../../utils/brandUtils';
@@ -581,7 +582,9 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                 <th className="py-3 px-3.5">SKU / CÓD. BARRAS</th>
                 <th className="py-3 px-3.5 text-right">PREÇO CUSTO</th>
                 <th className="py-3 px-3.5 text-right">PREÇO VENDA</th>
-                <th className="py-3 px-3.5 text-right">PREÇO REVENDA</th>
+                {SubscriptionService.isResellerFeatureAllowed() && (
+                  <th className="py-3 px-3.5 text-right">PREÇO REVENDA</th>
+                )}
                 <th className="py-3 px-3.5 text-center">ESTOQUE</th>
                 <th className="py-3 px-3.5 text-center">STATUS</th>
                 <th className="py-3 px-3.5 text-right">AÇÕES</th>
@@ -673,10 +676,12 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                         R$ {p.sellingPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
-                      {/* Preço Revenda */}
-                      <td className={`py-3 px-3.5 text-right font-bold text-blue-600`}>
-                        R$ {(p.resellerPrice ?? p.sellingPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
+                      {/* Preço Revenda - Only if allowed */}
+                      {SubscriptionService.isResellerFeatureAllowed() && (
+                        <td className={`py-3 px-3.5 text-right font-bold text-blue-600`}>
+                          R$ {(p.resellerPrice ?? p.sellingPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      )}
 
                       {/* Estoque Badge */}
                       <td className="py-3 px-2 text-center whitespace-nowrap">

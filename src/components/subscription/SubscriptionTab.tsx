@@ -107,7 +107,8 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
   };
 
   const isCurrentPlanTrial = currentPlan.planType === 'TRIAL' || currentPlan.planType === 'FREE' || Boolean(currentPlan.isTrial);
-  const isCurrentPlanLoja = currentPlan.planType === 'LOJA' || currentPlan.planType === 'PRO';
+  const isCurrentPlanPdvVendas = currentPlan.planType === 'PDV_VENDAS';
+  const isCurrentPlanAssistencia = currentPlan.planType === 'ASSISTENCIA' || currentPlan.planType === 'LOJA' || currentPlan.planType === 'PRO';
   const isCurrentPlanRevenda = currentPlan.planType === 'REVENDA' || currentPlan.planType === 'ENTERPRISE';
   const isCurrentPlanTesteReal = currentPlan.planType === 'TESTE_REAL';
 
@@ -459,12 +460,12 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
         </div>
       </div>
 
-      {/* 3. THREE CARDS: TESTE GRÁTIS (7 DIAS), PLANO LOJA, PLANO LOJA / REVENDA */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 3. FOUR CARDS: TESTE GRÁTIS (7 DIAS), PLANO PDV (R$ 34,90), PLANO ASSISTÊNCIA (R$ 69,90), PLANO REVENDA (R$ 79,90) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* CARD 1: TESTE GRÁTIS (7 DIAS) */}
         <div
           id="card-plano-trial"
-          className={`rounded-3xl border-2 p-6 flex flex-col justify-between transition-all relative ${
+          className={`rounded-3xl border-2 p-5 flex flex-col justify-between transition-all relative ${
             isCurrentPlanTrial
               ? isDark
                 ? 'bg-[#0c162e] border-blue-500 ring-2 ring-blue-500/30 shadow-xl'
@@ -481,20 +482,20 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
                 7 Dias Grátis
               </span>
               {isCurrentPlanTrial && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-400 border border-blue-500/30">
                   PLANO ATUAL
                 </span>
               )}
             </div>
 
-            <h4 className="text-xl font-black tracking-tight">{SUBSCRIPTION_PLANS.TRIAL.name}</h4>
+            <h4 className="text-lg font-black tracking-tight">{SUBSCRIPTION_PLANS.TRIAL.name}</h4>
             <p className={`text-xs mt-1 min-h-[32px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {SUBSCRIPTION_PLANS.TRIAL.tagline}
             </p>
 
-            <div className="mt-5 mb-6">
+            <div className="mt-4 mb-5">
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl sm:text-4xl font-black">R$ 0</span>
+                <span className="text-3xl font-black">R$ 0</span>
                 <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   / 7 dias
                 </span>
@@ -505,9 +506,9 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
             </div>
 
             {/* Features list */}
-            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
+            <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
               {SUBSCRIPTION_PLANS.TRIAL.features.map((feat, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
+                <div key={idx} className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span
                     className={
@@ -525,41 +526,136 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
             </div>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6">
             {isCurrentPlanTrial && isActive ? (
               <button
                 type="button"
                 disabled
-                className={`w-full py-3.5 px-4 rounded-2xl font-black text-xs border text-center cursor-default ${
+                className={`w-full py-3 px-3 rounded-2xl font-black text-xs border text-center cursor-default ${
                   isDark
                     ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                     : 'bg-blue-50 text-blue-700 border-blue-200'
                 }`}
               >
-                ✓ Teste Grátis Ativo ({daysRemaining !== null ? `${daysRemaining} dias restantes` : '7 Dias'})
+                ✓ Teste Grátis Ativo ({daysRemaining !== null ? `${daysRemaining}d restantes` : '7 Dias'})
               </button>
             ) : (
               <button
                 type="button"
                 id="btn-activate-trial"
                 onClick={() => handleSelectPlan('TRIAL')}
-                className={`w-full py-3.5 px-4 rounded-2xl font-bold text-xs border transition-all cursor-pointer ${
+                className={`w-full py-3 px-3 rounded-2xl font-bold text-xs border transition-all cursor-pointer ${
                   isDark
                     ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-md'
                     : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
                 }`}
               >
-                Iniciar Teste Grátis (7 Dias)
+                Iniciar Teste (7 Dias)
               </button>
             )}
           </div>
         </div>
 
-        {/* CARD 2: PLANO LOJA (VALOR 1: R$ 69,90/mês) */}
+        {/* CARD 2: PLANO PDV & VENDAS (R$ 34,90/mês) */}
         <div
-          id="card-plano-loja"
-          className={`rounded-3xl border-2 p-6 flex flex-col justify-between transition-all relative overflow-hidden ${
-            isCurrentPlanLoja
+          id="card-plano-pdv-vendas"
+          className={`rounded-3xl border-2 p-5 flex flex-col justify-between transition-all relative ${
+            isCurrentPlanPdvVendas
+              ? isDark
+                ? 'bg-[#0c1c2b] border-sky-500 ring-2 ring-sky-500/30 shadow-xl'
+                : 'bg-white border-sky-500 ring-2 ring-sky-500/20 shadow-lg'
+              : isDark
+              ? 'bg-[#091122] border-slate-800 hover:border-slate-700'
+              : 'bg-white border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-sky-400" />
+                PDV & Vendas
+              </span>
+              {isCurrentPlanPdvVendas && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                  PLANO ATUAL
+                </span>
+              )}
+            </div>
+
+            <h4 className="text-lg font-black tracking-tight">{SUBSCRIPTION_PLANS.PDV_VENDAS.name}</h4>
+            <p className={`text-xs mt-1 min-h-[32px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {SUBSCRIPTION_PLANS.PDV_VENDAS.tagline}
+            </p>
+
+            <div className="mt-4 mb-5">
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-black text-sky-400">
+                  {formatCurrency(SUBSCRIPTION_PLANS.PDV_VENDAS.monthlyPrice)}
+                </span>
+                <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  /mês
+                </span>
+              </div>
+              <span className="text-[11px] font-semibold text-sky-400 block mt-1">
+                Para comércios e lojas de vendas balcão
+              </span>
+            </div>
+
+            {/* Features list */}
+            <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
+              {SUBSCRIPTION_PLANS.PDV_VENDAS.features.map((feat, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                  <span
+                    className={
+                      feat.highlight
+                        ? 'font-bold text-slate-900 dark:text-white'
+                        : isDark
+                        ? 'text-slate-300'
+                        : 'text-slate-700'
+                    }
+                  >
+                    {feat.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {isCurrentPlanPdvVendas && isActive ? (
+              <button
+                type="button"
+                disabled
+                className="w-full py-3 px-3 rounded-2xl font-black text-xs bg-sky-500/20 text-sky-300 border border-sky-500/40 text-center cursor-default"
+              >
+                ✓ Plano Atual Ativo
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="btn-upgrade-pdv-vendas"
+                onClick={() => handleSelectPlan('PDV_VENDAS')}
+                className={`w-full py-3 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  isDark
+                    ? 'bg-sky-600 hover:bg-sky-500 text-white border-sky-400 shadow-lg shadow-sky-600/30'
+                    : 'bg-sky-600 hover:bg-sky-700 text-white shadow-md'
+                }`}
+              >
+                <Store className="w-4 h-4" />
+                <span>
+                  Assinar Plano PDV ({formatCurrency(SUBSCRIPTION_PLANS.PDV_VENDAS.monthlyPrice)}/mês)
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* CARD 3: PLANO ASSISTÊNCIA TÉCNICA (R$ 69,90/mês) */}
+        <div
+          id="card-plano-assistencia"
+          className={`rounded-3xl border-2 p-5 flex flex-col justify-between transition-all relative overflow-hidden ${
+            isCurrentPlanAssistencia
               ? isDark
                 ? 'bg-gradient-to-b from-[#0e1d3e] to-[#091228] border-amber-500 ring-2 ring-amber-500/40 shadow-2xl shadow-amber-500/10'
                 : 'bg-white border-amber-500 ring-2 ring-amber-500/30 shadow-xl'
@@ -569,47 +665,47 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
           }`}
         >
           {/* Top highlight ribbon */}
-          <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-950 font-black text-[10px] uppercase tracking-wider py-1 px-4 rounded-bl-2xl shadow-md">
-            ⭐ MAIS ESCOLHIDO
+          <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-950 font-black text-[9px] uppercase tracking-wider py-1 px-3 rounded-bl-xl shadow-md">
+            ⭐ RECOMENDADO
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-black uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
-                <Store className="w-4 h-4 text-amber-400" />
-                Assistência & Loja
+                <Store className="w-3.5 h-3.5 text-amber-400" />
+                Assistência Técnica
               </span>
-              {isCurrentPlanLoja && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+              {isCurrentPlanAssistencia && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
                   PLANO ATUAL
                 </span>
               )}
             </div>
 
-            <h4 className="text-xl font-black tracking-tight">{SUBSCRIPTION_PLANS.LOJA.name}</h4>
+            <h4 className="text-lg font-black tracking-tight">{SUBSCRIPTION_PLANS.ASSISTENCIA.name}</h4>
             <p className={`text-xs mt-1 min-h-[32px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              {SUBSCRIPTION_PLANS.LOJA.tagline}
+              {SUBSCRIPTION_PLANS.ASSISTENCIA.tagline}
             </p>
 
-            <div className="mt-5 mb-6">
+            <div className="mt-4 mb-5">
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl sm:text-4xl font-black text-amber-500">
-                  {formatCurrency(SUBSCRIPTION_PLANS.LOJA.monthlyPrice)}
+                <span className="text-3xl font-black text-amber-500">
+                  {formatCurrency(SUBSCRIPTION_PLANS.ASSISTENCIA.monthlyPrice)}
                 </span>
                 <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                   /mês
                 </span>
               </div>
               <span className="text-[11px] font-semibold text-emerald-500 block mt-1">
-                Faturamento mensal recorrente
+                Completo para gestão de O.S. e Loja
               </span>
             </div>
 
             {/* Features list */}
-            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
-              {SUBSCRIPTION_PLANS.LOJA.features.map((feat, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
-                  <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
+              {SUBSCRIPTION_PLANS.ASSISTENCIA.features.map((feat, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <span
                     className={
                       feat.highlight
@@ -626,35 +722,35 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
             </div>
           </div>
 
-          <div className="mt-8">
-            {isCurrentPlanLoja && isActive ? (
+          <div className="mt-6">
+            {isCurrentPlanAssistencia && isActive ? (
               <button
                 type="button"
                 disabled
-                className="w-full py-3.5 px-4 rounded-2xl font-black text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-center cursor-default"
+                className="w-full py-3 px-3 rounded-2xl font-black text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-center cursor-default"
               >
                 ✓ Plano Atual Ativo
               </button>
             ) : (
               <button
                 type="button"
-                id="btn-upgrade-loja"
-                onClick={() => handleSelectPlan('LOJA')}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
+                id="btn-upgrade-assistencia"
+                onClick={() => handleSelectPlan('ASSISTENCIA')}
+                className="w-full py-3 px-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer"
               >
                 <Crown className="w-4 h-4" />
                 <span>
-                  {isCurrentPlanLoja ? 'Reativar Plano Loja' : `Assinar Plano Loja (${formatCurrency(SUBSCRIPTION_PLANS.LOJA.monthlyPrice)}/mês)`}
+                  Assinar Assistência ({formatCurrency(SUBSCRIPTION_PLANS.ASSISTENCIA.monthlyPrice)}/mês)
                 </span>
               </button>
             )}
           </div>
         </div>
 
-        {/* CARD 3: PLANO LOJA / REVENDA (VALOR 2: R$ 119,90/mês) */}
+        {/* CARD 4: PLANO COMPLETO + REVENDA (R$ 79,90/mês) */}
         <div
           id="card-plano-revenda"
-          className={`rounded-3xl border-2 p-6 flex flex-col justify-between transition-all relative ${
+          className={`rounded-3xl border-2 p-5 flex flex-col justify-between transition-all relative ${
             isCurrentPlanRevenda
               ? isDark
                 ? 'bg-gradient-to-b from-[#121c3b] to-[#0a1124] border-purple-500 ring-2 ring-purple-500/30 shadow-xl'
@@ -667,24 +763,24 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-black uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-purple-400" />
-                Loja & Revendedores
+                <Users className="w-3.5 h-3.5 text-purple-400" />
+                Completo + Revenda
               </span>
               {isCurrentPlanRevenda && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-400 border border-purple-500/30">
                   PLANO ATUAL
                 </span>
               )}
             </div>
 
-            <h4 className="text-xl font-black tracking-tight">{SUBSCRIPTION_PLANS.REVENDA.name}</h4>
+            <h4 className="text-lg font-black tracking-tight">{SUBSCRIPTION_PLANS.REVENDA.name}</h4>
             <p className={`text-xs mt-1 min-h-[32px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               {SUBSCRIPTION_PLANS.REVENDA.tagline}
             </p>
 
-            <div className="mt-5 mb-6">
+            <div className="mt-4 mb-5">
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl sm:text-4xl font-black text-purple-400">
+                <span className="text-3xl font-black text-purple-400">
                   {formatCurrency(SUBSCRIPTION_PLANS.REVENDA.monthlyPrice)}
                 </span>
                 <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -692,14 +788,14 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
                 </span>
               </div>
               <span className="text-[11px] font-semibold text-purple-400 block mt-1">
-                Faturamento mensal recorrente
+                Módulo completo de revendedores e atacado
               </span>
             </div>
 
             {/* Features list */}
-            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
+            <div className="space-y-2.5 pt-4 border-t border-slate-200 dark:border-slate-800 text-xs">
               {SUBSCRIPTION_PLANS.REVENDA.features.map((feat, idx) => (
-                <div key={idx} className="flex items-start gap-2.5">
+                <div key={idx} className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                   <span
                     className={
@@ -717,12 +813,12 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
             </div>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6">
             {isCurrentPlanRevenda && isActive ? (
               <button
                 type="button"
                 disabled
-                className="w-full py-3.5 px-4 rounded-2xl font-black text-xs bg-purple-500/20 text-purple-400 border border-purple-500/40 text-center cursor-default"
+                className="w-full py-3 px-3 rounded-2xl font-black text-xs bg-purple-500/20 text-purple-400 border border-purple-500/40 text-center cursor-default"
               >
                 ✓ Plano Atual Ativo
               </button>
@@ -731,7 +827,7 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
                 type="button"
                 id="btn-upgrade-revenda"
                 onClick={() => handleSelectPlan('REVENDA')}
-                className={`w-full py-3.5 px-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                className={`w-full py-3 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                   isDark
                     ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400 shadow-lg shadow-purple-600/30'
                     : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md'
@@ -739,134 +835,11 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
               >
                 <Sparkles className="w-4 h-4" />
                 <span>
-                  {isCurrentPlanRevenda
-                    ? 'Reativar Plano Loja / Revenda'
-                    : `Assinar Loja / Revenda (${formatCurrency(SUBSCRIPTION_PLANS.REVENDA.monthlyPrice)}/mês)`}
+                  Assinar Completo ({formatCurrency(SUBSCRIPTION_PLANS.REVENDA.monthlyPrice)}/mês)
                 </span>
               </button>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* 4. ADMIN TEST SIMULATOR */}
-      <div
-        id="admin-plan-simulator-box"
-        className={`p-6 rounded-3xl border transition-all ${
-          isDark ? 'bg-[#080e1c] border-amber-500/30' : 'bg-amber-50/60 border-amber-200'
-        }`}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40">
-              <FlaskConical className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-black tracking-tight flex items-center gap-2">
-                Painel Administrativo: Simulador de Planos & Testes
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500/20 text-amber-500 border border-amber-500/40">
-                  MODO DESENVOLVEDOR
-                </span>
-              </h4>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                Simule cenários instantaneamente para testar o Teste Grátis de 7 dias, Plano Loja, Plano Loja / Revenda e expirações.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <button
-            type="button"
-            onClick={() => handleSimulate('TRIAL', 'active')}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isCurrentPlanTrial && isActive
-                ? 'bg-blue-600 text-white border-blue-400'
-                : isDark
-                ? 'bg-[#0c162e] hover:bg-[#112040] text-slate-200 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-blue-400">1. Teste Grátis</span>
-            <span className="font-extrabold mt-1">7 Dias (Tudo Liberado)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSimulate('LOJA', 'active')}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isCurrentPlanLoja && isActive
-                ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
-                : isDark
-                ? 'bg-[#0c162e] hover:bg-[#112040] text-slate-200 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-amber-400">2. Plano Loja</span>
-            <span className="font-extrabold mt-1">R$ 69,90/mês Ativo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSimulate('REVENDA', 'active')}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isCurrentPlanRevenda && isActive
-                ? 'bg-purple-600 text-white border-purple-400'
-                : isDark
-                ? 'bg-[#0c162e] hover:bg-[#112040] text-slate-200 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-purple-400">3. Loja / Revenda</span>
-            <span className="font-extrabold mt-1">R$ 119,90/mês Ativo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSimulate('TRIAL', 'expired')}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isExpired && isCurrentPlanTrial
-                ? 'bg-rose-600 text-white border-rose-400'
-                : isDark
-                ? 'bg-[#0c162e] hover:bg-[#112040] text-slate-200 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-rose-400">4. Teste Expirado</span>
-            <span className="font-extrabold mt-1">Fim dos 7 Dias</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSimulate('LOJA', 'expired')}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isExpired && !isCurrentPlanTrial
-                ? 'bg-rose-600 text-white border-rose-400'
-                : isDark
-                ? 'bg-[#0c162e] hover:bg-[#112040] text-slate-200 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-rose-400">5. Vencido</span>
-            <span className="font-extrabold mt-1">Mensalidade Vencida</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              SubscriptionService.resetToDefaultPlan();
-              setTick((t) => t + 1);
-              showNotification('Restaurado para Plano Loja Padrão (Mensal)!');
-            }}
-            className={`p-3 rounded-2xl border text-xs font-bold transition-all text-left cursor-pointer flex flex-col justify-between ${
-              isDark
-                ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border-blue-500/40'
-                : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-200'
-            }`}
-          >
-            <span className="text-[10px] font-black uppercase text-blue-400">6. Resetar</span>
-            <span className="font-extrabold mt-1">Plano Loja Padrão</span>
-          </button>
         </div>
       </div>
 

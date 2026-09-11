@@ -638,7 +638,7 @@ export interface Supplier {
   notes?: string;
 }
 
-export type PlanType = 'TRIAL' | 'LOJA' | 'REVENDA' | 'FREE' | 'PRO' | 'ENTERPRISE' | 'TESTE_REAL';
+export type PlanType = 'TRIAL' | 'PDV_VENDAS' | 'ASSISTENCIA' | 'REVENDA' | 'FREE' | 'LOJA' | 'PRO' | 'ENTERPRISE' | 'TESTE_REAL';
 export type SubscriptionStatus = 'active' | 'expired' | 'canceled' | 'trial' | 'ATIVO' | 'EXPIRANDO' | 'VENCIDO' | 'TRIAL';
 export type BillingCycle = 'monthly' | 'annual';
 

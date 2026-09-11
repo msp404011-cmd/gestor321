@@ -43,8 +43,8 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
 
   // Normalized plan
   const normalizedPlan: PlanType =
-    planType === 'PRO' ? 'LOJA' : planType === 'ENTERPRISE' ? 'REVENDA' : planType;
-  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.LOJA;
+    planType === 'PRO' || planType === 'LOJA' ? 'ASSISTENCIA' : planType === 'ENTERPRISE' ? 'REVENDA' : planType;
+  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.ASSISTENCIA;
 
   // Loading & payment states
   const [isLoadingPix, setIsLoadingPix] = useState(false);
