@@ -1,5 +1,5 @@
 import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import firebaseConfig, { db } from '../lib/firebase';
 import { UserAccount, Employee, CompanySettings, AccountReceivable, Expense, ServiceOrder, SubscriptionPlanInfo } from '../types';
 
 export function getTenantId(): string {

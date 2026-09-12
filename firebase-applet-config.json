@@ -1,12 +1,9 @@
 {
-  "projectId": "gen-lang-client-0099966368",
+  "apiKey": "AIzaSyAQL9rFiNo9MV0NDHQ8Z5XN7nyQTxnUw-0",
+  "authDomain": "painelgestor-11e67.firebaseapp.com",
+  "projectId": "painelgestor-11e67",
+  "storageBucket": "painelgestor-11e67.firebasestorage.app",
+  "messagingSenderId": "3784146b99e9de7d6c50b8",
   "appId": "1:842059179433:web:3784146b99e9de7d6c50b8",
-  "apiKey": "AIzaSyApz1jah_ec5MLvkOERMUQtuYOd0Kzbv3k",
-  "authDomain": "gen-lang-client-0099966368.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-mspgestor777-18e70c55-3e3d-4e3c-89f2-b69d752bbb73",
-  "storageBucket": "gen-lang-client-0099966368.firebasestorage.app",
-  "messagingSenderId": "842059179433",
-  "measurementId": "",
-  "oAuthClientId": "842059179433-kmee8nobkdnk32mhh8aldig79nmqapfi.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "firestoreDatabaseId": "(default)"
 }
