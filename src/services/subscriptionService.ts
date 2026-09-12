@@ -117,13 +117,13 @@ const REVENDA_PLAN: PlanDefinition = {
   ],
 };
 
-const TESTE_REAL_PLAN: PlanDefinition = {
-  id: 'TESTE_REAL',
-  name: 'Plano Teste Real',
-  tagline: 'Plano temporário de R$ 1,00 para testar pagamento real no Mercado Pago.',
-  badge: 'TESTE R$ 1,00',
-  popular: false,
-  monthlyPrice: 1.0,
+const COMPLETO_50_PLAN: PlanDefinition = {
+  id: 'COMPLETO_50',
+  name: 'Plano Completo (R$ 0,50)',
+  tagline: 'Todos os módulos do sistema (OS, PDV, Revenda, Relatórios e Estoque) 100% liberados por R$ 0,50.',
+  badge: 'COMPLETO R$ 0,50',
+  popular: true,
+  monthlyPrice: 0.50,
   limits: {
     maxMonthlyOrders: null,
     maxProducts: null,
@@ -134,9 +134,12 @@ const TESTE_REAL_PLAN: PlanDefinition = {
     auditLogs: true,
   },
   features: [
-    { text: 'Valor simbólico de R$ 1,00 para testar cobrança real', included: true, highlight: true },
-    { text: 'Gera cobrança PIX oficial de R$ 1,00 via Mercado Pago', included: true, highlight: true },
-    { text: 'Ativação automática imediata por 30 dias após pagar', included: true, highlight: true },
+    { text: 'Acesso 100% Completo ao sistema por apenas R$ 0,50', included: true, highlight: true },
+    { text: 'Ordens de Serviço e Aparelhos Ilimitados', included: true, highlight: true },
+    { text: 'Frente de Caixa (PDV) Rápido e Ágil', included: true, highlight: true },
+    { text: 'Módulo de Revenda e Atacado Liberados', included: true, highlight: true },
+    { text: 'Produtos, Peças e Estoque Ilimitados', included: true },
+    { text: 'Relatórios Financeiros, DRE e PDF Liberados', included: true },
   ],
 };
 
@@ -149,7 +152,9 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   PRO: ASSISTENCIA_PLAN,
   REVENDA: REVENDA_PLAN,
   ENTERPRISE: REVENDA_PLAN,
-  TESTE_REAL: TESTE_REAL_PLAN,
+  TESTE_REAL: COMPLETO_50_PLAN,
+  COMPLETO_50: COMPLETO_50_PLAN,
+  COMPLETO_PROMO: COMPLETO_50_PLAN,
 };
 
 export interface SubscriptionCheckResult {
@@ -349,7 +354,7 @@ export const SubscriptionService = {
     }
   ): SubscriptionPlanInfo {
     const normalized: PlanType =
-      targetPlan === 'PRO' ? 'LOJA' : targetPlan === 'ENTERPRISE' ? 'REVENDA' : targetPlan;
+      targetPlan === 'PRO' ? 'LOJA' : targetPlan === 'ENTERPRISE' ? 'REVENDA' : targetPlan === 'COMPLETO_PROMO' ? 'COMPLETO_50' : targetPlan === 'TESTE_REAL' ? 'COMPLETO_50' : targetPlan;
     const planDef = this.getPlanDefinition(normalized);
     const now = new Date();
     const expiry = new Date(now);

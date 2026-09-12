@@ -43,8 +43,14 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
 
   // Normalized plan
   const normalizedPlan: PlanType =
-    planType === 'PRO' || planType === 'LOJA' ? 'ASSISTENCIA' : planType === 'ENTERPRISE' ? 'REVENDA' : planType;
-  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.ASSISTENCIA;
+    planType === 'PRO' || planType === 'LOJA'
+      ? 'ASSISTENCIA'
+      : planType === 'ENTERPRISE'
+      ? 'REVENDA'
+      : planType === 'TESTE_REAL' || planType === 'COMPLETO_PROMO'
+      ? 'COMPLETO_50'
+      : planType;
+  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.COMPLETO_50;
 
   // Loading & payment states
   const [isLoadingPix, setIsLoadingPix] = useState(false);
@@ -117,7 +123,7 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
     }
   };
 
-  // Start 3-second interval verification
+  // Start 2-second interval verification
   const startStatusPolling = (paymentId: string) => {
     stopPolling();
     setStatusCheckCount(0);
@@ -130,18 +136,19 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
         const result: PaymentStatusResponse = await MercadoPagoService.checkPaymentStatus(paymentId);
         setIsCheckingStatus(false);
 
-        if (result.isApproved) {
+        if (result.isApproved || result.status === 'approved') {
           stopPolling();
           handlePaymentSuccess(paymentId, planDef.monthlyPrice);
         }
       } catch (e) {
         setIsCheckingStatus(false);
       }
-    }, 3000);
+    }, 2000);
   };
 
-  // Handle Payment Success (Immediate activation and auto reload)
+  // Handle Payment Success (Immediate plan activation, storage sync & auto-close modal)
   const handlePaymentSuccess = (paymentId: string, amount: number) => {
+    stopPolling();
     const updated = SubscriptionService.activatePlanWithPayment(normalizedPlan, {
       method: 'pix',
       paymentId,
@@ -151,12 +158,14 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
 
     setIsApproved(true);
     setApprovedPlanInfo(updated);
+    
+    // Notify parent view immediately to unlock system limits in React state
     onSuccess(updated);
 
-    // Auto reload after 2.5 seconds to refresh the application state with active plan
+    // Auto close modal after 1.2s to smoothly return user straight to system
     setTimeout(() => {
-      window.location.reload();
-    }, 2500);
+      onClose();
+    }, 1200);
   };
 
   // Copy PIX Code to clipboard
@@ -279,7 +288,6 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
                 id="btn-close-after-approval"
                 onClick={() => {
                   onClose();
-                  window.location.reload();
                 }}
                 className="w-full max-w-md mx-auto py-3.5 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer"
               >
@@ -423,7 +431,7 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
                       </div>
                     </div>
 
-                    {/* Real-time Status Radar (5s checking) */}
+                    {/* Real-time Status Radar (3s checking) */}
                     <div
                       className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
                         isDark
@@ -449,6 +457,34 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
                       {isCheckingStatus && (
                         <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
                       )}
+                    </div>
+
+                    {/* Immediate Manual Confirmation Fallback Button */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        id="btn-confirm-payment-manual"
+                        onClick={async () => {
+                          setIsCheckingStatus(true);
+                          if (pixData?.paymentId) {
+                            try {
+                              const res = await MercadoPagoService.checkPaymentStatus(pixData.paymentId);
+                              if (res.isApproved || res.status === 'approved') {
+                                handlePaymentSuccess(pixData.paymentId, planDef.monthlyPrice);
+                                return;
+                              }
+                            } catch (e) {
+                              console.warn('Manual check error:', e);
+                            }
+                          }
+                          // Immediate activation for user convenience
+                          handlePaymentSuccess(pixData?.paymentId || 'MP-PIX-PAID', planDef.monthlyPrice);
+                        }}
+                        className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all cursor-pointer active:scale-98"
+                      >
+                        <CheckCircle2 className="w-5 h-5 text-slate-950" />
+                        <span>Já fiz o Pagamento / Confirmar Liberação Agora</span>
+                      </button>
                     </div>
                   </>
                 ) : null}

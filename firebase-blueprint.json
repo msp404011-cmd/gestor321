@@ -1,5 +1,21 @@
 {
   "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "User shop login accounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shopName": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["id", "email", "shopName"]
+    },
     "Company": {
       "title": "Company",
       "description": "Store or Technical Assistance account settings and subscription status",
@@ -33,6 +49,10 @@
     }
   },
   "firestore": {
+    "/user_accounts/{accountId}": {
+      "schema": "UserAccount",
+      "description": "Registered user shop accounts"
+    },
     "/companies/{companyId}": {
       "schema": "Company",
       "description": "Collection of subscriber stores"

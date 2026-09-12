@@ -23,6 +23,7 @@ import {
   GoogleUserProfile,
   UserAccount,
 } from '../types';
+import { FirestoreSyncService } from './firestoreService';
 import {
   initialCustomers,
   initialDevices,
@@ -392,9 +393,56 @@ function notifyListeners() {
   });
 }
 
+const GLOBAL_KEYS = new Set([
+  STORAGE_KEYS.USER_ACCOUNTS,
+  STORAGE_KEYS.AUTH_SESSION,
+  STORAGE_KEYS.SAVED_ACCOUNTS,
+  STORAGE_KEYS.USER_SUBSCRIPTIONS,
+  STORAGE_KEYS.INITIALIZED,
+]);
+
+export function getActiveTenantScope(): string {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const rawSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+      if (rawSession) {
+        const session = JSON.parse(rawSession);
+        if (session && session.email) {
+          const cleanEmail = session.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          if (cleanEmail) return `tenant_${cleanEmail}`;
+        }
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+  return 'tenant_default';
+}
+
+function getScopedKey(key: string): string {
+  if (GLOBAL_KEYS.has(key)) {
+    return key;
+  }
+  const tenant = getActiveTenantScope();
+  return `${tenant}__${key}`;
+}
+
 function getItem<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const scopedKey = getScopedKey(key);
+    let raw = localStorage.getItem(scopedKey);
+
+    // Self-healing migration for legacy un-scoped data:
+    // If tenant key has no data yet, but un-scoped legacy key exists, copy legacy data once to tenant
+    if (!raw && scopedKey !== key) {
+      const legacyRaw = localStorage.getItem(key);
+      if (legacyRaw) {
+        localStorage.setItem(scopedKey, legacyRaw);
+        localStorage.removeItem(key);
+        raw = legacyRaw;
+      }
+    }
+
     if (!raw) return fallback;
     return JSON.parse(raw);
   } catch (e) {
@@ -405,7 +453,8 @@ function getItem<T>(key: string, fallback: T): T {
 
 function setItem<T>(key: string, value: T): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const scopedKey = getScopedKey(key);
+    localStorage.setItem(scopedKey, JSON.stringify(value));
     notifyListeners();
   } catch (e) {
     console.error(`Error saving ${key} to storage`, e);
@@ -420,31 +469,31 @@ export const StorageService = {
     };
   },
 
-  // Reset to default demo dataset
+  // Reset to default demo dataset for current active tenant
   resetToDemoData(): void {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(initialCustomers));
-    localStorage.setItem(STORAGE_KEYS.DEVICES, JSON.stringify(initialDevices));
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(initialProducts));
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(initialOrders));
-    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(initialSales));
-    localStorage.setItem(STORAGE_KEYS.CASH_SESSION, JSON.stringify(initialCashSession));
-    localStorage.setItem(STORAGE_KEYS.CASH_MOVEMENTS, JSON.stringify(initialCashSession?.movements || []));
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(initialExpenses));
-    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(initialEmployees));
-    localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(initialPurchases));
-    localStorage.setItem(STORAGE_KEYS.STOCK_MOVEMENTS, JSON.stringify(initialStockMovements));
-    localStorage.setItem(STORAGE_KEYS.RECEIVABLES, JSON.stringify(initialReceivables));
-    localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(initialAuditLogs));
-    localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify([
+    setItem(STORAGE_KEYS.CUSTOMERS, initialCustomers);
+    setItem(STORAGE_KEYS.DEVICES, initialDevices);
+    setItem(STORAGE_KEYS.PRODUCTS, initialProducts);
+    setItem(STORAGE_KEYS.ORDERS, initialOrders);
+    setItem(STORAGE_KEYS.SALES, initialSales);
+    setItem(STORAGE_KEYS.CASH_SESSION, initialCashSession);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, initialCashSession?.movements || []);
+    setItem(STORAGE_KEYS.EXPENSES, initialExpenses);
+    setItem(STORAGE_KEYS.EMPLOYEES, initialEmployees);
+    setItem(STORAGE_KEYS.PURCHASES, initialPurchases);
+    setItem(STORAGE_KEYS.STOCK_MOVEMENTS, initialStockMovements);
+    setItem(STORAGE_KEYS.RECEIVABLES, initialReceivables);
+    setItem(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
+    setItem(STORAGE_KEYS.SUPPLIERS, [
       { id: 'sup-1', name: 'Distribuidora Tech Brasil' },
       { id: 'sup-2', name: 'Mega Telas & Touch' },
       { id: 'sup-3', name: 'Importadora Gold Parts' }
-    ]));
-    localStorage.setItem(STORAGE_KEYS.RESELLERS, JSON.stringify(initialResellers));
-    localStorage.setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, JSON.stringify(initialResellerTransactions));
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(initialCompanySettings));
-    localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, JSON.stringify(initialSubscriptionPlan));
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(initialEmployees[0]));
+    ]);
+    setItem(STORAGE_KEYS.RESELLERS, initialResellers);
+    setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, initialResellerTransactions);
+    setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings);
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, initialSubscriptionPlan);
+    setItem(STORAGE_KEYS.CURRENT_USER, initialEmployees[0]);
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     this.logAction('Dados de demonstração restaurados com sucesso.');
     notifyListeners();
@@ -655,6 +704,7 @@ export const StorageService = {
       this.logAction(`Novo funcionário cadastrado: ${employee.name} (${employee.role})`);
     }
     setItem(STORAGE_KEYS.EMPLOYEES, list);
+    FirestoreSyncService.saveEmployee(employee);
   },
 
   deleteEmployee(id: string): void {
@@ -1059,6 +1109,7 @@ export const StorageService = {
     }
 
     setItem(STORAGE_KEYS.ORDERS, orders);
+    FirestoreSyncService.saveOrder(order);
     return order;
   },
 
@@ -1094,6 +1145,7 @@ export const StorageService = {
     }
 
     setItem(STORAGE_KEYS.ORDERS, orders);
+    FirestoreSyncService.saveOrder(order);
     this.logAction(`OS #${order.orderNumber}: Status alterado para ${newStatus}`, notes);
     return true;
   },
@@ -1666,6 +1718,7 @@ export const StorageService = {
 
     receivables.unshift(receivable);
     setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    FirestoreSyncService.saveReceivable(receivable);
 
     // 3. Update Order status to ENTREGUE
     order.status = 'ENTREGUE';
@@ -1861,6 +1914,7 @@ export const StorageService = {
   saveCompanySettings(settings: CompanySettings): void {
     setItem(STORAGE_KEYS.SETTINGS, settings);
     this.logAction('Configurações da empresa atualizadas.');
+    FirestoreSyncService.saveCompanySettings(settings);
   },
 
   // Subscription & Plan info (Painel Ativo)
@@ -1874,11 +1928,23 @@ export const StorageService = {
   },
 
   saveSubscriptionPlan(plan: SubscriptionPlanInfo): void {
-    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, plan);
-    if (plan.accountEmail) {
-      this.saveSubscriptionForEmail(plan.accountEmail, plan);
+    const session = this.getAuthSession();
+    const targetEmail = plan.accountEmail || session?.email || '';
+    const fullPlan: SubscriptionPlanInfo = {
+      ...plan,
+      accountEmail: targetEmail || plan.accountEmail,
+    };
+
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, fullPlan);
+    if (targetEmail) {
+      this.saveSubscriptionForEmail(targetEmail, fullPlan);
     }
-    this.logAction(`Plano de assinatura atualizado: ${plan.planName} (${plan.planPrice})`);
+    this.logAction(`Plano de assinatura atualizado: ${fullPlan.planName} (${fullPlan.planPrice})`);
+    try {
+      FirestoreSyncService.saveSubscriptionPlan(fullPlan);
+    } catch (e) {
+      console.warn('Sync subscription error:', e);
+    }
     notifyListeners();
   },
 
@@ -2102,6 +2168,7 @@ export const StorageService = {
     }
     setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
     notifyListeners();
+    FirestoreSyncService.saveUserAccount(account);
   },
 
   registerUserAccount(params: {
@@ -2142,7 +2209,18 @@ export const StorageService = {
     };
     this.saveUserAccount(newAccount);
 
-    // 2. Configure company settings with shop name
+    // 2. Set active auth session immediately so subsequent saves are scoped to this new tenant
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: cleanOwner,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanOwner)}&background=0284c7&color=ffffff`,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    // 3. Configure company settings with shop name
     const currentSettings = this.getCompanySettings();
     this.saveCompanySettings({
       ...currentSettings,
@@ -2209,14 +2287,7 @@ export const StorageService = {
     this.saveSubscriptionForEmail(cleanEmail, trialPlan);
 
     // 5. Save active auth session
-    const session: AuthSession = {
-      isAuthenticated: true,
-      provider: 'email',
-      email: cleanEmail,
-      name: cleanOwner,
-      avatarUrl: adminEmp.avatarUrl,
-      loggedAt: new Date().toISOString(),
-    };
+    session.avatarUrl = adminEmp.avatarUrl;
     this.setAuthSession(session);
 
     // Also register in saved accounts
@@ -2278,6 +2349,16 @@ export const StorageService = {
       throw new Error('Senha incorreta. Verifique sua senha ou use a recuperação de acesso.');
     }
 
+    // Set active auth session immediately so subsequent operations use this tenant scope
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: account.ownerName || account.shopName,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
     // Update last login
     account.lastLoginAt = new Date().toISOString();
     this.saveUserAccount(account);
@@ -2329,14 +2410,8 @@ export const StorageService = {
     }
 
     // Set active auth session
-    const session: AuthSession = {
-      isAuthenticated: true,
-      provider: 'email',
-      email: cleanEmail,
-      name: employee.name,
-      avatarUrl: employee.avatarUrl,
-      loggedAt: new Date().toISOString(),
-    };
+    session.name = employee.name;
+    session.avatarUrl = employee.avatarUrl;
     this.setAuthSession(session);
 
     this.saveAccountProfile({
@@ -2560,6 +2635,8 @@ export const StorageService = {
       existingIndex >= 0 ? `Despesa atualizada: ${formattedExpense.description}` : `Despesa registrada: ${formattedExpense.description}`,
       `R$ ${formattedExpense.amount.toFixed(2)} (${formattedExpense.category})`
     );
+
+    FirestoreSyncService.saveExpense(formattedExpense);
 
     return formattedExpense;
   },
@@ -2928,145 +3005,134 @@ export const StorageService = {
 function alignCustomersAcrossSectors(): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
-    const customersJson = localStorage.getItem('msp_customers_v1');
-    if (!customersJson) return;
-    const customers: Customer[] = JSON.parse(customersJson);
+    const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
     if (!Array.isArray(customers) || customers.length === 0) return;
 
     const customersMap = new Map<string, Customer>();
     customers.forEach(c => customersMap.set(c.id, c));
 
     // 1. Align Service Orders (OS)
-    const ordersJson = localStorage.getItem('msp_orders_v2');
-    if (ordersJson) {
-      const orders: ServiceOrder[] = JSON.parse(ordersJson);
-      if (Array.isArray(orders)) {
-        let modified = false;
-        const updatedOrders = orders.map(o => {
-          if (o.customerId && customersMap.has(o.customerId)) {
-            const c = customersMap.get(o.customerId)!;
-            if (
-              o.customerName !== c.name ||
-              o.customerPhone !== (c.phone || c.whatsapp) ||
-              o.customerWhatsapp !== (c.whatsapp || c.phone) ||
-              o.customerDocument !== c.document
-            ) {
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    if (Array.isArray(orders) && orders.length > 0) {
+      let modified = false;
+      const updatedOrders = orders.map(o => {
+        if (o.customerId && customersMap.has(o.customerId)) {
+          const c = customersMap.get(o.customerId)!;
+          if (
+            o.customerName !== c.name ||
+            o.customerPhone !== (c.phone || c.whatsapp) ||
+            o.customerWhatsapp !== (c.whatsapp || c.phone) ||
+            o.customerDocument !== c.document
+          ) {
+            modified = true;
+            return {
+              ...o,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+              customerWhatsapp: c.whatsapp || c.phone || '',
+              customerDocument: c.document,
+            };
+          }
+        } else {
+          // Fuzzy search by name match
+          const cleanName = o.customerName ? o.customerName.trim().toLowerCase() : '';
+          if (cleanName) {
+            const matchedCust = customers.find(c => {
+              const cn = c.name.trim().toLowerCase();
+              return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
+            });
+            if (matchedCust) {
               modified = true;
               return {
                 ...o,
-                customerName: c.name,
-                customerPhone: c.phone || c.whatsapp || '',
-                customerWhatsapp: c.whatsapp || c.phone || '',
-                customerDocument: c.document,
+                customerId: matchedCust.id,
+                customerName: matchedCust.name,
+                customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
+                customerWhatsapp: matchedCust.whatsapp || matchedCust.phone || '',
+                customerDocument: matchedCust.document,
               };
             }
-          } else {
-            // Fuzzy search by name match
-            const cleanName = o.customerName ? o.customerName.trim().toLowerCase() : '';
-            if (cleanName) {
-              const matchedCust = customers.find(c => {
-                const cn = c.name.trim().toLowerCase();
-                return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
-              });
-              if (matchedCust) {
-                modified = true;
-                return {
-                  ...o,
-                  customerId: matchedCust.id,
-                  customerName: matchedCust.name,
-                  customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
-                  customerWhatsapp: matchedCust.whatsapp || matchedCust.phone || '',
-                  customerDocument: matchedCust.document,
-                };
-              }
-            }
           }
-          return o;
-        });
-
-        if (modified) {
-          localStorage.setItem('msp_orders_v2', JSON.stringify(updatedOrders));
         }
+        return o;
+      });
+
+      if (modified) {
+        setItem(STORAGE_KEYS.ORDERS, updatedOrders);
       }
     }
 
     // 2. Align Receivables / A Prazo / Fiado
-    const receivablesJson = localStorage.getItem('msp_receivables_v1');
-    if (receivablesJson) {
-      const receivables: AccountReceivable[] = JSON.parse(receivablesJson);
-      if (Array.isArray(receivables)) {
-        let modified = false;
-        const updatedReceivables = receivables.map(r => {
-          if (r.customerId && customersMap.has(r.customerId)) {
-            const c = customersMap.get(r.customerId)!;
-            if (
-              r.customerName !== c.name ||
-              r.customerPhone !== (c.phone || c.whatsapp) ||
-              (r as any).customerDocument !== c.document ||
-              (r as any).cpfCnpj !== c.document
-            ) {
+    const receivables = getItem<AccountReceivable[]>(STORAGE_KEYS.RECEIVABLES, []);
+    if (Array.isArray(receivables) && receivables.length > 0) {
+      let modified = false;
+      const updatedReceivables = receivables.map(r => {
+        if (r.customerId && customersMap.has(r.customerId)) {
+          const c = customersMap.get(r.customerId)!;
+          if (
+            r.customerName !== c.name ||
+            r.customerPhone !== (c.phone || c.whatsapp) ||
+            (r as any).customerDocument !== c.document ||
+            (r as any).cpfCnpj !== c.document
+          ) {
+            modified = true;
+            return {
+              ...r,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+              customerDocument: c.document,
+              cpfCnpj: c.document,
+            };
+          }
+        } else {
+          // Fuzzy search by name match
+          const cleanName = r.customerName ? r.customerName.trim().toLowerCase() : '';
+          if (cleanName) {
+            const matchedCust = customers.find(c => {
+              const cn = c.name.trim().toLowerCase();
+              return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
+            });
+            if (matchedCust) {
               modified = true;
               return {
                 ...r,
-                customerName: c.name,
-                customerPhone: c.phone || c.whatsapp || '',
-                customerDocument: c.document,
-                cpfCnpj: c.document,
+                customerId: matchedCust.id,
+                customerName: matchedCust.name,
+                customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
+                customerDocument: matchedCust.document,
+                cpfCnpj: matchedCust.document,
               };
             }
-          } else {
-            // Fuzzy search by name match
-            const cleanName = r.customerName ? r.customerName.trim().toLowerCase() : '';
-            if (cleanName) {
-              const matchedCust = customers.find(c => {
-                const cn = c.name.trim().toLowerCase();
-                return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
-              });
-              if (matchedCust) {
-                modified = true;
-                return {
-                  ...r,
-                  customerId: matchedCust.id,
-                  customerName: matchedCust.name,
-                  customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
-                  customerDocument: matchedCust.document,
-                  cpfCnpj: matchedCust.document,
-                };
-              }
-            }
           }
-          return r;
-        });
-
-        if (modified) {
-          localStorage.setItem('msp_receivables_v1', JSON.stringify(updatedReceivables));
         }
+        return r;
+      });
+
+      if (modified) {
+        setItem(STORAGE_KEYS.RECEIVABLES, updatedReceivables);
       }
     }
 
     // 3. Align Devices
-    const devicesJson = localStorage.getItem('msp_devices_v1');
-    if (devicesJson) {
-      const devices: Device[] = JSON.parse(devicesJson);
-      if (Array.isArray(devices)) {
-        let modified = false;
-        const updatedDevices = devices.map(d => {
-          if (d.customerId && customersMap.has(d.customerId)) {
-            const c = customersMap.get(d.customerId)!;
-            if (d.customerName !== c.name || (d as any).customerPhone !== (c.phone || c.whatsapp)) {
-              modified = true;
-              return {
-                ...d,
-                customerName: c.name,
-                customerPhone: c.phone || c.whatsapp || '',
-              };
-            }
+    const devices = getItem<Device[]>(STORAGE_KEYS.DEVICES, []);
+    if (Array.isArray(devices) && devices.length > 0) {
+      let modified = false;
+      const updatedDevices = devices.map(d => {
+        if (d.customerId && customersMap.has(d.customerId)) {
+          const c = customersMap.get(d.customerId)!;
+          if (d.customerName !== c.name || (d as any).customerPhone !== (c.phone || c.whatsapp)) {
+            modified = true;
+            return {
+              ...d,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+            };
           }
-          return d;
-        });
-        if (modified) {
-          localStorage.setItem('msp_devices_v1', JSON.stringify(updatedDevices));
         }
+        return d;
+      });
+      if (modified) {
+        setItem(STORAGE_KEYS.DEVICES, updatedDevices);
       }
     }
   } catch (e) {
