@@ -2569,9 +2569,9 @@ export const StorageService = {
     }
     this.setCurrentUser(employee);
 
-    // Check subscription
+    // Check subscription (save locally only on login to prevent overwriting correct Firestore values)
     let userPlan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
-    this.saveSubscriptionPlan(userPlan);
+    this.saveSubscriptionPlanOnlyLocal(userPlan);
 
     // Check expiration
     const now = new Date();
@@ -2583,7 +2583,7 @@ export const StorageService = {
       if (expDate.getTime() < now.getTime()) {
         isExpiredOrCanceled = true;
         userPlan.status = 'expired';
-        this.saveSubscriptionPlan(userPlan);
+        this.saveSubscriptionPlanOnlyLocal(userPlan);
       }
     }
 
@@ -2705,7 +2705,7 @@ export const StorageService = {
       isTrial,
     };
 
-    this.saveSubscriptionPlan(userPlan);
+    this.saveSubscriptionPlanOnlyLocal(userPlan);
     this.saveSubscriptionForEmail(cleanEmail, userPlan);
 
     // Cria a sessão com UID

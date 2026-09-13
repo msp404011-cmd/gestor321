@@ -636,7 +636,9 @@ export default function App() {
               { id: 'POS', label: 'PDV', icon: ShoppingCart },
               { id: 'CUSTOMERS', label: 'Clientes', icon: Users },
               { id: 'PRODUCTS', label: 'Estoque', icon: Package },
-            ].map((item) => {
+            ]
+              .filter((item) => SubscriptionService.isTabAllowed(item.id as NavigationTab))
+              .map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
