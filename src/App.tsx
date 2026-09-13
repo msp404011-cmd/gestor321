@@ -183,7 +183,8 @@ export default function App() {
   useEffect(() => {
     if (!authSession?.email || !db) return;
 
-    const tenantId = authSession.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    // tenantId format: email.toLowerCase() (preserving '@' and '.')
+    const tenantId = authSession.email.toLowerCase();
     const docRef = doc(db, 'user_accounts', tenantId, 'settings', 'subscription');
 
     console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tenantId}`);
