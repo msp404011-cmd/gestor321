@@ -22,12 +22,12 @@ export function getTenantId(): string {
 
 export const FirestoreSyncService = {
   /**
-   * Save user account to Firestore /user_accounts/{id} (global account record)
+   * Save user account to Firestore /accounts/{id} (global account record)
    */
   async saveUserAccount(account: UserAccount): Promise<void> {
     try {
       if (!db || !account.id) return;
-      const docRef = doc(db, 'user_accounts', account.id);
+      const docRef = doc(db, 'accounts', account.id);
       await setDoc(docRef, account, { merge: true });
     } catch (err) {
       console.warn('Firestore saveUserAccount error:', err);
@@ -35,13 +35,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save employee / operator to Firestore /user_accounts/{tenantId}/employees/{id}
+   * Save employee / operator to Firestore /accounts/{tenantId}/employees/{id}
    */
   async saveEmployee(employee: Employee): Promise<void> {
     try {
       if (!db || !employee.id) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'employees', employee.id);
+      const docRef = doc(db, 'accounts', tenantId, 'employees', employee.id);
       await setDoc(docRef, employee, { merge: true });
     } catch (err) {
       console.warn('Firestore saveEmployee error:', err);
@@ -49,13 +49,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save company settings to Firestore /user_accounts/{tenantId}/settings/company
+   * Save company settings to Firestore /accounts/{tenantId}/settings/company
    */
   async saveCompanySettings(settings: CompanySettings): Promise<void> {
     try {
       if (!db) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'settings', 'company');
+      const docRef = doc(db, 'accounts', tenantId, 'settings', 'company');
       await setDoc(docRef, settings, { merge: true });
     } catch (err) {
       console.warn('Firestore saveCompanySettings error:', err);
@@ -63,13 +63,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save service order to Firestore /user_accounts/{tenantId}/orders/{id}
+   * Save service order to Firestore /accounts/{tenantId}/orders/{id}
    */
   async saveOrder(order: ServiceOrder): Promise<void> {
     try {
       if (!db || !order.id) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'orders', order.id);
+      const docRef = doc(db, 'accounts', tenantId, 'orders', order.id);
       await setDoc(docRef, order, { merge: true });
     } catch (err) {
       console.warn('Firestore saveOrder error:', err);
@@ -77,13 +77,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save accounts receivable to Firestore /user_accounts/{tenantId}/receivables/{id}
+   * Save accounts receivable to Firestore /accounts/{tenantId}/receivables/{id}
    */
   async saveReceivable(receivable: AccountReceivable): Promise<void> {
     try {
       if (!db || !receivable.id) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'receivables', receivable.id);
+      const docRef = doc(db, 'accounts', tenantId, 'receivables', receivable.id);
       await setDoc(docRef, receivable, { merge: true });
     } catch (err) {
       console.warn('Firestore saveReceivable error:', err);
@@ -91,13 +91,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save expense / account payable to Firestore /user_accounts/{tenantId}/expenses/{id}
+   * Save expense / account payable to Firestore /accounts/{tenantId}/expenses/{id}
    */
   async saveExpense(expense: Expense): Promise<void> {
     try {
       if (!db || !expense.id) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'expenses', expense.id);
+      const docRef = doc(db, 'accounts', tenantId, 'expenses', expense.id);
       await setDoc(docRef, expense, { merge: true });
     } catch (err) {
       console.warn('Firestore saveExpense error:', err);
@@ -105,13 +105,13 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save subscription plan to Firestore /user_accounts/{tenantId}/settings/subscription
+   * Save subscription plan to Firestore /accounts/{tenantId}/settings/subscription
    */
   async saveSubscriptionPlan(plan: SubscriptionPlanInfo): Promise<void> {
     try {
       if (!db) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'user_accounts', tenantId, 'settings', 'subscription');
+      const docRef = doc(db, 'accounts', tenantId, 'settings', 'subscription');
       await setDoc(docRef, plan, { merge: true });
     } catch (err) {
       console.warn('Firestore saveSubscriptionPlan error:', err);
@@ -124,7 +124,7 @@ export const FirestoreSyncService = {
   async fetchUserAccounts(): Promise<UserAccount[]> {
     try {
       if (!db) return [];
-      const querySnapshot = await getDocs(collection(db, 'user_accounts'));
+      const querySnapshot = await getDocs(collection(db, 'accounts'));
       const accounts: UserAccount[] = [];
       querySnapshot.forEach((d) => {
         const data = d.data();

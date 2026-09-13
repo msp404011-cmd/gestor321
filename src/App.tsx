@@ -185,7 +185,7 @@ export default function App() {
 
     // tenantId format: email.toLowerCase() (preserving '@' and '.')
     const tenantId = authSession.email.toLowerCase();
-    const docRef = doc(db, 'user_accounts', tenantId, 'settings', 'subscription');
+    const docRef = doc(db, 'accounts', tenantId, 'settings', 'subscription');
 
     console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tenantId}`);
     
