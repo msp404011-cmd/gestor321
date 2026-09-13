@@ -81,17 +81,12 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   const plano = normalizePlanType(rawPlanStr);
 
   const isTrialPlan = plano === 'TRIAL';
-  const planoNome = data.planoNome || data.planName || (isTrialPlan ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
-  const valorPlano = isTrialPlan ? 0 : Number(
-    data.valorPlano ??
-    data.valorMensalidade ??
-    data.mensalidade ??
-    data.valor ??
-    data.amount ??
-    data.preco ??
-    data.price ??
-    0
-  );
+  const planoNome = data.planoNome || data.planName || data.plano || data.planType || (isTrialPlan ? 'Teste Grátis (7 Dias)' : '');
+  
+  // Para valorPlano, vamos buscar exatamente o que está no banco e não forçar 0 a menos que seja realmente TRIAL. 
+  // Se não tiver valor definido no banco, deixamos o que existir ou undefined/0, mas preferimos os campos reais.
+  const rawValor = data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.valor ?? data.amount ?? data.preco ?? data.price;
+  const valorPlano = isTrialPlan ? 0 : (rawValor !== undefined && rawValor !== null ? Number(rawValor) : 0);
 
   // Datas
   const nowIso = new Date().toISOString();

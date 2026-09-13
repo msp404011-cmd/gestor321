@@ -37,6 +37,7 @@ import { SubscriptionService, normalizePlanType } from './services/subscriptionS
 import { LoginView } from './components/auth/LoginView';
 import { MasterAuthModal } from './components/master/MasterAuthModal';
 import { MasterPanel } from './components/master/MasterPanel';
+import { AdminBackendService } from './services/adminBackendService';
 
 // Models & Services
 import { NavigationTab, Customer, Device, ServiceOrder, Product, Employee, SubscriptionPlanInfo, PlanType } from './types';
@@ -119,7 +120,28 @@ export default function App() {
   // Master Panel State
   const MASTER_ADMIN_EMAIL = 'mmspmartins62@gmail.com';
   const [showMasterAuth, setShowMasterAuth] = useState(false);
-  const [showMasterPanel, setShowMasterPanel] = useState(false);
+  const [showMasterPanel, setShowMasterPanel] = useState(() => {
+    try {
+      const hasToken = Boolean(AdminBackendService.getToken());
+      const isOpenFlag = sessionStorage.getItem('msp_master_panel_open') === 'true';
+      return hasToken && isOpenFlag;
+    } catch {
+      return false;
+    }
+  });
+
+  // Verify master session validity on mount if master panel is open
+  useEffect(() => {
+    if (showMasterPanel) {
+      AdminBackendService.verifySession().then(isValid => {
+        if (!isValid) {
+          setShowMasterPanel(false);
+          AdminBackendService.clearToken();
+          try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   const isMasterAdmin = Boolean(
     (authSession?.email && authSession.email.trim().toLowerCase() === MASTER_ADMIN_EMAIL) ||
@@ -281,32 +303,25 @@ export default function App() {
       
       const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
       
-      // Extract raw planType and normalize to known PlanType with fallback to existing plan
+      // REGRA RÍGIDA: Impede alteração automática de plano por rotinas de sync, login, refresh, vencimento ou renovação
       const existingPlan = StorageService.getSubscriptionForEmail(emailKey) || StorageService.getSubscriptionPlan();
-      const rawPlanId = String(
-        data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
-      );
 
       let normalizedPlanType: PlanType;
       let planName: string;
       let planPrice: number;
 
-      if (rawPlanId.trim()) {
-        normalizedPlanType = normalizePlanType(rawPlanId);
-        const isTrial = normalizedPlanType === 'TRIAL';
-        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? existingPlan?.planPrice ?? 0.50);
-        planPrice = isTrial ? 0 : rawPrice;
-        planName = data.planoNome || data.planName || existingPlan?.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
-      } else if (existingPlan && existingPlan.planType) {
+      if (existingPlan && existingPlan.planType) {
         normalizedPlanType = existingPlan.planType;
         planName = existingPlan.planName;
         planPrice = existingPlan.planPrice;
       } else {
+        const rawPlanId = String(
+          data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA'
+        );
         normalizedPlanType = normalizePlanType(rawPlanId);
         const isTrial = normalizedPlanType === 'TRIAL';
-        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
-        planPrice = isTrial ? 0 : rawPrice;
-        planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+        planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 69.90);
+        planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
       }
 
       const isTrial = normalizedPlanType === 'TRIAL';
@@ -471,10 +486,16 @@ export default function App() {
       console.warn('Backup on logout error:', e);
     }
 
-    // Immediately clear tokens and auth session synchronously
+    // Immediately clear tokens, master session, and auth session synchronously
     GoogleDriveBackupService.setAccessToken(null);
     StorageService.clearAuthSession();
+    AdminBackendService.clearToken();
+    try {
+      sessionStorage.removeItem('msp_master_panel_open');
+    } catch {}
     setAuthSession(null);
+    setShowMasterPanel(false);
+    setShowMasterAuth(false);
     setIsLoginOpen(false);
     setActiveTab('DASHBOARD');
   };
@@ -533,9 +554,24 @@ export default function App() {
         }>
           {/* Master Panel */}
           {showMasterAuth && (
-            <MasterAuthModal onClose={() => setShowMasterAuth(false)} onSuccess={() => {setShowMasterAuth(false); setShowMasterPanel(true);}} />
+            <MasterAuthModal 
+              onClose={() => setShowMasterAuth(false)} 
+              onSuccess={() => {
+                setShowMasterAuth(false); 
+                setShowMasterPanel(true);
+                try { sessionStorage.setItem('msp_master_panel_open', 'true'); } catch {}
+              }} 
+            />
           )}
-          {showMasterPanel && <MasterPanel onClose={() => setShowMasterPanel(false)} />}
+          {showMasterPanel && (
+            <MasterPanel 
+              onClose={() => {
+                setShowMasterPanel(false);
+                try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
+                AdminBackendService.clearToken();
+              }} 
+            />
+          )}
 
           {/* Dynamic Main View Components */}
           {activeTab === 'DASHBOARD' && (

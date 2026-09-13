@@ -66,9 +66,9 @@ const AVAILABLE_SYSTEM_PLANS: Array<{
 
 export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, onClose }) => {
   const [formData, setFormData] = useState({
-    planoId: client.planoId || client.plano || 'ASSISTENCIA',
-    planoNome: client.planoNome || client.plano || 'Plano Assistência Técnica',
-    valorMensalidade: Number(client.valorPlano || client.valorMensalidade || client.mensalidade || 0),
+    planoId: client.planoId || client.plano || '',
+    planoNome: client.planoNome || client.plano || '',
+    valorMensalidade: client.valorPlano !== undefined && client.valorPlano !== null ? Number(client.valorPlano) : (client.valorMensalidade !== undefined && client.valorMensalidade !== null ? Number(client.valorMensalidade) : (client.mensalidade !== undefined && client.mensalidade !== null ? Number(client.mensalidade) : 0)),
     status: (client.bloqueado ? 'bloqueado' : client.status || 'ativo') as 'ativo' | 'bloqueado' | 'vencido',
     dataVencimento: client.dataVencimento || client.vencimento || ''
   });

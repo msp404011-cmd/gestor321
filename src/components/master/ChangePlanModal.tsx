@@ -114,9 +114,9 @@ export const SYSTEM_PLANS_LIST: AvailablePlanOption[] = [
 
 export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClose, onPlanChanged }) => {
   // Identificação do plano atual
-  const currentPlanId: PlanType = (client.planoId || client.plano || 'ASSISTENCIA') as PlanType;
-  const currentPlanName = client.planoNome || client.plano || 'Plano Atual';
-  const currentPrice = Number(client.valorPlano || client.valorMensalidade || client.mensalidade || 0);
+  const currentPlanId: PlanType = (client.planoId || client.plano || '') as PlanType;
+  const currentPlanName = client.planoNome || client.plano || '';
+  const currentPrice = client.valorPlano !== undefined && client.valorPlano !== null ? Number(client.valorPlano) : (client.valorMensalidade !== undefined && client.valorMensalidade !== null ? Number(client.valorMensalidade) : (client.mensalidade !== undefined && client.mensalidade !== null ? Number(client.mensalidade) : 0));
   const currentVencimento = client.dataVencimento || client.vencimento || '';
 
   // Seleção inicial (aponta para o plano atual do usuário ou completo por padrão)

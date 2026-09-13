@@ -700,14 +700,14 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
                       {/* Plano */}
                       <td className="p-3.5">
                         <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-bold bg-slate-800 text-slate-200 border border-slate-700">
-                          {client.planoNome || client.plano || 'Plano'}
+                          {client.planoNome || client.plano || '---'}
                         </span>
                       </td>
 
                       {/* Valor */}
                       <td className="p-3.5">
                         <div className="text-cyan-400 font-black font-mono text-xs sm:text-sm">
-                          R$ {Number(client.valorPlano || client.valorMensalidade || 0).toFixed(2)}
+                          R$ {client.valorPlano !== undefined && client.valorPlano !== null ? Number(client.valorPlano).toFixed(2) : (client.valorMensalidade !== undefined && client.valorMensalidade !== null ? Number(client.valorMensalidade).toFixed(2) : '---')}
                         </div>
                       </td>
 

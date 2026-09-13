@@ -72,6 +72,11 @@ export interface Customer {
   creditLimit?: number; // Limite de Crediário / A Prazo
   allowCrediario?: boolean; // Se permite compras a prazo
   debtBalance?: number; // Saldo devedor total acumulado
+  planName?: string;
+  planoNome?: string;
+  plano?: string;
+  planPrice?: number;
+  valorPlano?: number;
 }
 
 export type DeviceType =
