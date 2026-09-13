@@ -144,23 +144,31 @@ export const AdminBackendService = {
     }
 
     if (!response.ok) {
-      let serverMessage = parsedData?.message || parsedData?.error;
-      if (!serverMessage) {
+      let rawMsg = parsedData?.message || parsedData?.error;
+      let serverMessage = '';
+
+      if (typeof rawMsg === 'string') {
+        serverMessage = rawMsg;
+      } else if (rawMsg && typeof rawMsg === 'object') {
+        serverMessage = rawMsg.message || rawMsg.error || rawMsg.code || JSON.stringify(rawMsg);
+      }
+
+      if (!serverMessage || serverMessage === '[object Object]') {
         switch (response.status) {
           case 400:
             serverMessage = 'Requisição inválida. Verifique os dados enviados.';
             break;
           case 401:
-            serverMessage = 'Senha inválida.';
+            serverMessage = 'Senha inválida ou sessão expirada.';
             break;
           case 403:
             serverMessage = 'Acesso administrativo não autorizado.';
             break;
           case 404:
-            serverMessage = 'Endpoint de autenticação não encontrado.';
+            serverMessage = 'Endpoint de administração não encontrado (HTTP 404).';
             break;
           case 405:
-            serverMessage = 'Método de requisição não suportado pelo servidor.';
+            serverMessage = 'Método de requisição não suportado pelo servidor (HTTP 405).';
             break;
           case 500:
           default:

@@ -1,4 +1,4 @@
-import { verifyAdminToken, setCorsHeaders } from '../adminUtils.js';
+import { isAuthorizedRequest, setCorsHeaders, listAccountsREST } from '../adminUtils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);
@@ -8,14 +8,15 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  const authHeader = req.headers?.authorization || '';
-  const token = authHeader.startsWith('Bearer ')
-    ? authHeader.substring(7).trim()
-    : req.headers?.['x-admin-token'] || req.query?.token || '';
-
-  if (!verifyAdminToken(token)) {
-    return res.status(401).json({ success: false, message: 'Acesso não autorizado' });
+  if (!isAuthorizedRequest(req)) {
+    return res.status(401).json({ success: false, message: 'Acesso não autorizado', error: 'Acesso não autorizado' });
   }
 
-  return res.status(200).json({ success: true, users: [] });
+  try {
+    const users = await listAccountsREST();
+    return res.status(200).json({ success: true, users, total: users.length });
+  } catch (err) {
+    console.error('[Vercel API] Erro ao listar usuários:', err);
+    return res.status(500).json({ success: false, users: [], error: err?.message || 'Erro ao carregar usuários.' });
+  }
 }

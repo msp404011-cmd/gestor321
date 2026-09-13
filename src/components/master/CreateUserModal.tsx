@@ -134,7 +134,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onUse
       }
     } catch (err: any) {
       console.error('Erro ao criar usuário:', err);
-      setErrorMsg(err.message || 'Erro inesperado ao criar usuário.');
+      const msg = typeof err === 'string'
+        ? (err === '[object Object]' ? 'Erro inesperado ao criar usuário.' : err)
+        : (err?.message && typeof err.message === 'string' && err.message !== '[object Object]')
+        ? err.message
+        : (err?.error && typeof err.error === 'string' && err.error !== '[object Object]')
+        ? err.error
+        : 'Erro inesperado ao criar usuário.';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }

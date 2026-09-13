@@ -305,7 +305,12 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
       }
     } catch (err: any) {
       console.error('Erro ao executar ação:', err);
-      showToast(err.message || 'Erro ao comunicar com o servidor administrativo.', 'error');
+      const msg = typeof err === 'string'
+        ? (err === '[object Object]' ? 'Erro ao comunicar com o servidor administrativo.' : err)
+        : (err?.message && typeof err.message === 'string' && err.message !== '[object Object]')
+        ? err.message
+        : 'Erro ao comunicar com o servidor administrativo.';
+      showToast(msg, 'error');
     } finally {
       setLoadingAction(null);
     }

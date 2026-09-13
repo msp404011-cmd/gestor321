@@ -203,7 +203,14 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
 
     } catch (err: any) {
       console.error('Erro ao atualizar plano no backend:', err);
-      setErrorMessage(err.message || 'Erro ao gravar alteração de plano no Firebase.');
+      const msg = typeof err === 'string'
+        ? (err === '[object Object]' ? 'Erro ao gravar alteração de plano no Firebase.' : err)
+        : (err?.message && typeof err.message === 'string' && err.message !== '[object Object]')
+        ? err.message
+        : (err?.error && typeof err.error === 'string' && err.error !== '[object Object]')
+        ? err.error
+        : 'Erro ao gravar alteração de plano no Firebase.';
+      setErrorMessage(msg);
       setIsConfirming(false);
     } finally {
       setLoading(false);

@@ -94,7 +94,14 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
       setStep(4);
     } catch (err: any) {
       console.error('Erro ao executar exclusão:', err);
-      setErrorMsg(err.message || 'Ocorreu um erro ao excluir o usuário. Nenhuma alteração indevida foi realizada.');
+      const msg = typeof err === 'string'
+        ? (err === '[object Object]' ? 'Ocorreu um erro ao excluir o usuário.' : err)
+        : (err?.message && typeof err.message === 'string' && err.message !== '[object Object]')
+        ? err.message
+        : (err?.error && typeof err.error === 'string' && err.error !== '[object Object]')
+        ? err.error
+        : 'Ocorreu um erro ao excluir o usuário.';
+      setErrorMsg(msg);
       setStep(2);
     } finally {
       setIsLoading(false);
