@@ -558,7 +558,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         placeholder="contato@loja.com"
-                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
+                        className="w-full px-3 py-2 bg-[#030712] border border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors not-italic"
                       />
                     </div>
 
