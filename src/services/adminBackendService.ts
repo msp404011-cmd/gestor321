@@ -97,6 +97,16 @@ export const AdminBackendService = {
 
     let parsedData: any = null;
     if (rawText && rawText.trim().length > 0) {
+      const trimmed = rawText.trim();
+      if (trimmed.startsWith('<') || trimmed.toLowerCase().startsWith('<!doctype')) {
+        console.error('[AdminBackendService] Servidor retornou HTML em vez de JSON:', {
+          status: response.status,
+          contentType: response.headers.get('content-type'),
+          preview: rawText.slice(0, 200),
+        });
+        throw new Error('O servidor de API retornou uma página HTML em vez de JSON. Verifique a implantação da rota no Vercel.');
+      }
+
       try {
         parsedData = JSON.parse(rawText);
       } catch (jsonErr: any) {

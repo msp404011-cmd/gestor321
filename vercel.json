@@ -4,11 +4,19 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/admin/auth/login",
+      "destination": "/api/admin/auth/login.js"
+    },
+    {
+      "source": "/api/admin/auth/verify",
+      "destination": "/api/admin/auth/verify.js"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
