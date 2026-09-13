@@ -383,6 +383,70 @@ app.get('/api/admin/users', requireAdminAuth, async (req: express.Request, res: 
 });
 
 /**
+ * Helper to resolve all Firestore document IDs associated with a user
+ * (e.g., both the document ID as UID and the document ID as email).
+ */
+async function resolveAccountDocIds(db: any, target: string): Promise<string[]> {
+  const ids = new Set<string>();
+  if (!target) return [];
+
+  const cleanTarget = target.trim();
+  ids.add(cleanTarget);
+
+  // Try to fetch target as doc ID
+  try {
+    const docSnap = await db.collection('accounts').doc(cleanTarget).get();
+    if (docSnap.exists) {
+      const data = docSnap.data() || {};
+      if (data.uid) ids.add(String(data.uid).trim());
+      if (data.email) ids.add(String(data.email).trim().toLowerCase());
+      if (data.userEmail) ids.add(String(data.userEmail).trim().toLowerCase());
+      if (data.login) ids.add(String(data.login).trim().toLowerCase());
+    }
+  } catch (err) {
+    console.warn('Error reading account doc for ID resolution:', err);
+  }
+
+  // Query where uid is target
+  try {
+    const q1 = await db.collection('accounts').where('uid', '==', cleanTarget).get();
+    q1.forEach((doc: any) => {
+      ids.add(doc.id);
+      const data = doc.data() || {};
+      if (data.email) ids.add(String(data.email).trim().toLowerCase());
+      if (data.userEmail) ids.add(String(data.userEmail).trim().toLowerCase());
+    });
+  } catch (err) {}
+
+  // Query where email / userEmail is target
+  const lowerTarget = cleanTarget.toLowerCase();
+  if (lowerTarget.includes('@')) {
+    try {
+      const q2 = await db.collection('accounts').where('email', '==', lowerTarget).get();
+      q2.forEach((doc: any) => {
+        ids.add(doc.id);
+        const data = doc.data() || {};
+        if (data.uid) ids.add(String(data.uid).trim());
+      });
+      const q3 = await db.collection('accounts').where('userEmail', '==', lowerTarget).get();
+      q3.forEach((doc: any) => {
+        ids.add(doc.id);
+        const data = doc.data() || {};
+        if (data.uid) ids.add(String(data.uid).trim());
+      });
+      const q4 = await db.collection('accounts').where('login', '==', lowerTarget).get();
+      q4.forEach((doc: any) => {
+        ids.add(doc.id);
+        const data = doc.data() || {};
+        if (data.uid) ids.add(String(data.uid).trim());
+      });
+    } catch (err) {}
+  }
+
+  return Array.from(ids).filter(Boolean);
+}
+
+/**
  * 4. Create User (Firebase Authentication + Firestore Document)
  */
 app.post('/api/admin/create-user', requireAdminAuth, async (req: express.Request, res: express.Response) => {
@@ -541,7 +605,14 @@ app.post('/api/admin/toggle-block', requireAdminAuth, async (req: express.Reques
       statusReason: reason || (shouldBlock ? 'Bloqueio administrativo aplicado pelo Painel Master' : 'Desbloqueio autorizado pelo Master Admin'),
     };
 
-    await db.collection('accounts').doc(targetDocId).set(updatePayload, { merge: true });
+    // 1. Update all matching Firestore documents in parallel to keep everything in sync
+    const matchedDocIds = await resolveAccountDocIds(db, targetDocId);
+    if (matchedDocIds.length === 0) {
+      matchedDocIds.push(targetDocId);
+    }
+    for (const docId of matchedDocIds) {
+      await db.collection('accounts').doc(docId).set(updatePayload, { merge: true });
+    }
 
     // 2. Synchronize with Firebase Auth (disable or enable account login)
     let authUid = uid;
@@ -621,7 +692,14 @@ app.post('/api/admin/change-plan', requireAdminAuth, async (req: express.Request
       planUpdate.vencimento = dataVencimento;
     }
 
-    await db.collection('accounts').doc(targetDocId).set(planUpdate, { merge: true });
+    // Update all matching Firestore documents in parallel to keep everything in sync
+    const matchedDocIds = await resolveAccountDocIds(db, targetDocId);
+    if (matchedDocIds.length === 0) {
+      matchedDocIds.push(targetDocId);
+    }
+    for (const docId of matchedDocIds) {
+      await db.collection('accounts').doc(docId).set(planUpdate, { merge: true });
+    }
 
     // Audit log
     await logAuditAction('CHANGE_PLAN', targetDocId, {
@@ -707,7 +785,14 @@ app.post('/api/admin/update-user', requireAdminAuth, async (req: express.Request
       updatePayload.planName = planoNome;
     }
 
-    await db.collection('accounts').doc(targetDocId).set(updatePayload, { merge: true });
+    // Update all matching Firestore documents in parallel to keep everything in sync
+    const matchedDocIds = await resolveAccountDocIds(db, targetDocId);
+    if (matchedDocIds.length === 0) {
+      matchedDocIds.push(targetDocId);
+    }
+    for (const docId of matchedDocIds) {
+      await db.collection('accounts').doc(docId).set(updatePayload, { merge: true });
+    }
 
     // Sincroniza displayName se o nome foi alterado
     let authUid = uid || (!targetDocId.includes('@') ? targetDocId : '');
@@ -806,20 +891,19 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
       authError = adminErr.message;
     }
 
-    // 2. Exclui apenas o documento desta conta no Firestore
+    // 2. Exclui todos os documentos correspondentes no Firestore para manter tudo limpo
     let firestoreDeleted = false;
     try {
       const adminApp = getFirebaseAdmin();
       const dbAdmin = getFirestore(adminApp);
       
-      if (targetDocId) {
-        await dbAdmin.collection('accounts').doc(targetDocId).delete();
-        firestoreDeleted = true;
+      const matchedDocIds = await resolveAccountDocIds(dbAdmin, targetDocId);
+      if (matchedDocIds.length === 0) {
+        matchedDocIds.push(targetDocId);
       }
-      
-      // Se o targetDocId for o UID, também remove documento legado com chave do e-mail (caso exista)
-      if (cleanEmail && cleanEmail !== targetDocId) {
-        await dbAdmin.collection('accounts').doc(cleanEmail).delete();
+      for (const docId of matchedDocIds) {
+        await dbAdmin.collection('accounts').doc(docId).delete();
+        firestoreDeleted = true;
       }
 
       // Audit log

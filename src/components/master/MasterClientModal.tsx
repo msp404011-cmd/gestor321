@@ -100,11 +100,15 @@ export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, on
 
   // Seleciona um dos planos disponíveis no sistema e atualiza nome e valor automaticamente
   const handleSelectPlan = (plan: typeof AVAILABLE_SYSTEM_PLANS[0]) => {
+    const days = plan.id === 'TRIAL' ? 7 : 30;
+    const calcVencimento = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+
     setFormData(prev => ({
       ...prev,
       planoId: plan.id,
       planoNome: plan.name,
-      valorMensalidade: plan.price
+      valorMensalidade: plan.price,
+      dataVencimento: calcVencimento
     }));
   };
 

@@ -160,10 +160,8 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
       }
 
       const isTrial = selectedPlan.id === 'TRIAL' || selectedPlan.name.toLowerCase().includes('teste') || selectedPlan.name.toLowerCase().includes('7 dias');
-      
-      const calcVencimento = isTrial
-        ? new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
-        : (currentVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+      const days = isTrial ? 7 : 30;
+      const calcVencimento = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
 
       // Executa alteração no backend administrativo com Firebase Admin
       await AdminBackendService.changePlan({
