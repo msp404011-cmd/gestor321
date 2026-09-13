@@ -201,9 +201,23 @@ export default function App() {
 
         // Check for expiration/lock
         const now = new Date();
-        const expDate = new Date(updatedPlan.expiryDate);
-        if (updatedPlan.status === 'expired' || expDate.getTime() < now.getTime()) {
+        now.setHours(0, 0, 0, 0); // Start of today
+        
+        // Assuming expiryDate is in YYYY-MM-DD format
+        const [y, m, d] = updatedPlan.expiryDate.split('-').map(Number);
+        const expDate = new Date(y, (m || 1) - 1, d || 1);
+        expDate.setHours(0, 0, 0, 0);
+
+        const isExpired = updatedPlan.status === 'expired' || 
+                          updatedPlan.status === 'VENCIDO' || 
+                          updatedPlan.status === 'canceled' || 
+                          expDate < now;
+
+        if (isExpired) {
+           console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
            setIsSubscriptionModalOpen(true);
+        } else {
+           setIsSubscriptionModalOpen(false);
         }
       }
     }, (err) => {
