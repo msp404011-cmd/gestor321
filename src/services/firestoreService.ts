@@ -27,7 +27,7 @@ export const FirestoreSyncService = {
    */
   async saveUserAccount(account: UserAccount): Promise<void> {
     try {
-      if (!db || !account.id) return;
+      if (!db || !account.id || account.id === 'default_tenant') return;
       const prepared = prepareAccountForSave(account);
       const docRef = doc(db, 'accounts', account.id);
       await setDoc(docRef, prepared, { merge: true });
@@ -43,6 +43,7 @@ export const FirestoreSyncService = {
     try {
       if (!db || !data.email) return;
       const targetId = (data.email || data.id || data.uid).trim().toLowerCase();
+      if (targetId === 'default_tenant') return;
       const prepared = prepareAccountForSave({ ...data, id: targetId });
       const docRef = doc(db, 'accounts', targetId);
       await setDoc(docRef, prepared, { merge: true });
@@ -82,6 +83,7 @@ export const FirestoreSyncService = {
     try {
       if (!db || !order.id) return;
       const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'orders', order.id);
       await setDoc(docRef, order, { merge: true });
     } catch (err) {
@@ -96,6 +98,7 @@ export const FirestoreSyncService = {
     try {
       if (!db || !receivable.id) return;
       const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'receivables', receivable.id);
       await setDoc(docRef, receivable, { merge: true });
     } catch (err) {
@@ -110,6 +113,7 @@ export const FirestoreSyncService = {
     try {
       if (!db || !expense.id) return;
       const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'expenses', expense.id);
       await setDoc(docRef, expense, { merge: true });
     } catch (err) {
@@ -124,6 +128,7 @@ export const FirestoreSyncService = {
     try {
       if (!db) return;
       const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId);
       
       const flatPlanData = {

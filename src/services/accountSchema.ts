@@ -97,12 +97,24 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   const nowIso = new Date().toISOString();
   const dataCriacao = data.dataCriacao || data.createdAt || data.dataCadastro || nowIso;
   
-  // Se não houver data de vencimento, calcula 7 dias para TRIAL ou 30 dias para planos normais
+  // Se não houver data de vencimento, calcula 7 dias para TRIAL ou 30 dias para planos normais a partir da data de criação (estável)
   let dataVencimento = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || '';
   if (!dataVencimento) {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + (isTrialPlan ? 7 : 30));
-    dataVencimento = futureDate.toISOString().split('T')[0];
+    try {
+      const baseDate = new Date(dataCriacao);
+      if (!isNaN(baseDate.getTime())) {
+        baseDate.setDate(baseDate.getDate() + (isTrialPlan ? 7 : 30));
+        dataVencimento = baseDate.toISOString().split('T')[0];
+      } else {
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + (isTrialPlan ? 7 : 30));
+        dataVencimento = futureDate.toISOString().split('T')[0];
+      }
+    } catch {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + (isTrialPlan ? 7 : 30));
+      dataVencimento = futureDate.toISOString().split('T')[0];
+    }
   }
 
   // Status e Bloqueio
