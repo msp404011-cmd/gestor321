@@ -45,6 +45,7 @@ export default async function handler(req, res) {
       planoNome: planoNome,
       planName: planoNome,
       plan: planoId,
+      planType: planoId,
       valorPlano: Number(valorPlano || 0),
       valorMensalidade: Number(valorPlano || 0),
       mensalidade: Number(valorPlano || 0),
@@ -57,9 +58,11 @@ export default async function handler(req, res) {
     if (dataVencimento) {
       planUpdate.dataVencimento = dataVencimento;
       planUpdate.vencimento = dataVencimento;
+      planUpdate.dueDate = dataVencimento;
+      planUpdate.expiryDate = dataVencimento;
     }
 
-    await saveAccountDocREST(targetDocId, planUpdate);
+    await saveAccountDocREST(targetDocId, planUpdate, [uid, email, docId]);
 
     return res.status(200).json({
       success: true,

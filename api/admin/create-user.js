@@ -84,6 +84,7 @@ export default async function handler(req, res) {
       planoId: planoId || 'COMPLETO_50',
       planoNome: planoNome || 'Plano Completo (R$ 0,50)',
       planName: planoNome || 'Plano Completo (R$ 0,50)',
+      planType: planoId || 'COMPLETO_50',
       valorPlano: Number(valorPlano || 0.50),
       valorMensalidade: Number(valorPlano || 0.50),
       mensalidade: Number(valorPlano || 0.50),
@@ -92,18 +93,24 @@ export default async function handler(req, res) {
       createdAt: nowIso,
       dataVencimento: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       vencimento: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      dueDate: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      expiryDate: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       status: isBlocked ? 'bloqueado' : 'ativo',
+      situacao: isBlocked ? 'bloqueado' : 'ativo',
+      userStatus: isBlocked ? 'bloqueado' : 'ativo',
       bloqueado: isBlocked,
       blocked: isBlocked,
       ativo: !isBlocked,
       active: !isBlocked,
+      inadimplente: isBlocked,
       situacaoPagamento: 'em_dia',
       statusUpdatedAt: nowIso,
       statusUpdatedBy: 'Master Admin',
       statusReason: 'Conta criada administrativamente via Painel Master',
     };
 
-    await saveAccountDocREST(uid, accountDoc);
+    // Salva tanto no documento UID quanto no documento EMAIL se diferente
+    await saveAccountDocREST(uid, accountDoc, [cleanEmail]);
 
     return res.status(200).json({
       success: true,

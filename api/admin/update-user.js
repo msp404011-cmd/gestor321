@@ -62,6 +62,8 @@ export default async function handler(req, res) {
     if (dataVencimento !== undefined) {
       updatePayload.dataVencimento = dataVencimento;
       updatePayload.vencimento = dataVencimento;
+      updatePayload.dueDate = dataVencimento;
+      updatePayload.expiryDate = dataVencimento;
     }
     if (valorPlano !== undefined) {
       updatePayload.valorPlano = Number(valorPlano);
@@ -71,21 +73,25 @@ export default async function handler(req, res) {
     }
     if (status !== undefined) {
       updatePayload.status = status;
+      updatePayload.situacao = status;
+      updatePayload.userStatus = status;
       updatePayload.bloqueado = isBlocked;
       updatePayload.blocked = isBlocked;
       updatePayload.ativo = isAtivo;
       updatePayload.active = isAtivo;
+      updatePayload.inadimplente = isBlocked;
     }
     if (planoId !== undefined) {
       updatePayload.plano = planoId;
       updatePayload.planoId = planoId;
+      updatePayload.planType = planoId;
     }
     if (planoNome !== undefined) {
       updatePayload.planoNome = planoNome;
       updatePayload.planName = planoNome;
     }
 
-    await saveAccountDocREST(targetDocId, updatePayload);
+    await saveAccountDocREST(targetDocId, updatePayload, [uid, email, docId]);
 
     return res.status(200).json({
       success: true,

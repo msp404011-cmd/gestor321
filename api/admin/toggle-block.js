@@ -39,16 +39,19 @@ export default async function handler(req, res) {
     const nowIso = new Date().toISOString();
     const updatePayload = {
       status: shouldBlock ? 'bloqueado' : 'ativo',
+      situacao: shouldBlock ? 'bloqueado' : 'ativo',
+      userStatus: shouldBlock ? 'bloqueado' : 'ativo',
       bloqueado: shouldBlock,
       blocked: shouldBlock,
       ativo: !shouldBlock,
       active: !shouldBlock,
+      inadimplente: shouldBlock,
       statusUpdatedAt: nowIso,
       statusUpdatedBy: 'Master Admin',
       statusReason: reason || (shouldBlock ? 'Bloqueio administrativo aplicado pelo Painel Master' : 'Desbloqueio autorizado pelo Master Admin'),
     };
 
-    await saveAccountDocREST(targetDocId, updatePayload);
+    await saveAccountDocREST(targetDocId, updatePayload, [uid, email, docId]);
 
     return res.status(200).json({
       success: true,

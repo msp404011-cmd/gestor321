@@ -118,21 +118,51 @@ export async function createAuthUserViaREST(email, password, displayName) {
   return { uid: data.localId, email: data.email, idToken: data.idToken };
 }
 
-export async function saveAccountDocREST(docId, accountData) {
-  const fields = toFirestoreFields(accountData);
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(docId)}`;
-  
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields }),
-  });
+export async function saveAccountDocREST(docId, accountData, extraTargetIds = []) {
+  if (!docId) return false;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.warn('[Firestore REST] Aviso ao salvar documento:', errText);
+  const fields = toFirestoreFields(accountData);
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return true;
+
+  const updateMaskParams = keys.map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+
+  const rawIds = [docId, ...extraTargetIds].filter(Boolean);
+  const targets = new Set();
+  
+  for (const raw of rawIds) {
+    const trimmed = String(raw).trim();
+    if (!trimmed) continue;
+    targets.add(trimmed);
+    if (trimmed.includes('@')) {
+      targets.add(trimmed.toLowerCase());
+    }
   }
-  return true;
+
+  let anySuccess = false;
+
+  for (const targetId of targets) {
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(targetId)}?${updateMaskParams}`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`[Firestore REST] Aviso ao salvar documento (${targetId}):`, errText);
+      } else {
+        anySuccess = true;
+      }
+    } catch (err) {
+      console.error(`[Firestore REST] Erro ao salvar documento (${targetId}):`, err);
+    }
+  }
+
+  return anySuccess;
 }
 
 export async function listAccountsREST() {
@@ -150,8 +180,23 @@ export async function listAccountsREST() {
   });
 }
 
-export async function deleteAccountDocREST(docId) {
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(docId)}`;
-  const res = await fetch(url, { method: 'DELETE' });
-  return res.ok;
+export async function deleteAccountDocREST(docId, extraTargetIds = []) {
+  const rawIds = [docId, ...extraTargetIds].filter(Boolean);
+  const targets = new Set();
+  for (const raw of rawIds) {
+    const trimmed = String(raw).trim();
+    if (!trimmed) continue;
+    targets.add(trimmed);
+    if (trimmed.includes('@')) {
+      targets.add(trimmed.toLowerCase());
+    }
+  }
+
+  for (const targetId of targets) {
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(targetId)}`;
+    try {
+      await fetch(url, { method: 'DELETE' });
+    } catch {}
+  }
+  return true;
 }
