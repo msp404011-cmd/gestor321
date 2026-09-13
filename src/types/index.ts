@@ -680,6 +680,7 @@ export interface AuthSession {
   name?: string;
   avatarUrl?: string;
   loggedAt: string;
+  uid?: string;
 }
 
 export interface GoogleUserProfile {

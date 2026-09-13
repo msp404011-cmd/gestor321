@@ -31,11 +31,14 @@ import { ReceivablesView } from './components/receivables/ReceivablesView';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { SubscriptionModal } from './components/subscription/SubscriptionModal';
 import { PaywallModal } from './components/subscription/PaywallModal';
+import { BlockedAccountModal } from './components/common/BlockedAccountModal';
 import { SubscriptionService } from './services/subscriptionService';
 import { LoginView } from './components/auth/LoginView';
+import { MasterAuthModal } from './components/master/MasterAuthModal';
+import { MasterPanel } from './components/master/MasterPanel';
 
 // Models & Services
-import { NavigationTab, Customer, Device, ServiceOrder, Product, Employee, SubscriptionPlanInfo } from './types';
+import { NavigationTab, Customer, Device, ServiceOrder, Product, Employee, SubscriptionPlanInfo, PlanType } from './types';
 import { StorageService } from './services/storage';
 import { useTheme } from './context/ThemeContext';
 import { GoogleDriveBackupService } from './services/googleDriveBackupService';
@@ -98,6 +101,8 @@ export default function App() {
 
   // Subscription and Paywall Modals State
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
+  const [blockedAccountInfo, setBlockedAccountInfo] = useState<{ name?: string; email?: string }>({});
   const [paywallModalState, setPaywallModalState] = useState<{
     isOpen: boolean;
     title: string;
@@ -109,6 +114,21 @@ export default function App() {
     description: '',
     feature: 'ORDERS_LIMIT',
   });
+  
+  // Master Panel State
+  const MASTER_ADMIN_EMAIL = 'mmspmartins62@gmail.com';
+  const [showMasterAuth, setShowMasterAuth] = useState(false);
+  const [showMasterPanel, setShowMasterPanel] = useState(false);
+
+  const isMasterAdmin = Boolean(
+    (authSession?.email && authSession.email.trim().toLowerCase() === MASTER_ADMIN_EMAIL) ||
+    (currentUser?.email && currentUser.email.trim().toLowerCase() === MASTER_ADMIN_EMAIL)
+  );
+
+  const handleLogoClick = () => {
+    if (!isMasterAdmin) return;
+    setShowMasterAuth(true);
+  };
 
   // Subscribe to storage changes
   useEffect(() => {
@@ -183,58 +203,97 @@ export default function App() {
   useEffect(() => {
     if (!authSession?.email || !db) return;
 
-    // tenantId format: email.toLowerCase() (preserving '@' and '.')
-    const tenantId = authSession.email.toLowerCase();
-    const docRef = doc(db, 'accounts', tenantId);
+    // Busca documento pelo UID do Firebase Auth (se disponível) ou pelo e-mail como fallback
+    const targetDocId = authSession.uid || authSession.email.toLowerCase();
+    const docRef = doc(db, 'accounts', targetDocId);
 
-    console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tenantId}`);
+    console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${targetDocId}`);
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         
         // Extract status fields
-        const isBlocked = data.bloqueado === true || data.blocked === true || data.inadimplente === true;
+        const isBlocked = Boolean(
+          data.bloqueado === true || 
+          data.blocked === true || 
+          data.status === 'bloqueado' || 
+          data.situacao === 'bloqueado' || 
+          data.userStatus === 'bloqueado' ||
+          data.inadimplente === true
+        );
         const panelStatus = String(data.status || data.situacao || data.userStatus || '').toLowerCase();
         
-        const isPanelActive = panelStatus === 'ativo' || panelStatus === 'active' || data.ativo === true || data.active === true;
-        const mappedStatus = (isPanelActive && !isBlocked) ? 'active' : 'expired';
+        const isPanelActive = (panelStatus === 'ativo' || panelStatus === 'active' || data.ativo === true || data.active === true) && !isBlocked;
+        const mappedStatus = isPanelActive ? 'active' : 'expired';
         
         const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
         
+        // Extract raw planType and normalize to known PlanType
+        const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || 'COMPLETO_50').toUpperCase();
+        let normalizedPlanType: PlanType = 'COMPLETO_50';
+        if (rawPlanId.includes('PDV')) {
+          normalizedPlanType = 'PDV_VENDAS';
+        } else if (rawPlanId.includes('REVENDA')) {
+          normalizedPlanType = 'REVENDA';
+        } else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) {
+          normalizedPlanType = 'ASSISTENCIA';
+        } else if (rawPlanId.includes('TRIAL') || rawPlanId.includes('FREE')) {
+          normalizedPlanType = 'TRIAL';
+        } else {
+          normalizedPlanType = 'COMPLETO_50';
+        }
+
+        const planPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
+
         const updatedPlan: SubscriptionPlanInfo = {
           ...StorageService.getSubscriptionPlan(),
-          planName: data.planoNome || data.plano || data.planName || data.plan || 'Plano Gestor',
+          planType: normalizedPlanType,
+          planName: data.planoNome || data.planName || data.plano || 'Plano Completo',
+          planPrice: planPrice,
           status: mappedStatus,
           expiryDate: mappedExpiry,
+          isTrial: normalizedPlanType === 'TRIAL',
         };
 
-        console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.status);
+        console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);
         
-        // Update ONLY local cache, avoiding loop back writing to Firebase
+        // Update local cache and notify listeners so Gestor updates permissions and tabs immediately
         StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
         
         // Re-trigger re-renders
         setTick((prev) => prev + 1);
 
-        // Check for expiration/lock
-        const now = new Date();
-        now.setHours(0, 0, 0, 0); // Start of today
-        
-        // Assuming expiryDate is in YYYY-MM-DD format
-        const [y, m, d] = updatedPlan.expiryDate.split('-').map(Number);
-        const expDate = new Date(y, (m || 1) - 1, d || 1);
-        expDate.setHours(0, 0, 0, 0);
-
-        const isExpired = updatedPlan.status === 'expired' || 
-                          updatedPlan.status === 'canceled' || 
-                          expDate < now;
-
-        if (isExpired) {
-           console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
-           setIsSubscriptionModalOpen(true);
+        // Atualiza estado de conta bloqueada
+        if (isBlocked) {
+          setIsAccountBlocked(true);
+          setBlockedAccountInfo({
+            name: data.nome || data.name || data.empresa || authSession.name || 'Cliente',
+            email: data.email || authSession.email
+          });
+          setIsSubscriptionModalOpen(false);
         } else {
-           setIsSubscriptionModalOpen(false);
+          setIsAccountBlocked(false);
+
+          // Check for expiration/lock
+          const now = new Date();
+          now.setHours(0, 0, 0, 0); // Start of today
+          
+          // Assuming expiryDate is in YYYY-MM-DD format
+          const [y, m, d] = (updatedPlan.expiryDate || '').split('-').map(Number);
+          const expDate = new Date(y, (m || 1) - 1, d || 1);
+          expDate.setHours(0, 0, 0, 0);
+
+          const isExpired = updatedPlan.status === 'expired' || 
+                            updatedPlan.status === 'canceled' || 
+                            expDate < now;
+
+          if (isExpired) {
+             console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
+             setIsSubscriptionModalOpen(true);
+          } else {
+             setIsSubscriptionModalOpen(false);
+          }
         }
       }
     }, (err) => {
@@ -242,10 +301,10 @@ export default function App() {
     });
 
     return () => {
-      console.log(`🔥 Desativando listener onSnapshot de assinatura para o tenant: ${tenantId}`);
+      console.log(`🔥 Desativando listener onSnapshot de assinatura para o tenant: ${targetDocId}`);
       unsubscribe();
     };
-  }, [authSession?.email]);
+  }, [authSession?.email, authSession?.uid]);
 
   // Customer Actions
   const handleSaveCustomer = (customer: Customer) => {
@@ -369,6 +428,8 @@ export default function App() {
             setActiveTab(tab);
             setIsMobileMenuOpen(false);
           }}
+          isMasterAdmin={isMasterAdmin}
+          onLogoClick={isMasterAdmin ? handleLogoClick : undefined}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
           onOpenPlans={() => setIsSubscriptionModalOpen(true)}
@@ -392,6 +453,7 @@ export default function App() {
             onSwitchUser={() => setIsLoginOpen(true)}
             onLogout={handleLogout}
             onOpenPlans={() => setIsSubscriptionModalOpen(true)}
+            onOpenMaster={isMasterAdmin ? () => setShowMasterAuth(true) : undefined}
           />
         )}
 
@@ -401,6 +463,13 @@ export default function App() {
             ? "flex-1 h-screen w-screen overflow-hidden p-0 flex flex-col"
             : "flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 max-w-[1780px] w-full mx-auto scrollbar-thin"
         }>
+          {/* Master Panel */}
+          {showMasterAuth && (
+            <MasterAuthModal onClose={() => setShowMasterAuth(false)} onSuccess={() => {setShowMasterAuth(false); setShowMasterPanel(true);}} />
+          )}
+          {showMasterPanel && <MasterPanel onClose={() => setShowMasterPanel(false)} />}
+
+          {/* Dynamic Main View Components */}
           {activeTab === 'DASHBOARD' && (
             <DashboardView
               onOpenNewOrder={() => handleOpenNewOrder()}
@@ -635,9 +704,17 @@ export default function App() {
         onLogout={handleLogout}
       />
 
+      {/* Blocked Account Modal (Immediate lockout when blocked in Firebase) */}
+      <BlockedAccountModal
+        isOpen={isAccountBlocked}
+        email={blockedAccountInfo.email || authSession?.email}
+        name={blockedAccountInfo.name || authSession?.name}
+        onLogout={handleLogout}
+      />
+
       {/* Subscription Plans Modal */}
       <SubscriptionModal
-        isOpen={isSubscriptionModalOpen}
+        isOpen={isSubscriptionModalOpen && !isAccountBlocked}
         onClose={() => setIsSubscriptionModalOpen(false)}
       />
 

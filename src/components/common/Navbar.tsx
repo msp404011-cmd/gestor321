@@ -9,6 +9,7 @@ import {
   LogOut,
   UserCheck,
   Crown,
+  ShieldCheck,
 } from 'lucide-react';
 import { Employee, CashSession } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -29,6 +30,7 @@ interface NavbarProps {
   onSwitchUser?: () => void;
   onLogout?: () => void;
   onOpenPlans?: () => void;
+  onOpenMaster?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSwitchUser,
   onLogout,
   onOpenPlans,
+  onOpenMaster,
 }) => {
   const currentUser = propCurrentUser || StorageService.getCurrentUser();
   const currentPlan = StorageService.getSubscriptionPlan();
@@ -179,6 +182,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="truncate max-w-[120px]">{currentPlan.planName || 'Meu Plano'}</span>
+          </button>
+        )}
+
+        {/* Master Panel Shortcut Button */}
+        {onOpenMaster && (
+          <button
+            type="button"
+            id="btn-navbar-master"
+            onClick={onOpenMaster}
+            className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+              isDark
+                ? 'bg-slate-900/80 hover:bg-slate-800 text-cyan-400 border-cyan-700/60 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300 shadow-xs'
+            }`}
+            title="Acessar Painel Master"
+          >
+            <ShieldCheck className="w-4 h-4 text-cyan-400" />
           </button>
         )}
 

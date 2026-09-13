@@ -1,8 +1,76 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(accountId) {
+      return isAuthenticated() && (
+        request.auth.uid == accountId || 
+        (request.auth.token.email != null && (
+          request.auth.token.email == accountId ||
+          (resource != null && resource.data.email == request.auth.token.email)
+        ))
+      );
+    }
+
+    function isDocNotBlocked() {
+      return resource == null || (
+        resource.data.bloqueado != true && 
+        resource.data.blocked != true && 
+        resource.data.status != 'bloqueado'
+      );
+    }
+
+    // List of forbidden administrative fields that regular users CANNOT modify
+    function doesNotModifyAdminFields() {
+      let protectedFields = [
+        'bloqueado', 'blocked', 
+        'status', 'userStatus', 'situacao', 
+        'ativo', 'active',
+        'plano', 'planoId', 'planoNome', 'plan', 'planName', 
+        'valorPlano', 'valorMensalidade', 'mensalidade', 'amount', 
+        'dataVencimento', 'vencimento', 'dueDate', 'trialEndsAt',
+        'statusUpdatedAt', 'statusUpdatedBy', 'statusReason'
+      ];
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedFields);
+    }
+
+    // ACCOUNTS COLLECTION
+    match /accounts/{accountId} {
+      // Regular users can only read their own document. Blanket collection queries are restricted.
+      allow get: if isOwner(accountId);
+      allow list: if false; // Only server backend with Admin SDK can list all accounts
+
+      // Self-registration (if allowed from client): must not create as unlocked with custom plan
+      allow create: if isAuthenticated() && (
+        request.auth.uid == accountId || 
+        request.auth.token.email == accountId
+      );
+
+      // Updates by regular user: can update profile/settings, but CANNOT modify plan, status, or due date
+      allow update: if isOwner(accountId) && isDocNotBlocked() && doesNotModifyAdminFields();
+
+      // Deletions: forbidden from client-side SDK. Managed strictly via secure Admin backend
+      allow delete: if false;
+
+      // SUBCOLLECTIONS (orders, receivables, expenses, products, customers)
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(accountId) && isDocNotBlocked();
+      }
+    }
+
+    // AUDIT LOGS - Server-only access via Admin SDK
+    match /audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    // DEFAULT DENY FOR ANY OTHER PATH
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

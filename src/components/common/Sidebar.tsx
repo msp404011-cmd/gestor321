@@ -30,6 +30,8 @@ import { useTheme } from '../../context/ThemeContext';
 interface SidebarProps {
   activeTab: string;
   onSelectTab: (tab: any) => void;
+  onLogoClick?: () => void;
+  isMasterAdmin?: boolean;
   currentUser?: Employee;
   employees?: Employee[];
   onSwitchUser?: (emp: Employee) => void;
@@ -45,6 +47,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onSelectTab,
+  onLogoClick,
+  isMasterAdmin = false,
   currentUser: propUser,
   employees: propEmployees,
   openOrdersCount: propOrdersCount,
@@ -240,15 +244,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             /* FULL EXPANDED HEADER */
             <div className="flex items-center justify-between w-full min-w-0">
               <div
-                onClick={() => handleSelect('SETTINGS')}
-                className="flex items-center gap-2 cursor-pointer min-w-0 flex-1 group"
-                title="Clique para gerenciar dados da loja"
+                onClick={() => {
+                  if (isMasterAdmin && onLogoClick) {
+                    onLogoClick();
+                  } else {
+                    handleSelect('DASHBOARD');
+                  }
+                }}
+                className={`flex items-center gap-2 min-w-0 flex-1 group ${
+                  isMasterAdmin ? 'cursor-pointer' : 'cursor-default'
+                }`}
+                title={isMasterAdmin ? 'Painel Master (Administrador)' : (company.commercialName || company.name || 'Gestor')}
               >
                 {company.logoUrl ? (
                   <img
                     src={company.logoUrl}
                     alt="Logo"
-                    className="max-h-10 max-w-[140px] object-contain drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] group-hover:scale-105 transition-transform"
+                    className={`max-h-10 max-w-[140px] object-contain drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] transition-transform ${
+                      isMasterAdmin ? 'group-hover:scale-105' : ''
+                    }`}
                   />
                 ) : (
                   <div className="min-w-0">
@@ -286,9 +300,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             /* COMPACT COLLAPSED HEADER (Centered Icon & Pin/Open button) */
             <div className="flex flex-col items-center justify-center w-full gap-1.5">
               <div
-                onClick={() => handleSelect('SETTINGS')}
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,99,235,0.6)] cursor-pointer hover:scale-105 transition-transform"
-                title="Abrir Configurações"
+                onClick={() => {
+                  if (isMasterAdmin && onLogoClick) {
+                    onLogoClick();
+                  } else {
+                    handleSelect('DASHBOARD');
+                  }
+                }}
+                className={`w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,99,235,0.6)] transition-transform ${
+                  isMasterAdmin ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                }`}
+                title={isMasterAdmin ? 'Painel Master (Administrador)' : 'Gestor'}
               >
                 <Wrench className="w-5 h-5 text-white" />
               </div>

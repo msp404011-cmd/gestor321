@@ -27,6 +27,9 @@ import {
 import { Employee, SubscriptionPlanInfo } from '../../types';
 import { StorageService } from '../../services/storage';
 import { useTheme } from '../../context/ThemeContext';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { db } from '../../lib/firebase';
 
 interface LoginViewProps {
   onLoginSuccess: (result: {
@@ -67,12 +70,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [showResetPassword, setShowResetPassword] = useState(false);
 
   // 1. Submit Login (Email + Password)
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
 
-    if (!loginEmail.trim() || !loginEmail.includes('@')) {
+    const cleanEmail = loginEmail.trim().toLowerCase();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
       setError('Por favor, informe um e-mail válido.');
       return;
     }
@@ -84,8 +89,110 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
     try {
       setIsLoading(true);
+
+      // 1. Tenta autenticar pelo Firebase Authentication
+      let firebaseAuthSuccess = false;
+      let firebaseAuthUid: string | null = null;
+      let firebaseAccountData: any = null;
+
+      try {
+        const auth = getAuth();
+        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, loginPassword);
+        firebaseAuthSuccess = true;
+        firebaseAuthUid = userCred.user.uid;
+
+        // Busca o documento correspondente no Firestore usando o UID
+        if (db) {
+          const docRefUid = doc(db, 'accounts', firebaseAuthUid);
+          const snapUid = await getDoc(docRefUid);
+          if (snapUid.exists()) {
+            firebaseAccountData = snapUid.data();
+          } else {
+            // Fallback para documentos legados indexados pelo e-mail
+            const docRefEmail = doc(db, 'accounts', cleanEmail);
+            const snapEmail = await getDoc(docRefEmail);
+            if (snapEmail.exists()) {
+              firebaseAccountData = snapEmail.data();
+            } else {
+              const q = query(collection(db, 'accounts'), where('email', '==', cleanEmail));
+              const qSnap = await getDocs(q);
+              if (!qSnap.empty) {
+                firebaseAccountData = qSnap.docs[0].data();
+              }
+            }
+          }
+        }
+      } catch (authErr: any) {
+        console.warn('Tentativa de autenticação Firebase Auth:', authErr.code);
+        if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+          const localAcc = StorageService.getUserAccounts().find(a => a.email.toLowerCase() === cleanEmail);
+          if (!localAcc) {
+            throw new Error('Senha incorreta ou credenciais inválidas. Verifique seus dados.');
+          }
+        }
+        if (authErr.code === 'auth/user-disabled') {
+          throw new Error('⚠️ Este usuário foi desativado no Firebase Authentication.');
+        }
+      }
+
+      // Se autenticou com sucesso no Firebase Auth:
+      if (firebaseAuthSuccess && firebaseAuthUid) {
+        if (firebaseAccountData) {
+          const isBlocked = Boolean(
+            firebaseAccountData.bloqueado === true || 
+            firebaseAccountData.blocked === true || 
+            firebaseAccountData.status === 'bloqueado' || 
+            firebaseAccountData.situacao === 'bloqueado'
+          );
+
+          if (isBlocked) {
+            setError('⚠️ Seu acesso a este sistema foi suspenso/bloqueado pela administração. Entre em contato com o suporte.');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        const result = StorageService.loginFromFirebaseAuth({
+          uid: firebaseAuthUid,
+          email: cleanEmail,
+          accountData: firebaseAccountData,
+          password: loginPassword,
+        });
+
+        setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
+        setTimeout(() => {
+          onLoginSuccess(result);
+        }, 500);
+        return;
+      }
+
+      // Fallback para contas locais / pré-existentes
+      if (db) {
+        try {
+          const docRef = doc(db, 'accounts', cleanEmail);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const accData = snap.data();
+            const isBlocked = Boolean(
+              accData.bloqueado === true || 
+              accData.blocked === true || 
+              accData.status === 'bloqueado' || 
+              accData.situacao === 'bloqueado'
+            );
+
+            if (isBlocked) {
+              setError('⚠️ Seu acesso a este sistema foi suspenso/bloqueado pela administração. Entre em contato com o administrador.');
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (dbErr) {
+          console.warn('Verificação de bloqueio no Firestore falhou ou offline:', dbErr);
+        }
+      }
+
       const result = StorageService.loginWithEmailPassword({
-        email: loginEmail,
+        email: cleanEmail,
         password: loginPassword,
       });
 

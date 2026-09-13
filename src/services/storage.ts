@@ -1948,6 +1948,27 @@ export const StorageService = {
     notifyListeners();
   },
 
+  saveSubscriptionPlanOnlyLocal(plan: SubscriptionPlanInfo): void {
+    const session = this.getAuthSession();
+    const targetEmail = plan.accountEmail || session?.email || '';
+    const fullPlan: SubscriptionPlanInfo = {
+      ...plan,
+      accountEmail: targetEmail || plan.accountEmail,
+    };
+
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, fullPlan);
+    if (targetEmail) {
+      const cleanEmail = targetEmail.trim().toLowerCase();
+      const subs = this.getUserSubscriptions();
+      subs[cleanEmail] = {
+        ...fullPlan,
+        accountEmail: cleanEmail,
+      };
+      setItem(STORAGE_KEYS.USER_SUBSCRIPTIONS, subs);
+    }
+    notifyListeners();
+  },
+
   // Per-Email Subscriptions Database
   getUserSubscriptions(): Record<string, SubscriptionPlanInfo> {
     return getItem<Record<string, SubscriptionPlanInfo>>(STORAGE_KEYS.USER_SUBSCRIPTIONS, {});
@@ -2155,7 +2176,24 @@ export const StorageService = {
   },
 
   getUserAccounts(): UserAccount[] {
-    return getItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+    const list = getItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+    const masterEmail = 'mmspmartins62@gmail.com';
+    const hasMaster = list.some((a) => a.email.toLowerCase() === masterEmail);
+    if (!hasMaster) {
+      const masterAcc: UserAccount = {
+        id: masterEmail,
+        shopName: 'Painel Master Gestor',
+        ownerName: 'Administrador Master',
+        email: masterEmail,
+        phone: '00000000000',
+        passwordHash: '16150705@Mm###',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        lastLoginAt: new Date().toISOString(),
+      };
+      list.unshift(masterAcc);
+      setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
+    }
+    return list;
   },
 
   saveUserAccount(account: UserAccount): void {
@@ -2510,6 +2548,174 @@ export const StorageService = {
       isFirstAccess: false,
       isExpiredOrCanceled,
     };
+  },
+
+  loginFromFirebaseAuth(params: {
+    uid: string;
+    email: string;
+    accountData: any;
+    password?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const data = params.accountData || {};
+    const ownerName = data.nome || data.name || data.responsavel || 'Administrador';
+    const shopName = data.empresa || data.nomeEmpresa || data.nomeFantasia || ownerName;
+    const phone = data.telefone || data.phone || data.whatsapp || '';
+
+    // Salva ou atualiza a conta no cache local de contas
+    const existingAccounts = this.getUserAccounts();
+    let account = existingAccounts.find((a) => a.email.toLowerCase() === cleanEmail);
+    if (!account) {
+      account = {
+        id: params.uid || cleanEmail,
+        shopName,
+        ownerName,
+        email: cleanEmail,
+        phone,
+        passwordHash: params.password || 'firebase_auth_managed',
+        createdAt: data.dataCriacao || new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      };
+      this.saveUserAccount(account);
+    } else {
+      account.lastLoginAt = new Date().toISOString();
+      account.ownerName = ownerName;
+      account.shopName = shopName;
+      if (params.password) account.passwordHash = params.password;
+      this.saveUserAccount(account);
+    }
+
+    // Cria ou atualiza o Employee de Administrador
+    const employees = this.getEmployees();
+    let employee = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+    if (!employee) {
+      employee = {
+        id: `emp-adm-${Date.now()}`,
+        name: ownerName,
+        email: cleanEmail,
+        phone,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&background=0284c7&color=ffffff`,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(employee);
+    }
+    this.setCurrentUser(employee);
+
+    // Mapeia o plano a partir do Firestore
+    const rawPlanId = String(data.planoId || data.plano || data.plan || 'COMPLETO_50').toUpperCase();
+    let planType: any = 'COMPLETO_50';
+    if (rawPlanId.includes('PDV')) planType = 'PDV_VENDAS';
+    else if (rawPlanId.includes('REVENDA')) planType = 'REVENDA';
+    else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) planType = 'ASSISTENCIA';
+    else if (rawPlanId.includes('TRIAL') || rawPlanId.includes('FREE')) planType = 'TRIAL';
+    else planType = 'COMPLETO_50';
+
+    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    const planPrice = Number(data.valorPlano ?? data.valorMensalidade ?? 0.50);
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const expDate = new Date(expiryDate);
+    const isExpired = expDate.getTime() < now.getTime();
+
+    const userPlan: SubscriptionPlanInfo = {
+      planType,
+      planName: data.planoNome || data.planName || 'Plano Completo',
+      planPrice,
+      billingCycle: 'monthly',
+      billingPeriod: 'MENSAL',
+      expiryDate,
+      status: (data.status === 'bloqueado' || data.bloqueado) ? 'canceled' : (isExpired ? 'expired' : 'active'),
+      clientName: shopName,
+      accountEmail: cleanEmail,
+      autoRenew: true,
+      startDate: (data.dataCriacao || new Date().toISOString()).split('T')[0],
+      isTrial: planType === 'TRIAL',
+    };
+
+    this.saveSubscriptionPlan(userPlan);
+    this.saveSubscriptionForEmail(cleanEmail, userPlan);
+
+    // Cria a sessão com UID
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      uid: params.uid,
+      email: cleanEmail,
+      name: ownerName,
+      avatarUrl: employee.avatarUrl,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.saveAccountProfile({
+      email: cleanEmail,
+      name: `${ownerName} (${shopName})`,
+      picture: employee.avatarUrl,
+    });
+
+    this.logAction(`Login via Firebase Auth efetuado com sucesso: ${cleanEmail}`);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess: false,
+      isExpiredOrCanceled: userPlan.status === 'expired' || userPlan.status === 'canceled',
+    };
+  },
+
+  deleteAccountPermanently(emailOrUid: string): boolean {
+    if (!emailOrUid) return false;
+    const cleanId = String(emailOrUid).trim().toLowerCase();
+
+    try {
+      // 1. Remove da lista de contas locais
+      const accounts = this.getUserAccounts();
+      const filteredAccounts = accounts.filter(
+        (a) => a.email.toLowerCase() !== cleanId && a.id?.toLowerCase() !== cleanId
+      );
+      localStorage.setItem('user_accounts', JSON.stringify(filteredAccounts));
+
+      // 2. Remove assinaturas vinculadas
+      localStorage.removeItem(`subscription_plan_${cleanId}`);
+
+      // 3. Remove funcionários vinculados ao e-mail
+      const employees = this.getEmployees();
+      const filteredEmployees = employees.filter((e) => e.email?.toLowerCase() !== cleanId);
+      localStorage.setItem('employees', JSON.stringify(filteredEmployees));
+
+      // 4. Se a sessão ativa pertencer a esta conta, faz logout
+      const currentSession = this.getAuthSession();
+      if (
+        currentSession?.email?.toLowerCase() === cleanId ||
+        currentSession?.uid?.toLowerCase() === cleanId
+      ) {
+        this.clearAuthSession();
+      }
+
+      this.logAction(`Conta ${cleanId} excluída permanentemente do sistema.`);
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir conta permanentemente do storage local:', err);
+      return false;
+    }
   },
 
   resetPasswordDirect(params: {

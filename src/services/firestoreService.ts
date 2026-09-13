@@ -1,6 +1,7 @@
 import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
 import firebaseConfig, { db } from '../lib/firebase';
 import { UserAccount, Employee, CompanySettings, AccountReceivable, Expense, ServiceOrder, SubscriptionPlanInfo } from '../types';
+import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 
 export function getTenantId(): string {
   try {
@@ -27,8 +28,9 @@ export const FirestoreSyncService = {
   async saveUserAccount(account: UserAccount): Promise<void> {
     try {
       if (!db || !account.id) return;
+      const prepared = prepareAccountForSave(account);
       const docRef = doc(db, 'accounts', account.id);
-      await setDoc(docRef, account, { merge: true });
+      await setDoc(docRef, prepared, { merge: true });
     } catch (err) {
       console.warn('Firestore saveUserAccount error:', err);
     }
@@ -40,8 +42,10 @@ export const FirestoreSyncService = {
   async saveFullTenantProfile(data: any): Promise<void> {
     try {
       if (!db || !data.email) return;
-      const docRef = doc(db, 'accounts', data.email);
-      await setDoc(docRef, data, { merge: true });
+      const targetId = (data.email || data.id || data.uid).trim().toLowerCase();
+      const prepared = prepareAccountForSave({ ...data, id: targetId });
+      const docRef = doc(db, 'accounts', targetId);
+      await setDoc(docRef, prepared, { merge: true });
     } catch (err) {
       console.warn('Firestore saveFullTenantProfile error:', err);
     }
@@ -145,15 +149,15 @@ export const FirestoreSyncService = {
   /**
    * Load all user accounts from Firestore
    */
-  async fetchUserAccounts(): Promise<UserAccount[]> {
+  async fetchUserAccounts(): Promise<CanonicalAccount[]> {
     try {
       if (!db) return [];
       const querySnapshot = await getDocs(collection(db, 'accounts'));
-      const accounts: UserAccount[] = [];
+      const accounts: CanonicalAccount[] = [];
       querySnapshot.forEach((d) => {
         const data = d.data();
-        if (data && data.email && data.shopName) {
-          accounts.push(data as UserAccount);
+        if (data) {
+          accounts.push(normalizeAccountData(d.id, data));
         }
       });
       return accounts;
