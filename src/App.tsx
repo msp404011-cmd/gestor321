@@ -138,6 +138,12 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  // Sincroniza o operador e a sessão de forma reativa quando o storage muda
+  useEffect(() => {
+    setCurrentUser(StorageService.getCurrentUser());
+    setAuthSession(StorageService.getAuthSession());
+  }, [tick]);
+
   // Global Keyboard Shortcuts (Ctrl+K / Cmd+K for search)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

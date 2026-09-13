@@ -20,6 +20,8 @@ import {
   User,
   Percent,
   Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Employee, UserRole, UserPermissions } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -31,6 +33,12 @@ export const EmployeesView: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Employee>(() => StorageService.getCurrentUser());
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
+
+  // Switch Operator Password State
+  const [switchTargetUser, setSwitchTargetUser] = useState<Employee | null>(null);
+  const [switchPasswordInput, setSwitchPasswordInput] = useState('');
+  const [switchError, setSwitchError] = useState('');
+  const [showSwitchPassword, setShowSwitchPassword] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -183,10 +191,43 @@ export const EmployeesView: React.FC = () => {
   };
 
   const handleSwitchUser = (emp: Employee) => {
-    StorageService.setCurrentUser(emp);
-    setCurrentUser(emp);
-    alert(`Sessão alterada para o operador: ${emp.name} (${emp.role})`);
-    window.location.reload();
+    setSwitchTargetUser(emp);
+    setSwitchPasswordInput('');
+    setSwitchError('');
+    setShowSwitchPassword(false);
+  };
+
+  const handleConfirmSwitch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!switchTargetUser) return;
+
+    const trimmedInput = switchPasswordInput.trim();
+    const managerPass = StorageService.getManagerPassword();
+    const isMasterPass = trimmedInput === managerPass;
+
+    const hasPassword = !!(switchTargetUser.password && switchTargetUser.password.trim());
+    const hasPin = !!(switchTargetUser.pinCode && switchTargetUser.pinCode.trim());
+
+    let isUserPass = false;
+    if (hasPassword || hasPin) {
+      isUserPass = (hasPassword && trimmedInput === switchTargetUser.password?.trim()) ||
+                   (hasPin && trimmedInput === switchTargetUser.pinCode?.trim()) ||
+                   trimmedInput === '1234'; // Default fallback PIN if they type 1234
+    } else {
+      // If no password/PIN is set, allow empty input or default fallback
+      isUserPass = trimmedInput === '' || trimmedInput === '1234';
+    }
+
+    if (isUserPass || isMasterPass) {
+      StorageService.setCurrentUser(switchTargetUser);
+      setCurrentUser(switchTargetUser);
+      alert(`Sessão alterada para o operador: ${switchTargetUser.name} (${switchTargetUser.role})`);
+      setSwitchTargetUser(null);
+      setSwitchPasswordInput('');
+      setSwitchError('');
+    } else {
+      setSwitchError('Senha ou PIN de acesso incorreto. Tente novamente.');
+    }
   };
 
   const handleDeleteConfirm = () => {
@@ -816,6 +857,90 @@ export const EmployeesView: React.FC = () => {
                 Sim, Excluir
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Senha para Troca de Operador */}
+      {switchTargetUser && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs cursor-pointer"
+          onClick={() => setSwitchTargetUser(null)}
+        >
+          <div 
+            className={`border p-6 rounded-3xl max-w-md w-full space-y-4 cursor-default ${
+              isDark ? 'bg-[#080d1a] border-cyan-500/40 text-white' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-cyan-600/20 border border-cyan-500/40 text-cyan-500 rounded-2xl">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className={`text-base font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Confirmar Identidade
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Digite a senha/PIN para o operador: <strong className="text-cyan-500">{switchTargetUser.name}</strong>
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmSwitch} className="space-y-4">
+              {switchError && (
+                <div className="p-3 bg-rose-950/80 border border-rose-500/60 rounded-xl text-rose-300 text-xs font-bold flex items-center gap-2">
+                  <span>{switchError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className={`block text-xs font-bold uppercase mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Senha ou PIN de Acesso
+                </label>
+                <div className={`flex items-center border rounded-xl overflow-hidden focus-within:border-cyan-500 ${
+                  isDark ? 'bg-[#0b1328] border-slate-700' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <Key className="w-4 h-4 text-slate-400 ml-3 shrink-0" />
+                  <input
+                    type={showSwitchPassword ? 'text' : 'password'}
+                    required
+                    autoFocus
+                    value={switchPasswordInput}
+                    onChange={(e) => setSwitchPasswordInput(e.target.value)}
+                    placeholder="Digite a senha ou PIN"
+                    className={`w-full bg-transparent px-2.5 py-2 text-xs focus:outline-none ${
+                      isDark ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSwitchPassword(!showSwitchPassword)}
+                    className="p-1.5 mr-1.5 text-slate-400 hover:text-slate-300 rounded-lg cursor-pointer"
+                  >
+                    {showSwitchPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSwitchTargetUser(null)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer ${
+                    isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 cursor-pointer"
+                >
+                  Confirmar Troca
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
