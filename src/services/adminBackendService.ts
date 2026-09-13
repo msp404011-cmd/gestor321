@@ -108,11 +108,23 @@ export const AdminBackendService = {
           parseError: jsonErr?.message,
         });
 
+        if (response.status === 400) {
+          throw new Error('Requisição inválida (HTTP 400).');
+        }
+        if (response.status === 401) {
+          throw new Error('Senha ou credencial administrativa inválida (HTTP 401).');
+        }
+        if (response.status === 403) {
+          throw new Error('Acesso restrito a administradores autorizados (HTTP 403).');
+        }
         if (response.status === 404) {
-          throw new Error('Endpoint administrativo não encontrado no servidor.');
+          throw new Error('Endpoint administrativo não encontrado no servidor (HTTP 404).');
+        }
+        if (response.status === 405) {
+          throw new Error('Método HTTP não permitido pelo servidor (HTTP 405).');
         }
         if (response.status >= 500) {
-          throw new Error('Servidor indisponível ou em reinicialização. Tente novamente em alguns instantes.');
+          throw new Error('Erro interno no servidor administrativo (HTTP 500).');
         }
         throw new Error(`Resposta inválida retornada pelo servidor (HTTP ${response.status}).`);
       }
@@ -122,7 +134,30 @@ export const AdminBackendService = {
     }
 
     if (!response.ok) {
-      const serverMessage = parsedData?.message || parsedData?.error || `${fallbackErrorMessage} (HTTP ${response.status})`;
+      let serverMessage = parsedData?.message || parsedData?.error;
+      if (!serverMessage) {
+        switch (response.status) {
+          case 400:
+            serverMessage = 'Requisição inválida. Verifique os dados enviados.';
+            break;
+          case 401:
+            serverMessage = 'Senha inválida.';
+            break;
+          case 403:
+            serverMessage = 'Acesso administrativo não autorizado.';
+            break;
+          case 404:
+            serverMessage = 'Endpoint de autenticação não encontrado.';
+            break;
+          case 405:
+            serverMessage = 'Método de requisição não suportado pelo servidor.';
+            break;
+          case 500:
+          default:
+            serverMessage = `${fallbackErrorMessage} (HTTP ${response.status})`;
+            break;
+        }
+      }
       console.warn('[AdminBackendService] Resposta com erro da API:', {
         status: response.status,
         message: serverMessage,
@@ -188,19 +223,45 @@ export const AdminBackendService = {
       throw new Error('Por favor, informe a senha de administrador.');
     }
 
-    let response: Response;
+    const cleanPassword = password.trim();
+
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+
+    // 1. Primary Attempt: Standard POST request with JSON payload
     try {
       response = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'x-master-password': cleanPassword,
         },
-        body: JSON.stringify({ password: password.trim() }),
+        body: JSON.stringify({ password: cleanPassword }),
       });
     } catch (networkErr: any) {
-      console.error('[AdminBackendService] Falha de conexão ao autenticar Master:', networkErr);
-      throw new Error(`Falha de conexão com o servidor (${networkErr.message || 'servidor indisponível'}).`);
+      console.warn('[AdminBackendService] Falha no POST primário de login:', networkErr);
+      lastError = networkErr;
+    }
+
+    // 2. Fallback Attempt: If 405 Method Not Allowed was received from intermediate proxy, retry via GET
+    if (response && response.status === 405) {
+      console.warn('[AdminBackendService] Recebido HTTP 405 no POST, executando fallback compatível...');
+      try {
+        response = await fetch(`/api/admin/auth/login?password=${encodeURIComponent(cleanPassword)}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'x-master-password': cleanPassword,
+          },
+        });
+      } catch (getErr: any) {
+        console.error('[AdminBackendService] Erro no fallback GET:', getErr);
+      }
+    }
+
+    if (!response) {
+      throw new Error(`Falha de conexão com o servidor (${lastError?.message || 'servidor indisponível'}).`);
     }
 
     const { data } = await AdminBackendService.parseSafeResponse<{

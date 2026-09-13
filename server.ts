@@ -13,6 +13,17 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Global CORS and Header normalization
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-admin-token, x-master-password');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -285,10 +296,18 @@ app.get('/api/mercadopago/status/:id', handleStatusCheck);
 /**
  * 1. Admin Master Login & Verification
  */
-app.post('/api/admin/auth/login', (req: express.Request, res: express.Response) => {
+const handleAdminLogin = (req: express.Request, res: express.Response) => {
+  res.setHeader('Content-Type', 'application/json');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   try {
-    const { password } = req.body || {};
-    if (!password || typeof password !== 'string') {
+    const rawPassword = req.body?.password || req.query?.password || req.headers['x-master-password'];
+    const password = typeof rawPassword === 'string' ? rawPassword.trim() : '';
+
+    if (!password) {
       return res.status(400).json({
         success: false,
         message: 'Senha não fornecida.',
@@ -319,7 +338,11 @@ app.post('/api/admin/auth/login', (req: express.Request, res: express.Response) 
       error: err.message || 'Erro interno no servidor.',
     });
   }
-});
+};
+
+app.post('/api/admin/auth/login', handleAdminLogin);
+app.get('/api/admin/auth/login', handleAdminLogin);
+app.all('/api/admin/auth/login', handleAdminLogin);
 
 /**
  * 2. Verify Current Admin Token
