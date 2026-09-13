@@ -281,16 +281,35 @@ export default function App() {
       
       const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
       
-      // Extract raw planType and normalize to known PlanType
+      // Extract raw planType and normalize to known PlanType with fallback to existing plan
+      const existingPlan = StorageService.getSubscriptionForEmail(emailKey) || StorageService.getSubscriptionPlan();
       const rawPlanId = String(
         data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
       );
-      const normalizedPlanType: PlanType = normalizePlanType(rawPlanId);
+
+      let normalizedPlanType: PlanType;
+      let planName: string;
+      let planPrice: number;
+
+      if (rawPlanId.trim()) {
+        normalizedPlanType = normalizePlanType(rawPlanId);
+        const isTrial = normalizedPlanType === 'TRIAL';
+        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? existingPlan?.planPrice ?? 0.50);
+        planPrice = isTrial ? 0 : rawPrice;
+        planName = data.planoNome || data.planName || existingPlan?.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+      } else if (existingPlan && existingPlan.planType) {
+        normalizedPlanType = existingPlan.planType;
+        planName = existingPlan.planName;
+        planPrice = existingPlan.planPrice;
+      } else {
+        normalizedPlanType = normalizePlanType(rawPlanId);
+        const isTrial = normalizedPlanType === 'TRIAL';
+        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
+        planPrice = isTrial ? 0 : rawPrice;
+        planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+      }
 
       const isTrial = normalizedPlanType === 'TRIAL';
-      const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
-      const planPrice = isTrial ? 0 : rawPrice;
-      const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
 
       const updatedPlan: SubscriptionPlanInfo = {
         ...StorageService.getSubscriptionPlan(),

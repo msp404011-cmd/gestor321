@@ -35,13 +35,6 @@ const AVAILABLE_SYSTEM_PLANS: Array<{
   description: string;
 }> = [
   {
-    id: 'COMPLETO_50',
-    name: 'Plano Completo (R$ 0,50)',
-    price: 0.50,
-    badge: 'PROMOÇÃO',
-    description: 'Acesso total liberado (OS, PDV, Revenda, Relatórios e Estoque)'
-  },
-  {
     id: 'PDV_VENDAS',
     name: 'Plano PDV & Vendas',
     price: 34.90,
@@ -73,8 +66,8 @@ const AVAILABLE_SYSTEM_PLANS: Array<{
 
 export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, onClose }) => {
   const [formData, setFormData] = useState({
-    planoId: client.planoId || client.plano || 'COMPLETO_50',
-    planoNome: client.planoNome || client.plano || 'Plano Completo (R$ 0,50)',
+    planoId: client.planoId || client.plano || 'ASSISTENCIA',
+    planoNome: client.planoNome || client.plano || 'Plano Assistência Técnica',
     valorMensalidade: Number(client.valorPlano || client.valorMensalidade || client.mensalidade || 0),
     status: (client.bloqueado ? 'bloqueado' : client.status || 'ativo') as 'ativo' | 'bloqueado' | 'vencido',
     dataVencimento: client.dataVencimento || client.vencimento || ''

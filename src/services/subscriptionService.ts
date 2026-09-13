@@ -117,32 +117,6 @@ const REVENDA_PLAN: PlanDefinition = {
   ],
 };
 
-const COMPLETO_50_PLAN: PlanDefinition = {
-  id: 'COMPLETO_50',
-  name: 'Plano Completo (R$ 0,50)',
-  tagline: 'Todos os módulos do sistema (OS, PDV, Revenda, Relatórios e Estoque) 100% liberados por R$ 0,50.',
-  badge: 'COMPLETO R$ 0,50',
-  popular: true,
-  monthlyPrice: 0.50,
-  limits: {
-    maxMonthlyOrders: null,
-    maxProducts: null,
-    maxCollaborators: null,
-    advancedReports: true,
-    pdfExport: true,
-    cloudBackup: true,
-    auditLogs: true,
-  },
-  features: [
-    { text: 'Acesso 100% Completo ao sistema por apenas R$ 0,50', included: true, highlight: true },
-    { text: 'Ordens de Serviço e Aparelhos Ilimitados', included: true, highlight: true },
-    { text: 'Frente de Caixa (PDV) Rápido e Ágil', included: true, highlight: true },
-    { text: 'Módulo de Revenda e Atacado Liberados', included: true, highlight: true },
-    { text: 'Produtos, Peças e Estoque Ilimitados', included: true },
-    { text: 'Relatórios Financeiros, DRE e PDF Liberados', included: true },
-  ],
-};
-
 export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   TRIAL: TRIAL_PLAN,
   FREE: TRIAL_PLAN,
@@ -152,9 +126,6 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   PRO: ASSISTENCIA_PLAN,
   REVENDA: REVENDA_PLAN,
   ENTERPRISE: REVENDA_PLAN,
-  TESTE_REAL: COMPLETO_50_PLAN,
-  COMPLETO_50: COMPLETO_50_PLAN,
-  COMPLETO_PROMO: COMPLETO_50_PLAN,
 };
 
 export interface SubscriptionCheckResult {
@@ -180,7 +151,7 @@ export interface SubscriptionCheckResult {
 }
 
 export function normalizePlanType(rawInput: any): PlanType {
-  if (!rawInput) return 'COMPLETO_50';
+  if (!rawInput) return 'ASSISTENCIA';
   const str = String(rawInput)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -212,7 +183,7 @@ export function normalizePlanType(rawInput: any): PlanType {
   if (str === 'REVENDA') return 'REVENDA';
   if (str === 'TRIAL') return 'TRIAL';
 
-  return 'COMPLETO_50';
+  return 'ASSISTENCIA';
 }
 
 export const SubscriptionService = {
@@ -514,7 +485,7 @@ export const SubscriptionService = {
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO') {
+    if (norm === 'TRIAL' || norm === 'REVENDA') {
       return true; // Todos os módulos 100% liberados
     }
 
@@ -542,7 +513,7 @@ export const SubscriptionService = {
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO' || norm === 'ASSISTENCIA') {
+    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'ASSISTENCIA') {
       return true;
     }
 
@@ -554,7 +525,7 @@ export const SubscriptionService = {
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    return norm === 'REVENDA' || norm === 'TRIAL' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO';
+    return norm === 'REVENDA' || norm === 'TRIAL';
   },
 };
 

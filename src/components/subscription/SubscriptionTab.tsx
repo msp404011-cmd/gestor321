@@ -110,7 +110,6 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
   const isCurrentPlanPdvVendas = currentPlan.planType === 'PDV_VENDAS';
   const isCurrentPlanAssistencia = currentPlan.planType === 'ASSISTENCIA' || currentPlan.planType === 'LOJA' || currentPlan.planType === 'PRO';
   const isCurrentPlanRevenda = currentPlan.planType === 'REVENDA' || currentPlan.planType === 'ENTERPRISE';
-  const isCurrentPlanTesteReal = currentPlan.planType === 'TESTE_REAL' || currentPlan.planType === 'COMPLETO_50' || currentPlan.planType === 'COMPLETO_PROMO';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -373,91 +372,6 @@ export const SubscriptionTab: React.FC<SubscriptionTabProps> = ({ onCloseModal }
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-500 text-xs font-bold">
           <Zap className="w-4 h-4 text-amber-400" />
           <span>Faturamento Mensal • Sem Fidelidade</span>
-        </div>
-      </div>
-
-      {/* 🧪 BANNER TEMPORÁRIO: PLANO TESTE REAL (R$ 1,00) MERCADO PAGO */}
-      {/* 2. PROMOTIONAL FULL PLAN CARD (R$ 0,50) */}
-      <div
-        id="card-plano-teste-real"
-        className={`p-5 sm:p-6 rounded-3xl border-2 transition-all relative overflow-hidden ${
-          isCurrentPlanTesteReal && isActive
-            ? 'bg-gradient-to-r from-emerald-950/60 via-[#071920] to-[#04121a] border-emerald-500 ring-2 ring-emerald-500/30'
-            : isDark
-            ? 'bg-gradient-to-r from-[#0d1c3a] via-[#09152b] to-[#050e20] border-emerald-500/60 shadow-xl'
-            : 'bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border-emerald-300 shadow-md'
-        }`}
-      >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Plano Completo Promocional
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                Apenas R$ 0,50
-              </span>
-              {isCurrentPlanTesteReal && isActive && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Ativo no Sistema (Tudo Liberado)
-                </span>
-              )}
-            </div>
-
-            <div>
-              <h4 className="text-xl sm:text-2xl font-black tracking-tight">
-                Plano Completo Promocional — {formatCurrency(0.50)}
-              </h4>
-              <p className={`text-xs sm:text-sm mt-1 max-w-2xl ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                Gere uma cobrança PIX oficial de <strong>R$ 0,50</strong> no Mercado Pago. Ao confirmar o pagamento, o sistema libera <strong>100% de todos os módulos</strong> (Assistência, PDV, Revenda, Relatórios e Estoque).
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs pt-1">
-              <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                <Check className="w-3.5 h-3.5" /> PIX Dinâmico com QR Code oficial de R$ 0,50
-              </span>
-              <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                <Check className="w-3.5 h-3.5" /> Verificação em tempo real + Liberação Imediata
-              </span>
-              <span className="flex items-center gap-1 text-sky-400 font-bold">
-                <Check className="w-3.5 h-3.5" /> Libera OS, PDV, Revenda e Relatórios
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 shrink-0">
-            <div className="text-left lg:text-right">
-              <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                Valor Promocional
-              </span>
-              <span className="text-3xl sm:text-4xl font-black text-emerald-400">
-                {formatCurrency(0.50)}
-              </span>
-            </div>
-
-            {isCurrentPlanTesteReal && isActive ? (
-              <button
-                type="button"
-                disabled
-                className="w-full sm:w-auto py-3 px-5 rounded-2xl font-black text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center gap-2 cursor-default"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Plano Completo (R$ 0,50) Ativo</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                id="btn-testar-pagamento-1-real"
-                onClick={() => handleSelectPlan('TESTE_REAL')}
-                className="w-full sm:w-auto py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 transition-all cursor-pointer transform active:scale-95"
-              >
-                <QrCode className="w-4 h-4 text-slate-950" />
-                <span>Pagar R$ 0,50 e Liberar Tudo</span>
-                <ArrowRight className="w-4 h-4 text-slate-950" />
-              </button>
-            )}
-          </div>
         </div>
       </div>
 

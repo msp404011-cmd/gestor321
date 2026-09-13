@@ -47,10 +47,8 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
       ? 'ASSISTENCIA'
       : planType === 'ENTERPRISE'
       ? 'REVENDA'
-      : planType === 'TESTE_REAL' || planType === 'COMPLETO_PROMO'
-      ? 'COMPLETO_50'
       : planType;
-  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.COMPLETO_50;
+  const planDef = SUBSCRIPTION_PLANS[normalizedPlan] || SUBSCRIPTION_PLANS.ASSISTENCIA;
 
   // Loading & payment states
   const [isLoadingPix, setIsLoadingPix] = useState(false);

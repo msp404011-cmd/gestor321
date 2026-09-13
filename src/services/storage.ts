@@ -19,6 +19,7 @@ import {
   Reseller,
   ResellerTransaction,
   SubscriptionPlanInfo,
+  PlanType,
   AuthSession,
   GoogleUserProfile,
   UserAccount,
@@ -2676,15 +2677,37 @@ export const StorageService = {
     }
     this.setCurrentUser(employee);
 
-    // Mapeia o plano a partir do Firestore
+    // Mapeia o plano a partir do Firestore, com fallback seguro para o plano já existente do usuário
+    const existingPlan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
     const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '');
-    const planType = normalizePlanType(rawPlanId);
+    
+    let planType: PlanType;
+    let planName: string;
+    let planPrice: number;
+    let expiryDate: string;
+
+    if (rawPlanId.trim()) {
+      planType = normalizePlanType(rawPlanId);
+      const isTrial = planType === 'TRIAL';
+      const defaultDays = isTrial ? 7 : 30;
+      expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || existingPlan?.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+      planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? existingPlan?.planPrice ?? 0.50);
+      planName = data.planoNome || data.planName || existingPlan?.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+    } else if (existingPlan && existingPlan.planType) {
+      planType = existingPlan.planType;
+      planName = existingPlan.planName;
+      planPrice = existingPlan.planPrice;
+      expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || existingPlan.expiryDate;
+    } else {
+      planType = normalizePlanType(rawPlanId);
+      const isTrial = planType === 'TRIAL';
+      const defaultDays = isTrial ? 7 : 30;
+      expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+      planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? 0.50);
+      planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+    }
 
     const isTrial = planType === 'TRIAL';
-    const defaultDays = isTrial ? 7 : 30;
-    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
-    const planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? 0.50);
-
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const expDate = new Date(expiryDate);
@@ -2692,7 +2715,7 @@ export const StorageService = {
 
     const userPlan: SubscriptionPlanInfo = {
       planType,
-      planName: data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo'),
+      planName,
       planPrice,
       billingCycle: 'monthly',
       billingPeriod: 'MENSAL',
@@ -2701,7 +2724,7 @@ export const StorageService = {
       clientName: shopName,
       accountEmail: cleanEmail,
       autoRenew: !isTrial,
-      startDate: (data.dataCriacao || new Date().toISOString()).split('T')[0],
+      startDate: (data.dataCriacao || existingPlan?.startDate || new Date().toISOString()).split('T')[0],
       isTrial,
     };
 

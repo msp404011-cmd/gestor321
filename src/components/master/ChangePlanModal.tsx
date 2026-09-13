@@ -37,23 +37,6 @@ export interface AvailablePlanOption {
 
 export const SYSTEM_PLANS_LIST: AvailablePlanOption[] = [
   {
-    id: 'COMPLETO_50',
-    name: 'Plano Completo (R$ 0,50)',
-    badge: 'PROMOÇÃO ATIVA',
-    monthlyPrice: 0.50,
-    highlight: true,
-    tagline: 'Todos os módulos do Gestor 100% liberados por R$ 0,50.',
-    modulesIncluded: [
-      'Ordens de Serviço & Aparelhos Ilimitados',
-      'Checklist de Entrada/Saída com Fotos',
-      'Frente de Caixa (PDV) e Vendas Balcão',
-      'Módulo Completo de Revenda & Atacado',
-      'Produtos, Peças e Estoque Ilimitados',
-      'Financeiro, Caixa, DRE e Relatórios PDF'
-    ],
-    conditions: 'Cobrança mensal de R$ 0,50. Acesso irrestrito a todas as funcionalidades do Gestor.'
-  },
-  {
     id: 'PDV_VENDAS',
     name: 'Plano PDV & Vendas',
     badge: 'FRENTE DE CAIXA',
@@ -80,7 +63,7 @@ export const SYSTEM_PLANS_LIST: AvailablePlanOption[] = [
     name: 'Plano Assistência Técnica',
     badge: 'MAIS POPULAR',
     monthlyPrice: 69.90,
-    highlight: false,
+    highlight: true,
     tagline: 'Solução completa para Assistência Técnica: OS, Aparelhos, Peças e PDV.',
     modulesIncluded: [
       'Ordens de Serviço Ilimitadas todo mês',
@@ -131,7 +114,7 @@ export const SYSTEM_PLANS_LIST: AvailablePlanOption[] = [
 
 export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClose, onPlanChanged }) => {
   // Identificação do plano atual
-  const currentPlanId: PlanType = (client.planoId || client.plano || 'COMPLETO_50') as PlanType;
+  const currentPlanId: PlanType = (client.planoId || client.plano || 'ASSISTENCIA') as PlanType;
   const currentPlanName = client.planoNome || client.plano || 'Plano Atual';
   const currentPrice = Number(client.valorPlano || client.valorMensalidade || client.mensalidade || 0);
   const currentVencimento = client.dataVencimento || client.vencimento || '';
