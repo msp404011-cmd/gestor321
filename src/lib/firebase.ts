@@ -6,8 +6,8 @@ export const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "painelgestor-11e67.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "painelgestor-11e67",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "painelgestor-11e67.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "3784146b99e9de7d6c50b8",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:842059179433:web:3784146b99e9de7d6c50b8",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "204688938294",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:204688938294:web:99eeb829e72d31fcbd8f97",
 };
 
 console.log("==========================================");

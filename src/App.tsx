@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
@@ -176,6 +178,43 @@ export default function App() {
     }
     setProductModalState({ isOpen: true, productToEdit: null });
   };
+
+  // Real-time synchronization of the subscription plan from Firestore
+  useEffect(() => {
+    if (!authSession?.email || !db) return;
+
+    const tenantId = authSession.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const docRef = doc(db, 'user_accounts', tenantId, 'settings', 'subscription');
+
+    console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tenantId}`);
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const updatedPlan = docSnap.data() as SubscriptionPlanInfo;
+        console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.status);
+        
+        // Update ONLY local cache, avoiding loop back writing to Firebase
+        StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
+        
+        // Re-trigger re-renders
+        setTick((prev) => prev + 1);
+
+        // Check for expiration/lock
+        const now = new Date();
+        const expDate = new Date(updatedPlan.expiryDate);
+        if (updatedPlan.status === 'expired' || expDate.getTime() < now.getTime()) {
+           setIsSubscriptionModalOpen(true);
+        }
+      }
+    }, (err) => {
+      console.warn('Erro no onSnapshot de assinatura:', err);
+    });
+
+    return () => {
+      console.log(`🔥 Desativando listener onSnapshot de assinatura para o tenant: ${tenantId}`);
+      unsubscribe();
+    };
+  }, [authSession?.email]);
 
   // Customer Actions
   const handleSaveCustomer = (customer: Customer) => {
