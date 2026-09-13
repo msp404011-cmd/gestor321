@@ -296,7 +296,7 @@ export const AccountRecoveryModal: React.FC<AccountRecoveryModalProps> = ({
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
                       placeholder="seuemail@gmail.com"
-                      className="w-full px-4 py-3 bg-[#030712] border border-cyan-500/40 rounded-2xl text-sm font-medium text-white focus:outline-none focus:border-cyan-400 placeholder:text-slate-600"
+                      className="w-full px-4 py-3 bg-[#030712] border border-cyan-500/40 rounded-2xl text-sm font-sans font-medium text-white focus:outline-none focus:border-cyan-400 placeholder:text-slate-600 not-italic"
                     />
                   </div>
 

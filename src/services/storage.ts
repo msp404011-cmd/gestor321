@@ -2196,7 +2196,7 @@ export const StorageService = {
 
     // 1. Create UserAccount object
     const newAccount: UserAccount = {
-      id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: cleanEmail,
       shopName: cleanShop,
       ownerName: cleanOwner,
       email: cleanEmail,
@@ -2285,6 +2285,88 @@ export const StorageService = {
     };
     this.saveSubscriptionPlan(trialPlan);
     this.saveSubscriptionForEmail(cleanEmail, trialPlan);
+
+    // FLAT JSON COMPATIBILITY WITH ADMIN PANEL
+    const nowStr = new Date().toISOString();
+    const dateStr = nowStr.split('T')[0];
+    const expiryStrPanel = trialExpiry.toISOString().split('T')[0];
+    
+    FirestoreSyncService.saveFullTenantProfile({
+      active: true,
+      amount: 79.9,
+      ativo: true,
+      blocked: false,
+      bloqueado: false,
+      celular: params.phone?.trim() || "00000000000",
+      cidadeUf: "",
+      cnpj: "",
+      companyName: cleanShop,
+      createdAt: nowStr,
+      dataCadastro: dateStr,
+      dataVencimento: expiryStrPanel,
+      diasGratis: 7,
+      dueDate: expiryStrPanel,
+      email: cleanEmail,
+      empresa: cleanShop,
+      id: cleanEmail,
+      inadimplente: false,
+      isTrial: true,
+      login: cleanEmail,
+      loginUsuario: cleanEmail,
+      mensalidade: 79.9,
+      metodoPagamento: "Teste Grátis",
+      monthlyFee: 79.9,
+      name: cleanOwner,
+      nome: cleanOwner,
+      nomeEmpresa: cleanShop,
+      nomeFantasia: cleanShop,
+      observacoes: "Conta integrada e sincronizada com o Gestor.",
+      pass: params.password,
+      password: params.password,
+      phone: params.phone?.trim() || "00000000000",
+      pin: params.password,
+      plan: "Plano Completo",
+      planName: "Plano Completo",
+      plano: "Plano Completo",
+      planoId: "plano completo",
+      planoNome: "Plano Completo",
+      planoObjeto: { 
+        id: "plano completo", 
+        nome: "Plano Completo", 
+        status: "ativo", 
+        valor: 79.9 
+      },
+      preco: 79.9,
+      price: 79.9,
+      razaoSocial: cleanShop,
+      responsavel: cleanOwner,
+      role: "gestor",
+      senha: params.password,
+      situacao: "active",
+      status: "ativo",
+      storeName: cleanShop,
+      telefone: params.phone?.trim() || "00000000000",
+      tipo: "gestor",
+      tipoPlano: "Plano Completo",
+      trial: true,
+      trialDays: 7,
+      trialEndsAt: expiryStrPanel,
+      uid: cleanEmail,
+      ultimoPagamento: dateStr,
+      updatedAt: nowStr,
+      user: cleanEmail,
+      userEmail: cleanEmail,
+      userId: cleanEmail,
+      userStatus: "active",
+      username: cleanEmail,
+      usuario: cleanEmail,
+      valor: 79.9,
+      valorMensalidade: 79.9,
+      valorPlano: 79.9,
+      valor_mensalidade: 79.9,
+      vencimento: expiryStrPanel,
+      whatsapp: params.phone?.trim() || "00000000000",
+    });
 
     // 5. Save active auth session
     session.avatarUrl = adminEmp.avatarUrl;

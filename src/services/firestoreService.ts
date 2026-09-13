@@ -35,6 +35,19 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Save a giant flat JSON payload compatible with external admin panel
+   */
+  async saveFullTenantProfile(data: any): Promise<void> {
+    try {
+      if (!db || !data.email) return;
+      const docRef = doc(db, 'accounts', data.email);
+      await setDoc(docRef, data, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveFullTenantProfile error:', err);
+    }
+  },
+
+  /**
    * Save employee / operator to Firestore /accounts/{tenantId}/employees/{id}
    */
   async saveEmployee(employee: Employee): Promise<void> {
