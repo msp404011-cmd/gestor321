@@ -48,28 +48,24 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save employee / operator to Firestore /accounts/{tenantId}/employees/{id}
+   * (Disabled) Prevent creating 'employees' folder in Firebase. Operates locally only.
    */
   async saveEmployee(employee: Employee): Promise<void> {
     try {
-      if (!db || !employee.id) return;
-      const tenantId = getTenantId();
-      const docRef = doc(db, 'accounts', tenantId, 'employees', employee.id);
-      await setDoc(docRef, employee, { merge: true });
+      // Disabled to strictly comply with flat data structure
+      return;
     } catch (err) {
       console.warn('Firestore saveEmployee error:', err);
     }
   },
 
   /**
-   * Save company settings to Firestore /accounts/{tenantId}/settings/company
+   * (Disabled) Prevent creating 'settings' folder in Firebase. Operates locally only.
    */
   async saveCompanySettings(settings: CompanySettings): Promise<void> {
     try {
-      if (!db) return;
-      const tenantId = getTenantId();
-      const docRef = doc(db, 'accounts', tenantId, 'settings', 'company');
-      await setDoc(docRef, settings, { merge: true });
+      // Disabled to strictly comply with flat data structure
+      return;
     } catch (err) {
       console.warn('Firestore saveCompanySettings error:', err);
     }
@@ -118,14 +114,29 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Save subscription plan to Firestore /accounts/{tenantId}/settings/subscription
+   * Save subscription plan to Firestore /accounts/{tenantId} (Flat structure)
    */
   async saveSubscriptionPlan(plan: SubscriptionPlanInfo): Promise<void> {
     try {
       if (!db) return;
       const tenantId = getTenantId();
-      const docRef = doc(db, 'accounts', tenantId, 'settings', 'subscription');
-      await setDoc(docRef, plan, { merge: true });
+      const docRef = doc(db, 'accounts', tenantId);
+      
+      const flatPlanData = {
+        plan: plan.planName,
+        planName: plan.planName,
+        plano: plan.planName,
+        planoNome: plan.planName,
+        status: plan.status === 'active' ? 'ativo' : 'inativo',
+        situacao: plan.status,
+        userStatus: plan.status,
+        vencimento: plan.expiryDate,
+        dataVencimento: plan.expiryDate,
+        dueDate: plan.expiryDate,
+        trialEndsAt: plan.expiryDate
+      };
+      
+      await setDoc(docRef, flatPlanData, { merge: true });
     } catch (err) {
       console.warn('Firestore saveSubscriptionPlan error:', err);
     }

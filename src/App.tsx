@@ -185,13 +185,30 @@ export default function App() {
 
     // tenantId format: email.toLowerCase() (preserving '@' and '.')
     const tenantId = authSession.email.toLowerCase();
-    const docRef = doc(db, 'accounts', tenantId, 'settings', 'subscription');
+    const docRef = doc(db, 'accounts', tenantId);
 
     console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tenantId}`);
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        const updatedPlan = docSnap.data() as SubscriptionPlanInfo;
+        const data = docSnap.data();
+        
+        // Extract status fields
+        const isBlocked = data.bloqueado === true || data.blocked === true || data.inadimplente === true;
+        const panelStatus = String(data.status || data.situacao || data.userStatus || '').toLowerCase();
+        
+        const isPanelActive = panelStatus === 'ativo' || panelStatus === 'active' || data.ativo === true || data.active === true;
+        const mappedStatus = (isPanelActive && !isBlocked) ? 'active' : 'expired';
+        
+        const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
+        
+        const updatedPlan: SubscriptionPlanInfo = {
+          ...StorageService.getSubscriptionPlan(),
+          planName: data.planoNome || data.plano || data.planName || data.plan || 'Plano Gestor',
+          status: mappedStatus,
+          expiryDate: mappedExpiry,
+        };
+
         console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.status);
         
         // Update ONLY local cache, avoiding loop back writing to Firebase
@@ -210,7 +227,6 @@ export default function App() {
         expDate.setHours(0, 0, 0, 0);
 
         const isExpired = updatedPlan.status === 'expired' || 
-                          updatedPlan.status === 'VENCIDO' || 
                           updatedPlan.status === 'canceled' || 
                           expDate < now;
 
