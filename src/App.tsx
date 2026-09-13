@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-react';
 import { db } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
@@ -509,7 +510,7 @@ export default function App() {
         <main className={
           activeTab === 'POS'
             ? "flex-1 h-screen w-screen overflow-hidden p-0 flex flex-col"
-            : "flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 max-w-[1780px] w-full mx-auto scrollbar-thin"
+            : "flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-[1780px] w-full mx-auto scrollbar-thin"
         }>
           {/* Master Panel */}
           {showMasterAuth && (
@@ -623,6 +624,44 @@ export default function App() {
 
           {activeTab === 'SETTINGS' && <SettingsView />}
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        {activeTab !== 'POS' && (
+          <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 border-t flex items-center justify-around px-2 transition-colors ${
+            isDark ? 'bg-[#070b14]/95 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]'
+          }`}>
+            {[
+              { id: 'DASHBOARD', label: 'Início', icon: LayoutDashboard },
+              { id: 'ORDERS', label: 'OS', icon: Wrench },
+              { id: 'POS', label: 'PDV', icon: ShoppingCart },
+              { id: 'CUSTOMERS', label: 'Clientes', icon: Users },
+              { id: 'PRODUCTS', label: 'Estoque', icon: Package },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.id === 'POS') {
+                      setActiveTab('POS');
+                    } else {
+                      setActiveTab(item.id as NavigationTab);
+                    }
+                  }}
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors cursor-pointer ${
+                    isActive
+                      ? 'text-cyan-400 font-bold'
+                      : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-cyan-400 scale-110 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : ''}`} />
+                  <span className="text-[10px] truncate max-w-full">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
 
       {/* Global Modals */}
