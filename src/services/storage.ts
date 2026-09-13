@@ -574,8 +574,15 @@ export const StorageService = {
       setItem(STORAGE_KEYS.PURCHASES_CONFIG, { historyLimitMonths: 12, autoDeleteExpired: true });
     }
     if (options.resetEmployeesToAdminOnly) {
-      setItem(STORAGE_KEYS.EMPLOYEES, [initialEmployees[0]]);
-      setItem(STORAGE_KEYS.CURRENT_USER, initialEmployees[0]);
+      const authSession = this.getAuthSession();
+      if (authSession?.isAuthenticated && authSession?.email) {
+        const ownerEmp = this.getCurrentUser();
+        setItem(STORAGE_KEYS.EMPLOYEES, [ownerEmp]);
+        setItem(STORAGE_KEYS.CURRENT_USER, ownerEmp);
+      } else {
+        setItem(STORAGE_KEYS.EMPLOYEES, [initialEmployees[0]]);
+        setItem(STORAGE_KEYS.CURRENT_USER, initialEmployees[0]);
+      }
     }
 
     try {
@@ -660,35 +667,39 @@ export const StorageService = {
 
   // Current User & Employees
   getEmployees(): Employee[] {
-    const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, initialEmployees);
+    const authSession = this.getAuthSession();
+    const defaultList = authSession?.isAuthenticated ? [] : initialEmployees;
+    const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, defaultList);
     
-    // Auto-inject Benny if missing by phone
-    if (!list.find((e) => e.phone === '88988323081')) {
-      const benny: Employee = {
-        id: 'emp-benny',
-        name: 'Benny',
-        phone: '88988323081',
-        email: 'benny@assistencia.com',
-        role: 'VENDEDOR',
-        status: 'ATIVO',
-        commissionRate: 5,
-        permissions: {
-          canAccessAdminSettings: false,
-          canViewFinancialReports: false,
-          canViewProductCost: false,
-          canManageEmployees: false,
-          canManageProducts: false,
-          canManageCustomers: true,
-          canManageOrders: true,
-          canOperatePos: true,
-          canOperateCash: true,
-          canManageExpenses: false,
-          canDeleteRecords: false,
-        },
-        createdAt: new Date().toISOString()
-      };
-      list.push(benny);
-      setItem(STORAGE_KEYS.EMPLOYEES, list);
+    // Auto-inject Benny if missing by phone AND not authenticated (demo mode only)
+    if (!authSession?.isAuthenticated) {
+      if (!list.find((e) => e.phone === '88988323081')) {
+        const benny: Employee = {
+          id: 'emp-benny',
+          name: 'Benny',
+          phone: '88988323081',
+          email: 'benny@assistencia.com',
+          role: 'VENDEDOR',
+          status: 'ATIVO',
+          commissionRate: 5,
+          permissions: {
+            canAccessAdminSettings: false,
+            canViewFinancialReports: false,
+            canViewProductCost: false,
+            canManageEmployees: false,
+            canManageProducts: false,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: false,
+            canDeleteRecords: false,
+          },
+          createdAt: new Date().toISOString()
+        };
+        list.push(benny);
+        setItem(STORAGE_KEYS.EMPLOYEES, list);
+      }
     }
     
     return list;
@@ -719,6 +730,51 @@ export const StorageService = {
   },
 
   getCurrentUser(): Employee {
+    const authSession = this.getAuthSession();
+    
+    if (authSession?.isAuthenticated && authSession?.email) {
+      const employees = this.getEmployees();
+      const cleanEmail = authSession.email.toLowerCase().trim();
+      let emp = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+      
+      if (!emp) {
+        emp = {
+          id: `emp-adm-auto`,
+          name: authSession.name || 'Administrador',
+          email: cleanEmail,
+          role: 'ADMINISTRADOR',
+          avatarUrl: authSession.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(authSession.name || 'Admin')}&background=0284c7&color=ffffff`,
+          active: true,
+          permissions: {
+            canAccessAdminSettings: true,
+            canViewFinancialReports: true,
+            canViewProductCost: true,
+            canManageEmployees: true,
+            canManageProducts: true,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: true,
+            canDeleteRecords: true,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, []);
+        if (!list.some(e => e.email?.toLowerCase() === cleanEmail)) {
+          list.push(emp);
+          setItem(STORAGE_KEYS.EMPLOYEES, list);
+          FirestoreSyncService.saveEmployee(emp);
+        }
+      }
+      
+      const current = getItem<Employee | null>(STORAGE_KEYS.CURRENT_USER, null);
+      if (current && (employees.some(e => e.id === current.id) || current.id === emp.id)) {
+        return current;
+      }
+      return emp;
+    }
+
     const fallback = this.getEmployees()[0] || initialEmployees[0];
     return getItem(STORAGE_KEYS.CURRENT_USER, fallback);
   },

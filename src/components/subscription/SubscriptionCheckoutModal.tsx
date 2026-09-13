@@ -104,8 +104,8 @@ export const SubscriptionCheckoutModal: React.FC<SubscriptionCheckoutModalProps>
         amount: planDef.monthlyPrice,
         payer: {
           email: company?.email || 'financeiro@assistencia.com.br',
-          firstName: company?.commercialName?.split(' ')[0] || 'Gestor',
-          lastName: company?.commercialName?.split(' ')[1] || 'Loja',
+          firstName: company?.commercialName ? (company.commercialName.split(' ')[0] || 'Gestor') : 'Gestor',
+          lastName: company?.commercialName ? (company.commercialName.split(' ')[1] || 'Loja') : 'Loja',
           cpf: doc,
         },
       });

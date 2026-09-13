@@ -201,7 +201,9 @@ const handlePixRequest = async (req: express.Request, res: express.Response) => 
     const email = payer?.email || 'cliente@exemplo.com';
     const firstName = payer?.firstName || payer?.first_name || 'Cliente';
     const lastName = payer?.lastName || payer?.last_name || 'Teste';
-    const cleanCpf = (payer?.cpf || payer?.identification?.number || '19119119100').replace(/\D/g, '');
+    const rawCpf = payer?.cpf || payer?.identification?.number || '19119119100';
+    const cleanCpf = String(rawCpf).replace(/\D/g, '');
+    const idType = cleanCpf.length === 14 ? 'CNPJ' : 'CPF';
 
     const response = await payment.create({
       body: {
@@ -213,7 +215,7 @@ const handlePixRequest = async (req: express.Request, res: express.Response) => 
           first_name: firstName,
           last_name: lastName,
           identification: {
-            type: 'CPF',
+            type: idType,
             number: cleanCpf || '19119119100',
           },
         },
@@ -1038,9 +1040,15 @@ async function ensureMasterAdminAccount() {
 
     if (userUid) {
       await db.collection('accounts').doc(userUid).set(adminAccountDoc, { merge: true });
+      if (userUid !== adminEmail) {
+        try {
+          await db.collection('accounts').doc(adminEmail).delete();
+        } catch (_) {}
+      }
+    } else {
+      await db.collection('accounts').doc(adminEmail).set(adminAccountDoc, { merge: true });
     }
-    await db.collection('accounts').doc(adminEmail).set(adminAccountDoc, { merge: true });
-    console.log(`[Admin Bootstrap] Registro da conta master ${adminEmail} salvo no Firestore.`);
+    console.log(`[Admin Bootstrap] Registro da conta master ${adminEmail} salvo no Firestore (ID: ${userUid || adminEmail}).`);
     return { success: true, email: adminEmail, uid: userUid };
   } catch (e: any) {
     console.warn('[Admin Bootstrap] Aviso durante inicialização da conta admin:', e.message);
