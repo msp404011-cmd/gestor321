@@ -9,7 +9,7 @@ export function getTenantId(): string {
       if (rawSession) {
         const session = JSON.parse(rawSession);
         if (session && session.email) {
-          const clean = session.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          const clean = session.email.trim().toLowerCase();
           if (clean) return clean;
         }
       }
