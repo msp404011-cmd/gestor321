@@ -81,52 +81,146 @@ export const AdminBackendService = {
   },
 
   /**
+   * Helper function to safely read and parse HTTP responses as JSON.
+   */
+  async parseSafeResponse<T = any>(
+    response: Response,
+    fallbackErrorMessage = 'Erro na comunicação com o servidor'
+  ): Promise<{ ok: boolean; status: number; data: T }> {
+    let rawText = '';
+    try {
+      rawText = await response.text();
+    } catch (readErr: any) {
+      console.error('[AdminBackendService] Erro ao ler corpo da resposta HTTP:', readErr);
+      throw new Error(`${fallbackErrorMessage} (não foi possível ler a resposta do servidor).`);
+    }
+
+    let parsedData: any = null;
+    if (rawText && rawText.trim().length > 0) {
+      try {
+        parsedData = JSON.parse(rawText);
+      } catch (jsonErr: any) {
+        console.error('[AdminBackendService] Resposta não-JSON recebida:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          preview: rawText.slice(0, 300),
+          parseError: jsonErr?.message,
+        });
+
+        if (response.status === 404) {
+          throw new Error('Endpoint administrativo não encontrado no servidor.');
+        }
+        if (response.status >= 500) {
+          throw new Error('Servidor indisponível ou em reinicialização. Tente novamente em alguns instantes.');
+        }
+        throw new Error(`Resposta inválida retornada pelo servidor (HTTP ${response.status}).`);
+      }
+    } else {
+      // Empty response body
+      parsedData = {};
+    }
+
+    if (!response.ok) {
+      const serverMessage = parsedData?.message || parsedData?.error || `${fallbackErrorMessage} (HTTP ${response.status})`;
+      console.warn('[AdminBackendService] Resposta com erro da API:', {
+        status: response.status,
+        message: serverMessage,
+      });
+      throw new Error(serverMessage);
+    }
+
+    return { ok: true, status: response.status, data: parsedData as T };
+  },
+
+  /**
    * Helper to perform authenticated admin requests.
    */
   request: async function<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = AdminBackendService.getToken();
     const headers = new Headers(options.headers || {});
     headers.set('Content-Type', 'application/json');
+    headers.set('Accept', 'application/json');
 
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
+      headers.set('x-admin-token', token);
     }
 
-    const response = await fetch(endpoint, {
-      ...options,
-      headers,
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        AdminBackendService.clearToken();
-        throw new Error(data.error || 'Sessão de Administrador expirada ou inválida. Por favor, autentique-se novamente.');
-      }
-      throw new Error(data.error || `Erro na requisição administrativa (${response.status})`);
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        ...options,
+        headers,
+      });
+    } catch (networkErr: any) {
+      console.error(`[AdminBackendService] Erro de rede ao conectar em ${endpoint}:`, networkErr);
+      throw new Error(`Falha de conexão com o servidor (${networkErr.message || 'Verifique sua conexão de internet'}).`);
     }
 
-    return data as T;
+    if (response.status === 401) {
+      AdminBackendService.clearToken();
+      let errorMsg = 'Sessão de Administrador expirada ou inválida. Por favor, autentique-se novamente.';
+      try {
+        const text = await response.text();
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed?.message || parsed?.error) {
+            errorMsg = parsed.message || parsed.error;
+          }
+        }
+      } catch {}
+      throw new Error(errorMsg);
+    }
+
+    const { data } = await AdminBackendService.parseSafeResponse<T>(
+      response,
+      `Erro ao processar requisição em ${endpoint}`
+    );
+    return data;
   },
 
   /**
    * Authenticates Master Admin via backend password verification.
    */
-  async login(password: string): Promise<{ success: boolean; token: string }> {
-    const response = await fetch('/api/admin/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    });
+  async login(password: string): Promise<{ success: boolean; token: string; message?: string }> {
+    if (!password || typeof password !== 'string' || !password.trim()) {
+      throw new Error('Por favor, informe a senha de administrador.');
+    }
 
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Senha de administrador incorreta.');
+    let response: Response;
+    try {
+      response = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ password: password.trim() }),
+      });
+    } catch (networkErr: any) {
+      console.error('[AdminBackendService] Falha de conexão ao autenticar Master:', networkErr);
+      throw new Error(`Falha de conexão com o servidor (${networkErr.message || 'servidor indisponível'}).`);
+    }
+
+    const { data } = await AdminBackendService.parseSafeResponse<{
+      success: boolean;
+      token?: string;
+      message?: string;
+      error?: string;
+    }>(response, 'Falha na autenticação do Administrador Master');
+
+    if (!data.success || !data.token) {
+      const errorMsg = data.message || data.error || 'Senha de Administrador Master incorreta.';
+      throw new Error(errorMsg);
     }
 
     AdminBackendService.setToken(data.token);
-    return data;
+    return {
+      success: true,
+      token: data.token,
+      message: data.message || 'Autenticação realizada com sucesso',
+    };
   },
 
   /**

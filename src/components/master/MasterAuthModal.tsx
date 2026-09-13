@@ -14,7 +14,8 @@ export const MasterAuthModal: React.FC<MasterAuthModalProps> = ({ onClose, onSuc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) {
+    const cleanPassword = password.trim();
+    if (!cleanPassword) {
       setError('Por favor, informe a senha de administrador.');
       return;
     }
@@ -22,10 +23,12 @@ export const MasterAuthModal: React.FC<MasterAuthModalProps> = ({ onClose, onSuc
     try {
       setLoading(true);
       setError(null);
-      await AdminBackendService.login(password);
+      await AdminBackendService.login(cleanPassword);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Senha de administrador incorreta.');
+      console.error('[MasterAuthModal] Falha na autenticação do Painel Master:', err);
+      const friendlyMessage = err?.message || 'Senha de administrador incorreta.';
+      setError(friendlyMessage);
       setPassword('');
     } finally {
       setLoading(false);
