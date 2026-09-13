@@ -230,7 +230,9 @@ export default function App() {
         const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
         
         // Extract raw planType and normalize to known PlanType
-        const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || 'COMPLETO_50').toUpperCase();
+        const rawPlanId = String(
+          data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
+        ).toUpperCase();
         let normalizedPlanType: PlanType = 'COMPLETO_50';
         if (rawPlanId.includes('PDV')) {
           normalizedPlanType = 'PDV_VENDAS';
@@ -238,22 +240,33 @@ export default function App() {
           normalizedPlanType = 'REVENDA';
         } else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) {
           normalizedPlanType = 'ASSISTENCIA';
-        } else if (rawPlanId.includes('TRIAL') || rawPlanId.includes('FREE')) {
+        } else if (
+          rawPlanId.includes('TRIAL') || 
+          rawPlanId.includes('FREE') || 
+          rawPlanId.includes('TESTE') || 
+          rawPlanId.includes('GRATIS') || 
+          rawPlanId.includes('GRÁTIS') || 
+          rawPlanId.includes('7 DIAS') ||
+          rawPlanId.includes('7DIAS')
+        ) {
           normalizedPlanType = 'TRIAL';
         } else {
           normalizedPlanType = 'COMPLETO_50';
         }
 
-        const planPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
+        const isTrial = normalizedPlanType === 'TRIAL';
+        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
+        const planPrice = isTrial ? 0 : rawPrice;
+        const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
 
         const updatedPlan: SubscriptionPlanInfo = {
           ...StorageService.getSubscriptionPlan(),
           planType: normalizedPlanType,
-          planName: data.planoNome || data.planName || data.plano || 'Plano Completo',
+          planName: planName,
           planPrice: planPrice,
           status: mappedStatus,
           expiryDate: mappedExpiry,
-          isTrial: normalizedPlanType === 'TRIAL',
+          isTrial: isTrial,
         };
 
         console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);

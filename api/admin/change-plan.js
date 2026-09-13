@@ -38,29 +38,50 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: 'Dados do plano incompletos.', error: 'Dados do plano incompletos.' });
     }
 
+    const rawStr = String(planoId + ' ' + planoNome).toUpperCase();
+    const isTrial = rawStr.includes('TRIAL') || rawStr.includes('TESTE') || rawStr.includes('FREE') || rawStr.includes('7 DIAS');
+
+    let calcVencimento = dataVencimento;
+    if (isTrial && (!calcVencimento || calcVencimento === '')) {
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      calcVencimento = d.toISOString().split('T')[0];
+    } else if (!calcVencimento) {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      calcVencimento = d.toISOString().split('T')[0];
+    }
+
+    const finalValor = isTrial ? 0 : Number(valorPlano || 0);
+    const finalPlanoId = isTrial ? 'TRIAL' : planoId;
+    const finalPlanoNome = planoNome || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+
     const nowIso = new Date().toISOString();
     const planUpdate = {
-      plano: planoId,
-      planoId: planoId,
-      planoNome: planoNome,
-      planName: planoNome,
-      plan: planoId,
-      planType: planoId,
-      valorPlano: Number(valorPlano || 0),
-      valorMensalidade: Number(valorPlano || 0),
-      mensalidade: Number(valorPlano || 0),
-      amount: Number(valorPlano || 0),
+      plano: finalPlanoId,
+      planoId: finalPlanoId,
+      planoNome: finalPlanoNome,
+      planName: finalPlanoNome,
+      plan: finalPlanoId,
+      planType: finalPlanoId,
+      valorPlano: finalValor,
+      valorMensalidade: finalValor,
+      mensalidade: finalValor,
+      amount: finalValor,
+      dataVencimento: calcVencimento,
+      vencimento: calcVencimento,
+      dueDate: calcVencimento,
+      expiryDate: calcVencimento,
+      trialEndsAt: isTrial ? calcVencimento : null,
+      status: 'ativo',
+      situacao: 'active',
+      userStatus: 'ativo',
+      bloqueado: false,
+      blocked: false,
       statusUpdatedAt: nowIso,
       statusUpdatedBy: 'Master Admin',
-      statusReason: `Plano alterado para ${planoNome} (R$ ${Number(valorPlano || 0).toFixed(2)}) via Painel Master`,
+      statusReason: `Plano alterado para ${finalPlanoNome} (R$ ${finalValor.toFixed(2)}) via Painel Master`,
     };
-
-    if (dataVencimento) {
-      planUpdate.dataVencimento = dataVencimento;
-      planUpdate.vencimento = dataVencimento;
-      planUpdate.dueDate = dataVencimento;
-      planUpdate.expiryDate = dataVencimento;
-    }
 
     await saveAccountDocREST(targetDocId, planUpdate, [uid, email, docId]);
 

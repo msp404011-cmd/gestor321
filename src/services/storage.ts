@@ -2619,16 +2619,26 @@ export const StorageService = {
     this.setCurrentUser(employee);
 
     // Mapeia o plano a partir do Firestore
-    const rawPlanId = String(data.planoId || data.plano || data.plan || 'COMPLETO_50').toUpperCase();
+    const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '').toUpperCase();
     let planType: any = 'COMPLETO_50';
     if (rawPlanId.includes('PDV')) planType = 'PDV_VENDAS';
     else if (rawPlanId.includes('REVENDA')) planType = 'REVENDA';
     else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) planType = 'ASSISTENCIA';
-    else if (rawPlanId.includes('TRIAL') || rawPlanId.includes('FREE')) planType = 'TRIAL';
+    else if (
+      rawPlanId.includes('TRIAL') || 
+      rawPlanId.includes('FREE') || 
+      rawPlanId.includes('TESTE') || 
+      rawPlanId.includes('GRATIS') || 
+      rawPlanId.includes('GRÁTIS') || 
+      rawPlanId.includes('7 DIAS') ||
+      rawPlanId.includes('7DIAS')
+    ) planType = 'TRIAL';
     else planType = 'COMPLETO_50';
 
-    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-    const planPrice = Number(data.valorPlano ?? data.valorMensalidade ?? 0.50);
+    const isTrial = planType === 'TRIAL';
+    const defaultDays = isTrial ? 7 : 30;
+    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+    const planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? 0.50);
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -2637,17 +2647,17 @@ export const StorageService = {
 
     const userPlan: SubscriptionPlanInfo = {
       planType,
-      planName: data.planoNome || data.planName || 'Plano Completo',
+      planName: data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo'),
       planPrice,
       billingCycle: 'monthly',
       billingPeriod: 'MENSAL',
       expiryDate,
-      status: (data.status === 'bloqueado' || data.bloqueado) ? 'canceled' : (isExpired ? 'expired' : 'active'),
+      status: (data.status === 'bloqueado' || data.bloqueado || data.blocked) ? 'canceled' : (isExpired ? 'expired' : 'active'),
       clientName: shopName,
       accountEmail: cleanEmail,
-      autoRenew: true,
+      autoRenew: !isTrial,
       startDate: (data.dataCriacao || new Date().toISOString()).split('T')[0],
-      isTrial: planType === 'TRIAL',
+      isTrial,
     };
 
     this.saveSubscriptionPlan(userPlan);

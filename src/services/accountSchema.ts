@@ -75,9 +75,31 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   const telefone = data.telefone || data.phone || data.celular || data.whatsapp || '';
 
   // Plano e Valor
-  const plano = data.plano || data.plan || data.tipoPlano || data.planoId || 'COMPLETO_50';
-  const planoNome = data.planoNome || data.planName || (plano === 'TRIAL' ? 'Plano Teste Grátis' : 'Plano Completo');
-  const valorPlano = Number(
+  const rawPlanStr = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '').toUpperCase();
+  let plano = 'COMPLETO_50';
+  if (rawPlanStr.includes('PDV')) {
+    plano = 'PDV_VENDAS';
+  } else if (rawPlanStr.includes('REVENDA')) {
+    plano = 'REVENDA';
+  } else if (rawPlanStr.includes('ASSISTENCIA') || rawPlanStr.includes('LOJA') || rawPlanStr.includes('PRO')) {
+    plano = 'ASSISTENCIA';
+  } else if (
+    rawPlanStr.includes('TRIAL') || 
+    rawPlanStr.includes('FREE') || 
+    rawPlanStr.includes('TESTE') || 
+    rawPlanStr.includes('GRATIS') || 
+    rawPlanStr.includes('GRÁTIS') || 
+    rawPlanStr.includes('7 DIAS') ||
+    rawPlanStr.includes('7DIAS')
+  ) {
+    plano = 'TRIAL';
+  } else {
+    plano = data.plano || data.planoId || 'COMPLETO_50';
+  }
+
+  const isTrialPlan = plano === 'TRIAL';
+  const planoNome = data.planoNome || data.planName || (isTrialPlan ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+  const valorPlano = isTrialPlan ? 0 : Number(
     data.valorPlano ??
     data.valorMensalidade ??
     data.mensalidade ??
@@ -92,11 +114,11 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   const nowIso = new Date().toISOString();
   const dataCriacao = data.dataCriacao || data.createdAt || data.dataCadastro || nowIso;
   
-  // Se não houver data de vencimento, define 30 dias a partir de hoje
-  let dataVencimento = data.dataVencimento || data.vencimento || data.dueDate || '';
+  // Se não houver data de vencimento, calcula 7 dias para TRIAL ou 30 dias para planos normais
+  let dataVencimento = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || '';
   if (!dataVencimento) {
     const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 30);
+    futureDate.setDate(futureDate.getDate() + (isTrialPlan ? 7 : 30));
     dataVencimento = futureDate.toISOString().split('T')[0];
   }
 

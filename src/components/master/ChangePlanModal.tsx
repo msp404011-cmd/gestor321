@@ -159,12 +159,11 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
         throw new Error('Identificador (ID/E-mail) da conta não encontrado.');
       }
 
-      // Preserva explicitamente a data de vencimento existente
-      const preservedVencimento = currentVencimento || (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 30);
-        return d.toISOString().split('T')[0];
-      })();
+      const isTrial = selectedPlan.id === 'TRIAL' || selectedPlan.name.toLowerCase().includes('teste') || selectedPlan.name.toLowerCase().includes('7 dias');
+      
+      const calcVencimento = isTrial
+        ? new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+        : (currentVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
 
       // Executa alteração no backend administrativo com Firebase Admin
       await AdminBackendService.changePlan({
@@ -174,7 +173,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
         planoId: selectedPlan.id,
         planoNome: selectedPlan.name,
         valorPlano: selectedPlan.monthlyPrice,
-        dataVencimento: preservedVencimento,
+        dataVencimento: calcVencimento,
       });
 
       const updatedData: CanonicalAccount = {
@@ -187,8 +186,12 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
         valorPlano: selectedPlan.monthlyPrice,
         valorMensalidade: selectedPlan.monthlyPrice,
         mensalidade: selectedPlan.monthlyPrice,
-        dataVencimento: preservedVencimento,
-        vencimento: preservedVencimento,
+        dataVencimento: calcVencimento,
+        vencimento: calcVencimento,
+        bloqueado: false,
+        blocked: false,
+        status: 'ativo',
+        situacao: 'active',
       };
 
       setSuccessMessage(`Plano de "${client.nome || client.email}" alterado com sucesso para ${selectedPlan.name}!`);

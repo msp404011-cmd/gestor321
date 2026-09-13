@@ -63,6 +63,15 @@ export default async function handler(req, res) {
     const uid = authResult.uid;
     const nowIso = new Date().toISOString();
 
+    const rawStr = String((planoId || '') + ' ' + (planoNome || '')).toUpperCase();
+    const isTrial = rawStr.includes('TRIAL') || rawStr.includes('TESTE') || rawStr.includes('FREE') || rawStr.includes('7 DIAS');
+
+    const defaultDays = isTrial ? 7 : 30;
+    const calcVencimento = dataVencimento || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+    const finalValor = isTrial ? 0 : Number(valorPlano || 0.50);
+    const finalPlanoId = isTrial ? 'TRIAL' : (planoId || 'COMPLETO_50');
+    const finalPlanoNome = planoNome || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo (R$ 0,50)');
+
     // 2. Prepara e salva o documento na coleção accounts no Firestore
     const accountDoc = {
       id: uid,
@@ -80,21 +89,22 @@ export default async function handler(req, res) {
       telefone: cleanPhone,
       phone: cleanPhone,
       whatsapp: cleanPhone,
-      plano: planoId || 'COMPLETO_50',
-      planoId: planoId || 'COMPLETO_50',
-      planoNome: planoNome || 'Plano Completo (R$ 0,50)',
-      planName: planoNome || 'Plano Completo (R$ 0,50)',
-      planType: planoId || 'COMPLETO_50',
-      valorPlano: Number(valorPlano || 0.50),
-      valorMensalidade: Number(valorPlano || 0.50),
-      mensalidade: Number(valorPlano || 0.50),
-      amount: Number(valorPlano || 0.50),
+      plano: finalPlanoId,
+      planoId: finalPlanoId,
+      planoNome: finalPlanoNome,
+      planName: finalPlanoNome,
+      planType: finalPlanoId,
+      valorPlano: finalValor,
+      valorMensalidade: finalValor,
+      mensalidade: finalValor,
+      amount: finalValor,
       dataCriacao: nowIso,
       createdAt: nowIso,
-      dataVencimento: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      vencimento: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      dueDate: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-      expiryDate: dataVencimento || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      dataVencimento: calcVencimento,
+      vencimento: calcVencimento,
+      dueDate: calcVencimento,
+      expiryDate: calcVencimento,
+      trialEndsAt: isTrial ? calcVencimento : null,
       status: isBlocked ? 'bloqueado' : 'ativo',
       situacao: isBlocked ? 'bloqueado' : 'ativo',
       userStatus: isBlocked ? 'bloqueado' : 'ativo',
