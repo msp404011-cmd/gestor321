@@ -203,119 +203,122 @@ export default function App() {
   useEffect(() => {
     if (!authSession?.email || !db) return;
 
-    // Busca documento pelo UID do Firebase Auth (se disponível) ou pelo e-mail como fallback
-    const targetDocId = authSession.uid || authSession.email.toLowerCase();
-    const docRef = doc(db, 'accounts', targetDocId);
+    const emailKey = authSession.email.trim().toLowerCase();
+    const uidKey = authSession.uid?.trim();
 
-    console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${targetDocId}`);
-    
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    const targets = Array.from(new Set([emailKey, uidKey].filter(Boolean) as string[]));
+    const unsubscribes: Array<() => void> = [];
+
+    const handleDocSnap = (docSnap: any) => {
+      if (!docSnap.exists()) return;
+      const data = docSnap.data();
+
+      // Extract status fields
+      const isBlocked = Boolean(
+        data.bloqueado === true || 
+        data.blocked === true || 
+        data.status === 'bloqueado' || 
+        data.situacao === 'bloqueado' || 
+        data.userStatus === 'bloqueado' ||
+        data.inadimplente === true
+      );
+      const panelStatus = String(data.status || data.situacao || data.userStatus || '').toLowerCase();
+      
+      const isPanelActive = (panelStatus === 'ativo' || panelStatus === 'active' || data.ativo === true || data.active === true) && !isBlocked;
+      const mappedStatus = isPanelActive ? 'active' : 'expired';
+      
+      const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
+      
+      // Extract raw planType and normalize to known PlanType
+      const rawPlanId = String(
+        data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
+      ).toUpperCase();
+      let normalizedPlanType: PlanType = 'COMPLETO_50';
+      if (rawPlanId.includes('PDV')) {
+        normalizedPlanType = 'PDV_VENDAS';
+      } else if (rawPlanId.includes('REVENDA')) {
+        normalizedPlanType = 'REVENDA';
+      } else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) {
+        normalizedPlanType = 'ASSISTENCIA';
+      } else if (
+        rawPlanId.includes('TRIAL') || 
+        rawPlanId.includes('FREE') || 
+        rawPlanId.includes('TESTE') || 
+        rawPlanId.includes('GRATIS') || 
+        rawPlanId.includes('GRÁTIS') || 
+        rawPlanId.includes('7 DIAS') ||
+        rawPlanId.includes('7DIAS')
+      ) {
+        normalizedPlanType = 'TRIAL';
+      } else {
+        normalizedPlanType = 'COMPLETO_50';
+      }
+
+      const isTrial = normalizedPlanType === 'TRIAL';
+      const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
+      const planPrice = isTrial ? 0 : rawPrice;
+      const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
+
+      const updatedPlan: SubscriptionPlanInfo = {
+        ...StorageService.getSubscriptionPlan(),
+        planType: normalizedPlanType,
+        planName: planName,
+        planPrice: planPrice,
+        status: mappedStatus,
+        expiryDate: mappedExpiry,
+        isTrial: isTrial,
+      };
+
+      console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);
+      
+      // Update local cache and notify listeners so Gestor updates permissions and tabs immediately
+      StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
+      
+      // Re-trigger re-renders
+      setTick((prev) => prev + 1);
+
+      // Atualiza estado de conta bloqueada
+      if (isBlocked) {
+        setIsAccountBlocked(true);
+        setBlockedAccountInfo({
+          name: data.nome || data.name || data.empresa || authSession.name || 'Cliente',
+          email: data.email || authSession.email
+        });
+        setIsSubscriptionModalOpen(false);
+      } else {
+        setIsAccountBlocked(false);
+
+        // Check for expiration/lock
+        const now = new Date();
+        now.setHours(0, 0, 0, 0); // Start of today
         
-        // Extract status fields
-        const isBlocked = Boolean(
-          data.bloqueado === true || 
-          data.blocked === true || 
-          data.status === 'bloqueado' || 
-          data.situacao === 'bloqueado' || 
-          data.userStatus === 'bloqueado' ||
-          data.inadimplente === true
-        );
-        const panelStatus = String(data.status || data.situacao || data.userStatus || '').toLowerCase();
-        
-        const isPanelActive = (panelStatus === 'ativo' || panelStatus === 'active' || data.ativo === true || data.active === true) && !isBlocked;
-        const mappedStatus = isPanelActive ? 'active' : 'expired';
-        
-        const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
-        
-        // Extract raw planType and normalize to known PlanType
-        const rawPlanId = String(
-          data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
-        ).toUpperCase();
-        let normalizedPlanType: PlanType = 'COMPLETO_50';
-        if (rawPlanId.includes('PDV')) {
-          normalizedPlanType = 'PDV_VENDAS';
-        } else if (rawPlanId.includes('REVENDA')) {
-          normalizedPlanType = 'REVENDA';
-        } else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) {
-          normalizedPlanType = 'ASSISTENCIA';
-        } else if (
-          rawPlanId.includes('TRIAL') || 
-          rawPlanId.includes('FREE') || 
-          rawPlanId.includes('TESTE') || 
-          rawPlanId.includes('GRATIS') || 
-          rawPlanId.includes('GRÁTIS') || 
-          rawPlanId.includes('7 DIAS') ||
-          rawPlanId.includes('7DIAS')
-        ) {
-          normalizedPlanType = 'TRIAL';
+        // Assuming expiryDate is in YYYY-MM-DD format
+        const [y, m, d] = (updatedPlan.expiryDate || '').split('-').map(Number);
+        const expDate = new Date(y, (m || 1) - 1, d || 1);
+        expDate.setHours(0, 0, 0, 0);
+
+        const isExpired = updatedPlan.status === 'expired' || 
+                          updatedPlan.status === 'canceled' || 
+                          expDate < now;
+
+        if (isExpired) {
+           console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
+           setIsSubscriptionModalOpen(true);
         } else {
-          normalizedPlanType = 'COMPLETO_50';
-        }
-
-        const isTrial = normalizedPlanType === 'TRIAL';
-        const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);
-        const planPrice = isTrial ? 0 : rawPrice;
-        const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Completo');
-
-        const updatedPlan: SubscriptionPlanInfo = {
-          ...StorageService.getSubscriptionPlan(),
-          planType: normalizedPlanType,
-          planName: planName,
-          planPrice: planPrice,
-          status: mappedStatus,
-          expiryDate: mappedExpiry,
-          isTrial: isTrial,
-        };
-
-        console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);
-        
-        // Update local cache and notify listeners so Gestor updates permissions and tabs immediately
-        StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
-        
-        // Re-trigger re-renders
-        setTick((prev) => prev + 1);
-
-        // Atualiza estado de conta bloqueada
-        if (isBlocked) {
-          setIsAccountBlocked(true);
-          setBlockedAccountInfo({
-            name: data.nome || data.name || data.empresa || authSession.name || 'Cliente',
-            email: data.email || authSession.email
-          });
-          setIsSubscriptionModalOpen(false);
-        } else {
-          setIsAccountBlocked(false);
-
-          // Check for expiration/lock
-          const now = new Date();
-          now.setHours(0, 0, 0, 0); // Start of today
-          
-          // Assuming expiryDate is in YYYY-MM-DD format
-          const [y, m, d] = (updatedPlan.expiryDate || '').split('-').map(Number);
-          const expDate = new Date(y, (m || 1) - 1, d || 1);
-          expDate.setHours(0, 0, 0, 0);
-
-          const isExpired = updatedPlan.status === 'expired' || 
-                            updatedPlan.status === 'canceled' || 
-                            expDate < now;
-
-          if (isExpired) {
-             console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
-             setIsSubscriptionModalOpen(true);
-          } else {
-             setIsSubscriptionModalOpen(false);
-          }
+           setIsSubscriptionModalOpen(false);
         }
       }
-    }, (err) => {
-      console.warn('Erro no onSnapshot de assinatura:', err);
+    };
+
+    targets.forEach((tId) => {
+      const docRef = doc(db, 'accounts', tId);
+      console.log(`🔥 Ativando listener onSnapshot do Firestore para a assinatura do tenant: ${tId}`);
+      const unsub = onSnapshot(docRef, handleDocSnap);
+      unsubscribes.push(unsub);
     });
 
     return () => {
-      console.log(`🔥 Desativando listener onSnapshot de assinatura para o tenant: ${targetDocId}`);
-      unsubscribe();
+      unsubscribes.forEach((unsub) => unsub());
     };
   }, [authSession?.email, authSession?.uid]);
 

@@ -137,9 +137,22 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
     calculatedStatus = 'bloqueado';
   } else {
     try {
-      const exp = new Date(dataVencimento);
+      let exp: Date;
+      if (typeof dataVencimento === 'string' && dataVencimento.includes('-')) {
+        const parts = dataVencimento.split('T')[0].split('-');
+        if (parts.length === 3) {
+          exp = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+          exp = new Date(dataVencimento);
+        }
+      } else {
+        exp = new Date(dataVencimento);
+      }
+      exp.setHours(0, 0, 0, 0);
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
       if (exp.getTime() < today.getTime()) {
         calculatedStatus = 'vencido';
       }

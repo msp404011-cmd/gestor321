@@ -145,11 +145,22 @@ export async function saveAccountDocREST(docId, accountData, extraTargetIds = []
     const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(targetId)}?${updateMaskParams}`;
 
     try {
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields }),
       });
+
+      if (!res.ok) {
+        // Fallback: se o documento ainda não existir no Firestore, o PATCH com updateMask falha com 404.
+        // Chamamos PATCH sem updateMask para criar/sobrescrever o documento diretamente.
+        const urlWithoutMask = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/accounts/${encodeURIComponent(targetId)}`;
+        res = await fetch(urlWithoutMask, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields }),
+        });
+      }
 
       if (!res.ok) {
         const errText = await res.text();
