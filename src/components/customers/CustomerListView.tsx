@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Customer } from '../../types';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { formatPhone, cleanPhoneForWhatsApp } from '../../services/formatters';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useTheme } from '../../context/ThemeContext';
@@ -783,19 +784,21 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                                     <span>Editar Cliente</span>
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenMenuCustomerId(null);
-                                    handleNewOrder(c);
-                                  }}
-                                  className={`w-full px-3.5 py-2 text-xs font-semibold flex items-center gap-2 transition-colors ${
-                                    isDark ? 'hover:bg-blue-600 hover:text-white' : 'hover:bg-blue-50 hover:text-slate-900'
-                                  }`}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Nova OS</span>
-                                </button>
+                                {SubscriptionService.isTabAllowed('ORDERS') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenMenuCustomerId(null);
+                                      handleNewOrder(c);
+                                    }}
+                                    className={`w-full px-3.5 py-2 text-xs font-semibold flex items-center gap-2 transition-colors ${
+                                      isDark ? 'hover:bg-blue-600 hover:text-white' : 'hover:bg-blue-50 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Nova OS</span>
+                                  </button>
+                                )}
                                 {currentUser.permissions.canManageCustomers && (
                                   <button
                                     type="button"

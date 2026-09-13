@@ -91,10 +91,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
     alert(`Exportando relatório (${type})... O arquivo em formato ${type} foi gerado com sucesso!`);
   };
 
+  const isOrdersAllowed = SubscriptionService.isTabAllowed('ORDERS');
+
   const tabs = [
     { id: 'OVERVIEW', label: 'Visão Geral', icon: BarChart3, isPro: false },
     { id: 'SALES', label: 'Vendas', icon: ShoppingCart, isPro: false },
-    { id: 'SERVICES', label: 'Serviços (OS)', icon: Wrench, isPro: false },
+    ...(isOrdersAllowed ? [{ id: 'SERVICES', label: 'Serviços (OS)', icon: Wrench, isPro: false }] : []),
     { id: 'PRODUCTS', label: 'Produtos / Estoque', icon: Package, isPro: false },
     { id: 'FINANCE', label: 'Financeiro', icon: DollarSign, isPro: true },
     { id: 'COMPARATIVE', label: 'Comparativos', icon: Layers, isPro: true },

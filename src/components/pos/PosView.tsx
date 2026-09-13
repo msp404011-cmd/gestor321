@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { Product, Sale, SaleItem, Customer, PaymentMethod } from '../../types';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { formatCurrency, formatDate, cleanPhoneForWhatsApp } from '../../services/formatters';
 import { PosReceiptModal, PrintPaperFormat } from './PosReceiptModal';
 import { useTheme } from '../../context/ThemeContext';
@@ -847,7 +848,7 @@ export const PosView: React.FC<PosViewProps> = ({
           <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
             Tipo de Venda / Tabela
           </label>
-          <div className="grid grid-cols-2 gap-1 bg-[#040b19]/90 border border-blue-900/60 rounded-lg p-1">
+          <div className={`grid ${SubscriptionService.isResellerFeatureAllowed() ? 'grid-cols-2' : 'grid-cols-1'} gap-1 bg-[#040b19]/90 border border-blue-900/60 rounded-lg p-1`}>
             <button
               type="button"
               onClick={() => {
@@ -878,38 +879,40 @@ export const PosView: React.FC<PosViewProps> = ({
               <span>Cliente Final</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (priceTable === 'ATACADO') return;
-                setPriceTable('ATACADO');
-                if (paymentMethod === 'BOLETO') {
-                  setPaymentMethod('FIADO');
-                }
-                const updatedCart = cart.map((item) => {
-                  const product = products.find((p) => p.id === item.productId);
-                  if (product) {
-                    const newPrice = product.resellerPrice || product.sellingPrice;
-                    return {
-                      ...item,
-                      unitPrice: newPrice,
-                      total: newPrice * item.quantity,
-                    };
+            {SubscriptionService.isResellerFeatureAllowed() && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (priceTable === 'ATACADO') return;
+                  setPriceTable('ATACADO');
+                  if (paymentMethod === 'BOLETO') {
+                    setPaymentMethod('FIADO');
                   }
-                  return item;
-                });
-                setCart(updatedCart);
-              }}
-              className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-black transition-all cursor-pointer ${
-                priceTable === 'ATACADO'
-                  ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
-                  : 'text-slate-400 hover:text-white hover:bg-blue-950/50'
-              }`}
-              title="Venda para Revendedor / Técnico (Preço de Revenda)"
-            >
-              <Users className="w-3 h-3" />
-              <span>Revendedor</span>
-            </button>
+                  const updatedCart = cart.map((item) => {
+                    const product = products.find((p) => p.id === item.productId);
+                    if (product) {
+                      const newPrice = product.resellerPrice || product.sellingPrice;
+                      return {
+                        ...item,
+                        unitPrice: newPrice,
+                        total: newPrice * item.quantity,
+                      };
+                    }
+                    return item;
+                  });
+                  setCart(updatedCart);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-black transition-all cursor-pointer ${
+                  priceTable === 'ATACADO'
+                    ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
+                    : 'text-slate-400 hover:text-white hover:bg-blue-950/50'
+                }`}
+                title="Venda para Revendedor / Técnico (Preço de Revenda)"
+              >
+                <Users className="w-3 h-3" />
+                <span>Revendedor</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -2268,7 +2271,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 CLIENTE PADRÃO (Consumidor Final)
               </div>
               {/* Resellers list */}
-              {resellers
+              {SubscriptionService.isResellerFeatureAllowed() && resellers
                 .filter((r) => {
                   const q = customerSearchInput.trim().toLowerCase();
                   if (!q) return true;

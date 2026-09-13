@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { formatCurrency } from '../../services/formatters';
 import { ServiceOrder, SubscriptionPlanInfo } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -1165,35 +1166,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {/* Button 1: Nova OS */}
-        <button
-          type="button"
-          onClick={handleNovaOS}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
-            isDark
-              ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 border-2 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.55)] hover:shadow-[0_0_28px_rgba(59,130,246,0.8)]'
-              : 'bg-[#e8f1ff] border border-blue-200/90 shadow-2xs hover:shadow-md hover:bg-[#deebff]'
-          }`}
-        >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-blue-800/70 border border-blue-300/80 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-              : 'bg-[#0066ff] shadow-sm'
-          }`}>
-            <Plus className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#0a2540]'
+        {SubscriptionService.isTabAllowed('ORDERS') && (
+          <button
+            type="button"
+            onClick={handleNovaOS}
+            className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+              isDark
+                ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 border-2 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.55)] hover:shadow-[0_0_28px_rgba(59,130,246,0.8)]'
+                : 'bg-[#e8f1ff] border border-blue-200/90 shadow-2xs hover:shadow-md hover:bg-[#deebff]'
+            }`}
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+              isDark
+                ? 'bg-blue-800/70 border border-blue-300/80 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                : 'bg-[#0066ff] shadow-sm'
             }`}>
-              Nova OS
-            </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-blue-100' : 'text-blue-700 font-medium'
-            }`}>
-              Reg. equipamento
-            </span>
-          </div>
-        </button>
+              <Plus className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+                isDark ? 'text-white' : 'text-[#0a2540]'
+              }`}>
+                Nova OS
+              </span>
+              <span className={`text-[10px] block truncate whitespace-nowrap ${
+                isDark ? 'text-blue-100' : 'text-blue-700 font-medium'
+              }`}>
+                Reg. equipamento
+              </span>
+            </div>
+          </button>
+        )}
 
         {/* Button 2: Nova Venda */}
         <button
@@ -1420,29 +1423,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Card 3: Ordens de Serviço (Purple 3D Glass) */}
-        <div
-          onClick={() => onNavigate('ORDERS')}
-          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg ${
-            isDark
-              ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_32px_rgba(168,85,247,0.55)]'
-              : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
-          }`}
-        >
-          <div className="p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
-            <Wrench className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              ORDENS DE SERVIÇO
-            </span>
-            <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {statusCounts.total}
+        {SubscriptionService.isTabAllowed('ORDERS') && (
+          <div
+            onClick={() => onNavigate('ORDERS')}
+            className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg ${
+              isDark
+                ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_32px_rgba(168,85,247,0.55)]'
+                : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
+            }`}
+          >
+            <div className="p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
+              <Wrench className="w-5 h-5" />
             </div>
-            <span className="text-purple-300 text-[10px] font-medium block whitespace-nowrap truncate">
-              {statusCounts.emManutencao} em andamento
-            </span>
+            <div className="min-w-0 flex-1">
+              <span className={`text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                ORDENS DE SERVIÇO
+              </span>
+              <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {statusCounts.total}
+              </div>
+              <span className="text-purple-300 text-[10px] font-medium block whitespace-nowrap truncate">
+                {statusCounts.emManutencao} em andamento
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Card 5: Estoque Baixo (Red/Crimson 3D Glass) */}
         <div

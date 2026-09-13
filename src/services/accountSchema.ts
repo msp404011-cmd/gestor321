@@ -1,3 +1,5 @@
+import { normalizePlanType } from './subscriptionService';
+
 /**
  * Padronização da estrutura de contas/usuários do Gestor e Painel Master.
  * Garante que qualquer registro na coleção 'accounts' contenha os campos canônicos
@@ -75,27 +77,8 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   const telefone = data.telefone || data.phone || data.celular || data.whatsapp || '';
 
   // Plano e Valor
-  const rawPlanStr = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '').toUpperCase();
-  let plano = 'COMPLETO_50';
-  if (rawPlanStr.includes('PDV')) {
-    plano = 'PDV_VENDAS';
-  } else if (rawPlanStr.includes('REVENDA')) {
-    plano = 'REVENDA';
-  } else if (rawPlanStr.includes('ASSISTENCIA') || rawPlanStr.includes('LOJA') || rawPlanStr.includes('PRO')) {
-    plano = 'ASSISTENCIA';
-  } else if (
-    rawPlanStr.includes('TRIAL') || 
-    rawPlanStr.includes('FREE') || 
-    rawPlanStr.includes('TESTE') || 
-    rawPlanStr.includes('GRATIS') || 
-    rawPlanStr.includes('GRÁTIS') || 
-    rawPlanStr.includes('7 DIAS') ||
-    rawPlanStr.includes('7DIAS')
-  ) {
-    plano = 'TRIAL';
-  } else {
-    plano = data.plano || data.planoId || 'COMPLETO_50';
-  }
+  const rawPlanStr = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '');
+  const plano = normalizePlanType(rawPlanStr);
 
   const isTrialPlan = plano === 'TRIAL';
   const planoNome = data.planoNome || data.planName || (isTrialPlan ? 'Teste Grátis (7 Dias)' : 'Plano Completo');

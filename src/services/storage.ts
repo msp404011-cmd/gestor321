@@ -24,6 +24,7 @@ import {
   UserAccount,
 } from '../types';
 import { FirestoreSyncService } from './firestoreService';
+import { normalizePlanType } from './subscriptionService';
 import {
   initialCustomers,
   initialDevices,
@@ -2331,7 +2332,7 @@ export const StorageService = {
     
     FirestoreSyncService.saveFullTenantProfile({
       active: true,
-      amount: 79.9,
+      amount: 0,
       ativo: true,
       blocked: false,
       bloqueado: false,
@@ -2351,31 +2352,32 @@ export const StorageService = {
       isTrial: true,
       login: cleanEmail,
       loginUsuario: cleanEmail,
-      mensalidade: 79.9,
-      metodoPagamento: "Teste Grátis",
-      monthlyFee: 79.9,
+      mensalidade: 0,
+      metodoPagamento: "Teste Grátis (7 Dias)",
+      monthlyFee: 0,
       name: cleanOwner,
       nome: cleanOwner,
       nomeEmpresa: cleanShop,
       nomeFantasia: cleanShop,
-      observacoes: "Conta integrada e sincronizada com o Gestor.",
+      observacoes: "Conta criada com 7 dias de Teste Grátis liberados.",
       pass: params.password,
       password: params.password,
       phone: params.phone?.trim() || "00000000000",
       pin: params.password,
-      plan: "Plano Completo",
-      planName: "Plano Completo",
-      plano: "Plano Completo",
-      planoId: "plano completo",
-      planoNome: "Plano Completo",
+      plan: "TRIAL",
+      planName: "Teste Grátis (7 Dias)",
+      planType: "TRIAL",
+      plano: "TRIAL",
+      planoId: "TRIAL",
+      planoNome: "Teste Grátis (7 Dias)",
       planoObjeto: { 
-        id: "plano completo", 
-        nome: "Plano Completo", 
+        id: "TRIAL", 
+        nome: "Teste Grátis (7 Dias)", 
         status: "ativo", 
-        valor: 79.9 
+        valor: 0 
       },
-      preco: 79.9,
-      price: 79.9,
+      preco: 0,
+      price: 0,
       razaoSocial: cleanShop,
       responsavel: cleanOwner,
       role: "gestor",
@@ -2619,21 +2621,8 @@ export const StorageService = {
     this.setCurrentUser(employee);
 
     // Mapeia o plano a partir do Firestore
-    const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '').toUpperCase();
-    let planType: any = 'COMPLETO_50';
-    if (rawPlanId.includes('PDV')) planType = 'PDV_VENDAS';
-    else if (rawPlanId.includes('REVENDA')) planType = 'REVENDA';
-    else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) planType = 'ASSISTENCIA';
-    else if (
-      rawPlanId.includes('TRIAL') || 
-      rawPlanId.includes('FREE') || 
-      rawPlanId.includes('TESTE') || 
-      rawPlanId.includes('GRATIS') || 
-      rawPlanId.includes('GRÁTIS') || 
-      rawPlanId.includes('7 DIAS') ||
-      rawPlanId.includes('7DIAS')
-    ) planType = 'TRIAL';
-    else planType = 'COMPLETO_50';
+    const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '');
+    const planType = normalizePlanType(rawPlanId);
 
     const isTrial = planType === 'TRIAL';
     const defaultDays = isTrial ? 7 : 30;

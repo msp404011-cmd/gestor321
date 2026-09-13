@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Customer } from '../../types';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import {
   formatCurrency,
   formatDate,
@@ -107,17 +108,19 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                 <span>Conversar no WhatsApp</span>
               </a>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenNewOrderForCustomer(customer);
-              }}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer"
-            >
-              <Wrench className="w-4 h-4" />
-              <span>Abrir Nova OS</span>
-            </button>
+            {SubscriptionService.isTabAllowed('ORDERS') && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenNewOrderForCustomer(customer);
+                }}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer"
+              >
+                <Wrench className="w-4 h-4" />
+                <span>Abrir Nova OS</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">

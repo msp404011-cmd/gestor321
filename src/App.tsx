@@ -32,7 +32,7 @@ import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { SubscriptionModal } from './components/subscription/SubscriptionModal';
 import { PaywallModal } from './components/subscription/PaywallModal';
 import { BlockedAccountModal } from './components/common/BlockedAccountModal';
-import { SubscriptionService } from './services/subscriptionService';
+import { SubscriptionService, normalizePlanType } from './services/subscriptionService';
 import { LoginView } from './components/auth/LoginView';
 import { MasterAuthModal } from './components/master/MasterAuthModal';
 import { MasterPanel } from './components/master/MasterPanel';
@@ -161,16 +161,61 @@ export default function App() {
     }
   }, [tick]);
 
+  // Enforce plan-based tab permissions automatically (PDV & VENDAS / ASSISTENCIA modes)
+  useEffect(() => {
+    if (authSession?.isAuthenticated && !SubscriptionService.isTabAllowed(activeTab)) {
+      console.warn(`🔒 Acesso negado à aba "${activeTab}" para o plano atual.`);
+      const currentSub = StorageService.getSubscriptionPlan();
+      const planType = currentSub.planType;
+      
+      const fallbackTab = SubscriptionService.isTabAllowed('DASHBOARD')
+        ? 'DASHBOARD'
+        : SubscriptionService.isTabAllowed('ORDERS')
+        ? 'ORDERS'
+        : 'POS';
+
+      setActiveTab(fallbackTab);
+
+      let modalTitle = 'Módulo Indisponível no seu Plano';
+      let modalDescription = 'Esta funcionalidade pertence a um plano superior. Faça upgrade no Painel Master ou na aba Assinatura para liberar o acesso.';
+
+      if (planType === 'PDV_VENDAS') {
+        modalTitle = 'Módulo Indisponível no Plano PDV & Vendas';
+        modalDescription = 'O Plano PDV & Vendas é focado em Frente de Caixa (PDV), Vendas Balcão, Estoque, Clientes, Crédito/A Prazo e Controle de Caixa. As funcionalidades de Assistência Técnica (OS e Aparelhos) e Revenda exigem o Plano Assistência Técnica ou Revenda.';
+      } else if (planType === 'ASSISTENCIA') {
+        modalTitle = 'Módulo Exclusivo do Plano Revenda / Atacado';
+        modalDescription = 'O Plano Assistência Técnica contempla Ordens de Serviço, Aparelhos, Checklists, PDV, Peças/Estoque, DRE e Relatórios. A gestão de Revenda e Atacado de Aparelhos é exclusiva do Plano Revenda / Atacado.';
+      }
+
+      setPaywallModalState({
+        isOpen: true,
+        title: modalTitle,
+        description: modalDescription,
+        feature: 'ORDERS_LIMIT',
+      });
+    }
+  }, [activeTab, authSession, tick]);
+
   // Subscription-gated order and product openers
   const handleOpenNewOrder = (initialCustomerId?: string, initialDeviceId?: string) => {
+    if (!SubscriptionService.isTabAllowed('ORDERS')) {
+      setPaywallModalState({
+        isOpen: true,
+        title: 'Módulo Indisponível no Plano PDV & Vendas',
+        description:
+          'O Plano PDV & Vendas não inclui o módulo de Ordens de Serviço. Para registrar equipamentos e gerenciar assistência técnica, faça o upgrade para o Plano Assistência Técnica.',
+        feature: 'ORDERS_LIMIT',
+      });
+      return;
+    }
     const limits = SubscriptionService.checkSubscriptionLimits();
     if (!limits.canCreateOrder) {
       setPaywallModalState({
         isOpen: true,
-        title: 'Limite de Ordens de Serviço Atingido',
+        title: 'Recurso Bloqueado',
         description:
           limits.orderLimitReason ||
-          'Você atingiu o limite de 10 Ordens de Serviço neste mês no Plano Gratuito. Faça upgrade para o Plano Pro para cadastrar OS ilimitadas!',
+          'Seu plano atual não permite criar novas Ordens de Serviço.',
         feature: 'ORDERS_LIMIT',
       });
       return;
@@ -232,27 +277,8 @@ export default function App() {
       // Extract raw planType and normalize to known PlanType
       const rawPlanId = String(
         data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
-      ).toUpperCase();
-      let normalizedPlanType: PlanType = 'COMPLETO_50';
-      if (rawPlanId.includes('PDV')) {
-        normalizedPlanType = 'PDV_VENDAS';
-      } else if (rawPlanId.includes('REVENDA')) {
-        normalizedPlanType = 'REVENDA';
-      } else if (rawPlanId.includes('ASSISTENCIA') || rawPlanId.includes('LOJA') || rawPlanId.includes('PRO')) {
-        normalizedPlanType = 'ASSISTENCIA';
-      } else if (
-        rawPlanId.includes('TRIAL') || 
-        rawPlanId.includes('FREE') || 
-        rawPlanId.includes('TESTE') || 
-        rawPlanId.includes('GRATIS') || 
-        rawPlanId.includes('GRÁTIS') || 
-        rawPlanId.includes('7 DIAS') ||
-        rawPlanId.includes('7DIAS')
-      ) {
-        normalizedPlanType = 'TRIAL';
-      } else {
-        normalizedPlanType = 'COMPLETO_50';
-      }
+      );
+      const normalizedPlanType: PlanType = normalizePlanType(rawPlanId);
 
       const isTrial = normalizedPlanType === 'TRIAL';
       const rawPrice = Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 0.50);

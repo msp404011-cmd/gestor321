@@ -179,13 +179,50 @@ export interface SubscriptionCheckResult {
   canExportPdf: boolean;
 }
 
+export function normalizePlanType(rawInput: any): PlanType {
+  if (!rawInput) return 'COMPLETO_50';
+  const str = String(rawInput)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+
+  if (str.includes('PDV')) {
+    return 'PDV_VENDAS';
+  }
+  if (str.includes('REVENDA') || str.includes('ATACADO')) {
+    return 'REVENDA';
+  }
+  if (str.includes('ASSISTENCIA') || str.includes('LOJA') || str.includes('PRO')) {
+    return 'ASSISTENCIA';
+  }
+  if (
+    str.includes('TRIAL') ||
+    str.includes('FREE') ||
+    str.includes('TESTE') ||
+    str.includes('GRATIS') ||
+    str.includes('7 DIAS') ||
+    str.includes('7DIAS')
+  ) {
+    return 'TRIAL';
+  }
+
+  if (str === 'PDV_VENDAS') return 'PDV_VENDAS';
+  if (str === 'ASSISTENCIA') return 'ASSISTENCIA';
+  if (str === 'REVENDA') return 'REVENDA';
+  if (str === 'TRIAL') return 'TRIAL';
+
+  return 'COMPLETO_50';
+}
+
 export const SubscriptionService = {
   getCurrentPlan(): SubscriptionPlanInfo {
     return StorageService.getSubscriptionPlan();
   },
 
   getPlanDefinition(planType: PlanType): PlanDefinition {
-    return SUBSCRIPTION_PLANS[planType] || SUBSCRIPTION_PLANS.LOJA;
+    const norm = normalizePlanType(planType);
+    return SUBSCRIPTION_PLANS[norm] || SUBSCRIPTION_PLANS.ASSISTENCIA;
   },
 
   getOrdersCountThisMonth(): number {
@@ -207,8 +244,7 @@ export const SubscriptionService = {
 
   checkSubscriptionLimits(): SubscriptionCheckResult {
     const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType: PlanType = currentPlan.planType || 'LOJA';
-    const planType: PlanType = rawType === 'PRO' ? 'LOJA' : rawType === 'ENTERPRISE' ? 'REVENDA' : rawType === 'FREE' ? 'TRIAL' : rawType;
+    const planType: PlanType = normalizePlanType(currentPlan.planType);
     const planDefinition = this.getPlanDefinition(planType);
 
     const isTrial = planType === 'TRIAL' || Boolean(currentPlan.isTrial);
@@ -241,10 +277,13 @@ export const SubscriptionService = {
     let canCreateOrder = true;
     let orderLimitReason: string | undefined;
 
-    if (isExpired) {
+    if (planType === 'PDV_VENDAS') {
+      canCreateOrder = false;
+      orderLimitReason = 'O Plano PDV & Vendas não inclui o módulo de Ordens de Serviço. Atualize para o Plano Assistência Técnica ou Revenda para utilizar este recurso.';
+    } else if (isExpired) {
       canCreateOrder = false;
       orderLimitReason = isTrial
-        ? 'Seu período de teste grátis de 7 dias expirou. Escolha o Plano Loja ou Plano Loja / Revenda para continuar emitindo Ordens de Serviço.'
+        ? 'Seu período de teste grátis de 7 dias expirou. Escolha um plano para continuar emitindo Ordens de Serviço.'
         : 'Sua assinatura mensal está vencida. Renove para continuar criando Ordens de Serviço.';
     } else if (isCanceled) {
       canCreateOrder = false;
@@ -261,14 +300,14 @@ export const SubscriptionService = {
     if (isExpired) {
       canCreateProduct = false;
       productLimitReason = isTrial
-        ? 'Seu período de teste grátis de 7 dias expirou. Escolha o Plano Loja ou Plano Loja / Revenda para cadastrar novos produtos.'
+        ? 'Seu período de teste grátis de 7 dias expirou. Escolha um plano para cadastrar novos produtos.'
         : 'Sua assinatura mensal está vencida. Renove para cadastrar novos produtos.';
     } else if (isCanceled) {
       canCreateProduct = false;
       productLimitReason = 'Sua assinatura foi cancelada. Reative para cadastrar novos produtos.';
     }
 
-    // Advanced reports & PDF export access (unlocked in active Trial, Loja, and Revenda!)
+    // Advanced reports & PDF export access
     const canAccessAdvancedReports = isActive;
     const canExportPdf = isActive;
 
@@ -304,7 +343,7 @@ export const SubscriptionService = {
   },
 
   upgradePlan(targetPlan: PlanType, billingCycle: BillingCycle = 'monthly'): SubscriptionPlanInfo {
-    const normalized: PlanType = targetPlan === 'FREE' ? 'TRIAL' : targetPlan === 'PRO' ? 'LOJA' : targetPlan === 'ENTERPRISE' ? 'REVENDA' : targetPlan;
+    const normalized: PlanType = normalizePlanType(targetPlan);
     const planDef = this.getPlanDefinition(normalized);
     const now = new Date();
     const expiry = new Date(now);
@@ -312,9 +351,9 @@ export const SubscriptionService = {
     const isTrial = normalized === 'TRIAL';
 
     if (isTrial) {
-      expiry.setDate(expiry.getDate() + 7); // 7 days trial with everything unlocked!
+      expiry.setDate(expiry.getDate() + 7);
     } else {
-      expiry.setDate(expiry.getDate() + 30); // 30 days monthly billing
+      expiry.setDate(expiry.getDate() + 30);
     }
 
     const expiryStr = expiry.toISOString().split('T')[0];
@@ -353,12 +392,11 @@ export const SubscriptionService = {
       notes?: string;
     }
   ): SubscriptionPlanInfo {
-    const normalized: PlanType =
-      targetPlan === 'PRO' ? 'LOJA' : targetPlan === 'ENTERPRISE' ? 'REVENDA' : targetPlan === 'COMPLETO_PROMO' ? 'COMPLETO_50' : targetPlan === 'TESTE_REAL' ? 'COMPLETO_50' : targetPlan;
+    const normalized: PlanType = normalizePlanType(targetPlan);
     const planDef = this.getPlanDefinition(normalized);
     const now = new Date();
     const expiry = new Date(now);
-    expiry.setDate(expiry.getDate() + 30); // 30 days monthly billing
+    expiry.setDate(expiry.getDate() + 30);
 
     const expiryStr = expiry.toISOString().split('T')[0];
     const methodLabel =
@@ -428,7 +466,7 @@ export const SubscriptionService = {
     status: SubscriptionStatus = 'active',
     customExpiryDays?: number
   ): SubscriptionPlanInfo {
-    const normalized: PlanType = planType === 'FREE' ? 'TRIAL' : planType === 'PRO' ? 'LOJA' : planType === 'ENTERPRISE' ? 'REVENDA' : planType;
+    const normalized: PlanType = normalizePlanType(planType);
     const planDef = this.getPlanDefinition(normalized);
     const now = new Date();
     const expiry = new Date(now);
@@ -438,9 +476,9 @@ export const SubscriptionService = {
     if (customExpiryDays !== undefined) {
       expiry.setDate(expiry.getDate() + customExpiryDays);
     } else if (status === 'expired' || status === 'VENCIDO') {
-      expiry.setDate(expiry.getDate() - 2); // 2 days in past
+      expiry.setDate(expiry.getDate() - 2);
     } else if (isTrial) {
-      expiry.setDate(expiry.getDate() + 7); // 7 days trial
+      expiry.setDate(expiry.getDate() + 7);
     } else {
       expiry.setDate(expiry.getDate() + 30);
     }
@@ -473,18 +511,15 @@ export const SubscriptionService = {
 
   isTabAllowed(tab: NavigationTab, targetPlanType?: PlanType): boolean {
     const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType: PlanType = targetPlanType || currentPlan.planType || 'ASSISTENCIA';
-    const norm: PlanType =
-      rawType === 'PRO' || rawType === 'LOJA' ? 'ASSISTENCIA' :
-      rawType === 'ENTERPRISE' ? 'REVENDA' :
-      rawType === 'FREE' ? 'TRIAL' : rawType;
+    const rawType = targetPlanType || currentPlan.planType;
+    const norm: PlanType = normalizePlanType(rawType);
 
-    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL') {
+    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO') {
       return true; // Todos os módulos 100% liberados
     }
 
     if (norm === 'PDV_VENDAS') {
-      // Plano PDV & Vendas R$ 34,90: Sem OS, Sem Aparelhos, Sem Revenda
+      // Plano PDV & Vendas: Sem OS (ORDERS), Sem Aparelhos (DEVICES), Sem Revenda (RESELLERS)
       if (tab === 'ORDERS' || tab === 'DEVICES' || tab === 'RESELLERS') {
         return false;
       }
@@ -492,7 +527,7 @@ export const SubscriptionService = {
     }
 
     if (norm === 'ASSISTENCIA') {
-      // Plano Assistência Técnica R$ 69,90: Com OS, Aparelhos, PDV. Sem Revenda
+      // Plano Assistência Técnica: Com OS, Aparelhos, PDV. Sem Revenda
       if (tab === 'RESELLERS') {
         return false;
       }
@@ -502,15 +537,24 @@ export const SubscriptionService = {
     return true;
   },
 
+  isTechnicalAssistanceAllowed(targetPlanType?: PlanType): boolean {
+    const currentPlan = StorageService.getSubscriptionPlan();
+    const rawType = targetPlanType || currentPlan.planType;
+    const norm: PlanType = normalizePlanType(rawType);
+
+    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO' || norm === 'ASSISTENCIA') {
+      return true;
+    }
+
+    return false;
+  },
+
   isResellerFeatureAllowed(targetPlanType?: PlanType): boolean {
     const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType: PlanType = targetPlanType || currentPlan.planType || 'ASSISTENCIA';
-    const norm: PlanType =
-      rawType === 'PRO' || rawType === 'LOJA' ? 'ASSISTENCIA' :
-      rawType === 'ENTERPRISE' ? 'REVENDA' :
-      rawType === 'FREE' ? 'TRIAL' : rawType;
+    const rawType = targetPlanType || currentPlan.planType;
+    const norm: PlanType = normalizePlanType(rawType);
 
-    return norm === 'REVENDA' || norm === 'TRIAL' || norm === 'TESTE_REAL';
+    return norm === 'REVENDA' || norm === 'TRIAL' || norm === 'TESTE_REAL' || norm === 'COMPLETO_50' || norm === 'COMPLETO_PROMO';
   },
 };
 
