@@ -486,7 +486,7 @@ app.post('/api/admin/create-user', requireAdminAuth, async (req: express.Request
     const adminAuth = getAuth(adminApp);
     const db = getFirestore(adminApp);
 
-    // 1. Create in Firebase Auth
+    // 1. Create or Get from Firebase Auth
     let authUser;
     try {
       authUser = await adminAuth.createUser({
@@ -497,12 +497,22 @@ app.post('/api/admin/create-user', requireAdminAuth, async (req: express.Request
       });
     } catch (authErr: any) {
       if (authErr.code === 'auth/email-already-exists') {
-        return res.status(400).json({ success: false, error: `O e-mail "${cleanEmail}" já está em uso no Firebase Authentication.` });
+        // Se já existe, buscamos o usuário existente para obter o UID
+        authUser = await adminAuth.getUserByEmail(cleanEmail);
+      } else {
+        return res.status(400).json({ success: false, error: authErr.message || 'Erro ao criar conta no Firebase Auth.' });
       }
-      return res.status(400).json({ success: false, error: authErr.message || 'Erro ao criar conta no Firebase Auth.' });
     }
 
     const uid = authUser.uid;
+    
+    // Check if account doc already exists to prevent duplication
+    const accRef = db.collection('accounts').doc(uid);
+    const accSnap = await accRef.get();
+    if (accSnap.exists) {
+      return res.status(400).json({ success: false, error: 'Este cliente já possui um cadastro ativo no sistema.' });
+    }
+
     const nowIso = new Date().toISOString();
 
     // 2. Prepare and save account document in Firestore
@@ -545,7 +555,7 @@ app.post('/api/admin/create-user', requireAdminAuth, async (req: express.Request
       statusReason: 'Conta criada administrativamente via Painel Master',
     };
 
-    await db.collection('accounts').doc(uid).set(accountDoc);
+    await accRef.set(accountDoc);
 
     // Audit log
     await logAuditAction('CREATE_USER', uid, {
