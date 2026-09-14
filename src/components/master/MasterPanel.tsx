@@ -26,6 +26,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
+import { realTimeSyncEngine } from '../../services/RealTimeSyncService';
 import { MasterClientModal } from './MasterClientModal';
 import { ChangePlanModal } from './ChangePlanModal';
 import { CreateUserModal } from './CreateUserModal';
@@ -76,26 +77,12 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
     action: 'block' | 'unblock' | 'delete';
   } | null>(null);
 
-  // Carregamento e sincronização em tempo real com Firestore
+  // Carregamento e sincronização em tempo real com Firestore via Motor Inteligente
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'accounts'), (snapshot) => {
-      const allAccounts: CanonicalAccount[] = [];
-      const seen = new Set<string>();
-      
-      snapshot.docs.forEach(docSnap => {
-        const norm = normalizeAccountData(docSnap.id, docSnap.data());
-        
-        // Deduplicação: usar UID ou Email como chave única
-        const key = norm.uid || norm.email || norm.id;
-        if (key && seen.has(key)) return;
-        if (key) seen.add(key);
-
-        allAccounts.push(norm);
-      });
-
-      setData(allAccounts);
+    const unsubscribe = realTimeSyncEngine.subscribe((newData) => {
+      setData(newData);
     });
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
