@@ -2622,82 +2622,37 @@ export const StorageService = {
   } {
     const cleanEmail = params.email.trim().toLowerCase();
     const data = params.accountData || {};
+    
+    // Se não houver dados de conta no Firestore, o login é rejeitado
+    if (!params.accountData) {
+        throw new Error('Usuário não encontrado na base de dados autorizada.');
+    }
+
     const ownerName = data.nome || data.name || data.responsavel || 'Administrador';
     const shopName = data.empresa || data.nomeEmpresa || data.nomeFantasia || ownerName;
-    const phone = data.telefone || data.phone || data.whatsapp || '';
 
-    // Salva ou atualiza a conta no cache local de contas
-    const existingAccounts = this.getUserAccounts();
-    let account = existingAccounts.find((a) => a.email.toLowerCase() === cleanEmail);
-    if (!account) {
-      account = {
-        id: params.uid || cleanEmail,
-        shopName,
-        ownerName,
+    // Cria o Employee apenas em memória para a sessão atual
+    const employee: Employee = {
+        id: params.uid,
         email: cleanEmail,
-        phone,
-        passwordHash: params.password || 'firebase_auth_managed',
-        createdAt: data.dataCriacao || new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-      };
-      this.saveUserAccount(account);
-    } else {
-      account.lastLoginAt = new Date().toISOString();
-      account.ownerName = ownerName;
-      account.shopName = shopName;
-      // Atualiza campos que podem ter mudado no Firestore
-      account.plano = data.plano || data.plan;
-      account.status = data.status;
-      account.bloqueado = data.bloqueado;
-      account.blocked = data.blocked;
-      
-      if (params.password) account.passwordHash = params.password;
-      this.saveUserAccount(account);
-    }
-
-    // Cria ou atualiza o Employee de Administrador
-    const employees = this.getEmployees();
-    let employee = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
-    if (!employee) {
-      employee = {
-        id: `emp-adm-${Date.now()}`,
         name: ownerName,
-        email: cleanEmail,
-        phone,
-        role: 'ADMINISTRADOR',
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&background=0284c7&color=ffffff`,
-        active: true,
-        permissions: {
-          canManageOrders: true,
-          canOperatePos: true,
-          canManageProducts: true,
-          canViewFinancialReports: true,
-          canManageCustomers: true,
-          canAccessAdminSettings: true,
-          canOperateCash: true,
-          canAdjustStock: true,
-          canManageEmployees: true,
-        },
-      };
-      this.saveEmployee(employee);
-    }
+        role: 'admin',
+        lastLoginAt: new Date().toISOString(),
+    };
+    
+    // Define o usuário na sessão atual (in-memory)
     this.setCurrentUser(employee);
 
-    // REGRA RÍGIDA: O plano já cadastrado do cliente é permanente e imutável, e deve ser buscado direto do Firestore.
-    // Ignoramos o cache local durante o login para garantir a consistência com o banco de dados oficial.
+    // Calcula o plano baseado nos dados frescos do Firestore
     const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA');
     const planType: PlanType = normalizePlanType(rawPlanId);
     
-    let planName: string;
-    let planPrice: number;
-    let expiryDate: string;
-
     const isTrial = planType === 'TRIAL';
     const defaultDays = isTrial ? 7 : 30;
     
-    expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
-    planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? 69.90);
-    planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
+    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+    const planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? 69.90);
+    const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
     
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -2715,32 +2670,22 @@ export const StorageService = {
       clientName: shopName,
       accountEmail: cleanEmail,
       autoRenew: !isTrial,
-      startDate: (data.dataCriacao || existingPlan?.startDate || new Date().toISOString()).split('T')[0],
+      startDate: (data.dataCriacao || new Date().toISOString()).split('T')[0],
       isTrial,
     };
 
-    this.saveSubscriptionPlanOnlyLocal(userPlan);
-    this.saveSubscriptionForEmail(cleanEmail, userPlan);
-
-    // Cria a sessão com UID
+    // Cria a sessão de autenticação (in-memory)
     const session: AuthSession = {
       isAuthenticated: true,
       provider: 'email',
       uid: params.uid,
       email: cleanEmail,
       name: ownerName,
-      avatarUrl: employee.avatarUrl,
       loggedAt: new Date().toISOString(),
     };
     this.setAuthSession(session);
 
-    this.saveAccountProfile({
-      email: cleanEmail,
-      name: `${ownerName} (${shopName})`,
-      picture: employee.avatarUrl,
-    });
-
-    this.logAction(`Login via Firebase Auth efetuado com sucesso: ${cleanEmail}`);
+    this.logAction(`Login via Firebase Auth efetuado com sucesso (Direto Firestore): ${cleanEmail}`);
 
     return {
       user: employee,
