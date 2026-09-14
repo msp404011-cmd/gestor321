@@ -79,20 +79,21 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
   // Carregamento e sincronização em tempo real com Firestore
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'accounts'), (snapshot) => {
-      // De-duplicação limpa para evitar registros duplicados por e-mail ou UID
-      const uniqueAccountsMap = new Map<string, CanonicalAccount>();
+      const allAccounts: CanonicalAccount[] = [];
+      const seen = new Set<string>();
       
       snapshot.docs.forEach(docSnap => {
         const norm = normalizeAccountData(docSnap.id, docSnap.data());
-        const key = (norm.email || norm.uid || norm.id).toLowerCase();
         
-        // Se já existir, dá preferência para o registro com UID ou ID limpo
-        if (!uniqueAccountsMap.has(key) || (norm.uid && !norm.id.includes('@'))) {
-          uniqueAccountsMap.set(key, norm);
-        }
+        // Deduplicação: usar UID ou Email como chave única
+        const key = norm.uid || norm.email || norm.id;
+        if (key && seen.has(key)) return;
+        if (key) seen.add(key);
+
+        allAccounts.push(norm);
       });
 
-      setData(Array.from(uniqueAccountsMap.values()));
+      setData(allAccounts);
     });
     return () => unsub();
   }, []);
@@ -857,6 +858,8 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
           onClose={() => setDeleteUserClient(null)}
           onDeleted={(deleted) => {
             showToast(`Usuário excluído com sucesso. (${deleted.nome || deleted.email})`, 'success');
+            // Remove imediatamente do estado local para evitar atraso visual até o snapshot atualizar
+            setData(prev => prev.filter(c => c.id !== deleted.id && c.uid !== deleted.uid && c.email !== deleted.email));
             setDeleteUserClient(null);
           }}
         />

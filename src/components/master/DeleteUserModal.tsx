@@ -4,11 +4,9 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   X, 
-  ShieldAlert, 
   User, 
   KeyRound, 
   Loader2,
-  ArrowRight,
   ShieldCheck
 } from 'lucide-react';
 import { CanonicalAccount } from '../../services/accountSchema';
@@ -26,10 +24,7 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
   onClose,
   onDeleted
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [confirmationWord, setConfirmationWord] = useState('');
-  const [agreeAuthDelete, setAgreeAuthDelete] = useState(false);
-  const [agreeDocDelete, setAgreeDocDelete] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [statusLog, setStatusLog] = useState<string[]>([]);
@@ -48,18 +43,11 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
   const targetId = client.id || client.uid || client.email;
   const targetUid = client.uid || (client.id && !client.id.includes('@') ? client.id : '');
 
-  const isConfirmationValid = 
-    confirmationWord.trim().toUpperCase() === 'EXCLUIR' && 
-    agreeAuthDelete && 
-    agreeDocDelete;
-
   const handleExecuteDelete = async () => {
-    if (!isConfirmationValid) return;
-
     try {
       setIsLoading(true);
       setErrorMsg(null);
-      setStep(3);
+      setStep(2);
       setStatusLog(['Iniciando protocolo de exclusão administrativa segura...']);
 
       // 1. Chama a API de Backend Autorizada para excluir do Firebase Authentication e Firestore
@@ -84,14 +72,9 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
         StorageService.deleteAccountPermanently(targetUid);
       }
 
-      setStatusLog(prev => [...prev, '✅ Operação concluída com sucesso!']);
-      setDeletionResult({
-        authDeleted: backendData?.authDeleted ?? true,
-        firestoreDeleted: backendData?.firestoreDeleted ?? true,
-        authError: backendData?.authError,
-      });
-
-      setStep(4);
+      // Conclui e fecha automaticamente após sucesso
+      onDeleted(client);
+      onClose();
     } catch (err: any) {
       console.error('Erro ao executar exclusão:', err);
       const msg = typeof err === 'string'
@@ -102,15 +85,10 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
         ? err.error
         : 'Ocorreu um erro ao excluir o usuário.';
       setErrorMsg(msg);
-      setStep(2);
+      setStep(1);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFinish = () => {
-    onDeleted(client);
-    onClose();
   };
 
   return (
@@ -131,14 +109,12 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
                 </span>
               </div>
               <p className="text-slate-400 text-xs">
-                {step === 1 && 'Etapa 1 de 2: Revisão dos dados da conta'}
-                {step === 2 && 'Etapa 2 de 2: Confirmação de segurança e execução'}
-                {step === 3 && 'Executando exclusão no Firebase...'}
-                {step === 4 && 'Operação concluída com sucesso'}
+                {step === 1 && 'Confirmação da exclusão da conta'}
+                {step === 2 && 'Executando exclusão no Firebase...'}
               </p>
             </div>
           </div>
-          {step !== 3 && (
+          {step !== 2 && (
             <button
               type="button"
               onClick={onClose}
@@ -152,25 +128,32 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5">
           
-          {/* ETAPA 1: REVISÃO DOS DADOS DO USUÁRIO */}
+          {/* ETAPA 1: REVISÃO DOS DADOS DO USUÁRIO E CONFIRMAÇÃO SIMPLES */}
           {step === 1 && (
             <div className="space-y-5 animate-in fade-in duration-200">
               {/* Card de Aviso Crítico */}
               <div className="p-4 bg-rose-950/40 border border-rose-700/60 rounded-2xl flex items-start gap-3 text-rose-200">
                 <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 <div className="text-xs space-y-1">
-                  <p className="font-bold text-rose-300 text-sm">Atenção: Ação Permanente e Irreversível</p>
+                  <p className="font-bold text-rose-300 text-sm">Tem certeza que deseja excluir?</p>
                   <p className="text-rose-200/90 leading-relaxed">
                     Você está prestes a excluir definitivamente este usuário. Esta ação revoga imediatamente o acesso ao sistema Gestor, remove a conta do <strong>Firebase Authentication</strong> e apaga o registro correspondente no <strong>Firestore</strong>.
                   </p>
                 </div>
               </div>
 
+              {errorMsg && (
+                <div className="p-3.5 bg-rose-950/80 border border-rose-600 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
               {/* Informações detalhadas do Usuário */}
               <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <User className="w-4 h-4 text-cyan-400" />
-                  Dados da Conta a ser Excluída
+                  Dados da Conta
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -216,72 +199,8 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
             </div>
           )}
 
-          {/* ETAPA 2: SEGUNDA CONFIRMAÇÃO OBRIGATÓRIA */}
+          {/* ETAPA 2: PROCESSANDO EXCLUSÃO */}
           {step === 2 && (
-            <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-4 bg-rose-950/30 border border-rose-800/60 rounded-2xl space-y-2">
-                <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">
-                  <ShieldAlert className="w-5 h-5 text-rose-400" />
-                  <span>Segunda Confirmação Exigida</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Para evitar exclusões acidentais, confirme os termos abaixo e digite a palavra <strong className="text-rose-400 uppercase tracking-widest font-black">EXCLUIR</strong> no campo indicado.
-                </p>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3.5 bg-rose-950/80 border border-rose-600 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {/* Checkboxes de Confirmação */}
-              <div className="space-y-3">
-                <label className="flex items-start gap-3 p-3 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={agreeAuthDelete}
-                    onChange={(e) => setAgreeAuthDelete(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded text-rose-600 focus:ring-rose-500 focus:ring-offset-slate-900 border-slate-700 bg-slate-900 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-300">
-                    Estou ciente de que a conta de <strong>{userEmail}</strong> será revogada e excluída do <strong>Firebase Authentication</strong>, impedindo qualquer futuro login.
-                  </span>
-                </label>
-
-                <label className="flex items-start gap-3 p-3 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={agreeDocDelete}
-                    onChange={(e) => setAgreeDocDelete(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded text-rose-600 focus:ring-rose-500 focus:ring-offset-slate-900 border-slate-700 bg-slate-900 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-300">
-                    Confirmo a exclusão definitiva do documento correspondente no <strong>Firestore</strong>, ciente de que somente os dados deste usuário específico serão removidos.
-                  </span>
-                </label>
-              </div>
-
-              {/* Campo de Digitação "EXCLUIR" */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-300">
-                  Digite <span className="text-rose-400 font-black tracking-wider">EXCLUIR</span> para habilitar a exclusão:
-                </label>
-                <input
-                  type="text"
-                  value={confirmationWord}
-                  onChange={(e) => setConfirmationWord(e.target.value)}
-                  placeholder="Digite EXCLUIR"
-                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 focus:border-rose-500 rounded-xl text-white font-mono text-center tracking-widest text-sm uppercase placeholder:normal-case placeholder:text-slate-600 outline-none transition-colors"
-                  autoFocus
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ETAPA 3: PROCESSANDO EXCLUSÃO */}
-          {step === 3 && (
             <div className="py-8 space-y-6 text-center animate-in fade-in duration-200">
               <div className="w-16 h-16 rounded-3xl bg-rose-950/50 border border-rose-600/60 flex items-center justify-center mx-auto text-rose-400 shadow-2xl">
                 <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
@@ -303,35 +222,6 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
             </div>
           )}
 
-          {/* ETAPA 4: SUCESSO */}
-          {step === 4 && (
-            <div className="py-6 space-y-5 text-center animate-in zoom-in-95 duration-200">
-              <div className="w-16 h-16 rounded-3xl bg-emerald-950/60 border border-emerald-500 flex items-center justify-center mx-auto text-emerald-400 shadow-xl shadow-emerald-950/50">
-                <CheckCircle2 className="w-9 h-9 text-emerald-400" />
-              </div>
-
-              <div>
-                <h3 className="text-xl font-black text-white">Usuário excluído com sucesso.</h3>
-                <p className="text-xs text-slate-400 mt-1.5">
-                  A conta de <strong>{userName}</strong> ({userEmail}) foi completamente removida do sistema.
-                </p>
-              </div>
-
-              <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl text-left space-y-2 text-xs">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span>Confirmação dos Registros:</span>
-                </div>
-                <ul className="space-y-1.5 text-slate-300 ml-6 list-disc">
-                  <li>Conta revogada e excluída no Firebase Authentication</li>
-                  <li>Documento removido da coleção <code className="text-cyan-400">accounts</code> no Firestore</li>
-                  <li>Nenhum dado de outro usuário foi afetado</li>
-                  <li>Tentativas de login com este e-mail serão rejeitadas</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
         </div>
 
         {/* Modal Footer */}
@@ -341,40 +231,16 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                disabled={isLoading}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-700 hover:bg-rose-600 text-white flex items-center gap-2 transition-all shadow-lg shadow-rose-950/50 cursor-pointer"
-              >
-                <span>Avançar para Confirmação</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <button
-                type="button"
                 disabled={isLoading}
-                onClick={() => setStep(1)}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                disabled={!isConfirmationValid || isLoading}
                 onClick={handleExecuteDelete}
-                className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all ${
-                  isConfirmationValid && !isLoading
-                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-900/50 cursor-pointer'
-                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                }`}
+                className="px-5 py-2.5 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white flex items-center gap-2 transition-all shadow-xl shadow-rose-900/50 cursor-pointer disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Excluir Usuário Definitivamente</span>
@@ -382,20 +248,10 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
             </>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <div className="w-full text-center text-xs text-slate-500 italic">
               Operação em andamento... não feche esta janela.
             </div>
-          )}
-
-          {step === 4 && (
-            <button
-              type="button"
-              onClick={handleFinish}
-              className="w-full py-3 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
-            >
-              Concluir e Atualizar Painel
-            </button>
           )}
         </div>
 
@@ -403,3 +259,4 @@ export const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
     </div>
   );
 };
+
