@@ -31,6 +31,8 @@ import {
   CreditCard,
   Zap,
 } from 'lucide-react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
 import { formatCurrency } from '../../services/formatters';
@@ -79,11 +81,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isPlanMenuOpen, setIsPlanMenuOpen] = useState(false);
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [savePlanFeedback, setSavePlanFeedback] = useState(false);
-  const planContainerRef = useRef<HTMLDivElement>(null);
 
-  const planInfo = useMemo(() => {
-    return StorageService.getSubscriptionPlan();
-  }, [tick]);
+  const planContainerRef = useRef<HTMLDivElement>(null);
+  const [planInfo, setPlanInfo] = useState<SubscriptionPlanInfo>(StorageService.getSubscriptionPlan());
+
+  useEffect(() => {
+    const user = StorageService.getCurrentUser();
+    if (!user || !user.id) return;
+
+    const docRef = doc(db, 'accounts', user.id);
+    const unsub = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        // Recalcular ou forçar atualização do plano
+        setTick(prev => prev + 1);
+        setPlanInfo(StorageService.getSubscriptionPlan());
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const [editPlanName, setEditPlanName] = useState(planInfo.planName);
   const [editPlanPrice, setEditPlanPrice] = useState(planInfo.planPrice);
