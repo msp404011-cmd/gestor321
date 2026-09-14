@@ -181,9 +181,7 @@ export const ChangePlanModal: React.FC<ChangePlanModalProps> = ({ client, onClos
         onPlanChanged(updatedData);
       }
 
-      setTimeout(() => {
-        onClose();
-      }, 1200);
+      onClose();
 
     } catch (err: any) {
       console.error('Erro ao atualizar plano no backend:', err);
