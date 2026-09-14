@@ -408,6 +408,30 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
 
           <button
             type="button"
+            onClick={async () => {
+              if (confirm('Deseja realmente limpar contas duplicadas?')) {
+                try {
+                  const token = AdminBackendService.getToken();
+                  await fetch('/api/admin/clean-duplicates', {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'x-admin-token': token || '' 
+                    }
+                  });
+                  showToast('Duplicatas limpas com sucesso!');
+                  window.location.reload();
+                } catch(e) { showToast('Erro ao limpar duplicatas', 'error'); }
+              }
+            }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-amber-900/40 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Limpar Duplicatas</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => (onClose ? onClose() : window.location.reload())}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >

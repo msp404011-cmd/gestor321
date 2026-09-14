@@ -948,6 +948,57 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
   }
 });
 
+app.post('/api/admin/clean-duplicates', requireAdminAuth, async (req: express.Request, res: express.Response) => {
+  try {
+    const adminApp = getFirebaseAdmin();
+    const dbAdmin = getFirestore(adminApp);
+    const adminAuth = getAuth(adminApp);
+
+    const snapshot = await dbAdmin.collection('accounts').get();
+    const accountsByEmail: Record<string, any[]> = {};
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const email = (data.email || data.userEmail || data.login || doc.id).trim().toLowerCase();
+      if (!accountsByEmail[email]) {
+        accountsByEmail[email] = [];
+      }
+      accountsByEmail[email].push({ id: doc.id, data });
+    });
+
+    const deletedDocs: string[] = [];
+    const deletedAuth: string[] = [];
+
+    for (const email in accountsByEmail) {
+      const docs = accountsByEmail[email];
+      if (docs.length > 1) {
+        // Keep the one with the most recent statusUpdatedAt, or createdAt
+        docs.sort((a, b) => {
+          const dateA = new Date(a.data.statusUpdatedAt || a.data.createdAt || 0).getTime();
+          const dateB = new Date(b.data.statusUpdatedAt || b.data.createdAt || 0).getTime();
+          return dateB - dateA;
+        });
+
+        const [keep, ...toDelete] = docs;
+        for (const d of toDelete) {
+          await dbAdmin.collection('accounts').doc(d.id).delete();
+          deletedDocs.push(d.id);
+          
+          // Try to delete auth user if doc ID is a UID
+          try {
+            await adminAuth.deleteUser(d.id);
+            deletedAuth.push(d.id);
+          } catch(e) {}
+        }
+      }
+    }
+
+    return res.json({ success: true, deletedDocs, deletedAuth });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 /**
  * 9. Get Audit Logs (Master Admin Only)
  */
