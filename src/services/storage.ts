@@ -2645,6 +2645,12 @@ export const StorageService = {
       account.lastLoginAt = new Date().toISOString();
       account.ownerName = ownerName;
       account.shopName = shopName;
+      // Atualiza campos que podem ter mudado no Firestore
+      account.plano = data.plano || data.plan;
+      account.status = data.status;
+      account.bloqueado = data.bloqueado;
+      account.blocked = data.blocked;
+      
       if (params.password) account.passwordHash = params.password;
       this.saveUserAccount(account);
     }
@@ -2677,30 +2683,22 @@ export const StorageService = {
     }
     this.setCurrentUser(employee);
 
-    // REGRA RÍGIDA: O plano já cadastrado do cliente é permanente e imutável por rotinas automáticas (sync, refresh, expiração, renovação, login, etc.)
-    const existingPlan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
+    // REGRA RÍGIDA: O plano já cadastrado do cliente é permanente e imutável, e deve ser buscado direto do Firestore.
+    // Ignoramos o cache local durante o login para garantir a consistência com o banco de dados oficial.
+    const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA');
+    const planType: PlanType = normalizePlanType(rawPlanId);
     
-    let planType: PlanType;
     let planName: string;
     let planPrice: number;
     let expiryDate: string;
 
-    if (existingPlan && existingPlan.planType) {
-      planType = existingPlan.planType;
-      planName = existingPlan.planName;
-      planPrice = existingPlan.planPrice;
-      expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || existingPlan.expiryDate;
-    } else {
-      const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA');
-      planType = normalizePlanType(rawPlanId);
-      const isTrial = planType === 'TRIAL';
-      const defaultDays = isTrial ? 7 : 30;
-      expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
-      planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? 69.90);
-      planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
-    }
-
     const isTrial = planType === 'TRIAL';
+    const defaultDays = isTrial ? 7 : 30;
+    
+    expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+    planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? 69.90);
+    planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
+    
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const expDate = new Date(expiryDate);
