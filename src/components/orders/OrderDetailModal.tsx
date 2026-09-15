@@ -42,11 +42,13 @@ import {
   getOrderStatusBadgeClasses,
   cleanPhoneForWhatsApp,
   getCanonicalStatus,
+  getPaymentMethodLabel,
 } from '../../services/formatters';
 import { Modal } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
 import { PatternLock } from './PatternLock';
 import { OrderDeliveryModal } from './OrderDeliveryModal';
+import { ProductModal } from '../products/ProductModal';
 
 interface OrderDetailModalProps {
   isOpen: boolean;
@@ -103,6 +105,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [isEditingService, setIsEditingService] = useState(false);
 
   // Stock search and manual parts state
+  const [partInputMode, setPartInputMode] = useState<'ESTOQUE' | 'AVULSO'>('ESTOQUE');
+  const [showStockCatalog, setShowStockCatalog] = useState(false);
   const [partSearch, setPartSearch] = useState('');
   const [isPartSearchOpen, setIsPartSearchOpen] = useState(false);
   const [showManualPartForm, setShowManualPartForm] = useState(false);
@@ -110,26 +114,37 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [manualPartQty, setManualPartQty] = useState(1);
   const [manualPartPrice, setManualPartPrice] = useState(0);
 
+  // Product modal state inside OrderDetail
+  const [showProductModalInDetail, setShowProductModalInDetail] = useState(false);
+  const [productModalPrefillName, setProductModalPrefillName] = useState('');
+  const [productToEditInDetail, setProductToEditInDetail] = useState<Product | null>(null);
+
   // Products from inventory
   const [products, setProducts] = useState<Product[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const partSearchRef = useRef<HTMLDivElement>(null);
 
+  // Inline Payment Rows State
+  const [inlinePaymentRows, setInlinePaymentRows] = useState<{ id: string; method: string; amount: string | number }[]>([
+    { id: 'iprow-1', method: 'PIX', amount: '' },
+  ]);
+  const [isSavingPayments, setIsSavingPayments] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
   // Sync state whenever order changes or modal opens
   useEffect(() => {
     if (order) {
+      setShowHistory(false);
       const partsLoaded = order.parts || (order.items ? order.items.filter((i) => i.type === 'PECA') : []) || [];
       setLocalParts(partsLoaded);
       const partsSub = partsLoaded.reduce(
         (acc, p) => acc + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
         0
       );
-      const existingGross = (order.totalPrice || 0) + (order.discount || 0);
-      if (existingGross !== partsSub || partsSub === 0) {
-        setLocalCustomPrice(existingGross);
-      } else {
-        setLocalCustomPrice(null);
-      }
+      const initialLabor = order.laborPrice !== undefined && order.laborPrice >= 0
+        ? order.laborPrice
+        : Math.max(0, (order.totalPrice || 0) + (order.discount || 0) - partsSub);
+      setLocalCustomPrice(initialLabor);
       setIsPriceUnlocked(false);
       setShowManagerAuthModal(false);
       setManagerPassInput('');
@@ -141,6 +156,26 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       setPartSearch('');
       setIsPartSearchOpen(false);
       setShowManualPartForm(false);
+      setPartInputMode('ESTOQUE');
+      setShowStockCatalog(false);
+
+      if (order.payments && order.payments.length > 0) {
+        setInlinePaymentRows(
+          order.payments.map((p, idx) => ({
+            id: `iprow-${idx + 1}`,
+            method: p.paymentMethod || order.paymentMethod || 'PIX',
+            amount: p.amount ? String(p.amount) : '',
+          }))
+        );
+      } else if (order.paymentMethod && order.paymentMethod !== 'A_PRAZO' && order.paymentStatus === 'PAGO') {
+        setInlinePaymentRows([
+          { id: 'iprow-1', method: order.paymentMethod, amount: String(order.totalPrice || 0) },
+        ]);
+      } else {
+        setInlinePaymentRows([
+          { id: 'iprow-1', method: (order.paymentMethod as any) || 'PIX', amount: '' },
+        ]);
+      }
     }
   }, [order, isOpen]);
 
@@ -179,8 +214,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     (acc, p) => acc + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
     0
   );
-  const effectiveBasePrice = localCustomPrice !== null ? localCustomPrice : partsTotal;
-  const currentTotal = Math.max(0, effectiveBasePrice - Number(localDiscount || 0));
+  const laborPrice = localCustomPrice !== null ? localCustomPrice : 0;
+  const totalGross = laborPrice + partsTotal;
+  const currentTotal = Math.max(0, totalGross - Number(localDiscount || 0));
 
   const handleVerifyManagerPassword = (e?: React.FormEvent | React.MouseEvent) => {
     if (e) {
@@ -190,7 +226,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     if (StorageService.verifyManagerPassword(managerPassInput)) {
       setIsPriceUnlocked(true);
       if (localCustomPrice === null) {
-        setLocalCustomPrice(effectiveBasePrice);
+        setLocalCustomPrice(laborPrice);
       }
       setShowManagerAuthModal(false);
       setManagerPassInput('');
@@ -205,10 +241,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     const current = currentOrder || order;
     if (!current) return;
     if (newStatus === 'ENTREGUE') {
-      if (current.paymentStatus !== 'PAGO') {
-        setShowDeliveryModal(true);
-        return;
-      }
+      setShowDeliveryModal(true);
+      return;
     }
     const success = StorageService.updateOrderStatus(
       current.id,
@@ -228,6 +262,151 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  // Payment methods options (Deduplicated automatically)
+  const allInlinePaymentOptions = StorageService.getDeduplicatedPaymentOptions();
+
+  const handleAddInlinePaymentRow = () => {
+    setInlinePaymentRows((prev) => [
+      ...prev,
+      { id: `iprow-${Date.now()}`, method: 'PIX', amount: '' },
+    ]);
+  };
+
+  const handleUpdateInlineRowMethod = (id: string, method: string) => {
+    setInlinePaymentRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, method } : row))
+    );
+  };
+
+  const handleUpdateInlineRowAmount = (id: string, amount: string) => {
+    setInlinePaymentRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, amount } : row))
+    );
+  };
+
+  const handleRemoveInlineRow = (id: string) => {
+    if (inlinePaymentRows.length <= 1) return;
+    setInlinePaymentRows((prev) => prev.filter((row) => row.id !== id));
+  };
+
+  // Save changes directly to order in StorageService
+  const saveUpdatedOrder = (
+    partsToSave: OrderPartItem[],
+    customPrice: number | null,
+    disc: number,
+    service: string,
+    extraPayments?: { paymentMethod: PaymentMethod | string; amount: number; date?: string }[]
+  ) => {
+    const target = currentOrder || order;
+    if (!target) return target;
+
+    const calculatedPartsTotal = partsToSave.reduce(
+      (acc, p) => acc + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
+      0
+    );
+    const baseLabor = customPrice !== null ? customPrice : 0;
+    const gross = baseLabor + calculatedPartsTotal;
+    const discountVal = Math.max(0, Number(disc) || 0);
+    const calculatedFinalTotal = Math.max(0, gross - discountVal);
+
+    const activeSplits =
+      extraPayments !== undefined
+        ? extraPayments
+        : inlinePaymentRows
+            .filter((r) => Number(r.amount) > 0)
+            .map((p) => ({
+              paymentMethod: p.method as PaymentMethod,
+              amount: Number(p.amount),
+              date: new Date().toISOString(),
+            }));
+
+    const sumPaid = activeSplits.reduce((acc, r) => acc + Number(r.amount), 0);
+    let newPaymentStatus: 'PENDENTE' | 'PAGO' | 'PARCIAL' = 'PENDENTE';
+    if (calculatedFinalTotal > 0) {
+      if (sumPaid >= calculatedFinalTotal) {
+        newPaymentStatus = 'PAGO';
+      } else if (sumPaid > 0) {
+        newPaymentStatus = 'PARCIAL';
+      }
+    } else if (sumPaid > 0) {
+      newPaymentStatus = 'PAGO';
+    }
+
+    const mainMethod =
+      activeSplits.length === 1
+        ? activeSplits[0].paymentMethod
+        : activeSplits.length > 1
+        ? 'MULTIPLO'
+        : target.paymentMethod;
+
+    const updatedOrder: ServiceOrder = {
+      ...target,
+      parts: partsToSave,
+      items: partsToSave.map((p) => ({
+        ...p,
+        type: 'PECA' as const,
+      })),
+      laborPrice: baseLabor,
+      partsPrice: calculatedPartsTotal,
+      discount: discountVal,
+      totalPrice: calculatedFinalTotal,
+      requestedService: service.trim() || target.requestedService || '',
+      performedService: service.trim() || target.performedService || '',
+      technicalDiagnosis: service.trim() || target.technicalDiagnosis || '',
+      payments: activeSplits,
+      paymentMethod: mainMethod as any,
+      paymentStatus: newPaymentStatus,
+      updatedAt: new Date().toISOString(),
+    };
+
+    StorageService.saveOrder(updatedOrder);
+    setCurrentOrder(updatedOrder);
+    return updatedOrder;
+  };
+
+  const handleSaveInlinePayments = () => {
+    const target = currentOrder || order;
+    if (!target) return;
+    setIsSavingPayments(true);
+
+    try {
+      const activeSplits = inlinePaymentRows.filter((r) => Number(r.amount) > 0);
+      const paymentsArray = activeSplits.map((p) => ({
+        paymentMethod: p.method as PaymentMethod,
+        amount: Number(p.amount),
+        date: new Date().toISOString(),
+      }));
+
+      const updated = saveUpdatedOrder(
+        localParts,
+        localCustomPrice,
+        localDiscount,
+        localService,
+        paymentsArray
+      );
+
+      const totalNet = Number(updated.totalPrice) || 1;
+      const grossValue = (Number(updated.laborPrice) || 0) + (Number(updated.partsPrice) || 0) || ((Number(updated.totalPrice) || 0) + (Number(updated.discount) || 0));
+      const proportion = grossValue / totalNet;
+
+      for (const p of activeSplits) {
+        StorageService.addCashMovement({
+          type: 'SERVICO_OS',
+          description: `Recebimento OS #${updated.orderNumber} (${getPaymentMethodLabel(p.method)}) - ${updated.customerName}`,
+          amount: Number(p.amount) * proportion,
+          paymentMethod: p.method as PaymentMethod,
+          referenceId: updated.id,
+        });
+      }
+
+      showToast('Formas de pagamento e quitação salvas na OS!');
+    } catch (err: any) {
+      showToast('Erro ao salvar pagamentos na OS.');
+    } finally {
+      setIsSavingPayments(false);
+    }
   };
 
   // Add inventory product as part
@@ -270,6 +449,23 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     // Persist immediately to order
     saveUpdatedOrder(updated, localCustomPrice, localDiscount, localService);
     showToast(`Peça "${product.name}" adicionada à OS!`);
+  };
+
+  const handleOpenNewProductInDetail = (prefillName?: string) => {
+    setIsPartSearchOpen(false);
+    setProductToEditInDetail(null);
+    setProductModalPrefillName(prefillName || partSearch || manualPartName || '');
+    setShowProductModalInDetail(true);
+  };
+
+  const handleSaveProductInDetail = (savedProduct: Product) => {
+    StorageService.saveProduct(savedProduct);
+    const updatedProducts = StorageService.getProducts();
+    setProducts(updatedProducts);
+    handleAddProductAsPart(savedProduct);
+    setShowProductModalInDetail(false);
+    setProductToEditInDetail(null);
+    setProductModalPrefillName('');
   };
 
   // Add manual part
@@ -331,40 +527,6 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setLocalParts(updated);
     saveUpdatedOrder(updated, localCustomPrice, localDiscount, localService);
     showToast('Peça removida da OS');
-  };
-
-  // Save changes directly to order in StorageService
-  const saveUpdatedOrder = (
-    partsToSave: OrderPartItem[],
-    customPrice: number | null,
-    disc: number,
-    service: string
-  ) => {
-    const calculatedPartsTotal = partsToSave.reduce(
-      (acc, p) => acc + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
-      0
-    );
-    const base = customPrice !== null ? customPrice : calculatedPartsTotal;
-    const calculatedFinalTotal = Math.max(0, base - Number(disc || 0));
-
-    const updatedOrder: ServiceOrder = {
-      ...order,
-      parts: partsToSave,
-      items: partsToSave.map((p) => ({
-        ...p,
-        type: 'PECA' as const,
-      })),
-      laborPrice: 0,
-      partsPrice: calculatedPartsTotal,
-      discount: Number(disc) || 0,
-      totalPrice: calculatedFinalTotal,
-      requestedService: service.trim() || order.requestedService,
-      performedService: service.trim() || order.performedService,
-      technicalDiagnosis: service.trim() || order.technicalDiagnosis,
-      updatedAt: new Date().toISOString(),
-    };
-
-    StorageService.saveOrder(updatedOrder);
   };
 
   const handleSaveAllFinancials = () => {
@@ -505,12 +667,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           </div>
         }
       >
-        <div className="space-y-4 sm:space-y-5">
+        <div className="space-y-2.5">
           {/* Quick Toast Notification */}
           {toastMessage && (
-            <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{toastMessage}</span>
               </div>
               <button
@@ -523,13 +685,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
           )}
 
-          <div className="lg:grid lg:grid-cols-12 lg:gap-5 lg:items-start space-y-4 lg:space-y-0">
+          <div className="lg:grid lg:grid-cols-12 lg:gap-3 lg:items-start space-y-2.5 lg:space-y-0">
             {/* Coluna Esquerda: Status, Aparelho, Diagnóstico e Histórico */}
-            <div className="lg:col-span-7 space-y-4">
+            <div className="lg:col-span-7 space-y-2.5">
               {/* Quick Status Workflow Action Bar */}
               <div
-                className={`p-3.5 sm:p-4 rounded-2xl border ${
-                  isDark ? 'bg-[#081226] border-slate-700/80 shadow-md' : 'bg-slate-50 border-slate-200 shadow-xs'
+                className={`p-2.5 rounded-xl border ${
+                  isDark ? 'bg-[#081226] border-slate-700/80 shadow-xs' : 'bg-slate-50 border-slate-200 shadow-xs'
                 }`}
               >
             <div className="flex items-center justify-between gap-2 mb-2.5">
@@ -637,11 +799,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (targetOrder.paymentStatus === 'PAGO') {
-                    handleUpdateStatus('ENTREGUE');
-                  } else {
-                    setShowDeliveryModal(true);
-                  }
+                  setShowDeliveryModal(true);
                 }}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
                   canonical === 'ENTREGUE'
@@ -658,59 +816,59 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           </div>
 
           {/* Details Grid: Defect & Diagnosis + Technical Data */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             
             {/* Defeito Relatado e SERVIÇO A SER FEITO */}
             <div
-              className={`p-4 rounded-2xl border space-y-3.5 ${
+              className={`p-3 rounded-xl border space-y-2 ${
                 isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
             >
               <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Defeito Relatado pelo Cliente
                 </span>
-                <p className={`text-sm font-semibold mt-1 leading-relaxed ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                <p className={`text-xs font-semibold mt-0.5 leading-tight ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
                   {order.clientDefect || 'Problema não detalhado'}
                 </p>
               </div>
 
               {/* SERVIÇO A SER FEITO COM CAMPO PARA COLOCAR / EDITAR */}
-              <div className={`pt-3 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-extrabold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-                    <Settings className="w-3.5 h-3.5" />
-                    <span>Serviço a Ser Feito / Solicitado</span>
+              <div className={`pt-2 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
+                    <Settings className="w-3 h-3" />
+                    <span>Serviço Solicitado</span>
                   </span>
                   {!isEditingService && (
                     <button
                       type="button"
                       onClick={() => setIsEditingService(true)}
-                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded-lg cursor-pointer transition-colors"
+                      className="text-[9px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-0.5 bg-cyan-950/60 border border-cyan-800/50 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
                     >
-                      <Edit2 className="w-3 h-3" />
-                      <span>Alterar Serviço</span>
+                      <Edit2 className="w-2.5 h-2.5" />
+                      <span>Alterar</span>
                     </button>
                   )}
                 </div>
 
                 {isEditingService ? (
-                  <div className="space-y-2 animate-in fade-in">
+                  <div className="space-y-1.5 animate-in fade-in">
                     <textarea
                       rows={2}
                       value={localService}
                       onChange={(e) => setLocalService(e.target.value)}
-                      placeholder="Informe o serviço a ser feito (Ex: Troca de tela original, reparo de conector...)"
-                      className="w-full p-2.5 bg-[#060e22] border border-cyan-500/50 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 resize-none leading-relaxed"
+                      placeholder="Informe o serviço a ser feito..."
+                      className="w-full p-2 bg-[#060e22] border border-cyan-500/50 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 resize-none leading-relaxed"
                     />
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           setLocalService(order.requestedService || order.performedService || '');
                           setIsEditingService(false);
                         }}
-                        className="px-2.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer"
+                        className="px-2 py-0.5 text-xs text-slate-400 hover:text-white cursor-pointer"
                       >
                         Cancelar
                       </button>
@@ -719,22 +877,22 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         onClick={() => {
                           setIsEditingService(false);
                           saveUpdatedOrder(localParts, localCustomPrice, localDiscount, localService);
-                          showToast('Serviço atualizado com sucesso!');
+                          showToast('Serviço atualizado!');
                         }}
-                        className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                        className="px-2.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Salvar Serviço</span>
+                        <Check className="w-3 h-3" />
+                        <span>Salvar</span>
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className={`p-2.5 rounded-xl border ${
+                  <div className={`p-2 rounded-lg border ${
                     isDark ? 'bg-[#060e22] border-slate-700/60' : 'bg-slate-50 border-slate-200'
                   }`}>
-                    <p className={`text-xs font-semibold leading-relaxed ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                    <p className={`text-xs font-semibold leading-snug ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
                       {localService || order.requestedService || order.performedService || order.technicalDiagnosis || (
-                        <span className="text-slate-400 italic">Nenhum serviço informado ainda. Clique em "Alterar Serviço" acima para adicionar.</span>
+                        <span className="text-slate-400 italic">Nenhum serviço informado.</span>
                       )}
                     </p>
                   </div>
@@ -742,53 +900,53 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               </div>
 
               {order.technicalDiagnosis && order.technicalDiagnosis !== localService && (
-                <div className={`pt-2.5 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Laudo / Diagnóstico Técnico
+                <div className={`pt-2 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Laudo Técnico
                   </span>
-                  <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  <p className={`text-xs mt-0.5 leading-tight ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                     {order.technicalDiagnosis}
                   </p>
                 </div>
               )}
 
-              <div className={`pt-2.5 border-t space-y-2 text-xs ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
+              <div className={`pt-2 border-t space-y-1.5 text-xs ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
                 <div>
-                  <span className="text-slate-400 block text-[11px] font-bold">Acessórios Deixados:</span>
-                  <p className={`font-medium mt-0.5 leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  <span className="text-slate-400 block text-[10px] font-bold">Acessórios Deixados:</span>
+                  <p className={`font-medium mt-0.5 leading-tight text-xs ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                     {order.accessories || 'Nenhum acessório adicional'}
                   </p>
                 </div>
 
-                <div className="pt-2 border-t border-slate-700/40">
-                  <span className="text-slate-400 block text-[11px] font-bold">Senha de Desbloqueio:</span>
+                <div className="pt-1.5 border-t border-slate-700/40">
+                  <span className="text-slate-400 block text-[10px] font-bold">Senha de Desbloqueio:</span>
                   {order.passwordPattern && order.passwordPattern.length > 0 ? (
-                    <div className="mt-2 flex items-center gap-3">
+                    <div className="mt-1 flex items-center gap-2">
                       <PatternLock
                         value={order.passwordPattern}
                         readOnly={true}
-                        size={90}
+                        size={65}
                         theme={isDark ? 'dark' : 'light'}
                       />
                       <div>
-                        <span className="text-[11px] font-mono text-cyan-400 font-bold block">
-                          Sequência: {order.passwordPattern.join(' ➔ ')}
+                        <span className="text-[10px] font-mono text-cyan-400 font-bold block">
+                          {order.passwordPattern.join(' ➔ ')}
                         </span>
                         {order.passwordPin && (
-                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                          <span className="text-[9px] text-slate-400 block">
                             {order.passwordPin}
                           </span>
                         )}
                       </div>
                     </div>
                   ) : order.passwordPin?.startsWith('Desenho:') ? (
-                    <div className="mt-1">
-                      <span className="px-2 py-0.5 rounded font-mono font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-800 text-xs">
+                    <div className="mt-0.5">
+                      <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-800 text-[11px]">
                         {order.passwordPin}
                       </span>
                     </div>
                   ) : (
-                    <p className={`font-mono font-bold mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                    <p className={`font-mono font-bold mt-0.5 text-xs ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                       {order.passwordPin || 'Sem senha informada'}
                     </p>
                   )}
@@ -798,7 +956,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
             {/* Equipamento e Responsável */}
             <div
-              className={`p-4 rounded-2xl border space-y-3 ${
+              className={`p-3 rounded-xl border space-y-2 ${
                 isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
             >
@@ -850,46 +1008,60 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Audit / Status Change History */}
+          {/* Audit / Status Change History (Recolhido por padrão) */}
           <div
-            className={`p-4 rounded-2xl border ${
+            className={`p-2.5 rounded-xl border transition-all ${
               isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
             }`}
           >
-            <span className={`text-xs font-bold uppercase tracking-wider block mb-2.5 flex items-center gap-1.5 ${
-              isDark ? 'text-slate-300' : 'text-slate-700'
-            }`}>
-              <Clock className="w-4 h-4 text-slate-400" />
-              <span>Histórico de Andamento da OS</span>
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                  Histórico de Andamento da OS
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal lowercase">
+                  ({(targetOrder.history?.length || targetOrder.statusHistory?.length || 0)} reg.)
+                </span>
+              </div>
+              <span className="text-xs text-cyan-400 font-semibold">
+                {showHistory ? '▲ Ocultar' : '▼ Mostrar'}
+              </span>
+            </button>
 
-            <div className="space-y-2 text-xs">
-              {((targetOrder.history && targetOrder.history.length > 0) || (targetOrder.statusHistory && targetOrder.statusHistory.length > 0)) ? (
-                (targetOrder.history && targetOrder.history.length > 0 ? targetOrder.history : (targetOrder.statusHistory || [])).map((h: any, i: number) => (
-                  <div key={i} className={`flex items-start gap-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
-                    <div className="flex-1">
-                      <p className={`font-medium ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-                        {h.notes || h.note || 'Status atualizado'} — <span className="font-bold text-cyan-400">{getOrderStatusLabel(h.status || h.toStatus)}</span>
-                      </p>
-                      <span className="text-[10px] text-slate-400">
-                        {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
-                      </span>
+            {showHistory && (
+              <div className="space-y-2 text-xs mt-2.5 pt-2 border-t border-slate-700/50">
+                {((targetOrder.history && targetOrder.history.length > 0) || (targetOrder.statusHistory && targetOrder.statusHistory.length > 0)) ? (
+                  (targetOrder.history && targetOrder.history.length > 0 ? targetOrder.history : (targetOrder.statusHistory || [])).map((h: any, i: number) => (
+                    <div key={i} className={`flex items-start gap-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
+                      <div className="flex-1">
+                        <p className={`font-medium ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                          {h.notes || h.note || 'Status atualizado'} — <span className="font-bold text-cyan-400">{getOrderStatusLabel(h.status || h.toStatus)}</span>
+                        </p>
+                        <span className="text-[10px] text-slate-400">
+                          {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-slate-400 text-xs">Nenhum registro no histórico.</p>
-              )}
-            </div>
+                  ))
+                ) : (
+                  <p className="text-slate-400 text-xs">Nenhum registro no histórico.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Coluna Direita: Peças, Valores e Botão de Salvar */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="lg:col-span-5 space-y-2.5">
           {/* ESPAÇO DEDICADO: PEÇAS E COMPONENTES UTILIZADOS (CONTABILIZAÇÃO NA OS) */}
           <div
-            className={`p-4 rounded-2xl border space-y-3.5 ${
+            className={`p-3 rounded-xl border space-y-2.5 ${
               isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
           >
@@ -897,138 +1069,261 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-emerald-400" />
                 <span className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Peças e Componentes Utilizados na OS
+                  Peças e Componentes na OS
                 </span>
                 <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full">
-                  {localParts.length} item(ns) adicionados
+                  {localParts.length} item(ns) ({formatCurrency(partsTotal)})
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {/* Direct Cadastrar no Estoque Button */}
                 <button
                   type="button"
-                  onClick={() => setShowManualPartForm(!showManualPartForm)}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  onClick={() => handleOpenNewProductInDetail(partSearch || manualPartName || '')}
+                  className="px-2.5 py-1 bg-cyan-600/25 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/50 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                  title="Cadastrar novo produto diretamente no Estoque"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{showManualPartForm ? 'Fechar Peça Avulsa' : '+ Peça Avulsa'}</span>
+                  <Plus className="w-3 h-3" />
+                  <span>+ Novo no Estoque</span>
                 </button>
-              </div>
-            </div>
 
-            {/* Campo de Busca de Peças no Estoque */}
-            <div ref={partSearchRef} className="relative">
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-4 h-4" />
-                </span>
-                <input
-                  type="text"
-                  value={partSearch}
-                  onChange={(e) => {
-                    setPartSearch(e.target.value);
-                    setIsPartSearchOpen(true);
-                  }}
-                  onFocus={() => {
-                    if (partSearch.trim()) setIsPartSearchOpen(true);
-                  }}
-                  placeholder="Inserir peça: digite o nome da peça, código ou categoria para buscar no estoque..."
-                  className={`w-full pl-9 pr-8 py-2.5 rounded-xl text-xs border transition-colors ${
-                    isDark
-                      ? 'bg-[#060e22] border-slate-700/80 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-hidden'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-hidden'
-                  }`}
-                />
-                {partSearch && (
+                {/* Mode Switcher */}
+                <div className={`inline-flex p-0.5 border rounded-lg ${isDark ? 'bg-[#050e1f] border-slate-700/80' : 'bg-slate-100 border-slate-300'}`}>
                   <button
                     type="button"
                     onClick={() => {
-                      setPartSearch('');
-                      setIsPartSearchOpen(false);
+                      setPartInputMode('ESTOQUE');
+                      setShowStockCatalog(false);
                     }}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white cursor-pointer"
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      partInputMode === 'ESTOQUE'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Package className="w-3 h-3" />
+                    <span>Estoque</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPartInputMode('AVULSO')}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      partInputMode === 'AVULSO'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Avulso</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modo Estoque */}
+            {partInputMode === 'ESTOQUE' && (
+              <div className="space-y-1 relative" ref={partSearchRef}>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Search className="w-3.5 h-3.5" />
+                    </span>
+                    <input
+                      type="text"
+                      value={partSearch}
+                      onChange={(e) => {
+                        setPartSearch(e.target.value);
+                        setIsPartSearchOpen(true);
+                      }}
+                      onFocus={() => {
+                        if (partSearch.trim()) setIsPartSearchOpen(true);
+                      }}
+                      placeholder="Buscar peça no estoque por nome, código ou SKU..."
+                      className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs border transition-colors ${
+                        isDark
+                          ? 'bg-[#060e22] border-slate-700/80 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-hidden'
+                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-hidden'
+                      }`}
+                    />
+                    {partSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPartSearch('');
+                          setIsPartSearchOpen(false);
+                        }}
+                        className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNewProductInDetail(partSearch || '')}
+                    className="px-2.5 py-2 bg-blue-600/30 hover:bg-blue-600 text-cyan-300 hover:text-white border border-blue-500/40 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                    title="Cadastrar produto novo no Estoque"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Cadastrar Peça</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowStockCatalog(!showStockCatalog)}
+                    className={`px-2.5 py-2 border rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                      isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Catálogo</span>
+                  </button>
+                </div>
+
+                {/* Dropdown de Resultados da Pesquisa de Peças */}
+                {isPartSearchOpen && (
+                  <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl border shadow-2xl z-50 max-h-56 overflow-y-auto divide-y ${
+                    isDark ? 'bg-[#091632] border-cyan-500/50 divide-slate-800 text-white' : 'bg-white border-blue-300 divide-slate-100 text-slate-900'
+                  }`}>
+                    {filteredProducts.length > 0 ? (
+                      <>
+                        {filteredProducts.map((p) => {
+                          const price = p.sellingPrice || (p as any).price || 0;
+                          const isUnmanaged = p.manageStock === false;
+                          const stock = p.stockQuantity !== undefined ? p.stockQuantity : (p as any).stock || 0;
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => handleAddProductAsPart(p)}
+                              className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                                isDark ? 'hover:bg-cyan-950/60' : 'hover:bg-blue-50'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate">{p.name}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                  {p.category && <span>{p.category}</span>}
+                                  {p.barcode && <span>Cod: {p.barcode}</span>}
+                                  {isUnmanaged ? (
+                                    <span className="text-cyan-400 font-bold">Sem controle (Ilimitado)</span>
+                                  ) : stock > 0 ? (
+                                    <span className="text-emerald-400 font-semibold">{stock} em estoque</span>
+                                  ) : (
+                                    <span className="text-rose-400 font-bold">Sem estoque / 0 un</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-bold text-emerald-400 block">
+                                  {formatCurrency(price)}
+                                </span>
+                                <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-0.5 justify-end mt-0.5">
+                                  <Plus className="w-3 h-3" /> Inserir na OS
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        <div className={`p-2.5 flex items-center justify-between border-t ${isDark ? 'bg-[#061024] border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                          <span className="text-[10px] text-slate-400">Não encontrou o que procura?</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenNewProductInDetail(partSearch)}
+                            className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Cadastrar no Estoque</span>
+                          </button>
+                        </div>
+                      </>
+                    ) : partSearch.trim() ? (
+                      <div className="p-3.5 text-center space-y-2">
+                        <p className="text-xs text-slate-300 font-medium">
+                          Nenhum produto encontrado com "<span className="text-cyan-300 font-bold">{partSearch}</span>"
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenNewProductInDetail(partSearch)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Cadastrar "{partSearch}" no Estoque</span>
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Quick Stock Catalog View */}
+                {showStockCatalog && (
+                  <div className={`p-2.5 rounded-xl border mt-2 max-h-48 overflow-y-auto space-y-1 ${
+                    isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-700/40 text-[10px] font-bold text-slate-400 uppercase">
+                      <span>Catálogo de Produtos em Estoque ({products.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowStockCatalog(false)}
+                        className="text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {products.length === 0 ? (
+                      <p className="text-center text-xs text-slate-400 py-3">Nenhum produto cadastrado no estoque.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                        {products.slice(0, 12).map((prod) => {
+                          const pPrice = prod.sellingPrice || (prod as any).price || 0;
+                          const pStock = prod.stockQuantity !== undefined ? prod.stockQuantity : (prod as any).stock || 0;
+                          const isUnmanaged = prod.manageStock === false;
+                          return (
+                            <button
+                              key={prod.id}
+                              type="button"
+                              onClick={() => {
+                                handleAddProductAsPart(prod);
+                                setShowStockCatalog(false);
+                              }}
+                              className={`p-2 text-left rounded-lg border transition-all flex items-center justify-between cursor-pointer ${
+                                isDark ? 'bg-[#091632] hover:bg-cyan-950/60 border-slate-700/60 text-white' : 'bg-white hover:bg-blue-50 border-slate-200 text-slate-900'
+                              }`}
+                            >
+                              <div className="min-w-0 pr-1">
+                                <p className="text-xs font-bold truncate">{prod.name}</p>
+                                <p className="text-[9px] text-slate-400">
+                                  {isUnmanaged ? 'Ilimitado' : `${pStock} em estoque`}
+                                </p>
+                              </div>
+                              <span className="text-xs font-bold text-emerald-400 shrink-0">
+                                {formatCurrency(pPrice)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
+            )}
 
-              {/* Dropdown de Resultados da Pesquisa de Peças */}
-              {isPartSearchOpen && filteredProducts.length > 0 && (
-                <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl border shadow-2xl z-50 max-h-56 overflow-y-auto divide-y ${
-                  isDark ? 'bg-[#091632] border-cyan-500/40 divide-slate-800 text-white' : 'bg-white border-blue-300 divide-slate-100 text-slate-900'
-                }`}>
-                  {filteredProducts.map((p) => {
-                    const price = p.sellingPrice || (p as any).price || 0;
-                    const stock = p.stockQuantity !== undefined ? p.stockQuantity : p.stock || 0;
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => handleAddProductAsPart(p)}
-                        className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                          isDark ? 'hover:bg-cyan-950/50' : 'hover:bg-blue-50'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold truncate">{p.name}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                            {p.category && <span>{p.category}</span>}
-                            {p.barcode && <span>Cod: {p.barcode}</span>}
-                            <span className={`px-1.5 py-0.2 rounded font-semibold ${
-                              stock > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                            }`}>
-                              {stock > 0 ? `${stock} em estoque` : 'Sem estoque'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-xs font-bold text-emerald-400 block">
-                            {formatCurrency(price)}
-                          </span>
-                          <span className="text-[10px] text-cyan-400 font-semibold flex items-center gap-0.5 justify-end mt-0.5">
-                            <Plus className="w-3 h-3" /> Inserir na OS
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {isPartSearchOpen && partSearch.trim() && filteredProducts.length === 0 && (
-                <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl border shadow-xl z-50 p-3 text-center text-xs ${
-                  isDark ? 'bg-[#091632] border-slate-700 text-slate-400' : 'bg-white border-slate-300 text-slate-600'
-                }`}>
-                  Nenhuma peça encontrada para "{partSearch}".
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualPartName(partSearch);
-                      setShowManualPartForm(true);
-                      setIsPartSearchOpen(false);
-                    }}
-                    className="ml-2 font-bold text-cyan-400 underline cursor-pointer"
-                  >
-                    Adicionar como Peça Avulsa
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Formulário de Peça Avulsa / Manual */}
-            {showManualPartForm && (
+            {/* Modo Peça Avulsa / Manual */}
+            {partInputMode === 'AVULSO' && (
               <div className={`p-3 rounded-xl border space-y-2.5 animate-in fade-in ${
-                isDark ? 'bg-[#060e22] border-cyan-500/40' : 'bg-blue-50 border-blue-200'
+                isDark ? 'bg-[#060e22] border-amber-500/40' : 'bg-amber-50/70 border-amber-200'
               }`}>
-                <div className="flex items-center justify-between text-xs font-bold text-cyan-400">
-                  <span>Adicionar Peça / Componente Avulso</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowManualPartForm(false)}
-                    className="text-slate-400 hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                  <span className="flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Adicionar Peça / Componente Avulso</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    (Não debita do estoque)
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -1079,11 +1374,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-1">
+                <div className="flex flex-wrap items-center justify-between pt-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNewProductInDetail(manualPartName)}
+                    className="text-cyan-400 hover:text-cyan-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Cadastrar esta peça no Estoque</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleAddManualPart}
-                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Inserir Peça na OS</span>
@@ -1167,7 +1471,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             {/* Contabilização Financeira: Valor Base da OS, Desconto e Total */}
-            <div className={`p-3.5 rounded-xl border space-y-3 ${
+            <div className={`p-2.5 rounded-xl border space-y-2.5 ${
               isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
             }`}>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1186,7 +1490,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </span>
                 </div>
 
-                {/* Valor da OS / Serviço (Editável com Senha do Gerente) */}
+                {/* Mão de Obra / Serviço (Editável com Senha do Gerente) */}
                 <div className={`p-2.5 rounded-lg border transition-all ${
                   isPriceUnlocked
                     ? isDark ? 'bg-amber-950/20 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.15)]' : 'bg-amber-50 border-amber-300'
@@ -1194,7 +1498,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-slate-300 uppercase block truncate">
-                      Valor da OS (R$)
+                      Mão de Obra / Serviço (R$)
                     </span>
                     {isPriceUnlocked ? (
                       <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
@@ -1223,7 +1527,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={localCustomPrice !== null ? localCustomPrice : partsTotal}
+                      value={localCustomPrice !== null ? localCustomPrice : 0}
                       onChange={(e) => {
                         const val = Math.max(0, parseFloat(e.target.value) || 0);
                         setLocalCustomPrice(val);
@@ -1244,13 +1548,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       title="Clique para autorizar edição com senha do gerente"
                     >
                       <span className="text-sm font-black text-white group-hover:text-amber-300 transition-colors">
-                        {formatCurrency(effectiveBasePrice)}
+                        {formatCurrency(laborPrice)}
                       </span>
                       <Lock className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 transition-colors" />
                     </div>
                   )}
                   <span className="text-[9px] text-slate-500 mt-1 block">
-                    {isPriceUnlocked ? 'Valor manual autorizado' : 'Requer autorização'}
+                    {isPriceUnlocked ? 'Mão de obra manual autorizada' : 'Requer autorização'}
                   </span>
                 </div>
 
@@ -1282,7 +1586,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               {/* Total Final da OS */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
                 <span className={`text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Fórmula: <strong className="text-cyan-400">{formatCurrency(effectiveBasePrice)} (Base)</strong> - <strong className="text-rose-400">{formatCurrency(localDiscount)} (Desconto)</strong>
+                  Fórmula: <strong className="text-amber-300">{formatCurrency(laborPrice)} (Serviço)</strong> + <strong className="text-cyan-400">{formatCurrency(partsTotal)} (Peças)</strong> - <strong className="text-rose-400">{formatCurrency(localDiscount)} (Desconto)</strong>
                 </span>
 
                 <div className="flex items-center gap-3">
@@ -1304,6 +1608,140 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Formas e Registro de Pagamentos na OS */}
+            {(() => {
+              const sumInlinePaid = inlinePaymentRows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+              const diffInlinePaid = (currentTotal || 0) - sumInlinePaid;
+              return (
+                <div className={`p-3 rounded-xl border space-y-2.5 mt-2.5 ${
+                  isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  {/* Header compacto */}
+                  <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-700/50">
+                    <div className="flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-teal-400" />
+                      <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        Formas de Pagamento
+                      </h4>
+                    </div>
+
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                      targetOrder?.paymentStatus === 'PAGO'
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                        : targetOrder?.paymentStatus === 'PARCIAL'
+                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                        : 'bg-rose-500/15 text-rose-400 border-rose-500/40'
+                    }`}>
+                      {targetOrder?.paymentStatus === 'PAGO' ? '● PAGO (100%)' : targetOrder?.paymentStatus === 'PARCIAL' ? '● PAGTO PARCIAL' : '● PENDENTE'}
+                    </span>
+                  </div>
+
+                  {/* Active Payment Rows (Compact list) */}
+                  <div className="space-y-1.5">
+                    {inlinePaymentRows.map((row) => (
+                      <div key={row.id} className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
+                        {/* Select de Forma de Pagamento */}
+                        <div className="flex-1 min-w-0">
+                          <select
+                            value={row.method}
+                            onChange={(e) => handleUpdateInlineRowMethod(row.id, e.target.value)}
+                            className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-hidden cursor-pointer truncate ${
+                              isDark
+                                ? 'bg-[#040a17] text-white border-slate-700 focus:border-teal-500'
+                                : 'bg-white text-slate-900 border-slate-300 focus:border-teal-600'
+                            }`}
+                          >
+                            {allInlinePaymentOptions.map((opt) => (
+                              <option key={opt.id} value={opt.id} className={isDark ? 'bg-[#091632] text-white' : 'bg-white text-slate-900'}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Input de Valor */}
+                        <div className="relative w-28 sm:w-32 shrink-0">
+                          <span className="absolute left-2 top-1.5 text-xs font-bold text-slate-400">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={row.amount}
+                            onChange={(e) => handleUpdateInlineRowAmount(row.id, e.target.value)}
+                            className={`w-full pl-7 pr-2 py-1.5 rounded-lg text-xs font-black border focus:outline-hidden ${
+                              isDark
+                                ? 'bg-[#040a17] text-teal-300 border-slate-700 focus:border-teal-500'
+                                : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-teal-600'
+                            }`}
+                          />
+                        </div>
+
+                        {/* Remover */}
+                        {inlinePaymentRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveInlineRow(row.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Remover forma"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Actions & Resumo compacto na mesma linha */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-700/50">
+                    <button
+                      type="button"
+                      onClick={handleAddInlinePaymentRow}
+                      className="px-2.5 py-1 text-[11px] font-bold text-teal-400 hover:text-teal-300 border border-dashed border-teal-500/40 rounded-lg hover:bg-teal-500/10 transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Adicionar outra forma</span>
+                    </button>
+
+                    <div className="flex items-center gap-3 text-xs font-bold justify-between sm:justify-end">
+                      <span className="text-[11px] text-slate-400">
+                        Informado: <strong className="text-emerald-400">{formatCurrency(sumInlinePaid)}</strong>
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {diffInlinePaid <= 0 ? (
+                          <strong className="text-emerald-400">Quitado (100%)</strong>
+                        ) : (
+                          <>Faltando: <strong className="text-rose-400">{formatCurrency(diffInlinePaid)}</strong></>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-700/50">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeliveryModal(true)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Package className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Opções de Entrega</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveInlinePayments}
+                      disabled={isSavingPayments}
+                      className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSavingPayments ? 'Salvando...' : 'Salvar Pagamento'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -1433,6 +1871,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </form>
           </div>
         </div>
+      )}
+      {/* Full Product Registration Modal directly from Order Detail */}
+      {showProductModalInDetail && (
+        <ProductModal
+          isOpen={showProductModalInDetail}
+          onClose={() => {
+            setShowProductModalInDetail(false);
+            setProductToEditInDetail(null);
+            setProductModalPrefillName('');
+          }}
+          onSave={handleSaveProductInDetail}
+          productToEdit={productToEditInDetail}
+          initialName={productModalPrefillName}
+        />
       )}
     </>
   );

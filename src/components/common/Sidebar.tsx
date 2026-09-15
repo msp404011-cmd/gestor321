@@ -21,6 +21,8 @@ import {
   PinOff,
   ChevronRight,
   Clock,
+  Tv,
+  Video,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -96,6 +98,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const products = StorageService.getProducts();
   const receivables = StorageService.getReceivables();
 
+  const authSession = StorageService.getAuthSession();
+  const currentUser = propUser || StorageService.getCurrentUser();
+  const currentPlan = StorageService.getSubscriptionPlan();
+
+  const isSuper = Boolean(
+    isMasterAdmin ||
+    SubscriptionService.isSuperAdminUser(currentUser?.email || authSession?.email) ||
+    (authSession?.email && ['mmspmartins62@gmail.com', 'msp404011@gmail.com'].includes(authSession.email.toLowerCase().trim())) ||
+    (currentUser?.email && ['mmspmartins62@gmail.com', 'msp404011@gmail.com'].includes(currentUser.email.toLowerCase().trim())) ||
+    currentPlan?.planType === 'SUPER_ADMIN'
+  );
+
   const isCashOpen = propCashOpen !== undefined ? propCashOpen : cashSession?.status === 'ABERTO';
   const openOrdersCount =
     propOrdersCount !== undefined
@@ -117,6 +131,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Dashboard',
       icon: LayoutDashboard,
     },
+    ...(isSuper ? [
+      {
+        id: 'ACCESSES',
+        label: 'Controle de Acessos',
+        icon: Tv,
+        badge: 'MASTER',
+        badgeColor: 'bg-purple-600 text-white shadow-[0_0_8px_rgba(147,51,234,0.7)]',
+      },
+      {
+        id: 'CAMERAS',
+        label: 'Pacote de Câmeras',
+        icon: Video,
+        badge: 'MASTER',
+        badgeColor: 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.7)]',
+      },
+      {
+        id: 'SUPPLIER_ORDERS',
+        label: 'Pedidos Fornecedor',
+        icon: Truck,
+        badge: 'MASTER',
+        badgeColor: 'bg-emerald-600 text-white shadow-[0_0_8px_rgba(16,185,129,0.7)]',
+      },
+      {
+        id: 'EXCLUSIVE_ORDERS',
+        label: 'Pedidos Exclusivos',
+        icon: ShoppingCart,
+        badge: 'MASTER',
+        badgeColor: 'bg-amber-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.7)]',
+      }
+    ] : []),
     {
       id: 'ORDERS',
       label: 'Ordens de Serviço',
@@ -138,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'DEVICES',
-      label: 'Aparelhos',
+      label: isSuper ? 'CRM' : 'Aparelhos',
       icon: Smartphone,
     },
     {
@@ -192,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Configurações',
       icon: Settings,
     },
-  ].filter((item) => SubscriptionService.isTabAllowed(item.id as NavigationTab));
+  ].filter((item) => isSuper || SubscriptionService.isTabAllowed(item.id as NavigationTab));
 
   const handleSelect = (id: string) => {
     onSelectTab(id as any);

@@ -3,6 +3,7 @@ import {
   Smartphone,
   Search,
   Plus,
+  Users,
   Wrench,
   Edit2,
   Trash2,
@@ -34,12 +35,50 @@ import {
   TrendingDown,
   X,
   FileText,
+  MoreVertical,
+  Calendar,
+  DollarSign,
+  Crown,
+  Mail,
+  User,
+  MessageSquare,
+  Briefcase,
+  MapPin,
+  CheckCircle,
 } from 'lucide-react';
-import { Device, DeviceType } from '../../types';
+import { Device, DeviceType, Customer } from '../../types';
 import { StorageService } from '../../services/storage';
+import { SubscriptionService } from '../../services/subscriptionService';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { getOrderStatusLabel, formatCurrency, formatDate } from '../../services/formatters';
 import { useTheme } from '../../context/ThemeContext';
+
+const getDeviceImage = (type?: string, brand?: string): string => {
+  const t = (type || '').toLowerCase();
+  const b = (brand || '').toLowerCase();
+  if (t.includes('notebook') || t.includes('laptop') || t.includes('computador') || t.includes('macbook')) {
+    return 'https://images.unsplash.com/photo-1496181130204-755241524eab?w=300&auto=format&fit=crop&q=80';
+  }
+  if (t.includes('tablet') || t.includes('ipad')) {
+    return 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300&auto=format&fit=crop&q=80';
+  }
+  if (t.includes('console') || t.includes('playstation') || t.includes('xbox') || t.includes('switch') || t.includes('videogame')) {
+    return 'https://images.unsplash.com/photo-1605901309584-818e25960a8f?w=300&auto=format&fit=crop&q=80';
+  }
+  if (t.includes('desktop') || t.includes('pc') || t.includes('monitor') || t.includes('gabinete')) {
+    return 'https://images.unsplash.com/photo-1587831990711-23ca6441447b?w=300&auto=format&fit=crop&q=80';
+  }
+  if (t.includes('relogio') || t.includes('watch') || t.includes('wearable') || t.includes('smartwatch')) {
+    return 'https://images.unsplash.com/photo-1517502884422-41eaaced0168?w=300&auto=format&fit=crop&q=80';
+  }
+  if (b.includes('apple') || b.includes('iphone')) {
+    return 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=300&auto=format&fit=crop&q=80';
+  }
+  if (b.includes('samsung')) {
+    return 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=300&auto=format&fit=crop&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&auto=format&fit=crop&q=80';
+};
 
 interface DeviceListViewProps {
   onOpenNewDevice: () => void;
@@ -79,12 +118,70 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
   const orders = StorageService.getOrders();
   const currentUser = StorageService.getCurrentUser();
 
-  // Listen to StorageService updates
+  const isSuperAdmin = useMemo(() => {
+    return SubscriptionService.isSuperAdminUser();
+  }, []);
+
+  // CRM state
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [editingForm, setEditingForm] = useState({
+    nickname: '',
+    brand: '',
+    model: '',
+    color: '',
+    imei: '',
+    serialNumber: '',
+  });
+  const [expandedHistoryDeviceId, setExpandedHistoryDeviceId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [addingDeviceCustomerId, setAddingDeviceCustomerId] = useState<string | null>(null);
+  const [newDeviceForm, setNewDeviceForm] = useState({
+    brand: '',
+    model: '',
+    type: 'Celular' as DeviceType,
+    imei: '',
+    serialNumber: '',
+    nickname: '',
+    color: '',
+    physicalCondition: '',
+  });
+
+  // Additional CRM UI States for editing customer, notes, dropdown options and history modal
+  const [editingCrmCustomer, setEditingCrmCustomer] = useState<Customer | null>(null);
+  const [isCreatingCrmCustomer, setIsCreatingCrmCustomer] = useState(false);
+  const [newCrmCustomerForm, setNewCrmCustomerForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    document: '',
+    city: '',
+    address: '',
+    notes: '',
+  });
+  const [isEditingNotesId, setIsEditingNotesId] = useState<string | null>(null);
+  const [tempNotesText, setTempNotesText] = useState('');
+  const [dropdownActiveCustomerId, setDropdownActiveCustomerId] = useState<string | null>(null);
+  const [viewingHistoryCustomerId, setViewingHistoryCustomerId] = useState<string | null>(null);
+
+  // Sync devices on mount & listen to changes
   useEffect(() => {
+    if (isSuperAdmin) {
+      StorageService.syncDevicesFromDeliveredOrders();
+    }
     return StorageService.subscribe(() => {
       setDevices(StorageService.getDevices());
     });
-  }, []);
+  }, [isSuperAdmin]);
 
   // Reset page when any filter changes
   useEffect(() => {
@@ -149,6 +246,117 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
     const semMovimento = devices.filter((d) => (d.status || '').toLowerCase() === 'sem movimento').length;
     return { total, emAssistencia, concluidos, semMovimento };
   }, [devices]);
+
+  // CRM Memo and Functions
+  const crmCustomers = useMemo(() => {
+    const allCustomers = StorageService.getCustomers();
+    const allDevices = devices;
+    
+    const customerGroups: Record<string, Device[]> = {};
+    allDevices.forEach((d) => {
+      if (!customerGroups[d.customerId]) {
+        customerGroups[d.customerId] = [];
+      }
+      customerGroups[d.customerId].push(d);
+    });
+    
+    return allCustomers.map((c) => {
+      const clientDevices = customerGroups[c.id] || [];
+      return {
+        customer: c,
+        devices: clientDevices,
+      };
+    }).filter((item) => item.devices.length > 0 || search === '');
+  }, [devices, search]);
+
+  const filteredCrmCustomers = useMemo(() => {
+    const searchLower = search.toLowerCase().trim();
+    if (!searchLower) return crmCustomers;
+    
+    return crmCustomers.filter((item) => {
+      const matchCustomer = 
+        item.customer.name.toLowerCase().includes(searchLower) ||
+        (item.customer.phone || '').toLowerCase().includes(searchLower) ||
+        (item.customer.email || '').toLowerCase().includes(searchLower) ||
+        (item.customer.document || '').toLowerCase().includes(searchLower);
+        
+      const matchDevice = item.devices.some((d) => 
+        (d.brand || '').toLowerCase().includes(searchLower) ||
+        (d.model || '').toLowerCase().includes(searchLower) ||
+        (d.imei || '').toLowerCase().includes(searchLower) ||
+        (d.serialNumber || '').toLowerCase().includes(searchLower) ||
+        (d.nickname || '').toLowerCase().includes(searchLower)
+      );
+      
+      return matchCustomer || matchDevice;
+    });
+  }, [crmCustomers, search]);
+
+  const expandedDeviceOrders = useMemo(() => {
+    if (!expandedHistoryDeviceId) return [];
+    const targetDev = devices.find((d) => d.id === expandedHistoryDeviceId);
+    if (!targetDev) return [];
+    
+    return orders.filter(
+      (o) =>
+        o.customerId === targetDev.customerId &&
+        (o.brand || '').trim().toLowerCase() === (targetDev.brand || '').trim().toLowerCase() &&
+        (o.model || '').trim().toLowerCase() === (targetDev.model || '').trim().toLowerCase()
+    );
+  }, [expandedHistoryDeviceId, devices, orders]);
+
+  const handleSaveDeviceDetails = (deviceId: string) => {
+    const updatedDevices = devices.map((d) => {
+      if (d.id === deviceId) {
+        return {
+          ...d,
+          nickname: editingForm.nickname,
+          brand: editingForm.brand,
+          model: editingForm.model,
+          color: editingForm.color,
+          imei: editingForm.imei,
+          serialNumber: editingForm.serialNumber,
+        };
+      }
+      return d;
+    });
+    StorageService.saveDevices(updatedDevices);
+    setEditingDeviceId(null);
+  };
+
+  const handleAddDeviceToCustomer = (customerId: string, customerName: string) => {
+    if (!newDeviceForm.brand || !newDeviceForm.model) {
+      alert('Por favor, preencha a marca e o modelo do aparelho.');
+      return;
+    }
+    const newDev: Device = {
+      id: 'dev-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      customerId,
+      customerName,
+      type: newDeviceForm.type,
+      brand: newDeviceForm.brand,
+      model: newDeviceForm.model,
+      imei: newDeviceForm.imei,
+      serialNumber: newDeviceForm.serialNumber,
+      color: newDeviceForm.color || '',
+      physicalCondition: newDeviceForm.physicalCondition || 'Sem avarias',
+      notes: '',
+      nickname: newDeviceForm.nickname,
+      createdAt: new Date().toISOString(),
+    };
+    StorageService.saveDevice(newDev);
+    setAddingDeviceCustomerId(null);
+    setNewDeviceForm({
+      brand: '',
+      model: '',
+      type: 'Celular',
+      imei: '',
+      serialNumber: '',
+      nickname: '',
+      color: '',
+      physicalCondition: '',
+    });
+  };
 
   const filteredDevices = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -280,6 +488,1189 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
     { label: 'Console', count: typeCounts.Console || 0, value: 'Console' },
     { label: 'Outros', count: typeCounts.Outros || 0, value: 'Outros' },
   ];
+
+  if (isSuperAdmin) {
+    return (
+      <div className="space-y-5 animate-in fade-in duration-200">
+        {/* Toast Notification for Copied Fields */}
+        {copiedField && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 bg-cyan-950 border border-cyan-500/50 rounded-xl text-cyan-300 text-xs font-bold shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-2 animate-in slide-in-from-bottom-2">
+            <Check className="w-4 h-4 text-cyan-400" />
+            <span>{copiedField} copiado para a área de transferência!</span>
+          </div>
+        )}
+
+        {/* CRM VIEW */}
+        <div className="space-y-6">
+          {/* CRM HEADER */}
+          <div
+            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border transition-all ${
+              isDark
+                ? 'bg-[#09152a] border-blue-900/80 shadow-[0_0_25px_rgba(2,132,199,0.15)] text-white'
+                : 'bg-white border-slate-200 shadow-sm text-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-500 text-white flex items-center justify-center font-black shadow-[0_0_15px_rgba(168,85,247,0.4)] shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  CRM • Clientes & Aparelhos
+                </h2>
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Controle de relacionamento. Os clientes e seus aparelhos entram automaticamente aqui ao entregar uma OS.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreatingCrmCustomer(true)}
+              className="bg-[#00bbf9] hover:bg-sky-400 text-white font-black text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(0,187,249,0.35)] cursor-pointer self-start sm:self-auto shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Card Cliente</span>
+            </button>
+          </div>
+
+          {/* SEARCH BAR */}
+          <div
+            className={`p-3 border rounded-2xl flex items-center gap-3 transition-all ${
+              isDark ? 'bg-[#09152a] border-blue-900/80' : 'bg-white border-slate-200/80 shadow-sm'
+            }`}
+          >
+            <div className="relative flex-1 w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pesquisar por cliente, contato, marca, modelo ou apelido..."
+                className={`w-full pl-10 pr-4 py-2 border rounded-xl text-xs focus:outline-none transition-all ${
+                  isDark
+                    ? 'bg-[#040a17] border-blue-900/80 text-white placeholder-slate-500'
+                    : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white'
+                }`}
+              />
+            </div>
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className={`px-3 py-2 text-xs font-bold border rounded-xl transition-colors cursor-pointer ${
+                  isDark ? 'bg-[#040a17] hover:bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                }`}
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+
+          {/* CRM CARDS GRID */}
+          {filteredCrmCustomers.length === 0 ? (
+            <div className={`rounded-2xl border p-12 text-center text-slate-400 ${
+              isDark ? 'bg-[#09152a] border-blue-900/80' : 'bg-white border-slate-200 shadow-sm'
+            }`}>
+              <Users className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+              <p className={`font-bold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>Nenhum cliente CRM encontrado</p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Clientes e aparelhos vinculados aparecem automaticamente quando a Ordem de Serviço é entregue.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {filteredCrmCustomers.map(({ customer, devices: clientDevices }) => {
+                const isAdding = addingDeviceCustomerId === customer.id;
+                
+                // Real data analytics per customer
+                const clientOrders = orders.filter(o => o.customerId === customer.id);
+                const totalSpent = clientOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
+                
+                // Find most recent order to get last service date & status
+                const sortedClientOrders = [...clientOrders].sort(
+                  (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+                const lastOrder = sortedClientOrders[0] || null;
+                const lastServiceDate = lastOrder ? formatDate(lastOrder.createdAt) : 'N/A';
+                
+                // Initials helper
+                const initials = customer.name
+                  ? customer.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                  : 'MM';
+                  
+                return (
+                  <div
+                    key={customer.id}
+                    className="border-2 border-[#00bbf9]/15 rounded-xl p-4 transition-all flex flex-col justify-between bg-gradient-to-b from-[#06142a] to-[#020712] text-white shadow-[0_0_20px_rgba(2,132,199,0.12)] hover:border-[#00bbf9]/45 hover:shadow-[0_0_25px_rgba(2,132,199,0.22)] duration-300 relative"
+                  >
+                    <div>
+                      {/* Top Header section */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-blue-950/60">
+                        <div className="flex items-center gap-3">
+                          {/* Avatar with cyan neon glow - compressed size */}
+                          <div className="w-14 h-14 rounded-full border-2 border-[#00bbf9] bg-gradient-to-tr from-[#020815] to-[#0c234a] flex items-center justify-center font-black text-lg text-white shadow-[0_0_12px_rgba(0,187,249,0.3)] shrink-0 select-none">
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-white uppercase truncate max-w-[180px] sm:max-w-[220px]">
+                                {customer.name}
+                              </h3>
+                              {/* STATUS: ATIVO */}
+                              <span className="bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+                                🟢 ATIVO
+                              </span>
+                            </div>
+                            
+                            {/* Cliente Desde */}
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-blue-950/40 border border-blue-900/40 rounded-md text-slate-300 text-[10px] font-semibold">
+                              <User className="w-3 h-3 text-sky-400" />
+                              <span>Cliente desde {formatDate(customer.createdAt)}</span>
+                            </div>
+ 
+                            {/* Contact Details with copy options */}
+                            <div className="mt-2 space-y-1.5 text-[11px] text-slate-300">
+                              <div className="flex items-center gap-2">
+                                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                                <a 
+                                  href={`https://wa.me/55${(customer.phone || '').replace(/\D/g, '')}`}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="font-bold hover:text-emerald-400 hover:underline transition-colors"
+                                >
+                                  {customer.phone || 'Sem telefone'}
+                                </a>
+                                {customer.phone && (
+                                  <button
+                                    onClick={() => handleCopy(customer.phone, 'Telefone')}
+                                    className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                    title="Copiar Telefone"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Mail className="w-3.5 h-3.5 text-sky-400" />
+                                <span className="font-semibold truncate max-w-[150px] sm:max-w-[200px]">
+                                  {customer.email || 'Sem e-mail'}
+                                </span>
+                                {customer.email && (
+                                  <button
+                                    onClick={() => handleCopy(customer.email, 'E-mail')}
+                                    className="p-0.5 text-slate-400 hover:text-white transition-colors"
+                                    title="Copiar E-mail"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+ 
+                        {/* Right side: loyal client and dropdown */}
+                        <div className="flex flex-row-reverse sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 self-stretch sm:self-auto shrink-0">
+                          {/* Card Actions Menu */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setDropdownActiveCustomerId(dropdownActiveCustomerId === customer.id ? null : customer.id)}
+                              className="p-1.5 rounded-lg bg-blue-950/40 border border-blue-900/40 hover:bg-blue-950/80 transition-all text-slate-300 hover:text-white cursor-pointer"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            
+                            {dropdownActiveCustomerId === customer.id && (
+                              <div className="absolute right-0 mt-1 w-48 rounded-lg border border-blue-900 bg-[#06142a] shadow-[0_0_20px_rgba(0,187,249,0.25)] z-30 overflow-hidden py-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDropdownActiveCustomerId(null);
+                                    setEditingCrmCustomer(customer);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-blue-950 text-sky-300 font-bold transition-colors flex items-center gap-2"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>Editar Cadastro</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDropdownActiveCustomerId(null);
+                                    setAddingDeviceCustomerId(customer.id);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-blue-950 text-sky-300 font-bold transition-colors flex items-center gap-2"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Adicionar Aparelho</span>
+                                </button>
+                                <hr className="border-blue-950" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDropdownActiveCustomerId(null);
+                                    setDeleteDialog({
+                                      isOpen: true,
+                                      title: 'Excluir de CRM',
+                                      message: `Deseja realmente excluir o cliente "${customer.name}" e TODOS os seus aparelhos do CRM?`,
+                                      onConfirm: () => {
+                                        const updatedDevices = devices.filter((d) => d.customerId !== customer.id);
+                                        StorageService.saveDevices(updatedDevices);
+                                        setDeleteDialog((prev) => ({ ...prev, isOpen: false }));
+                                      },
+                                    });
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-blue-950 text-red-400 font-bold transition-colors flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Excluir de CRM</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+ 
+                          {/* Loyal Client Box */}
+                          {clientOrders.length > 0 && (
+                            <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-2 flex flex-col items-center justify-center text-center max-w-[130px] shadow-[0_0_15px_rgba(245,158,11,0.08)]">
+                              <div className="flex items-center gap-1 text-amber-400 font-black text-[10px] uppercase tracking-wider">
+                                <Crown className="w-3.5 h-3.5" />
+                                <span>Cliente Fiel</span>
+                              </div>
+                              <span className="text-[9px] text-slate-300 font-bold mt-1">
+                                {clientOrders.length} atendimentos
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+ 
+                      {/* Indicators Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 rounded-xl border border-blue-900/60 bg-[#051329]/50 mt-3.5 divide-x-0 divide-y sm:divide-y-0 sm:divide-x divide-blue-900/40 overflow-hidden">
+                        {/* Indicator 1 */}
+                        <div className="p-2 sm:p-2.5 flex flex-col items-center text-center justify-center gap-1">
+                          <Smartphone className="w-4 h-4 text-sky-400" />
+                          <span className="text-sm sm:text-base font-black text-white">{clientDevices.length}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">Aparelhos</span>
+                        </div>
+                        {/* Indicator 2 */}
+                        <div className="p-2 sm:p-2.5 flex flex-col items-center text-center justify-center gap-1">
+                          <FileText className="w-4 h-4 text-sky-400" />
+                          <span className="text-sm sm:text-base font-black text-white">{clientOrders.length}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">Ordens</span>
+                        </div>
+                        {/* Indicator 3 */}
+                        <div className="p-2 sm:p-2.5 flex flex-col items-center text-center justify-center gap-1">
+                          <DollarSign className="w-4 h-4 text-emerald-400" />
+                          <span className="text-sm sm:text-base font-black text-[#10b981]">{formatCurrency(totalSpent)}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">Total Gasto</span>
+                        </div>
+                        {/* Indicator 4 */}
+                        <div className="p-2 sm:p-2.5 flex flex-col items-center text-center justify-center gap-1">
+                          <Calendar className="w-4 h-4 text-sky-400" />
+                          <span className="text-xs font-black text-white py-1">{lastServiceDate}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-black tracking-wider leading-none">Último Atend.</span>
+                        </div>
+                      </div>
+ 
+                      {/* Aparelhos Do Cliente section */}
+                      <div className="mt-4 space-y-2.5">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-blue-950/60">
+                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Aparelhos do Cliente ({clientDevices.length})</span>
+                          </h4>
+                          
+                          <button
+                            type="button"
+                            onClick={() => setAddingDeviceCustomerId(addingDeviceCustomerId === customer.id ? null : customer.id)}
+                            className="bg-sky-500/10 hover:bg-sky-500/20 text-[#00bbf9] border border-[#00bbf9]/40 text-[9px] font-black px-2 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Adicionar Aparelho</span>
+                          </button>
+                        </div>
+
+                        {/* Inline Adding form */}
+                        {isAdding && (
+                          <div className="p-4 rounded-2xl border border-[#00bbf9]/30 bg-[#040d1f] space-y-3.5 shadow-[0_0_15px_rgba(0,187,249,0.1)]">
+                            <p className="text-[11px] font-black text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                              <Plus className="w-4 h-4" /> Novo Aparelho para {customer.name}
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Marca *</label>
+                                <input
+                                  type="text"
+                                  value={newDeviceForm.brand}
+                                  onChange={(e) => setNewDeviceForm({...newDeviceForm, brand: e.target.value})}
+                                  placeholder="Ex: Apple"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Modelo *</label>
+                                <input
+                                  type="text"
+                                  value={newDeviceForm.model}
+                                  onChange={(e) => setNewDeviceForm({...newDeviceForm, model: e.target.value})}
+                                  placeholder="Ex: iPhone 13"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">IMEI / Serial</label>
+                                <input
+                                  type="text"
+                                  value={newDeviceForm.imei}
+                                  onChange={(e) => setNewDeviceForm({...newDeviceForm, imei: e.target.value})}
+                                  placeholder="Opcional"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Cor</label>
+                                <input
+                                  type="text"
+                                  value={newDeviceForm.color}
+                                  onChange={(e) => setNewDeviceForm({...newDeviceForm, color: e.target.value})}
+                                  placeholder="Ex: Preto"
+                                  className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Nome / Apelido do Dono</label>
+                              <input
+                                type="text"
+                                value={newDeviceForm.nickname}
+                                onChange={(e) => setNewDeviceForm({...newDeviceForm, nickname: e.target.value})}
+                                placeholder="Ex: Celular da Dona Maria"
+                                className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                              />
+                            </div>
+
+                            <div className="flex justify-end gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setAddingDeviceCustomerId(null)}
+                                className="px-3.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer transition-colors"
+                              >
+                                Voltar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAddDeviceToCustomer(customer.id, customer.name)}
+                                className="px-3.5 py-1.5 text-[10px] font-bold rounded-lg bg-[#00bbf9] hover:bg-sky-400 text-white cursor-pointer transition-colors"
+                              >
+                                Salvar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {clientDevices.length === 0 ? (
+                          <div className="p-4 border border-dashed border-blue-900/60 rounded-xl text-center text-slate-400 text-xs italic">
+                            Nenhum aparelho vinculado ao cliente ainda.
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {clientDevices.map((dev) => {
+                              const isEditingDevice = editingDeviceId === dev.id;
+                              
+                              // Calculate metrics for this specific device
+                              const devOrders = orders.filter(
+                                (o) =>
+                                  o.customerId === dev.customerId &&
+                                  (o.brand || '').trim().toLowerCase() === (dev.brand || '').trim().toLowerCase() &&
+                                  (o.model || '').trim().toLowerCase() === (dev.model || '').trim().toLowerCase()
+                              );
+                              
+                              const devOrdersCount = devOrders.length;
+                              const devLastOrder = devOrdersCount > 0 
+                                ? [...devOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] 
+                                : null;
+                              const devLastDate = devLastOrder ? formatDate(devLastOrder.createdAt) : 'N/A';
+                              const devTotalValue = devOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
+                              
+                              // Image generator based on device properties
+                              const devImgUrl = getDeviceImage(dev.type, dev.brand);
+
+                              return (
+                                <div
+                                  key={dev.id}
+                                  className="p-3 rounded-xl border border-blue-950/80 bg-[#030a17]/70 flex flex-col gap-2.5 shadow-xs hover:border-[#00bbf9]/30 transition-all duration-200"
+                                >
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                                      {/* Smartphone image - compressed */}
+                                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 border border-blue-900/40 bg-[#040a17] relative flex items-center justify-center">
+                                        <img
+                                          src={devImgUrl}
+                                          alt={`${dev.brand} ${dev.model}`}
+                                          className="w-full h-full object-cover"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-tr from-[#00bbf9]/15 via-transparent to-transparent pointer-events-none" />
+                                      </div>
+
+                                      {/* Brand & details */}
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="flex flex-wrap items-baseline gap-1">
+                                          {dev.nickname && (
+                                            <span className="text-[9px] bg-sky-500/20 text-[#00bbf9] font-black px-1 py-0.5 rounded leading-none">
+                                              {dev.nickname.toUpperCase()}
+                                            </span>
+                                          )}
+                                          <h5 className="font-bold text-xs sm:text-sm text-white truncate">
+                                            {dev.brand} {dev.model}
+                                          </h5>
+                                          {dev.color && (
+                                            <span className="text-[10px] text-slate-400 font-semibold">
+                                              ({dev.color})
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* IMEI copyable */}
+                                        <div className="flex items-center gap-1.5 text-[10px]">
+                                          <span className="text-slate-400 font-medium">IMEI:</span>
+                                          <span className="text-slate-200 font-bold tracking-wider">{dev.imei || 'Não informado'}</span>
+                                          {dev.imei && (
+                                            <button
+                                              onClick={() => handleCopy(dev.imei || '', 'IMEI')}
+                                              className="p-0.5 text-slate-500 hover:text-white transition-colors"
+                                              title="Copiar IMEI"
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* OS réalisées */}
+                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold flex-wrap">
+                                          <span>{devOrdersCount} OS {devOrdersCount === 1 ? 'realizada' : 'realizadas'}</span>
+                                          <span>•</span>
+                                          <span>Última: {devLastDate}</span>
+                                        </div>
+
+                                        {/* Current Defect or Service */}
+                                        <div className="text-[10px]">
+                                          {devLastOrder ? (
+                                            devLastOrder.status === 'ENTREGUE' || devLastOrder.status === 'PRONTO' || devLastOrder.status === 'PRONTA' ? (
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-[#10b981] font-bold">Serviço:</span>
+                                                <span className="text-slate-200 truncate font-semibold">{devLastOrder.performedService || 'Não detalhado'}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-rose-400 font-bold">Defeito atual:</span>
+                                                <span className="text-slate-200 truncate font-semibold">{devLastOrder.clientDefect || 'Sem defeito'}</span>
+                                              </div>
+                                            )
+                                          ) : (
+                                            <div className="flex items-center gap-1">
+                                              <span className="text-slate-400 font-bold">Físico:</span>
+                                              <span className="text-slate-300 font-semibold">{dev.physicalCondition || 'Sem avarias'}</span>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Valor relacionado */}
+                                        <div className="text-[10px] font-black flex items-center gap-1 mt-0.5">
+                                          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Valor:</span>
+                                          <span className="text-[#10b981] text-xs">
+                                            {formatCurrency(devTotalValue)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Action buttons inside device block */}
+                                    <div className="flex sm:flex-col items-center justify-end gap-1.5 shrink-0 w-full sm:w-auto">
+                                      {/* Ver detalhes Button toggles history collapsible */}
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedHistoryDeviceId(expandedHistoryDeviceId === dev.id ? null : dev.id)}
+                                        className="w-full sm:w-auto px-2.5 py-1 bg-blue-950/40 hover:bg-blue-950/80 border border-blue-900 rounded-lg text-[10px] font-black flex items-center justify-center gap-1 transition-all text-[#00bbf9] hover:text-[#00bbf9]/85 cursor-pointer"
+                                      >
+                                        <span>Ver detalhes</span>
+                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedHistoryDeviceId === dev.id ? 'rotate-180' : ''}`} />
+                                      </button>
+
+                                      {/* Quick Edit and Delete device */}
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingDeviceId(dev.id);
+                                            setEditingForm({
+                                              nickname: dev.nickname || '',
+                                              brand: dev.brand || '',
+                                              model: dev.model || '',
+                                              color: dev.color || '',
+                                              imei: dev.imei || '',
+                                              serialNumber: dev.serialNumber || '',
+                                            });
+                                          }}
+                                          className="p-1.5 rounded-md bg-blue-950/30 border border-blue-900/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30 transition-colors cursor-pointer"
+                                          title="Editar Aparelho"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDeleteDialog({
+                                              isOpen: true,
+                                              title: 'Excluir Aparelho',
+                                              message: `Deseja realmente excluir o aparelho "${dev.brand} ${dev.model}" do CRM?`,
+                                              onConfirm: () => {
+                                                StorageService.deleteDevice(dev.id);
+                                                setDeleteDialog((prev) => ({ ...prev, isOpen: false }));
+                                              },
+                                            });
+                                          }}
+                                          className="p-1.5 rounded-md bg-blue-950/30 border border-blue-900/30 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors cursor-pointer"
+                                          title="Excluir Aparelho"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Collapsible history section */}
+                                  {expandedHistoryDeviceId === dev.id && (
+                                    <div className="mt-2 p-2.5 border border-dashed border-blue-900 rounded-lg bg-[#020815] transition-all space-y-1.5 animate-in slide-in-from-top-1 duration-200">
+                                      <div className="flex justify-between items-center pb-1.5 border-b border-blue-950">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                                          <History className="w-4 h-4" /> Histórico de Consertos
+                                        </span>
+                                        <span className="text-[9px] font-medium text-slate-400">Clique na OS para abri-la</span>
+                                      </div>
+
+                                      {devOrders.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic">Sem registros de consertos anteriores.</p>
+                                      ) : (
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                          {devOrders.map((o) => (
+                                            <div
+                                              key={o.id}
+                                              onClick={() => onNavigateToOrder(o.id)}
+                                              className="p-3 rounded-xl border border-blue-950 bg-[#040d1f] hover:border-sky-500/40 hover:bg-blue-950/10 cursor-pointer transition-all flex flex-col gap-1.5"
+                                            >
+                                              <div className="flex justify-between items-center font-bold text-xs">
+                                                <span className="text-[#00bbf9]">
+                                                  OS #{o.orderNumber}
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                  {formatDate(o.createdAt)}
+                                                </span>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-2 text-xs border-t border-blue-950/40 pt-1.5">
+                                                <div>
+                                                  <span className="text-slate-500 block text-[9px] font-black uppercase">Defeito:</span>
+                                                  <span className="font-semibold text-slate-200 line-clamp-1">{o.clientDefect || 'Sem defeito'}</span>
+                                                </div>
+                                                <div>
+                                                  <span className="text-slate-500 block text-[9px] font-black uppercase">Conserto:</span>
+                                                  <span className="font-semibold text-slate-200 line-clamp-1">{o.performedService || 'Não realizado'}</span>
+                                                </div>
+                                              </div>
+                                              <div className="flex justify-between items-center mt-1 text-[10px] text-slate-400 font-bold bg-[#051329]/40 p-2 rounded-lg">
+                                                <span>Valor:</span>
+                                                <span className="text-[#10b981] font-black text-xs">
+                                                  {formatCurrency(o.totalPrice)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* In-place device edit form */}
+                                  {isEditingDevice && (
+                                    <div className="mt-3 pt-3 border-t border-blue-950 space-y-3">
+                                      <p className="text-[11px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Edit2 className="w-3.5 h-3.5" /> Editar Aparelho
+                                      </p>
+                                      
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Nome / Apelido</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.nickname}
+                                            onChange={(e) => setEditingForm({ ...editingForm, nickname: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Cor</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.color}
+                                            onChange={(e) => setEditingForm({ ...editingForm, color: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Marca *</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.brand}
+                                            onChange={(e) => setEditingForm({ ...editingForm, brand: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">Modelo *</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.model}
+                                            onChange={(e) => setEditingForm({ ...editingForm, model: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">IMEI</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.imei}
+                                            onChange={(e) => setEditingForm({ ...editingForm, imei: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] text-slate-400 font-bold mb-1 uppercase">S/N</label>
+                                          <input
+                                            type="text"
+                                            value={editingForm.serialNumber}
+                                            onChange={(e) => setEditingForm({ ...editingForm, serialNumber: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 text-xs border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="flex justify-end gap-1.5 pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingDeviceId(null)}
+                                          className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer transition-colors"
+                                        >
+                                          Voltar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={!editingForm.brand.trim() || !editingForm.model.trim()}
+                                          onClick={() => handleSaveDeviceDetails(dev.id)}
+                                          className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer transition-colors"
+                                        >
+                                          Salvar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Observações do Cliente */}
+                      <div className="mt-4 border border-blue-900/40 bg-[#051329]/20 rounded-xl p-3 shadow-xs">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-blue-950/60">
+                          <h5 className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Observações do Cliente</span>
+                          </h5>
+                          
+                          {isEditingNotesId !== customer.id && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsEditingNotesId(customer.id);
+                                setTempNotesText(customer.notes || '');
+                              }}
+                              className="bg-blue-950 hover:bg-blue-900 text-slate-300 hover:text-white border border-blue-900 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                              <span>Editar</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="mt-2">
+                          {isEditingNotesId === customer.id ? (
+                            <div className="space-y-1.5">
+                              <textarea
+                                value={tempNotesText}
+                                onChange={(e) => setTempNotesText(e.target.value)}
+                                placeholder="Insira observações importantes sobre o cliente..."
+                                className="w-full px-2.5 py-1.5 text-[11px] border border-blue-900 rounded-lg focus:outline-none bg-[#051329] text-white min-h-[60px] resize-y"
+                              />
+                              <div className="flex justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingNotesId(null)}
+                                  className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedCust = { ...customer, notes: tempNotesText };
+                                    StorageService.saveCustomer(updatedCust);
+                                    setIsEditingNotesId(null);
+                                    setCopiedField('Observações salvas');
+                                    setTimeout(() => setCopiedField(null), 1500);
+                                  }}
+                                  className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-[#00bbf9] hover:bg-sky-400 text-white cursor-pointer"
+                                >
+                                  Salvar
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-300 leading-relaxed font-semibold italic">
+                              {customer.notes || 'Nenhuma observação informada.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Actions Box */}
+                    <div className="grid grid-cols-3 gap-2 border-t border-blue-950/40 pt-3 mt-4 shrink-0">
+                      {/* WhatsApp Trigger */}
+                      <a
+                        href={`https://wa.me/55${(customer.phone || '').replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(customer.name || '')}!%20Gostaríamos%20de%20conversar%20sobre%20suas%20ordens%20de%20serviço.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-[#128c7e] hover:bg-[#075e54] text-white text-[10px] sm:text-xs font-bold py-2 rounded-lg transition-all shadow-[0_0_10px_rgba(18,140,126,0.15)] flex items-center justify-center gap-1"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">WhatsApp</span>
+                      </a>
+
+                      {/* Ver Histórico Modal Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => setViewingHistoryCustomerId(customer.id)}
+                        className="bg-blue-950/40 hover:bg-blue-950 border border-blue-900 rounded-lg text-[10px] sm:text-xs font-bold py-2 transition-all text-sky-400 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span className="truncate">Ver Histórico</span>
+                      </button>
+
+                      {/* Editar Cadastro Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => setEditingCrmCustomer(customer)}
+                        className="bg-blue-950/40 hover:bg-blue-950 border border-blue-900 rounded-lg text-[10px] sm:text-xs font-bold py-2 transition-all text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span className="truncate">Editar Cliente</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Global Delete Confirmation for CRM Actions */}
+        <ConfirmDialog
+          isOpen={deleteDialog.isOpen}
+          onClose={() => setDeleteDialog((prev) => ({ ...prev, isOpen: false }))}
+          onConfirm={deleteDialog.onConfirm}
+          title={deleteDialog.title}
+          message={deleteDialog.message}
+        />
+
+        {/* CRM CUSTOMER CREATE MODAL */}
+        {isCreatingCrmCustomer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-xl border-2 border-[#00bbf9]/40 bg-gradient-to-b from-[#06142a] to-[#020712] rounded-[24px] p-6 text-white shadow-[0_0_40px_rgba(2,132,199,0.4)] space-y-4 max-h-[90vh] overflow-y-auto animate-in scale-in duration-150">
+              <div className="flex justify-between items-center border-b border-blue-950 pb-3">
+                <h3 className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <User className="w-5 h-5 text-[#00bbf9]" />
+                  <span>Cadastrar Novo Cliente</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingCrmCustomer(false)}
+                  className="p-1.5 rounded-lg bg-blue-950/40 border border-blue-900/40 hover:bg-red-500/10 hover:text-rose-400 text-slate-400 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Nome Completo *</label>
+                  <input
+                    type="text"
+                    value={newCrmCustomerForm.name}
+                    onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, name: e.target.value })}
+                    placeholder="Nome completo do cliente"
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Telefone / WhatsApp *</label>
+                    <input
+                      type="text"
+                      value={newCrmCustomerForm.phone}
+                      onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, phone: e.target.value })}
+                      placeholder="Ex: (88) 99999-9999"
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">E-mail</label>
+                    <input
+                      type="text"
+                      value={newCrmCustomerForm.email}
+                      onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, email: e.target.value })}
+                      placeholder="exemplo@email.com"
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">CPF / CNPJ (Documento)</label>
+                    <input
+                      type="text"
+                      value={newCrmCustomerForm.document}
+                      onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, document: e.target.value })}
+                      placeholder="000.000.000-00"
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Cidade / Estado</label>
+                    <input
+                      type="text"
+                      value={newCrmCustomerForm.city}
+                      onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, city: e.target.value })}
+                      placeholder="Ex: Juazeiro do Norte - CE"
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Endereço Completo</label>
+                  <input
+                    type="text"
+                    value={newCrmCustomerForm.address}
+                    onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, address: e.target.value })}
+                    placeholder="Rua, número, bairro..."
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Observações Privadas</label>
+                  <textarea
+                    value={newCrmCustomerForm.notes}
+                    onChange={(e) => setNewCrmCustomerForm({ ...newCrmCustomerForm, notes: e.target.value })}
+                    placeholder="Escreva anotações importantes..."
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold min-h-[80px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-blue-950">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingCrmCustomer(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!newCrmCustomerForm.name.trim() || !newCrmCustomerForm.phone.trim()}
+                  onClick={() => {
+                    const newCust: Customer = {
+                      id: 'cust-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+                      name: newCrmCustomerForm.name.trim(),
+                      phone: newCrmCustomerForm.phone.trim(),
+                      whatsapp: newCrmCustomerForm.phone.trim(),
+                      email: newCrmCustomerForm.email.trim(),
+                      document: newCrmCustomerForm.document.trim(),
+                      city: newCrmCustomerForm.city.trim(),
+                      address: newCrmCustomerForm.address.trim(),
+                      notes: newCrmCustomerForm.notes.trim(),
+                      createdAt: new Date().toISOString(),
+                      status: 'Ativo',
+                    };
+                    StorageService.saveCustomer(newCust);
+                    setIsCreatingCrmCustomer(false);
+                    setNewCrmCustomerForm({
+                      name: '',
+                      phone: '',
+                      email: '',
+                      document: '',
+                      city: '',
+                      address: '',
+                      notes: '',
+                    });
+                    setCopiedField('Cliente cadastrado com sucesso!');
+                    setTimeout(() => setCopiedField(null), 2000);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#00bbf9] hover:bg-sky-400 text-white text-xs font-bold cursor-pointer transition-all shadow-[0_0_15px_rgba(0,187,249,0.3)] disabled:opacity-50"
+                >
+                  Salvar Cadastro
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CRM CUSTOMER EDIT MODAL */}
+        {editingCrmCustomer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-xl border-2 border-[#00bbf9]/40 bg-gradient-to-b from-[#06142a] to-[#020712] rounded-[24px] p-6 text-white shadow-[0_0_40px_rgba(2,132,199,0.4)] space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-blue-950 pb-3">
+                <h3 className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <User className="w-5 h-5 text-[#00bbf9]" />
+                  <span>Editar Cadastro do Cliente</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingCrmCustomer(null)}
+                  className="p-1.5 rounded-lg bg-blue-950/40 border border-blue-900/40 hover:bg-red-500/10 hover:text-rose-400 text-slate-400 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Nome Completo *</label>
+                  <input
+                    type="text"
+                    value={editingCrmCustomer.name || ''}
+                    onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, name: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Telefone / WhatsApp *</label>
+                    <input
+                      type="text"
+                      value={editingCrmCustomer.phone || ''}
+                      onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, phone: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">E-mail</label>
+                    <input
+                      type="text"
+                      value={editingCrmCustomer.email || ''}
+                      onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, email: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">CPF / CNPJ (Documento)</label>
+                    <input
+                      type="text"
+                      value={editingCrmCustomer.document || ''}
+                      onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, document: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Cidade / Estado</label>
+                    <input
+                      type="text"
+                      value={editingCrmCustomer.city || ''}
+                      onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, city: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Endereço Completo</label>
+                  <input
+                    type="text"
+                    value={editingCrmCustomer.address || ''}
+                    onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, address: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Observações Privadas</label>
+                  <textarea
+                    value={editingCrmCustomer.notes || ''}
+                    onChange={(e) => setEditingCrmCustomer({ ...editingCrmCustomer, notes: e.target.value })}
+                    placeholder="Alguma observação relevante..."
+                    className="w-full px-3 py-2 text-xs border border-blue-900 rounded-xl focus:outline-none focus:border-[#00bbf9]/60 bg-[#051329] text-white font-semibold min-h-[80px]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-blue-950">
+                <button
+                  type="button"
+                  onClick={() => setEditingCrmCustomer(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!editingCrmCustomer.name?.trim() || !editingCrmCustomer.phone?.trim()}
+                  onClick={() => {
+                    StorageService.saveCustomer(editingCrmCustomer);
+                    setEditingCrmCustomer(null);
+                    setCopiedField('Cadastro atualizado');
+                    setTimeout(() => setCopiedField(null), 1500);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#00bbf9] hover:bg-sky-400 text-white text-xs font-bold cursor-pointer transition-all shadow-[0_0_15px_rgba(0,187,249,0.3)] disabled:opacity-50"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CRM CUSTOMER COMPLETE REPAIR HISTORY MODAL */}
+        {viewingHistoryCustomerId && (() => {
+          const currentCust = StorageService.getCustomers().find(c => c.id === viewingHistoryCustomerId);
+          if (!currentCust) return null;
+          const custOrders = orders.filter(o => o.customerId === viewingHistoryCustomerId);
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="w-full max-w-2xl border-2 border-[#00bbf9]/40 bg-gradient-to-b from-[#06142a] to-[#020712] rounded-[24px] p-6 text-white shadow-[0_0_40px_rgba(2,132,199,0.4)] space-y-4 max-h-[85vh] flex flex-col">
+                <div className="flex justify-between items-center border-b border-blue-950 pb-3 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <History className="w-5 h-5 text-[#00bbf9]" />
+                    <div>
+                      <h3 className="text-base font-black text-white uppercase tracking-wider">
+                        Histórico Geral de Consertos
+                      </h3>
+                      <p className="text-[11px] text-[#00bbf9] font-bold uppercase tracking-wider">
+                        {currentCust.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewingHistoryCustomerId(null)}
+                    className="p-1.5 rounded-lg bg-blue-950/40 border border-blue-900/40 hover:bg-red-500/10 hover:text-rose-400 text-slate-400 transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+                  {custOrders.length === 0 ? (
+                    <div className="p-8 text-center border border-dashed border-blue-900/50 rounded-2xl text-slate-400 italic text-sm">
+                      Nenhum registro de Ordem de Serviço encontrado para este cliente.
+                    </div>
+                  ) : (
+                    custOrders.map((o) => (
+                      <div
+                        key={o.id}
+                        className="p-4 rounded-2xl border border-blue-950 bg-[#030a17] hover:border-sky-500/30 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                      >
+                        <div className="space-y-1.5 min-w-0 flex-1 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#00bbf9] text-sm font-black">
+                              OS #{o.orderNumber}
+                            </span>
+                            <span className="text-[10px] bg-blue-950 text-sky-400 font-bold px-2 py-0.5 rounded-md">
+                              {o.brand} {o.model}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 border-t border-blue-950/50 pt-2 text-slate-300">
+                            <div>
+                              <span className="text-slate-500 block text-[9px] font-black uppercase tracking-wider">Defeito Relatado</span>
+                              <span className="font-semibold text-xs text-white line-clamp-2">{o.clientDefect || 'Sem defeito'}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[9px] font-black uppercase tracking-wider">Serviço Realizado</span>
+                              <span className="font-semibold text-xs text-white line-clamp-2">{o.performedService || 'Não realizado'}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 text-[10px] text-slate-400 pt-1.5">
+                            <span className="font-semibold">Data: {formatDate(o.createdAt)}</span>
+                            <span>•</span>
+                            <span className="font-semibold uppercase text-emerald-400 bg-emerald-500/5 px-2 py-0.5 border border-emerald-500/20 rounded">
+                              Valor: {formatCurrency(o.totalPrice)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setViewingHistoryCustomerId(null);
+                            onNavigateToOrder(o.id);
+                          }}
+                          className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-950 hover:bg-blue-900 border border-blue-900 text-xs font-black text-[#00bbf9] hover:text-white transition-all text-center cursor-pointer shrink-0"
+                        >
+                          Ver OS Completa
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-3 border-t border-blue-950 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewingHistoryCustomerId(null)}
+                    className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">

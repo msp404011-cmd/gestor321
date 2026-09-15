@@ -580,7 +580,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
   // Financial Metrics
   const totalInflows = useMemo(() => {
     const fromSales = sales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
-    const fromOrders = orders.filter(o => o.status === 'ENTREGUE').reduce((acc, o) => acc + (Number(o.totalPrice) || 0), 0);
+    const fromOrders = orders.filter(o => o.status === 'ENTREGUE').reduce((acc, o) => acc + ((Number(o.laborPrice) || 0) + (Number(o.partsPrice) || 0) || ((Number(o.totalPrice) || 0) + (Number(o.discount) || 0))), 0);
     return fromSales + fromOrders;
   }, [sales, orders]);
 

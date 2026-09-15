@@ -364,7 +364,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   // Status Change handler
   const handleUpdateOrderStatus = (order: ServiceOrder, newStatus: OrderStatus) => {
     setStatusMenuOpenForId(null);
-    if (newStatus === 'ENTREGUE' && order.paymentStatus !== 'PAGO') {
+    if (newStatus === 'ENTREGUE') {
       setOrderForDelivery(order);
       return;
     }
@@ -372,7 +372,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     const updated: ServiceOrder = {
       ...order,
       status: newStatus,
-      deliveredAt: newStatus === 'ENTREGUE' && !order.deliveredAt ? new Date().toISOString() : order.deliveredAt,
+      deliveredAt: order.deliveredAt,
       statusHistory: [
         ...(order.statusHistory || []),
         {

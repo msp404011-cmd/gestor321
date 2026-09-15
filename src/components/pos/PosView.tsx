@@ -751,7 +751,7 @@ export const PosView: React.FC<PosViewProps> = ({
             <div className="truncate">
               <p className="text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">Operador</p>
               <div className="flex items-center gap-0.5 font-bold text-white text-[10px] sm:text-[11px] leading-tight truncate">
-                <span className="truncate">{currentUser.name || 'Marcos Silva'}</span>
+                <span className="truncate">{currentUser.name || 'Operador'}</span>
                 <ChevronDown className="w-2.5 h-2.5 text-slate-400 animate-pulse shrink-0" />
               </div>
             </div>

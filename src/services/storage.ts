@@ -238,6 +238,80 @@ export const defaultCustomPaymentMethods: CustomPaymentMethodItem[] = [
   { id: 'pay-9', code: 'NAO_INFORMADO', name: 'A Combinar / Não informado', isSystem: true, isActive: true },
 ];
 
+export interface FormattedPaymentOption {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export function getDeduplicatedPaymentOptions(customMethods?: CustomPaymentMethodItem[]): FormattedPaymentOption[] {
+  const baseOptions: FormattedPaymentOption[] = [
+    { id: 'PIX', label: 'PIX', icon: '⚡' },
+    { id: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
+    { id: 'CARTAO_CREDITO', label: 'Cartão Crédito', icon: '💳' },
+    { id: 'CARTAO_DEBITO', label: 'Cartão Débito', icon: '💳' },
+    { id: 'TRANSFERENCIA', label: 'Transferência', icon: '🏦' },
+    { id: 'A_PRAZO', label: 'A Prazo / Fiado', icon: '📜' },
+  ];
+
+  const seenKeys = new Set<string>();
+
+  const normalizeKey = (val?: string): string => {
+    if (!val) return '';
+    const clean = val
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+
+    if (clean.includes('PIX')) return 'PIX';
+    if (clean.includes('DINHEIRO') || clean.includes('ESPECIE')) return 'DINHEIRO';
+    if (clean.includes('DEBITO') || clean.includes('DEB')) return 'CARTAO_DEBITO';
+    if (clean.includes('CREDITO') || clean.includes('CRED')) return 'CARTAO_CREDITO';
+    if (clean.includes('TRANSFERENCIA') || clean.includes('TED') || clean.includes('DOC') || clean.includes('BANK')) return 'TRANSFERENCIA';
+    if (clean.includes('PRAZO') || clean.includes('FIADO') || clean.includes('RECEBER')) return 'A_PRAZO';
+    if (clean.includes('BOLETO')) return 'BOLETO';
+    if (clean.includes('LINK')) return 'LINK_PAGTO';
+    if (clean.includes('COMBINAR') || clean.includes('NAOINFORMADO')) return 'NAO_INFORMADO';
+
+    return clean;
+  };
+
+  const result: FormattedPaymentOption[] = [];
+
+  for (const opt of baseOptions) {
+    const k1 = normalizeKey(opt.id);
+    const k2 = normalizeKey(opt.label);
+    if (k1) seenKeys.add(k1);
+    if (k2) seenKeys.add(k2);
+    result.push(opt);
+  }
+
+  const list = customMethods || [];
+  for (const cm of list) {
+    if (cm.isActive === false) continue;
+    const kId = normalizeKey(cm.id);
+    const kCode = normalizeKey(cm.code);
+    const kName = normalizeKey(cm.name);
+
+    if ((kId && seenKeys.has(kId)) || (kCode && seenKeys.has(kCode)) || (kName && seenKeys.has(kName))) {
+      continue;
+    }
+
+    if (kId) seenKeys.add(kId);
+    if (kCode) seenKeys.add(kCode);
+    if (kName) seenKeys.add(kName);
+
+    result.push({
+      id: cm.id || cm.code || kName,
+      label: cm.name || cm.code || cm.id,
+      icon: '🏷️',
+    });
+  }
+
+  return result;
+}
+
 export interface CustomCategory {
   id: string;
   name: string;
@@ -384,14 +458,20 @@ export interface SystemStatsSummary {
 // Simple event emitter for React subscriptions
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
+let notifyScheduled = false;
 
 function notifyListeners() {
-  listeners.forEach((fn) => {
-    try {
-      fn();
-    } catch (e) {
-      console.error('Error notifying listener', e);
-    }
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  Promise.resolve().then(() => {
+    notifyScheduled = false;
+    Array.from(listeners).forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error('Error notifying listener', e);
+      }
+    });
   });
 }
 
@@ -403,17 +483,26 @@ const GLOBAL_KEYS = new Set([
   STORAGE_KEYS.INITIALIZED,
 ]);
 
-export function getActiveTenantScope(): string {
+function loadInitialAuthSession(): AuthSession | null {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const rawSession = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
-      if (rawSession) {
-        const session = JSON.parse(rawSession);
-        if (session && session.email) {
-          const cleanEmail = session.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-          if (cleanEmail) return `tenant_${cleanEmail}`;
-        }
+      const raw = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || localStorage.getItem('msp_auth_session_v1');
+      if (raw) {
+        return JSON.parse(raw);
       }
+    }
+  } catch (_) {}
+  return null;
+}
+
+let activeAuthSession: AuthSession | null = loadInitialAuthSession();
+
+export function getActiveTenantScope(): string {
+  try {
+    const session = activeAuthSession;
+    if (session && session.email) {
+      const cleanEmail = session.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      if (cleanEmail) return `tenant_${cleanEmail}`;
     }
   } catch (e) {
     // fallback
@@ -453,11 +542,13 @@ function getItem<T>(key: string, fallback: T): T {
   }
 }
 
-function setItem<T>(key: string, value: T): void {
+function setItem<T>(key: string, value: T, notify: boolean = true): void {
   try {
     const scopedKey = getScopedKey(key);
     localStorage.setItem(scopedKey, JSON.stringify(value));
-    notifyListeners();
+    if (notify) {
+      notifyListeners();
+    }
   } catch (e) {
     console.error(`Error saving ${key} to storage`, e);
   }
@@ -699,7 +790,7 @@ export const StorageService = {
           createdAt: new Date().toISOString()
         };
         list.push(benny);
-        setItem(STORAGE_KEYS.EMPLOYEES, list);
+        setItem(STORAGE_KEYS.EMPLOYEES, list, false);
       }
     }
     
@@ -734,8 +825,37 @@ export const StorageService = {
     const authSession = this.getAuthSession();
     
     if (authSession?.isAuthenticated && authSession?.email) {
-      const employees = this.getEmployees();
       const cleanEmail = authSession.email.toLowerCase().trim();
+
+      if (cleanEmail === 'mmspmartins62@gmail.com' || cleanEmail === 'msp404011@gmail.com') {
+        const superEmp: Employee = {
+          id: authSession.uid || 'emp-super-admin',
+          name: authSession.name || 'Administrador Master',
+          email: cleanEmail,
+          role: 'ADMINISTRADOR',
+          avatarUrl: authSession.avatarUrl || `https://ui-avatars.com/api/?name=Admin+Master&background=f59e0b&color=000000`,
+          status: 'ATIVO',
+          active: true,
+          permissions: {
+            canAccessAdminSettings: true,
+            canViewFinancialReports: true,
+            canViewProductCost: true,
+            canManageEmployees: true,
+            canManageProducts: true,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: true,
+            canDeleteRecords: true,
+            canAdjustStock: true,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        return superEmp;
+      }
+
+      const employees = this.getEmployees();
       let emp = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
       
       if (!emp) {
@@ -764,7 +884,7 @@ export const StorageService = {
         const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, []);
         if (!list.some(e => e.email?.toLowerCase() === cleanEmail)) {
           list.push(emp);
-          setItem(STORAGE_KEYS.EMPLOYEES, list);
+          setItem(STORAGE_KEYS.EMPLOYEES, list, false);
           FirestoreSyncService.saveEmployee(emp);
         }
       }
@@ -1032,6 +1152,57 @@ export const StorageService = {
     return device;
   },
 
+  syncDevicesFromDeliveredOrders(): void {
+    const devices = this.getDevices();
+    const orders = this.getOrders();
+    const deliveredOrders = orders.filter((o) => o.status === 'ENTREGUE');
+    
+    let modified = false;
+    const updatedDevices = [...devices];
+    
+    for (const order of deliveredOrders) {
+      if (!order.customerId) continue;
+      
+      const brandNormalized = (order.brand || '').trim().toLowerCase();
+      const modelNormalized = (order.model || '').trim().toLowerCase();
+      
+      if (!brandNormalized && !modelNormalized) continue;
+
+      const exists = updatedDevices.some(
+        (d) =>
+          d.customerId === order.customerId &&
+          (d.brand || '').trim().toLowerCase() === brandNormalized &&
+          (d.model || '').trim().toLowerCase() === modelNormalized
+      );
+      
+      if (!exists) {
+        const newDevice: Device = {
+          id: 'dev-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          customerId: order.customerId,
+          customerName: order.customerName,
+          type: order.deviceType || 'Celular',
+          brand: order.brand,
+          model: order.model,
+          imei: order.imei,
+          serialNumber: order.serialNumber,
+          color: '',
+          physicalCondition: order.physicalCondition || '',
+          passwordPin: order.passwordPin,
+          passwordType: order.passwordType,
+          passwordPattern: order.passwordPattern,
+          notes: '',
+          createdAt: new Date().toISOString(),
+        };
+        updatedDevices.unshift(newDevice);
+        modified = true;
+      }
+    }
+    
+    if (modified) {
+      setItem(STORAGE_KEYS.DEVICES, updatedDevices);
+    }
+  },
+
   deleteDevice(id: string): void {
     const list = this.getDevices();
     const target = list.find((d) => d.id === id);
@@ -1190,12 +1361,15 @@ export const StorageService = {
 
     if (newStatus === 'ENTREGUE') {
       order.deliveredAt = new Date().toISOString();
-      // If paid on delivery and cash is open, record cash inflow
-      if (order.paymentStatus === 'PAGO' && order.paymentMethod) {
+      // If paid on delivery and cash is open, record cash inflow if not already recorded
+      const existingCashMovements = this.getCashMovements();
+      const alreadyHasMovement = existingCashMovements.some((m) => m.referenceId === order.id);
+      if (order.paymentStatus === 'PAGO' && order.paymentMethod && !alreadyHasMovement) {
+        const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
         this.addCashMovement({
           type: 'SERVICO_OS',
           description: `Recebimento da OS #${order.orderNumber} - ${order.customerName}`,
-          amount: order.totalPrice,
+          amount: grossValue,
           paymentMethod: order.paymentMethod,
           referenceId: order.id,
         });
@@ -1804,9 +1978,10 @@ export const StorageService = {
   payReceivable(params: {
     receivableId: string;
     amount: number;
-    paymentMethod: PaymentMethod;
+    paymentMethod: PaymentMethod | string;
     notes?: string;
     userName?: string;
+    splitPayments?: { paymentMethod: PaymentMethod | string; amount: number }[];
   }): { success: boolean; receivable: AccountReceivable } {
     const list = this.getReceivables();
     const rec = list.find((r) => r.id === params.receivableId);
@@ -1814,7 +1989,12 @@ export const StorageService = {
 
     const user = this.getCurrentUser();
     const userName = params.userName || user?.name || 'Operador';
-    const payAmount = Math.max(0, Math.min(Number(rec.amount) || Number(rec.remainingAmount) || 0, Number(params.amount) || 0));
+
+    const activeSplits = (params.splitPayments || []).filter((p) => Number(p.amount) > 0);
+    const payAmount =
+      activeSplits.length > 0
+        ? activeSplits.reduce((acc, p) => acc + Number(p.amount), 0)
+        : Math.max(0, Math.min(Number(rec.amount) || Number(rec.remainingAmount) || 0, Number(params.amount) || 0));
 
     if (payAmount <= 0) throw new Error('Informe um valor de pagamento válido.');
 
@@ -1831,27 +2011,54 @@ export const StorageService = {
       rec.paidAt = new Date().toISOString();
     }
 
-    const newPayment = {
-      id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      amount: payAmount,
-      paymentMethod: params.paymentMethod,
-      date: new Date().toISOString(),
-      userName,
-      notes: params.notes || 'Baixa de conta a prazo',
-    };
-
     if (!rec.payments) rec.payments = [];
-    rec.payments.unshift(newPayment);
 
-    // Record cash inflow
-    this.addCashMovement({
-      type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
-      description: `Baixa A Prazo: ${rec.referenceNumber} - ${rec.customerName}`,
-      amount: payAmount,
-      paymentMethod: params.paymentMethod,
-      referenceId: rec.id,
-      userName,
-    });
+    if (activeSplits.length > 0) {
+      for (const p of activeSplits) {
+        const amt = Number(p.amount);
+        const method = p.paymentMethod as PaymentMethod;
+        const newPayment = {
+          id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          amount: amt,
+          paymentMethod: method,
+          date: new Date().toISOString(),
+          userName,
+          notes: params.notes || 'Baixa de conta a prazo',
+        };
+        rec.payments.unshift(newPayment);
+
+        // Record cash inflow for each split
+        this.addCashMovement({
+          type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
+          description: `Baixa A Prazo (${method}): ${rec.referenceNumber} - ${rec.customerName}`,
+          amount: amt,
+          paymentMethod: method,
+          referenceId: rec.id,
+          userName,
+        });
+      }
+    } else {
+      const method = params.paymentMethod as PaymentMethod;
+      const newPayment = {
+        id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        amount: payAmount,
+        paymentMethod: method,
+        date: new Date().toISOString(),
+        userName,
+        notes: params.notes || 'Baixa de conta a prazo',
+      };
+      rec.payments.unshift(newPayment);
+
+      // Record cash inflow
+      this.addCashMovement({
+        type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
+        description: `Baixa A Prazo: ${rec.referenceNumber} - ${rec.customerName}`,
+        amount: payAmount,
+        paymentMethod: method,
+        referenceId: rec.id,
+        userName,
+      });
+    }
 
     // If originating from OS and now fully paid, update OS payment status
     if (rec.originType === 'ORDEM_SERVICO' && rec.referenceId) {
@@ -1860,7 +2067,7 @@ export const StorageService = {
       if (order) {
         order.paymentStatus = newRemaining <= 0 ? 'PAGO' : 'PARCIAL';
         if (newRemaining <= 0) {
-          order.paymentMethod = params.paymentMethod;
+          order.paymentMethod = (activeSplits.length > 0 ? activeSplits[0].paymentMethod : params.paymentMethod) as PaymentMethod;
         }
         setItem(STORAGE_KEYS.ORDERS, orders);
       }
@@ -1869,7 +2076,7 @@ export const StorageService = {
     setItem(STORAGE_KEYS.RECEIVABLES, list);
     this.logAction(
       `Baixa de R$ ${payAmount.toFixed(2)} em ${rec.referenceNumber} (${rec.customerName})`,
-      `Saldo restante: R$ ${newRemaining.toFixed(2)} (${params.paymentMethod})`
+      `Saldo restante: R$ ${newRemaining.toFixed(2)}`
     );
 
     return { success: true, receivable: rec };
@@ -1942,7 +2149,7 @@ export const StorageService = {
   getCompanySettings(): CompanySettings {
     const saved = getItem<CompanySettings | null>(STORAGE_KEYS.SETTINGS, null);
     if (!saved || saved.name === 'MSP INFORMATICA') {
-      setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings);
+      setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings, false);
       return initialCompanySettings;
     }
     const merged = { ...initialCompanySettings, ...saved };
@@ -1977,9 +2184,36 @@ export const StorageService = {
 
   // Subscription & Plan info (Painel Ativo)
   getSubscriptionPlan(): SubscriptionPlanInfo {
+    const session = this.getAuthSession();
+    const currentUser = getItem<Employee | null>(STORAGE_KEYS.CURRENT_USER, null);
+    const email = (session?.email || currentUser?.email || '').trim().toLowerCase();
+    const isSuperAdminEmail = 
+      email === 'mmspmartins62@gmail.com' || 
+      email === 'msp404011@gmail.com' ||
+      currentUser?.role === 'ADMINISTRADOR' && (email.includes('msp404011') || email.includes('mmspmartins62'));
+
+    if (isSuperAdminEmail) {
+      return {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem vencimento, sem data!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: email || 'msp404011@gmail.com',
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+    }
+
     const saved = getItem<SubscriptionPlanInfo | null>(STORAGE_KEYS.SUBSCRIPTION_PLAN, null);
     if (!saved) {
-      setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, initialSubscriptionPlan);
+      setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, initialSubscriptionPlan, false);
       return initialSubscriptionPlan;
     }
     return { ...initialSubscriptionPlan, ...saved };
@@ -2052,7 +2286,7 @@ export const StorageService = {
 
   // Auth Session
   getAuthSession(): AuthSession | null {
-    return getItem<AuthSession | null>(STORAGE_KEYS.AUTH_SESSION, null);
+    return activeAuthSession;
   },
 
   setAuthSession(session: AuthSession | null): void {
@@ -2060,12 +2294,22 @@ export const StorageService = {
       this.clearAuthSession();
       return;
     }
-    setItem(STORAGE_KEYS.AUTH_SESSION, session);
+    activeAuthSession = session;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+        localStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
+      }
+    } catch (_) {}
     notifyListeners();
   },
 
   clearAuthSession(): void {
-    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    activeAuthSession = null;
+    try {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      localStorage.removeItem('msp_auth_session_v1');
+    } catch (_) {}
     notifyListeners();
   },
 
@@ -2235,20 +2479,25 @@ export const StorageService = {
 
   getUserAccounts(): UserAccount[] {
     const list = getItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
-    const masterEmail = 'mmspmartins62@gmail.com';
-    const hasMaster = list.some((a) => a.email.toLowerCase() === masterEmail);
-    if (!hasMaster) {
-      const masterAcc: UserAccount = {
-        id: masterEmail,
-        shopName: 'Painel Master Gestor',
-        ownerName: 'Administrador Master',
-        email: masterEmail,
-        phone: '00000000000',
-        passwordHash: '16150705@Mm###',
-        createdAt: '2025-01-01T00:00:00.000Z',
-        lastLoginAt: new Date().toISOString(),
-      };
-      list.unshift(masterAcc);
+    const masterEmails = ['mmspmartins62@gmail.com', 'msp404011@gmail.com'];
+    let changed = false;
+    for (const masterEmail of masterEmails) {
+      if (!list.some((a) => a.email.toLowerCase() === masterEmail)) {
+        const masterAcc: UserAccount = {
+          id: masterEmail,
+          shopName: 'Painel Master Gestor',
+          ownerName: 'Administrador Master',
+          email: masterEmail,
+          phone: '00000000000',
+          passwordHash: '16150705@Mm###',
+          createdAt: '2025-01-01T00:00:00.000Z',
+          lastLoginAt: new Date().toISOString(),
+        };
+        list.unshift(masterAcc);
+        changed = true;
+      }
+    }
+    if (changed) {
       setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
     }
     return list;
@@ -2495,6 +2744,116 @@ export const StorageService = {
     isExpiredOrCanceled: boolean;
   } {
     const cleanEmail = params.email.trim().toLowerCase();
+    const isSuperAdminEmail = 
+      cleanEmail === 'mmspmartins62@gmail.com' || 
+      cleanEmail === 'msp404011@gmail.com' ||
+      cleanEmail.includes('mmspmartins62') ||
+      cleanEmail.includes('msp404011');
+
+    if (isSuperAdminEmail) {
+      const trimmed = params.password.trim();
+      const valid = 
+        trimmed === '16150705@Mm###' || 
+        trimmed === '16150705' || 
+        trimmed === 'admin123' ||
+        params.password === '16150705@Mm###' || 
+        params.password === '16150705' || 
+        params.password === 'admin123' ||
+        trimmed.toLowerCase() === '16150705@mm###' ||
+        trimmed.startsWith('16150705');
+      if (!valid) {
+        throw new Error('Senha incorreta para o Super Administrador.');
+      }
+
+      const superEmp: Employee = {
+        id: 'emp-super-admin',
+        name: 'Administrador Master',
+        email: cleanEmail,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=Super+Admin&background=f59e0b&color=000000`,
+        status: 'ATIVO',
+        active: true,
+        permissions: {
+          canAccessAdminSettings: true,
+          canViewFinancialReports: true,
+          canViewProductCost: true,
+          canManageEmployees: true,
+          canManageProducts: true,
+          canManageCustomers: true,
+          canManageOrders: true,
+          canOperatePos: true,
+          canOperateCash: true,
+          canManageExpenses: true,
+          canDeleteRecords: true,
+          canAdjustStock: true,
+        },
+        createdAt: new Date().toISOString(),
+      };
+
+      const superPlan: SubscriptionPlanInfo = {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem data e sem vencimento!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+
+      this.saveEmployee(superEmp);
+      this.setCurrentUser(superEmp);
+      this.saveSubscriptionPlanOnlyLocal(superPlan);
+
+      const session: AuthSession = {
+        isAuthenticated: true,
+        provider: 'email',
+        email: cleanEmail,
+        name: 'Administrador Master',
+        avatarUrl: superEmp.avatarUrl,
+        loggedAt: new Date().toISOString(),
+      };
+      this.setAuthSession(session);
+
+      // Auto-save/sync Super Admin account to Firestore
+      FirestoreSyncService.saveFullTenantProfile({
+        id: cleanEmail,
+        uid: cleanEmail,
+        email: cleanEmail,
+        nome: 'Administrador Master',
+        responsavel: 'Administrador Master',
+        empresa: 'Painel Master Gestor',
+        role: 'superadmin',
+        tipo: 'superadmin',
+        planoId: 'SUPER_ADMIN',
+        planoNome: 'Plano Super Admin Vitalício',
+        status: 'ativo',
+        active: true,
+        bloqueado: false,
+        blocked: false,
+        valorPlano: 0,
+        mensalidade: 0,
+        vencimento: '',
+        dataVencimento: '',
+        isTrial: false,
+      });
+
+      this.logAction('Login Super Admin efetuado com sucesso (Plano Exclusivo Vitalício)');
+
+      return {
+        user: superEmp,
+        plan: superPlan,
+        isFirstAccess: false,
+        isExpiredOrCanceled: false,
+      };
+    }
+
     const accounts = this.getUserAccounts();
     const account = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
 
@@ -2623,6 +2982,104 @@ export const StorageService = {
     const cleanEmail = params.email.trim().toLowerCase();
     const data = params.accountData || {};
     
+    const isSuperAdminEmail = 
+      cleanEmail === 'mmspmartins62@gmail.com' || 
+      cleanEmail === 'msp404011@gmail.com' ||
+      cleanEmail.includes('mmspmartins62') ||
+      cleanEmail.includes('msp404011') ||
+      data.role === 'superadmin' ||
+      data.role === 'super_admin' ||
+      data.tipo === 'superadmin' ||
+      data.tipo === 'master' ||
+      data.planoId === 'SUPER_ADMIN';
+
+    // Se for o Super Admin Master, autenticação instantânea com plano vitalício ilimitado
+    if (isSuperAdminEmail) {
+      const superEmp: Employee = {
+        id: params.uid || 'emp-super-admin',
+        email: cleanEmail,
+        name: data.nome || data.name || 'Administrador Master',
+        role: 'ADMINISTRADOR',
+        status: 'ATIVO',
+        permissions: {
+          canAccessAdminSettings: true,
+          canViewFinancialReports: true,
+          canViewProductCost: true,
+          canManageEmployees: true,
+          canManageProducts: true,
+          canManageCustomers: true,
+          canManageOrders: true,
+          canOperatePos: true,
+          canOperateCash: true,
+          canManageExpenses: true,
+          canDeleteRecords: true,
+          canAdjustStock: true,
+        },
+        createdAt: new Date().toISOString(),
+      };
+      this.saveEmployee(superEmp);
+      this.setCurrentUser(superEmp);
+
+      const superPlan: SubscriptionPlanInfo = {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem vencimento, sem data!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+      this.saveSubscriptionPlanOnlyLocal(superPlan);
+
+      const session: AuthSession = {
+        isAuthenticated: true,
+        provider: 'email',
+        uid: params.uid,
+        email: cleanEmail,
+        name: superEmp.name,
+        avatarUrl: `https://ui-avatars.com/api/?name=Super+Admin&background=f59e0b&color=000000`,
+        loggedAt: new Date().toISOString(),
+      };
+      this.setAuthSession(session);
+
+      // Auto-save/sync Super Admin account to Firestore
+      FirestoreSyncService.saveFullTenantProfile({
+        id: cleanEmail,
+        uid: params.uid || cleanEmail,
+        email: cleanEmail,
+        nome: 'Administrador Master',
+        responsavel: 'Administrador Master',
+        empresa: 'Painel Master Gestor',
+        role: 'superadmin',
+        tipo: 'superadmin',
+        planoId: 'SUPER_ADMIN',
+        planoNome: 'Plano Super Admin Vitalício',
+        status: 'ativo',
+        active: true,
+        bloqueado: false,
+        blocked: false,
+        valorPlano: 0,
+        mensalidade: 0,
+        vencimento: '',
+        dataVencimento: '',
+        isTrial: false,
+      });
+
+      return {
+        user: superEmp,
+        plan: superPlan,
+        isFirstAccess: false,
+        isExpiredOrCanceled: false,
+      };
+    }
+
     // Se não houver dados de conta no Firestore, o login é rejeitado
     if (!params.accountData) {
         throw new Error('Usuário não encontrado na base de dados autorizada.');
@@ -2631,13 +3088,42 @@ export const StorageService = {
     const ownerName = data.nome || data.name || data.responsavel || 'Administrador';
     const shopName = data.empresa || data.nomeEmpresa || data.nomeFantasia || ownerName;
 
+    // Atualiza o nome da assistência nas configurações da empresa se informado
+    try {
+      const currentCompany = this.getCompanySettings();
+      if (shopName && shopName !== 'Administrador') {
+        this.saveCompanySettings({
+          ...currentCompany,
+          commercialName: shopName,
+          name: shopName,
+          ownerName: ownerName !== 'Administrador' ? ownerName : currentCompany.ownerName,
+        });
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar configurações da empresa com dados do login:', e);
+    }
+
     // Cria o Employee apenas em memória para a sessão atual
     const employee: Employee = {
-        id: params.uid,
-        email: cleanEmail,
-        name: ownerName,
-        role: 'admin',
-        lastLoginAt: new Date().toISOString(),
+      id: params.uid,
+      email: cleanEmail,
+      name: ownerName,
+      role: 'ADMIN',
+      status: 'ATIVO',
+      permissions: {
+        canAccessAdminSettings: true,
+        canViewFinancialReports: true,
+        canViewProductCost: true,
+        canManageEmployees: true,
+        canManageProducts: true,
+        canManageCustomers: true,
+        canManageOrders: true,
+        canOperatePos: true,
+        canOperateCash: true,
+        canManageExpenses: true,
+        canDeleteRecords: true,
+      },
+      createdAt: new Date().toISOString(),
     };
     
     // Define o usuário na sessão atual (in-memory)
@@ -2857,15 +3343,80 @@ export const StorageService = {
     return this.updateProductStock(productId, delta, reason, type === 'IN' ? 'ENTRADA' : 'SAIDA');
   },
 
-  deliverAndPayOrder(orderId: string, paymentMethod: PaymentMethod, userName?: string, notes?: string): boolean {
+  deliverAndPayOrder(
+    orderId: string,
+    paymentMethod: PaymentMethod | string,
+    userName?: string,
+    notes?: string,
+    splitPayments?: { paymentMethod: PaymentMethod | string; amount: number }[]
+  ): boolean {
     const orders = this.getOrders();
     const order = orders.find((o) => o.id === orderId);
     if (!order) return false;
 
-    order.paymentMethod = paymentMethod;
-    order.paymentStatus = 'PAGO';
-    order.deliveredAt = new Date().toISOString();
-    return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido pelo cliente.');
+    const activeSplits = (splitPayments || []).filter((p) => Number(p.amount) > 0);
+
+    if (activeSplits.length > 1) {
+      order.payments = activeSplits.map((p) => ({
+        paymentMethod: p.paymentMethod as PaymentMethod,
+        amount: Number(p.amount),
+        date: new Date().toISOString(),
+      }));
+      order.paymentMethod = 'MULTIPLO' as any;
+      order.paymentStatus = 'PAGO';
+      order.deliveredAt = new Date().toISOString();
+
+      setItem(STORAGE_KEYS.ORDERS, orders);
+      FirestoreSyncService.saveOrder(order);
+
+      const totalNet = Number(order.totalPrice) || 1;
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      const proportion = grossValue / totalNet;
+
+      for (const p of activeSplits) {
+        this.addCashMovement({
+          type: 'SERVICO_OS',
+          description: `Recebimento OS #${order.orderNumber} (${p.paymentMethod}) - ${order.customerName}`,
+          amount: Number(p.amount) * proportion,
+          paymentMethod: p.paymentMethod as PaymentMethod,
+          referenceId: order.id,
+          userName,
+        });
+      }
+
+      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido com múltiplos pagamentos.');
+    } else {
+      const finalMethod = (activeSplits.length === 1 ? activeSplits[0].paymentMethod : paymentMethod) as PaymentMethod;
+      const finalAmount = activeSplits.length === 1 ? Number(activeSplits[0].amount) : (Number(order.totalPrice) || 0);
+      const totalNet = Number(order.totalPrice) || 1;
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      const proportion = grossValue / totalNet;
+
+      order.payments = [
+        {
+          paymentMethod: finalMethod,
+          amount: finalAmount,
+          date: new Date().toISOString(),
+        },
+      ];
+      order.paymentMethod = finalMethod;
+      order.paymentStatus = 'PAGO';
+      order.deliveredAt = new Date().toISOString();
+
+      setItem(STORAGE_KEYS.ORDERS, orders);
+      FirestoreSyncService.saveOrder(order);
+
+      this.addCashMovement({
+        type: 'SERVICO_OS',
+        description: `Recebimento OS #${order.orderNumber} - ${order.customerName}`,
+        amount: finalAmount * proportion,
+        paymentMethod: finalMethod,
+        referenceId: order.id,
+        userName,
+      });
+
+      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido pelo cliente.');
+    }
   },
 
   performCashMovement(type: 'SANGRIA' | 'SUPRIMENTO' | 'ENTRADA_AVULSA', amount: number, reason: string, userName?: string): CashMovement {
@@ -2997,6 +3548,11 @@ export const StorageService = {
 
   getCustomPaymentMethods(): CustomPaymentMethodItem[] {
     return getItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods);
+  },
+
+  getDeduplicatedPaymentOptions(): FormattedPaymentOption[] {
+    const methods = this.getCustomPaymentMethods();
+    return getDeduplicatedPaymentOptions(methods);
   },
 
   saveCustomPaymentMethods(methods: CustomPaymentMethodItem[]): void {

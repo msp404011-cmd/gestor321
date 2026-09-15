@@ -100,14 +100,20 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
       }
 
       // Status Filter
-      if (selectedStatus === 'EM_ESTOQUE' && (p.stockQuantity <= p.minStockQuantity || p.stockQuantity <= 0)) {
-        return false;
+      if (selectedStatus === 'EM_ESTOQUE') {
+        if (p.manageStock === false) return true;
+        if (p.stockQuantity <= p.minStockQuantity || p.stockQuantity <= 0) return false;
       }
-      if (selectedStatus === 'ESTOQUE_BAIXO' && (p.stockQuantity > p.minStockQuantity || p.stockQuantity <= 0)) {
-        return false;
+      if (selectedStatus === 'ESTOQUE_BAIXO') {
+        if (p.manageStock === false) return false;
+        if (p.stockQuantity > p.minStockQuantity || p.stockQuantity <= 0) return false;
       }
-      if (selectedStatus === 'ESGOTADO' && p.stockQuantity > 0) {
-        return false;
+      if (selectedStatus === 'ESGOTADO') {
+        if (p.manageStock === false) return false;
+        if (p.stockQuantity > 0) return false;
+      }
+      if (selectedStatus === 'SEM_CONTROLE') {
+        if (p.manageStock !== false) return false;
       }
 
       // Search Query
@@ -538,7 +544,8 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
               <option value="TODOS" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Todos</option>
               <option value="EM_ESTOQUE" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Em Estoque</option>
               <option value="ESTOQUE_BAIXO" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Estoque Baixo</option>
-              <option value="ESGOTADO" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Esgotado</option>
+              <option value="ESGOTADO" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Sem Estoque / Esgotado</option>
+              <option value="SEM_CONTROLE" className={isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'}>Sem Controle / Ilimitado</option>
             </select>
           </div>
 
@@ -685,24 +692,34 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
 
                       {/* Estoque Badge */}
                       <td className="py-3 px-2 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] sm:text-[11px] font-black rounded-md border whitespace-nowrap ${
-                            isOutOfStock
-                              ? 'bg-rose-500/15 border-rose-500/40 text-rose-500'
-                              : isLowStock
-                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-500'
-                              : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600'
-                          }`}
-                        >
-                          {p.stockQuantity.toLocaleString('pt-BR')} un
-                        </span>
+                        {p.manageStock === false ? (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] sm:text-[11px] font-black rounded-md border whitespace-nowrap bg-blue-500/15 border-blue-500/40 text-cyan-400">
+                            Ilimitado
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] sm:text-[11px] font-black rounded-md border whitespace-nowrap ${
+                              isOutOfStock
+                                ? 'bg-rose-500/15 border-rose-500/40 text-rose-500'
+                                : isLowStock
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-500'
+                                : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600'
+                            }`}
+                          >
+                            {p.stockQuantity.toLocaleString('pt-BR')} un
+                          </span>
+                        )}
                       </td>
 
                       {/* Status Badge */}
                       <td className="py-3 px-2 text-center whitespace-nowrap">
-                        {isOutOfStock ? (
+                        {p.manageStock === false ? (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap bg-blue-500/15 border border-blue-500/30 text-cyan-400">
+                            Sem Controle
+                          </span>
+                        ) : isOutOfStock ? (
                           <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap bg-rose-500/15 border border-rose-500/30 text-rose-500">
-                            Esgotado
+                            Sem Estoque
                           </span>
                         ) : isLowStock ? (
                           <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap bg-amber-500/15 border border-amber-500/30 text-amber-500">

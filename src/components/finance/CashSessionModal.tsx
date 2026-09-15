@@ -212,7 +212,7 @@ export const CashSessionModal: React.FC<CashSessionModalProps> = ({
               <div>
                 <span className="text-[11px] font-medium text-slate-400 block">Operador</span>
                 <span className="text-sm font-black text-white block mt-0.5">
-                  {currentUser?.name || 'Marcos Silva Pinto'}
+                  {currentUser?.name || 'Operador de Caixa'}
                 </span>
                 <span className="text-[11px] text-slate-400 block">
                   {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Operador de Caixa'}

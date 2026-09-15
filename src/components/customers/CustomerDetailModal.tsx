@@ -181,11 +181,22 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         <div className={`p-4 rounded-xl border grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs ${
           isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}>
-          <div className={`sm:col-span-2 flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+          <div className={`flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
             <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-medium text-slate-400">WhatsApp / Celular:</span>
-            <span className="font-semibold">{customer.whatsapp || customer.phone || 'Não informado'}</span>
+            <span className="font-medium text-slate-400">WhatsApp Principal:</span>
+            <span className="font-bold text-emerald-400 font-mono">{customer.whatsapp || customer.phone || 'Não informado'}</span>
           </div>
+
+          {(customer.whatsappAlt || customer.alternativePhone) && (
+            <div className={`flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+              <Phone className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="font-medium text-slate-400">WhatsApp Alternativo:</span>
+              <span className="font-semibold text-cyan-300 font-mono">
+                {customer.whatsappAlt || customer.alternativePhone}
+                {customer.alternativeContactName ? ` (${customer.alternativeContactName})` : ''}
+              </span>
+            </div>
+          )}
 
           <div className={`flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
             <FileText className="w-4 h-4 text-cyan-400 shrink-0" />

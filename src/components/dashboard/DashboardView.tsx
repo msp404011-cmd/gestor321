@@ -30,6 +30,9 @@ import {
   X,
   CreditCard,
   Zap,
+  Video,
+  Tv,
+  Truck,
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -38,6 +41,8 @@ import { SubscriptionService } from '../../services/subscriptionService';
 import { formatCurrency } from '../../services/formatters';
 import { ServiceOrder, SubscriptionPlanInfo } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { AppAccessManagement } from '../master/AppAccessManagement';
+import { CameraPackageManagement } from '../master/CameraPackageManagement';
 
 interface DashboardRecentOrder {
   id: string;
@@ -83,7 +88,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [savePlanFeedback, setSavePlanFeedback] = useState(false);
 
   const planContainerRef = useRef<HTMLDivElement>(null);
-  const [planInfo, setPlanInfo] = useState<SubscriptionPlanInfo>(StorageService.getSubscriptionPlan());
+  const [planInfo, setPlanInfo] = useState<SubscriptionPlanInfo>(() => StorageService.getSubscriptionPlan());
 
   useEffect(() => {
     const user = StorageService.getCurrentUser();
@@ -138,9 +143,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [isPlanMenuOpen]);
 
   // Expiration calculation & days remaining
+  const authSession = StorageService.getAuthSession();
+  const currentUser = StorageService.getCurrentUser();
+  const isSuperAdmin = useMemo(() => {
+    return Boolean(
+      SubscriptionService.isSuperAdminUser(currentUser?.email || authSession?.email) ||
+      (authSession?.email && ['mmspmartins62@gmail.com', 'msp404011@gmail.com'].includes(authSession.email.toLowerCase().trim())) ||
+      (currentUser?.email && ['mmspmartins62@gmail.com', 'msp404011@gmail.com'].includes(currentUser.email.toLowerCase().trim())) ||
+      planInfo?.planType === 'SUPER_ADMIN'
+    );
+  }, [planInfo?.planType, currentUser?.email, authSession?.email, tick]);
+
   const expiryDetails = useMemo(() => {
-    if (!planInfo.expiryDate) {
-      return { daysRemaining: null, formattedDate: 'Não definida', isExpired: false, isExpiringSoon: false };
+    if (isSuperAdmin || !planInfo.expiryDate) {
+      return { daysRemaining: null, formattedDate: 'Sem Vencimento (Vitalício)', isExpired: false, isExpiringSoon: false };
     }
     const [year, month, day] = planInfo.expiryDate.split('-').map(Number);
     const expiry = new Date(year, (month || 1) - 1, day || 1);
@@ -162,7 +178,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       isExpired: daysRemaining < 0,
       isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 7,
     };
-  }, [planInfo.expiryDate]);
+  }, [planInfo.expiryDate, isSuperAdmin]);
 
   const handleSavePlan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +218,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const customers = useMemo(() => StorageService.getCustomers() || [], [tick]);
   const cashSession = useMemo(() => StorageService.getCashSession(), [tick]);
   const settings = useMemo(() => StorageService.getSettings(), [tick]);
+  const companySettings = useMemo(() => StorageService.getCompanySettings(), [tick]);
+  const userAccount = useMemo(() => {
+    const authSession = StorageService.getAuthSession();
+    if (authSession?.email) {
+      const accounts = StorageService.getUserAccounts();
+      return accounts.find((a) => a.email.toLowerCase() === authSession.email.toLowerCase());
+    }
+    return null;
+  }, [tick]);
+  const assistanceName =
+    userAccount?.shopName ||
+    companySettings?.commercialName ||
+    companySettings?.name ||
+    companySettings?.tradeName ||
+    planInfo?.clientName ||
+    settings?.commercialName ||
+    settings?.name ||
+    'Assistência Técnica';
 
   // Dynamic calculations from real system data
   const isCashOpen = cashSession?.status === 'ABERTO';
@@ -795,11 +829,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <h1 className="text-lg sm:text-xl font-extrabold tracking-tight whitespace-nowrap">
-                  Olá, Marcos!
+                  {assistanceName}
                 </h1>
                 <span className="hidden sm:inline text-slate-500">•</span>
                 <span className="font-serif italic text-xs sm:text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-pink-400 to-amber-300 whitespace-nowrap">
-                  Consertar • Conectar • Evoluir!
+                  {companySettings?.slogan || settings?.slogan || 'Consertar • Conectar • Evoluir!'}
                 </span>
               </div>
               <p className={`text-xs mt-0.5 truncate whitespace-nowrap ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -833,23 +867,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 id="btn-painel-ativo-menu"
                 onClick={() => setIsPlanMenuOpen((prev) => !prev)}
                 className={`border-2 text-[11px] font-bold px-3 py-1.5 rounded-xl backdrop-blur-sm transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shadow-md ${
-                  isPlanMenuOpen
+                  isSuperAdmin
+                    ? isDark
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                      : 'bg-amber-50 hover:bg-amber-100 border-amber-400 text-amber-900 shadow-sm'
+                    : isPlanMenuOpen
                     ? 'bg-blue-600 text-white border-blue-300 ring-2 ring-blue-400/50 shadow-[0_0_20px_rgba(59,130,246,0.6)] scale-[1.02]'
                     : isDark
                     ? 'bg-blue-600/30 hover:bg-blue-600/50 border-blue-400 text-blue-100 hover:text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]'
                     : 'bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-800 shadow-sm'
                 }`}
-                title="Clique para abrir detalhes do Plano, Valor e Vencimento da Assinatura"
+                title={isSuperAdmin ? 'Conta Super Admin Vitalícia - Acesso Ilimitado sem vencimento' : 'Clique para abrir detalhes do Plano, Valor e Vencimento da Assinatura'}
               >
                 <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSuperAdmin ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${isSuperAdmin ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
                 </span>
-                <Crown className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>PAINEL ATIVO</span>
+                <Crown className={`w-3.5 h-3.5 shrink-0 ${isSuperAdmin ? 'text-amber-400' : 'text-amber-300'}`} />
+                <span>{isSuperAdmin ? '👑 SUPER ADMIN • ILIMITADO' : 'PAINEL ATIVO'}</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isPlanMenuOpen ? 'rotate-180 text-white' : 'text-blue-300'
+                    isPlanMenuOpen ? 'rotate-180 text-white' : isSuperAdmin ? 'text-amber-400' : 'text-blue-300'
                   }`}
                 />
               </button>
@@ -868,18 +906,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* Cabeçalho do Menu */}
                     <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center font-bold shadow-md shrink-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shadow-md shrink-0 ${
+                          isSuperAdmin
+                            ? 'bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950'
+                            : 'bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950'
+                        }`}>
                           <Crown className="w-5 h-5" />
                         </div>
                         <div>
                           <h4 className="text-sm font-black tracking-tight flex items-center gap-2">
-                            Assinatura & Plano do Cliente
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                              ATIVO
+                            {isSuperAdmin ? 'Conta Super Administrador' : 'Assinatura & Plano do Cliente'}
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              isSuperAdmin
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            }`}>
+                              {isSuperAdmin ? 'VITALÍCIO ILIMITADO' : 'ATIVO'}
                             </span>
                           </h4>
                           <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            {settings.commercialName || 'TechNova Assistência'} • Gestão de Licença
+                            {isSuperAdmin ? 'Acesso Master Irrestrito • Sem Vencimento' : `${settings.commercialName || 'TechNova Assistência'} • Gestão de Licença`}
                           </p>
                         </div>
                       </div>
@@ -913,25 +959,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         {/* 1. QUAL PLANO O CLIENTE ESTÁ USANDO */}
                         <div
                           className={`p-3.5 rounded-xl border ${
-                            isDark
+                            isSuperAdmin
+                              ? isDark
+                                ? 'bg-gradient-to-br from-amber-950/40 to-slate-900/90 border-amber-500/40'
+                                : 'bg-amber-50/80 border-amber-200'
+                              : isDark
                               ? 'bg-gradient-to-br from-blue-950/60 to-slate-900/90 border-blue-500/40'
                               : 'bg-blue-50/80 border-blue-200'
                           }`}
                         >
                           <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider mb-1.5">
-                            <span className={isDark ? 'text-blue-300' : 'text-blue-700'}>Plano em Uso pelo Cliente</span>
-                            <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-extrabold">
-                              {planInfo.billingPeriod}
+                            <span className={isSuperAdmin ? (isDark ? 'text-amber-300' : 'text-amber-700') : (isDark ? 'text-blue-300' : 'text-blue-700')}>
+                              {isSuperAdmin ? 'Plano Exclusivo Super Admin' : 'Plano em Uso pelo Cliente'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                              isSuperAdmin
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                            }`}>
+                              {isSuperAdmin ? 'VITALÍCIO' : planInfo.billingPeriod}
                             </span>
                           </div>
                           <div className="flex items-center gap-2.5">
-                            <ShieldCheck className="w-6 h-6 text-blue-400 shrink-0" />
+                            <ShieldCheck className={`w-6 h-6 shrink-0 ${isSuperAdmin ? 'text-amber-400' : 'text-blue-400'}`} />
                             <div>
                               <span className="text-base sm:text-lg font-black tracking-tight block">
-                                {planInfo.planName}
+                                {isSuperAdmin ? 'Plano Super Admin Vitalício' : planInfo.planName}
                               </span>
                               <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                                Contrato: {planInfo.contractNumber || 'MSP-7842-PRO'}
+                                {isSuperAdmin ? 'Conta Master: mmspmartins62@gmail.com' : `Contrato: ${planInfo.contractNumber || 'MSP-7842-PRO'}`}
                               </span>
                             </div>
                           </div>
@@ -953,18 +1009,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </div>
                             <div className="mt-1.5 flex items-baseline gap-1">
                               <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
-                                {formatCurrency(planInfo.planPrice)}
+                                {isSuperAdmin ? 'R$ 0,00' : formatCurrency(planInfo.planPrice)}
                               </span>
                             </div>
                             <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Cobrança {planInfo.billingPeriod.toLowerCase()}
+                              {isSuperAdmin ? 'Sem custo • Vitalício exclusivo' : `Cobrança ${planInfo.billingPeriod.toLowerCase()}`}
                             </span>
                           </div>
 
                           {/* Vencimento do Plano */}
                           <div
                             className={`p-3.5 rounded-xl border ${
-                              expiryDetails.isExpired
+                              isSuperAdmin
+                                ? isDark ? 'bg-amber-950/20 border-amber-500/30' : 'bg-amber-50/50 border-amber-200'
+                                : expiryDetails.isExpired
                                 ? 'bg-rose-950/40 border-rose-500/50'
                                 : expiryDetails.isExpiringSoon
                                 ? 'bg-amber-950/40 border-amber-500/50'
@@ -974,20 +1032,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             }`}
                           >
                             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
-                              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Até onde vence o plano</span>
+                              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                                {isSuperAdmin ? 'Vencimento' : 'Até onde vence o plano'}
+                              </span>
                               <Clock className="w-4 h-4 text-cyan-400" />
                             </div>
                             <div className="mt-1.5 text-sm sm:text-base font-black">
-                              {planInfo.expiryDate
+                              {isSuperAdmin ? 'Sem Vencimento' : (planInfo.expiryDate
                                 ? new Date(planInfo.expiryDate + 'T00:00:00').toLocaleDateString('pt-BR', {
                                     day: '2-digit',
                                     month: 'long',
                                     year: 'numeric',
                                   })
-                                : 'Indeterminado'}
+                                : 'Indeterminado')}
                             </div>
                             <div className="mt-1">
-                              {expiryDetails.daysRemaining !== null && (
+                              {isSuperAdmin ? (
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full inline-block bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                                  Acesso Permanente Ilimitado
+                                </span>
+                              ) : expiryDetails.daysRemaining !== null && (
                                 <span
                                   className={`text-[11px] font-bold px-2 py-0.5 rounded-full inline-block ${
                                     expiryDetails.isExpired
@@ -1013,25 +1077,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           }`}
                         >
                           <div className="font-bold text-[10px] uppercase text-slate-400 tracking-wider mb-1">
-                            Módulos & Recursos Inclusos nesta Licença:
+                            {isSuperAdmin ? 'Privilégios Exclusivos Super Admin:' : 'Módulos & Recursos Inclusos nesta Licença:'}
                           </div>
                           <div className="flex items-center gap-2 text-xs">
                             <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span>Ordens de Serviço & Gestão de Técnicos ilimitadas</span>
+                            <span><strong>100% de Todas as Funções Liberadas</strong> com acesso total irrestrito</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
                             <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span>PDV Frente de Caixa, Vendas Rápidas & Emissão de Recibos</span>
+                            <span>Ordens de Serviço, Técnicos, PDV & Vendas ilimitados</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
                             <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span>Controle de Estoque, Peças & Auditoria em tempo real</span>
+                            <span>Controle de Estoque, Clientes, Financeiro & Relatórios sem restrições</span>
                           </div>
                         </div>
 
                         {/* Botões do Rodapé */}
                         <div className="pt-2 space-y-2 border-t border-slate-200 dark:border-slate-800">
-                          {onOpenPlans && (
+                          {!isSuperAdmin && onOpenPlans && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1045,25 +1109,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </button>
                           )}
                           <div className="flex items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingPlan(true)}
-                              className={`flex-1 py-2 px-3 rounded-xl border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                isDark
-                                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
-                                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                              }`}
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-blue-400" />
-                              <span>Editar Plano</span>
-                            </button>
+                            {!isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingPlan(true)}
+                                className={`flex-1 py-2 px-3 rounded-xl border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                  isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
+                                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                                }`}
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Editar Plano</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
                                 setIsPlanMenuOpen(false);
                                 setIsEditingPlan(false);
                               }}
-                              className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-all cursor-pointer"
+                              className={`${isSuperAdmin ? 'w-full' : ''} py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-all cursor-pointer`}
                             >
                               Fechar
                             </button>
@@ -1177,6 +1243,112 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </section>
+
+      {/* SUPER ADMIN EXCLUSIVE SECTORS BAR */}
+      {isSuperAdmin && (
+        <section className={`rounded-2xl p-4 border-2 transition-all shadow-lg ${
+          isDark
+            ? 'bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-cyan-950/40 border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.15)]'
+            : 'bg-gradient-to-r from-purple-50 via-slate-50 to-cyan-50 border-cyan-300 shadow-sm'
+        }`}>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                <Crown className="w-4 h-4 text-amber-400" />
+              </span>
+              <div>
+                <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Setores Exclusivos do Super Administrador
+                </h3>
+                <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Acesso rápido aos módulos administrativos e gestão master central
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]">
+              SUPER ADMIN • VITALÍCIO
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {/* Fornecedor / Pedidos Fornecedor */}
+            <button
+              type="button"
+              onClick={() => onNavigate('SUPPLIER_ORDERS')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+                isDark
+                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-950 shadow-xs'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-600/30 text-emerald-400 border border-emerald-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(16,185,129,0.3)]">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold block truncate">Pedidos Fornecedor</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Envio & Devoluções</span>
+              </div>
+            </button>
+
+            {/* Pedidos Exclusivos */}
+            <button
+              type="button"
+              onClick={() => onNavigate('EXCLUSIVE_ORDERS')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+                isDark
+                  ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                  : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-950 shadow-xs'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-amber-600/30 text-amber-400 border border-amber-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(245,158,11,0.3)]">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold block truncate">Pedidos Exclusivos</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Central Especial</span>
+              </div>
+            </button>
+
+            {/* Controle de Acessos */}
+            <button
+              type="button"
+              onClick={() => onNavigate('ACCESSES')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+                isDark
+                  ? 'bg-purple-950/40 hover:bg-purple-900/50 border-purple-500/40 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.15)]'
+                  : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-950 shadow-xs'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-purple-600/30 text-purple-400 border border-purple-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(147,51,234,0.3)]">
+                <Tv className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold block truncate">Controle de Acessos</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>Telas & Senhas</span>
+              </div>
+            </button>
+
+            {/* Pacote de Câmeras */}
+            <button
+              type="button"
+              onClick={() => onNavigate('CAMERAS')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+                isDark
+                  ? 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-500/40 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                  : 'bg-cyan-50 hover:bg-cyan-100 border-cyan-200 text-cyan-950 shadow-xs'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-cyan-600/30 text-cyan-400 border border-cyan-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                <Video className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold block truncate">Pacote de Câmeras</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Segurança & CFTV</span>
+              </div>
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -2054,6 +2226,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Access Control Management Section for Super Admin */}
+      {isSuperAdmin && (
+        <>
+          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
+            isDark
+              ? 'bg-[#0c1626]/90 border-slate-800 text-white'
+              : 'bg-white border-slate-200 text-slate-900 shadow-sm'
+          }`}>
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/20">
+              <Tv className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-base font-bold tracking-wide">
+                Controle de Acessos & Ativações (Área do Super Admin)
+              </h2>
+            </div>
+            <AppAccessManagement />
+          </section>
+
+          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
+            isDark
+              ? 'bg-[#0c1626]/90 border-slate-800 text-white'
+              : 'bg-white border-slate-200 text-slate-900 shadow-sm'
+          }`}>
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/20">
+              <Video className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-base font-bold tracking-wide">
+                Gerenciamento do Pacote de Câmeras (Área do Super Admin)
+              </h2>
+            </div>
+            <CameraPackageManagement />
+          </section>
+        </>
+      )}
 
       {/* 6. FOOTER BAR */}
       <footer className={`pt-2 border-t flex flex-col sm:flex-row items-center justify-between text-xs gap-2 ${

@@ -137,7 +137,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       status,
       paymentMethod,
       paidFromCash: paymentMethod === 'DINHEIRO',
-      responsibleName: currentUser?.name || 'Marcos Silva Pinto',
+      responsibleName: currentUser?.name || 'Administrador',
       notes: fullNotes,
       createdAt: expenseToEdit ? expenseToEdit.createdAt : new Date().toISOString(),
       expenseScope,

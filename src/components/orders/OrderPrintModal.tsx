@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Printer, X, Wrench, FileText, CheckCircle2 } from 'lucide-react';
 import { ServiceOrder } from '../../types';
 import { StorageService } from '../../services/storage';
-import { formatCurrency, formatDate } from '../../services/formatters';
+import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../services/formatters';
 import { PatternLock } from './PatternLock';
 import { ThermalOrderReceipt } from './ThermalOrderReceipt';
 
@@ -25,73 +25,103 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   const [printType, setPrintType] = useState<'entrance' | 'internal' | 'receipt'>(mode);
   const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => (company.osDefaultPaperFormat as PaperFormat) || '80mm');
 
+  if (!isOpen || !order) return null;
+
+  // Recuperar dados mais recentes do cliente
+  const customer = order.customerId
+    ? StorageService.getCustomers().find((c) => c.id === order.customerId) || null
+    : null;
+
+  const customerName = customer?.name || order.customerName || '';
+  const customerPhone = customer?.whatsapp || customer?.phone || order.customerWhatsapp || order.customerPhone || '';
+  const customerAltPhone = customer?.whatsappAlt || customer?.alternativePhone;
+  const customerAltContact = customer?.alternativeContactName;
+  const customerDocument = customer?.document || order.customerDocument || '';
+  const customerAddress = customer?.address
+    ? [
+        customer.address,
+        customer.neighborhood,
+        customer.city && customer.state
+          ? `${customer.city}/${customer.state}`
+          : customer.city || customer.state || '',
+        customer.zipCode ? `CEP: ${customer.zipCode}` : '',
+      ]
+        .filter(Boolean)
+        .join(' - ')
+    : '';
+
   // Encontrar o contas a receber vinculado a esta ordem se houver
-  const receivable = order ? StorageService.getReceivables().find(
+  const receivable = StorageService.getReceivables().find(
     (r) => r.referenceId === order.id || r.referenceNumber === `OS #${order.orderNumber}`
-  ) : null;
+  );
 
   let totalPaid = 0;
-  let remainingAmount = order ? order.totalPrice : 0;
+  let remainingAmount = Number(order.totalPrice) || 0;
   const paymentsList: Array<{ method: string; amount: number; date?: string; label: string }> = [];
 
-  const getPaymentMethodLabelLocal = (method: string) => {
-    const map: Record<string, string> = {
-      'PIX': 'PIX',
-      'MONEY': 'Dinheiro',
-      'CREDIT_CARD': 'Cartão de Crédito',
-      'DEBIT_CARD': 'Cartão de Débito',
-      'BANK_TRANSFER': 'Transferência Bancária',
-      'OTHER': 'Outros',
-      'A_PRAZO': 'A Prazo / Fiado',
-    };
-    return map[method] || method;
-  };
+  if (receivable) {
+    totalPaid = Number(receivable.paidAmount) || 0;
+    remainingAmount = receivable.remainingAmount ?? Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
 
-  if (order) {
-    if (receivable) {
-      totalPaid = receivable.paidAmount || 0;
-      remainingAmount = receivable.remainingAmount ?? (order.totalPrice - totalPaid);
+    if (receivable.downPayment && receivable.downPayment > 0) {
+      paymentsList.push({
+        method: receivable.downPaymentMethod || 'PIX',
+        amount: Number(receivable.downPayment),
+        date: order.createdAt,
+        label: 'Entrada / Sinal',
+      });
+    }
 
-      if (receivable.downPayment && receivable.downPayment > 0) {
-        paymentsList.push({
-          method: receivable.downPaymentMethod || 'PIX',
-          amount: receivable.downPayment,
-          date: order.createdAt,
-          label: 'Entrada / Sinal',
-        });
-      }
-
-      if (receivable.payments && receivable.payments.length > 0) {
-        receivable.payments.forEach((p, idx) => {
-          const isDownPaymentDuplicated = idx === 0 && receivable.downPayment && Math.abs(p.amount - receivable.downPayment) < 0.01;
-          if (!isDownPaymentDuplicated) {
-            paymentsList.push({
-              method: p.paymentMethod || 'PIX',
-              amount: p.amount,
-              date: p.date,
-              label: `Pagamento Parcial #${idx + (receivable.downPayment ? 0 : 1)}`,
-            });
-          }
-        });
-      }
-    } else {
-      if (order.paymentStatus === 'PAGO') {
-        totalPaid = order.totalPrice;
-        remainingAmount = 0;
-        paymentsList.push({
-          method: order.paymentMethod || 'PIX',
-          amount: order.totalPrice,
-          date: order.deliveredAt || order.updatedAt || order.createdAt,
-          label: 'Valor Integral',
-        });
-      } else {
-        totalPaid = 0;
-        remainingAmount = order.totalPrice;
-      }
+    if (receivable.payments && receivable.payments.length > 0) {
+      receivable.payments.forEach((p, idx) => {
+        const isDownPaymentDuplicated =
+          idx === 0 && receivable.downPayment && Math.abs(Number(p.amount) - Number(receivable.downPayment)) < 0.01;
+        if (!isDownPaymentDuplicated) {
+          paymentsList.push({
+            method: p.paymentMethod || 'PIX',
+            amount: Number(p.amount),
+            date: p.date,
+            label: `Pagamento Parcial #${idx + (receivable.downPayment ? 1 : 1)}`,
+          });
+        }
+      });
     }
   }
 
-  if (!isOpen || !order) return null;
+  if (paymentsList.length === 0 && order.payments && order.payments.length > 0) {
+    const sumOrderPayments = order.payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    totalPaid = sumOrderPayments;
+    remainingAmount = Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
+    order.payments.forEach((p, idx) => {
+      if (Number(p.amount) > 0) {
+        paymentsList.push({
+          method: p.paymentMethod || order.paymentMethod || 'PIX',
+          amount: Number(p.amount),
+          date: p.date || order.deliveredAt || order.updatedAt || order.createdAt,
+          label: order.payments!.length > 1 ? `Forma de Pagto #${idx + 1}` : 'Valor Integral',
+        });
+      }
+    });
+  }
+
+  if (paymentsList.length === 0 && order.paymentStatus === 'PAGO') {
+    totalPaid = Number(order.totalPrice) || 0;
+    remainingAmount = 0;
+    paymentsList.push({
+      method: order.paymentMethod || 'PIX',
+      amount: totalPaid,
+      date: order.deliveredAt || order.updatedAt || order.createdAt,
+      label: 'Valor Integral',
+    });
+  }
+
+  if (paymentsList.length > 0) {
+    const calculatedPaidSum = paymentsList.reduce((acc, p) => acc + p.amount, 0);
+    if (calculatedPaidSum > totalPaid) {
+      totalPaid = calculatedPaidSum;
+      remainingAmount = Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
+    }
+  }
 
   const handlePrint = () => {
     window.print();
@@ -314,10 +344,18 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                     <h3 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-1">
                       Dados do Cliente
                     </h3>
-                    <p className="font-bold text-slate-900 text-sm">{order.customerName}</p>
-                    <p className="text-slate-600">WhatsApp: {order.customerPhone}</p>
-                    {order.customerDocument && (
-                      <p className="text-slate-600">CPF/CNPJ: {order.customerDocument}</p>
+                    <p className="font-bold text-slate-900 text-sm">{customerName}</p>
+                    {customerPhone && <p className="text-slate-600">WhatsApp: {customerPhone}</p>}
+                    {customerAltPhone && (
+                      <p className="text-slate-600">
+                        WhatsApp Recado: {customerAltPhone} {customerAltContact ? `(${customerAltContact})` : ''}
+                      </p>
+                    )}
+                    {customerDocument && (
+                      <p className="text-slate-600">CPF/CNPJ: {customerDocument}</p>
+                    )}
+                    {customerAddress && (
+                      <p className="text-slate-600 text-[11px] leading-tight mt-0.5">Endereço: {customerAddress}</p>
                     )}
                   </div>
 
@@ -450,8 +488,8 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                           <div key={idx} className="flex justify-between items-center text-slate-700">
                             <div>
                               <span className="font-semibold">{p.label}</span>
-                              <span className="text-[9px] text-slate-500 ml-1.5 font-bold uppercase">
-                                ({getPaymentMethodLabelLocal(p.method)})
+                              <span className="text-[9px] text-slate-600 ml-1.5 font-bold uppercase">
+                                ({getPaymentMethodLabel(p.method)})
                               </span>
                             </div>
                             <span className="font-bold text-emerald-700">{formatCurrency(p.amount)}</span>

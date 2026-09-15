@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-react';
-import { db } from './lib/firebase';
+import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
 import { GlobalSearchModal } from './components/common/GlobalSearchModal';
@@ -37,6 +38,10 @@ import { SubscriptionService, normalizePlanType } from './services/subscriptionS
 import { LoginView } from './components/auth/LoginView';
 import { MasterAuthModal } from './components/master/MasterAuthModal';
 import { MasterPanel } from './components/master/MasterPanel';
+import { AppAccessManagement } from './components/master/AppAccessManagement';
+import { CameraPackageManagement } from './components/master/CameraPackageManagement';
+import { SupplierOrdersManagement } from './components/master/SupplierOrdersManagement';
+import { ExclusiveOrdersManagement } from './components/master/ExclusiveOrdersManagement';
 import { AdminBackendService } from './services/adminBackendService';
 
 // Models & Services
@@ -118,7 +123,7 @@ export default function App() {
   });
   
   // Master Panel State
-  const MASTER_ADMIN_EMAIL = 'mmspmartins62@gmail.com';
+  const MASTER_ADMIN_EMAILS = ['mmspmartins62@gmail.com', 'msp404011@gmail.com'];
   const [showMasterAuth, setShowMasterAuth] = useState(false);
   const [showMasterPanel, setShowMasterPanel] = useState(() => {
     try {
@@ -144,14 +149,55 @@ export default function App() {
   }, []);
 
   const isMasterAdmin = Boolean(
-    (authSession?.email && authSession.email.trim().toLowerCase() === MASTER_ADMIN_EMAIL) ||
-    (currentUser?.email && currentUser.email.trim().toLowerCase() === MASTER_ADMIN_EMAIL)
+    (authSession?.email && MASTER_ADMIN_EMAILS.includes(authSession.email.trim().toLowerCase())) ||
+    (currentUser?.email && MASTER_ADMIN_EMAILS.includes(currentUser.email.trim().toLowerCase())) ||
+    SubscriptionService.isSuperAdminUser(authSession?.email || currentUser?.email)
   );
 
   const handleLogoClick = () => {
     if (!isMasterAdmin) return;
     setShowMasterAuth(true);
   };
+
+  // Automatically restore and maintain Firebase Auth session across all machines/browsers
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser && fbUser.email) {
+        const cleanEmail = fbUser.email.toLowerCase().trim();
+        let accountData: any = null;
+        if (db) {
+          try {
+            const docRefUid = doc(db, 'accounts', fbUser.uid);
+            const snapUid = await getDoc(docRefUid);
+            if (snapUid.exists()) {
+              accountData = snapUid.data();
+            } else {
+              const docRefEmail = doc(db, 'accounts', cleanEmail);
+              const snapEmail = await getDoc(docRefEmail);
+              if (snapEmail.exists()) {
+                accountData = snapEmail.data();
+              }
+            }
+          } catch (err) {
+            console.warn('Error fetching Firestore account on auth state change:', err);
+          }
+        }
+
+        StorageService.loginFromFirebaseAuth({
+          uid: fbUser.uid,
+          email: cleanEmail,
+          accountData,
+        });
+
+        setAuthSession(StorageService.getAuthSession());
+        setCurrentUser(StorageService.getCurrentUser());
+        setTick((prev) => prev + 1);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Subscribe to storage changes
   useEffect(() => {
@@ -583,6 +629,22 @@ export default function App() {
               onOpenNewProduct={() => handleOpenNewProduct()}
               onOpenPlans={() => setIsSubscriptionModalOpen(true)}
             />
+          )}
+
+          {activeTab === 'ACCESSES' && (
+            <AppAccessManagement />
+          )}
+
+          {activeTab === 'CAMERAS' && (
+            <CameraPackageManagement />
+          )}
+
+          {activeTab === 'SUPPLIER_ORDERS' && (
+            <SupplierOrdersManagement />
+          )}
+
+          {activeTab === 'EXCLUSIVE_ORDERS' && (
+            <ExclusiveOrdersManagement />
           )}
 
           {activeTab === 'CUSTOMERS' && (

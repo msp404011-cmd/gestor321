@@ -23,7 +23,10 @@ import {
   Mail,
   Filter,
   ArrowUpDown,
-  AlertCircle
+  AlertCircle,
+  Video,
+  Smartphone,
+  Tv
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { realTimeSyncEngine } from '../../services/RealTimeSyncService';
@@ -31,6 +34,7 @@ import { MasterClientModal } from './MasterClientModal';
 import { ChangePlanModal } from './ChangePlanModal';
 import { CreateUserModal } from './CreateUserModal';
 import { DeleteUserModal } from './DeleteUserModal';
+import { AppAccessManagement } from './AppAccessManagement';
 import { normalizeAccountData, CanonicalAccount } from '../../services/accountSchema';
 import { AdminBackendService } from '../../services/adminBackendService';
 
@@ -59,6 +63,7 @@ interface MasterPanelProps {
 
 export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
   const [data, setData] = useState<CanonicalAccount[]>([]);
+  const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'cameras'>('users');
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<CanonicalAccount | null>(null);
   const [changePlanClient, setChangePlanClient] = useState<CanonicalAccount | null>(null);
@@ -481,8 +486,38 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
         />
       </div>
 
-      {/* Seção 📅 Vencimentos Próximos (Visão Rápida) */}
-      {upcomingExpirations.length > 0 && (
+      {/* Tab Switcher - Master Panel Selection */}
+      <div className="flex border-b border-slate-800/80 mb-6 gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveMasterTab('users')}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeMasterTab === 'users'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Clientes do Gestor ({metrics.total})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMasterTab('cameras')}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeMasterTab === 'cameras'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Tv className="w-4 h-4 text-cyan-400" />
+          <span>Controle de Acessos</span>
+        </button>
+      </div>
+
+      {activeMasterTab === 'users' ? (
+        <>
+          {/* Seção 📅 Vencimentos Próximos (Visão Rápida) */}
+          {upcomingExpirations.length > 0 && (
         <div className="mb-6 bg-slate-900/90 border border-amber-900/50 rounded-2xl p-4 sm:p-5 shadow-xl">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
@@ -840,6 +875,10 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
           </table>
         </div>
       </div>
+        </>
+      ) : (
+        <AppAccessManagement />
+      )}
       
       {/* Modal Dedicado de Criação de Usuário (Firebase Auth + Firestore UID) */}
       {isCreateUserOpen && (

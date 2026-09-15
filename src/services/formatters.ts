@@ -197,19 +197,43 @@ export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
 }
 
 export function getPaymentMethodLabel(method: PaymentMethod | string): string {
+  if (!method) return 'Não informado';
+
   const map: Record<string, string> = {
     DINHEIRO: 'Dinheiro',
+    MONEY: 'Dinheiro',
     PIX: 'PIX',
     CARTAO_DEBITO: 'Cartão de Débito',
+    DEBIT_CARD: 'Cartão de Débito',
     CARTAO_CREDITO: 'Cartão de Crédito',
-    TRANSFERENCIA: 'Transferência Bancária',
+    CREDIT_CARD: 'Cartão de Crédito',
+    TRANSFERENCIA: 'Transferência Bancária / TED',
+    BANK_TRANSFER: 'Transferência Bancária',
     FIADO: 'A Prazo / Fiado',
-    A_PRAZO: 'A Prazo',
-    'A PRAZO': 'A Prazo',
+    A_PRAZO: 'A Prazo / Fiado',
+    'A PRAZO': 'A Prazo / Fiado',
+    CREDIT: 'A Prazo / Fiado',
     MULTIPLO: 'Múltiplos Meios',
-    BOLETO: 'Crediário / Boleto',
+    BOLETO: 'Boleto Bancário',
+    LINK_PAGTO: 'Link de Pagamento',
+    NAO_INFORMADO: 'A Combinar',
+    OTHER: 'Outros',
   };
-  return map[method] || method;
+
+  if (map[method]) return map[method];
+
+  try {
+    const raw = localStorage.getItem('technova_custom_payment_methods');
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        const found = list.find((item: any) => item.code === method || item.id === method || item.name === method);
+        if (found?.name) return found.name;
+      }
+    }
+  } catch {}
+
+  return method;
 }
 
 export function generateReceivableWhatsAppMessage(params: {

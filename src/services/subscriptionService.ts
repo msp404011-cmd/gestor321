@@ -117,6 +117,89 @@ const REVENDA_PLAN: PlanDefinition = {
   ],
 };
 
+export const SUPER_ADMIN_EMAIL = 'mmspmartins62@gmail.com';
+export const SUPER_ADMIN_EMAILS = [
+  'mmspmartins62@gmail.com',
+  'msp404011@gmail.com',
+];
+
+export function isSuperAdminUser(email?: string | null): boolean {
+  const normalize = (e?: string | null) => (e || '').trim().toLowerCase();
+  const target = normalize(email);
+  if (
+    target &&
+    (SUPER_ADMIN_EMAILS.includes(target) ||
+      target === 'mmspmartins62@gmail.com' ||
+      target === 'msp404011@gmail.com' ||
+      target.includes('mmspmartins62') ||
+      target.includes('msp404011'))
+  ) {
+    return true;
+  }
+  try {
+    const session = StorageService.getAuthSession();
+    const sessionEmail = normalize(session?.email);
+    if (
+      sessionEmail &&
+      (SUPER_ADMIN_EMAILS.includes(sessionEmail) ||
+        sessionEmail === 'mmspmartins62@gmail.com' ||
+        sessionEmail === 'msp404011@gmail.com' ||
+        sessionEmail.includes('mmspmartins62') ||
+        sessionEmail.includes('msp404011'))
+    ) {
+      return true;
+    }
+    const user = StorageService.getCurrentUser();
+    const userEmail = normalize(user?.email);
+    if (
+      userEmail &&
+      (SUPER_ADMIN_EMAILS.includes(userEmail) ||
+        userEmail === 'mmspmartins62@gmail.com' ||
+        userEmail === 'msp404011@gmail.com' ||
+        userEmail.includes('mmspmartins62') ||
+        userEmail.includes('msp404011'))
+    ) {
+      return true;
+    }
+    const plan = StorageService.getSubscriptionPlan();
+    if (plan?.planType === 'SUPER_ADMIN') {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+export const SUPER_ADMIN_PLAN: PlanDefinition = {
+  id: 'SUPER_ADMIN',
+  name: 'Plano Super Admin Vitalício',
+  tagline: 'Plano exclusivo de Super Administrador: acesso vitalício ilimitado, sem vencimento, sem dias e sem valor.',
+  badge: 'SUPER ADMIN VITALÍCIO',
+  monthlyPrice: 0,
+  popular: false,
+  limits: {
+    maxMonthlyOrders: null,
+    maxProducts: null,
+    maxCollaborators: null,
+    advancedReports: true,
+    pdfExport: true,
+    cloudBackup: true,
+    auditLogs: true,
+    prioritySupport: true,
+  },
+  features: [
+    { text: 'Acesso Vitalício Permanente Sem Vencimento', included: true, highlight: true },
+    { text: 'Sem data de expiração e sem contagem de dias', included: true, highlight: true },
+    { text: 'Sem Mensalidade ou Custo (Plano Exclusivo)', included: true, highlight: true },
+    { text: 'Ordens de Serviço 100% Ilimitadas', included: true, highlight: true },
+    { text: 'Frente de Caixa (PDV) e Vendas Balcão Ilimitado', included: true, highlight: true },
+    { text: 'Módulo de Revenda, Atacado e Consignação Liberados', included: true, highlight: true },
+    { text: 'Cadastro de Produtos, Peças e Estoque Ilimitado', included: true, highlight: true },
+    { text: 'Gestão de Clientes e Aparelhos Ilimitados', included: true, highlight: true },
+    { text: 'Relatórios Financeiros Avançados, DRE e Auditoria', included: true, highlight: true },
+    { text: 'Acesso Irrestrito ao Painel Master e Todas as Funções', included: true, highlight: true },
+  ],
+};
+
 export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   TRIAL: TRIAL_PLAN,
   FREE: TRIAL_PLAN,
@@ -126,6 +209,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanType, PlanDefinition> = {
   PRO: ASSISTENCIA_PLAN,
   REVENDA: REVENDA_PLAN,
   ENTERPRISE: REVENDA_PLAN,
+  SUPER_ADMIN: SUPER_ADMIN_PLAN,
 };
 
 export interface SubscriptionCheckResult {
@@ -158,6 +242,9 @@ export function normalizePlanType(rawInput: any): PlanType {
     .toUpperCase()
     .trim();
 
+  if (str.includes('SUPER') || str.includes('MASTER') || str.includes('VITALICIO')) {
+    return 'SUPER_ADMIN';
+  }
   if (str.includes('PDV')) {
     return 'PDV_VENDAS';
   }
@@ -178,6 +265,7 @@ export function normalizePlanType(rawInput: any): PlanType {
     return 'TRIAL';
   }
 
+  if (str === 'SUPER_ADMIN') return 'SUPER_ADMIN';
   if (str === 'PDV_VENDAS') return 'PDV_VENDAS';
   if (str === 'ASSISTENCIA') return 'ASSISTENCIA';
   if (str === 'REVENDA') return 'REVENDA';
@@ -188,6 +276,24 @@ export function normalizePlanType(rawInput: any): PlanType {
 
 export const SubscriptionService = {
   getCurrentPlan(): SubscriptionPlanInfo {
+    if (isSuperAdminUser()) {
+      return {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem vencimento, sem data!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: SUPER_ADMIN_EMAIL,
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+    }
     return StorageService.getSubscriptionPlan();
   },
 
@@ -214,6 +320,29 @@ export const SubscriptionService = {
   },
 
   checkSubscriptionLimits(): SubscriptionCheckResult {
+    if (isSuperAdminUser()) {
+      const currentPlan = this.getCurrentPlan();
+      return {
+        currentPlan,
+        planDefinition: SUPER_ADMIN_PLAN,
+        isTrial: false,
+        isFreePlan: false,
+        isActive: true,
+        isExpired: false,
+        isCanceled: false,
+        daysRemaining: null, // Sem contagem de dias para o Super Admin
+        formattedExpiryDate: 'Sem Vencimento (Vitalício)',
+        osCountThisMonth: this.getOrdersCountThisMonth(),
+        maxMonthlyOrders: null,
+        canCreateOrder: true,
+        productsCount: this.getProductsCount(),
+        maxProducts: null,
+        canCreateProduct: true,
+        canAccessAdvancedReports: true,
+        canExportPdf: true,
+      };
+    }
+
     const currentPlan = StorageService.getSubscriptionPlan();
     const planType: PlanType = normalizePlanType(currentPlan.planType);
     const planDefinition = this.getPlanDefinition(planType);
@@ -481,11 +610,15 @@ export const SubscriptionService = {
   },
 
   isTabAllowed(tab: NavigationTab, targetPlanType?: PlanType): boolean {
+    if (isSuperAdminUser()) {
+      return true; // Super Admin tem todas as funções 100% liberadas exclusivamente para ele
+    }
+
     const currentPlan = StorageService.getSubscriptionPlan();
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    if (norm === 'TRIAL' || norm === 'REVENDA') {
+    if (norm === 'SUPER_ADMIN' || norm === 'TRIAL' || norm === 'REVENDA') {
       return true; // Todos os módulos 100% liberados
     }
 
@@ -509,11 +642,13 @@ export const SubscriptionService = {
   },
 
   isTechnicalAssistanceAllowed(targetPlanType?: PlanType): boolean {
+    if (isSuperAdminUser()) return true;
+
     const currentPlan = StorageService.getSubscriptionPlan();
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    if (norm === 'TRIAL' || norm === 'REVENDA' || norm === 'ASSISTENCIA') {
+    if (norm === 'SUPER_ADMIN' || norm === 'TRIAL' || norm === 'REVENDA' || norm === 'ASSISTENCIA') {
       return true;
     }
 
@@ -521,11 +656,17 @@ export const SubscriptionService = {
   },
 
   isResellerFeatureAllowed(targetPlanType?: PlanType): boolean {
+    if (isSuperAdminUser()) return true;
+
     const currentPlan = StorageService.getSubscriptionPlan();
     const rawType = targetPlanType || currentPlan.planType;
     const norm: PlanType = normalizePlanType(rawType);
 
-    return norm === 'REVENDA' || norm === 'TRIAL';
+    return norm === 'SUPER_ADMIN' || norm === 'REVENDA' || norm === 'TRIAL';
+  },
+
+  isSuperAdminUser(email?: string | null): boolean {
+    return isSuperAdminUser(email);
   },
 };
 

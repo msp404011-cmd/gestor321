@@ -10,6 +10,7 @@ import {
   UserCheck,
   Crown,
   ShieldCheck,
+  Store,
 } from 'lucide-react';
 import { Employee, CashSession } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -48,6 +49,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const currentUser = propCurrentUser || StorageService.getCurrentUser();
   const currentPlan = StorageService.getSubscriptionPlan();
   const { isDark, toggleTheme } = useTheme();
+
+  const company = StorageService.getCompanySettings();
+  const authSession = StorageService.getAuthSession();
+  const userAccounts = StorageService.getUserAccounts();
+  const userAccount = authSession?.email
+    ? userAccounts.find((a) => a.email.toLowerCase() === authSession.email.toLowerCase())
+    : null;
+  const assistanceName =
+    userAccount?.shopName ||
+    company?.commercialName ||
+    company?.name ||
+    company?.tradeName ||
+    'Assistência Técnica';
 
   const orders = StorageService.getOrders();
   const products = StorageService.getProducts();
@@ -204,7 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div className={`h-6 w-[1px] hidden sm:block ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
 
-        {/* User Profile */}
+        {/* User Profile / Assistance Header */}
         <div className="flex items-center gap-2 pl-1">
           <div className="relative">
             <img
@@ -212,17 +226,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 currentUser?.avatarUrl ||
                 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
               }
-              alt={currentUser?.name || 'Operador'}
+              alt={assistanceName}
               className="w-9 h-9 rounded-full object-cover ring-2 ring-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]"
             />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#070b14] rounded-full" />
           </div>
           <div className="hidden md:block text-left">
-            <p className={`text-xs font-bold leading-none tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {currentUser?.name || 'Operador'}
+            <p className={`text-xs font-bold leading-none tracking-tight truncate max-w-[170px] ${isDark ? 'text-white' : 'text-slate-900'}`} title={assistanceName}>
+              {assistanceName}
             </p>
-            <p className={`text-[10px] font-semibold mt-0.5 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
-              {currentUser?.role || 'Acesso Básico'}
+            <p className={`text-[10px] font-semibold mt-0.5 truncate max-w-[170px] ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+              {currentUser?.name || 'Operador'} • {currentUser?.role || 'Acesso'}
             </p>
           </div>
 

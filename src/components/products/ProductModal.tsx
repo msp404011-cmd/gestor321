@@ -22,6 +22,9 @@ import {
   Check,
   Search,
   ChevronDown,
+  CheckCircle2,
+  XCircle,
+  Infinity as InfinityIcon,
 } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../services/formatters';
@@ -33,6 +36,7 @@ interface ProductModalProps {
   onClose: () => void;
   onSave: (product: Product) => void;
   productToEdit?: Product | null;
+  initialName?: string;
 }
 
 export const ProductModal: React.FC<ProductModalProps> = ({
@@ -40,6 +44,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onClose,
   onSave,
   productToEdit,
+  initialName,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const categoryContainerRef = useRef<HTMLDivElement | null>(null);
@@ -65,8 +70,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [costPrice, setCostPrice] = useState<number | ''>(0);
   const [sellingPrice, setSellingPrice] = useState<number | ''>(0);
   const [resellerPrice, setResellerPrice] = useState<number | ''>(0);
-  const [stockQuantity, setStockQuantity] = useState<number | ''>(0);
-  const [minStockQuantity, setMinStockQuantity] = useState<number | ''>(0);
+  const [manageStock, setManageStock] = useState<boolean>(true);
+  const [hasStockInStore, setHasStockInStore] = useState<boolean>(true);
+  const [stockQuantity, setStockQuantity] = useState<number | ''>(1);
+  const [minStockQuantity, setMinStockQuantity] = useState<number | ''>(1);
   const [location, setLocation] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [keepOpen, setKeepOpen] = useState(false);
@@ -118,12 +125,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCostPrice(productToEdit.costPrice ?? 0);
       setSellingPrice(productToEdit.sellingPrice ?? 0);
       setResellerPrice(productToEdit.resellerPrice ?? productToEdit.sellingPrice ?? 0);
-      setStockQuantity(productToEdit.stockQuantity ?? 0);
+      
+      const isStockManaged = productToEdit.manageStock !== false;
+      setManageStock(isStockManaged);
+      const currentQty = productToEdit.stockQuantity ?? 0;
+      setStockQuantity(currentQty);
       setMinStockQuantity(productToEdit.minStockQuantity ?? 0);
+      setHasStockInStore(
+        productToEdit.hasStock !== undefined
+          ? productToEdit.hasStock
+          : isStockManaged ? currentQty > 0 : true
+      );
+      
       setLocation(productToEdit.location || '');
       setPhotoUrl(productToEdit.photoUrl || '');
     } else {
-      setName('');
+      setName(initialName || '');
       setSku('SKU-' + Math.floor(1000 + Math.random() * 9000));
       setBarcode('');
       setCategory('Acessórios');
@@ -134,13 +151,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCostPrice(0);
       setSellingPrice(0);
       setResellerPrice(0);
-      setStockQuantity(0);
-      setMinStockQuantity(0);
+      setManageStock(true);
+      setHasStockInStore(true);
+      setStockQuantity(1);
+      setMinStockQuantity(1);
       setLocation('');
       setPhotoUrl('');
     }
     setError('');
-  }, [productToEdit, isOpen]);
+  }, [productToEdit, isOpen, initialName]);
 
   if (!isOpen) return null;
 
@@ -189,6 +208,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       return;
     }
 
+    const parsedStock = typeof stockQuantity === 'number' ? stockQuantity : parseInt(stockQuantity) || 0;
+    const finalStockQty = manageStock ? (hasStockInStore ? Math.max(0, parsedStock) : 0) : 0;
+    const finalHasStock = manageStock ? (hasStockInStore && finalStockQty > 0) : true;
+    const finalMinStock = manageStock ? (typeof minStockQuantity === 'number' ? minStockQuantity : parseInt(minStockQuantity) || 0) : 0;
+
     const product: Product = {
       id: productToEdit ? productToEdit.id : 'prod-' + Date.now(),
       name: name.trim(),
@@ -200,8 +224,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       costPrice: numCost,
       sellingPrice: numSelling,
       resellerPrice: numReseller,
-      stockQuantity: typeof stockQuantity === 'number' ? stockQuantity : parseInt(stockQuantity) || 0,
-      minStockQuantity: typeof minStockQuantity === 'number' ? minStockQuantity : parseInt(minStockQuantity) || 0,
+      manageStock,
+      hasStock: finalHasStock,
+      stockStatus: !manageStock ? 'UNLIMITED' : finalStockQty <= 0 ? 'OUT_OF_STOCK' : finalStockQty <= finalMinStock ? 'LOW_STOCK' : 'IN_STOCK',
+      stockQuantity: finalStockQty,
+      minStockQuantity: finalMinStock,
       location: location.trim() || undefined,
       photoUrl: photoUrl.trim() || undefined,
       isActive: true,
@@ -492,25 +519,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* Row 2: SKU, Código de Barras, Modelo, Localização */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5">
-              {/* SKU */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Código SKU</label>
-                <div className="relative">
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
-                    <Barcode className="w-3.5 h-3.5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    placeholder="Ex.: SKU-2659"
-                    className="w-full pl-8 pr-2.5 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white font-mono placeholder-slate-500 focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-
+            {/* Row 2: Código de Barras e Localização no Estoque */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {/* Barcode */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-300 mb-1">Código de Barras (EAN)</label>
@@ -524,23 +534,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     onChange={(e) => setBarcode(e.target.value)}
                     placeholder="Ex.: 7891234567890"
                     className="w-full pl-8 pr-2.5 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white font-mono placeholder-slate-500 focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Modelo */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Modelo / Aplicação</label>
-                <div className="relative">
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
-                    <Smartphone className="w-3.5 h-3.5" />
-                  </div>
-                  <input
-                    type="text"
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="Ex.: iPhone 11, A24, Universal"
-                    className="w-full pl-8 pr-2.5 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -688,49 +681,162 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             {/* Estoque e Localização (7 cols) */}
             <div className="md:col-span-7 bg-[#081326] border border-[#132847] rounded-xl p-3.5 space-y-2.5 shadow-md">
-              <div className="flex items-center gap-2 border-b border-blue-900/40 pb-2">
-                <div className="p-1.5 bg-[#0d2242] border border-cyan-500/30 rounded-lg text-cyan-400">
-                  <Box className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-white leading-tight">Estoque e Quantidades</h3>
-                  <p className="text-[10px] text-slate-400">Controle o nível do estoque no sistema</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Estoque Atual (unidades)</label>
-                  <div className="relative">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
-                      <Box className="w-3.5 h-3.5" />
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={stockQuantity}
-                      onChange={(e) => setStockQuantity(e.target.value === '' ? '' : parseInt(e.target.value))}
-                      className="w-full pl-8 pr-2 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white font-mono font-bold focus:outline-none transition-all"
-                    />
+              <div className="flex items-center justify-between border-b border-blue-900/40 pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-[#0d2242] border border-cyan-500/30 rounded-lg text-cyan-400">
+                    <Box className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-white leading-tight">Estoque e Disponibilidade</h3>
+                    <p className="text-[10px] text-slate-400">Defina se este item controla estoque e seu saldo</p>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Estoque Mínimo (Alerta)</label>
-                  <div className="relative">
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
-                      <Bell className="w-3.5 h-3.5" />
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={minStockQuantity}
-                      onChange={(e) => setMinStockQuantity(e.target.value === '' ? '' : parseInt(e.target.value))}
-                      className="w-full pl-8 pr-2 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white font-mono font-bold focus:outline-none transition-all"
-                    />
-                  </div>
+                {/* Switch Controla Estoque */}
+                <div className="inline-flex p-0.5 bg-[#030814] border border-[#1b2f4f] rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManageStock(true);
+                      if (stockQuantity === '' || Number(stockQuantity) <= 0) {
+                        setStockQuantity(1);
+                      }
+                      setHasStockInStore(true);
+                    }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      manageStock
+                        ? 'bg-cyan-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Box className="w-3 h-3" />
+                    <span>Controlar Estoque</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManageStock(false);
+                      setHasStockInStore(true);
+                    }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                      !manageStock
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <InfinityIcon className="w-3 h-3" />
+                    <span>Sem Controle / Ilimitado</span>
+                  </button>
                 </div>
               </div>
+
+              {manageStock ? (
+                <div className="space-y-2.5">
+                  {/* Option: Tem Estoque no Momento? Sim / Não */}
+                  <div className="flex items-center justify-between bg-[#040d1e] p-2 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-slate-300">Tem estoque no momento?</span>
+                      <span className="text-[9px] text-slate-500">(Disponibilidade imediata)</span>
+                    </div>
+
+                    <div className="inline-flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasStockInStore(true);
+                          if (stockQuantity === 0 || stockQuantity === '') {
+                            setStockQuantity(1);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-black flex items-center gap-1 cursor-pointer transition-all border ${
+                          hasStockInStore && (stockQuantity === '' || Number(stockQuantity) > 0)
+                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-xs'
+                            : 'bg-[#030814] border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span>SIM, TEM ESTOQUE</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasStockInStore(false);
+                          setStockQuantity(0);
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-black flex items-center gap-1 cursor-pointer transition-all border ${
+                          !hasStockInStore || Number(stockQuantity) === 0
+                            ? 'bg-rose-500/20 border-rose-500/50 text-rose-400 shadow-xs'
+                            : 'bg-[#030814] border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <XCircle className="w-3 h-3 text-rose-400" />
+                        <span>NÃO, SEM ESTOQUE</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">Estoque Atual (unidades)</label>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
+                          <Box className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={stockQuantity}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : parseInt(e.target.value);
+                            setStockQuantity(val);
+                            if (typeof val === 'number' && val > 0) {
+                              setHasStockInStore(true);
+                            } else if (val === 0) {
+                              setHasStockInStore(false);
+                            }
+                          }}
+                          className={`w-full pl-8 pr-2 py-1.5 bg-[#030814] border rounded-lg text-xs font-mono font-bold focus:outline-none transition-all ${
+                            Number(stockQuantity) === 0
+                              ? 'border-rose-500/50 text-rose-400 focus:border-rose-400'
+                              : 'border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 text-white'
+                          }`}
+                        />
+                      </div>
+                      {Number(stockQuantity) === 0 && (
+                        <p className="text-[9px] text-rose-400 mt-0.5 font-semibold">Item ficará marcado como Esgotado / Sem Estoque</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">Estoque Mínimo (Alerta)</label>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none">
+                          <Bell className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={minStockQuantity}
+                          onChange={(e) => setMinStockQuantity(e.target.value === '' ? '' : parseInt(e.target.value))}
+                          className="w-full pl-8 pr-2 py-1.5 bg-[#030814] border border-[#1b2f4f] hover:border-cyan-500/60 focus:border-cyan-400 rounded-lg text-xs text-white font-mono font-bold focus:outline-none transition-all"
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-0.5">Aviso quando atingir este saldo</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-blue-950/30 border border-blue-800/40 rounded-lg text-center space-y-1 my-1">
+                  <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 text-cyan-400 mb-1">
+                    <InfinityIcon className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs font-bold text-cyan-300">Produto / Item Sem Limite de Estoque</p>
+                  <p className="text-[10px] text-slate-400 max-w-sm mx-auto">
+                    Este produto não terá decremento automático nem bloqueio de saldo. Ficará sempre disponível para venda e Ordem de Serviço.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Imagem do Produto (5 cols) */}

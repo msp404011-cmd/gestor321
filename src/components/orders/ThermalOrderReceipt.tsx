@@ -1,7 +1,7 @@
 import React from 'react';
 import { ServiceOrder, CompanySettings } from '../../types';
 import { StorageService } from '../../services/storage';
-import { formatCurrency, formatDate } from '../../services/formatters';
+import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../services/formatters';
 
 interface ThermalOrderReceiptProps {
   order: ServiceOrder;
@@ -16,6 +16,8 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
   paperFormat = '80mm',
   subtitle,
 }) => {
+  if (!order) return null;
+
   // Look up customer full details if available
   const customer = order.customerId
     ? StorageService.getCustomers().find((c) => c.id === order.customerId) || null
@@ -29,63 +31,73 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
   );
 
   let totalPaid = 0;
-  let remainingAmount = order.totalPrice;
+  let remainingAmount = Number(order.totalPrice) || 0;
   const paymentsList: Array<{ method: string; amount: number; date?: string; label: string }> = [];
 
-  const getPaymentMethodLabelLocal = (method: string) => {
-    const map: Record<string, string> = {
-      'PIX': 'PIX',
-      'MONEY': 'Dinheiro',
-      'CREDIT_CARD': 'Cartão de Crédito',
-      'DEBIT_CARD': 'Cartão de Débito',
-      'BANK_TRANSFER': 'Transferência Bancária',
-      'OTHER': 'Outros',
-      'A_PRAZO': 'A Prazo / Fiado',
-    };
-    return map[method] || method;
-  };
-
   if (receivable) {
-    totalPaid = receivable.paidAmount || 0;
-    remainingAmount = receivable.remainingAmount ?? (order.totalPrice - totalPaid);
+    totalPaid = Number(receivable.paidAmount) || 0;
+    remainingAmount = receivable.remainingAmount ?? Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
 
-    // Adiciona o sinal/entrada se houver
     if (receivable.downPayment && receivable.downPayment > 0) {
       paymentsList.push({
         method: receivable.downPaymentMethod || 'PIX',
-        amount: receivable.downPayment,
+        amount: Number(receivable.downPayment),
         date: order.createdAt,
         label: 'Entrada / Sinal',
       });
     }
 
-    // Adiciona os outros pagamentos parciais
     if (receivable.payments && receivable.payments.length > 0) {
       receivable.payments.forEach((p, idx) => {
-        const isDownPaymentDuplicated = idx === 0 && receivable.downPayment && Math.abs(p.amount - receivable.downPayment) < 0.01;
+        const isDownPaymentDuplicated =
+          idx === 0 && receivable.downPayment && Math.abs(Number(p.amount) - Number(receivable.downPayment)) < 0.01;
         if (!isDownPaymentDuplicated) {
           paymentsList.push({
             method: p.paymentMethod || 'PIX',
-            amount: p.amount,
+            amount: Number(p.amount),
             date: p.date,
-            label: `Pagamento Parcial #${idx + (receivable.downPayment ? 0 : 1)}`,
+            label: `Pagamento Parcial #${idx + (receivable.downPayment ? 1 : 1)}`,
           });
         }
       });
     }
-  } else {
-    if (order.paymentStatus === 'PAGO') {
-      totalPaid = order.totalPrice;
-      remainingAmount = 0;
-      paymentsList.push({
-        method: order.paymentMethod || 'PIX',
-        amount: order.totalPrice,
-        date: order.deliveredAt || order.updatedAt || order.createdAt,
-        label: 'Valor Integral',
-      });
-    } else {
-      totalPaid = 0;
-      remainingAmount = order.totalPrice;
+  }
+
+  // Se não houver pagamentos no contas a receber, verificar order.payments (múltiplas formas de pagamento no ato da entrega)
+  if (paymentsList.length === 0 && order.payments && order.payments.length > 0) {
+    const sumOrderPayments = order.payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    totalPaid = sumOrderPayments;
+    remainingAmount = Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
+    order.payments.forEach((p, idx) => {
+      if (Number(p.amount) > 0) {
+        paymentsList.push({
+          method: p.paymentMethod || order.paymentMethod || 'PIX',
+          amount: Number(p.amount),
+          date: p.date || order.deliveredAt || order.updatedAt || order.createdAt,
+          label: order.payments!.length > 1 ? `Forma de Pagto #${idx + 1}` : 'Valor Integral',
+        });
+      }
+    });
+  }
+
+  // Se ainda estiver vazio e a OS estiver como PAGO, gerar registro do pagamento integral
+  if (paymentsList.length === 0 && order.paymentStatus === 'PAGO') {
+    totalPaid = Number(order.totalPrice) || 0;
+    remainingAmount = 0;
+    paymentsList.push({
+      method: order.paymentMethod || 'PIX',
+      amount: totalPaid,
+      date: order.deliveredAt || order.updatedAt || order.createdAt,
+      label: 'Valor Integral',
+    });
+  }
+
+  // Garantir que totalPaid bata com a soma dos pagamentos se paymentsList contiver itens
+  if (paymentsList.length > 0) {
+    const calculatedPaidSum = paymentsList.reduce((acc, p) => acc + p.amount, 0);
+    if (calculatedPaidSum > totalPaid) {
+      totalPaid = calculatedPaidSum;
+      remainingAmount = Math.max(0, (Number(order.totalPrice) || 0) - totalPaid);
     }
   }
 
@@ -185,38 +197,48 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       <div className="text-left text-[9.5px] leading-tight space-y-0.5 my-2 pt-1 border-t border-slate-300">
         <div className="flex">
           <span className="w-16 shrink-0 font-medium">Cliente:</span>
-          <span className="font-black uppercase truncate">{order.customerName}</span>
+          <span className="font-black uppercase truncate">{customer?.name || order.customerName}</span>
         </div>
         <div className="flex">
           <span className="w-16 shrink-0 font-medium">WhatsApp:</span>
-          <span>{order.customerPhone || customer?.phone || ''}</span>
+          <span>{customer?.whatsapp || customer?.phone || order.customerWhatsapp || order.customerPhone || ''}</span>
         </div>
-        {company.osShowCustomerAddress !== false && (
+        {(customer?.whatsappAlt || customer?.alternativePhone) && (
+          <div className="flex">
+            <span className="w-16 shrink-0 font-medium">Recado:</span>
+            <span>
+              {customer.whatsappAlt || customer.alternativePhone}
+              {customer.alternativeContactName ? ` (${customer.alternativeContactName})` : ''}
+            </span>
+          </div>
+        )}
+        {(customer?.document || order.customerDocument) && (
+          <div className="flex">
+            <span className="w-16 shrink-0 font-medium">CPF/CNPJ:</span>
+            <span>{customer?.document || order.customerDocument}</span>
+          </div>
+        )}
+        {company.osShowCustomerAddress !== false && customer?.address && (
           <>
             <div className="flex">
-              <span className="w-16 shrink-0 font-medium">Endereco:</span>
-              <span className="truncate">{customer?.address || ''}</span>
+              <span className="w-16 shrink-0 font-medium">Endereço:</span>
+              <span className="truncate">{customer.address}</span>
             </div>
-            <div className="flex">
-              <span className="w-16 shrink-0 font-medium">CPF/CNPJ:</span>
-              <span>{order.customerDocument || customer?.document || ''}</span>
-            </div>
-            <div className="flex">
-              <span className="w-16 shrink-0 font-medium">Bairro:</span>
-              <span>{company.neighborhood || ''}</span>
-            </div>
-            <div className="flex">
-              <span className="w-16 shrink-0 font-medium">Compl.:</span>
-              <span></span>
-            </div>
-            <div className="flex">
-              <span className="w-16 shrink-0 font-medium">Cidade:</span>
-              <span>
-                {customer?.city
-                  ? `${customer.city}${customer.state ? `/${customer.state}` : ''}`
-                  : `${company.city || 'IPAPORANGA'}/${company.state || 'CE'}`}
-              </span>
-            </div>
+            {customer.neighborhood && (
+              <div className="flex">
+                <span className="w-16 shrink-0 font-medium">Bairro:</span>
+                <span>{customer.neighborhood}</span>
+              </div>
+            )}
+            {(customer.city || customer.state) && (
+              <div className="flex">
+                <span className="w-16 shrink-0 font-medium">Cidade/UF:</span>
+                <span>
+                  {customer.city || ''}
+                  {customer.state ? `/${customer.state}` : ''}
+                </span>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -410,7 +432,9 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
             <div key={idx} className="flex justify-between items-start pb-1 last:pb-0">
               <div>
                 <span className="font-bold block">{p.label}:</span>
-                <span className="text-[8px] text-slate-500 uppercase">{getPaymentMethodLabelLocal(p.method)}</span>
+                <span className="text-[8px] text-slate-700 font-bold uppercase">
+                  {getPaymentMethodLabel(p.method)}{p.date ? ` (${formatDate(p.date)})` : ''}
+                </span>
               </div>
               <div className="text-right font-black">
                 {formatCurrency(p.amount)}

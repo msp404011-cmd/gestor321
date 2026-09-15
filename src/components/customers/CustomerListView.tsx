@@ -557,7 +557,6 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                 <th className="py-3 px-2 w-8 text-center text-slate-400">#</th>
                 <th className="py-3 px-3.5">CLIENTE</th>
                 <th className="py-3 px-3.5">DOCUMENTO</th>
-                <th className="py-3 px-3.5">PLANO & VALOR</th>
                 <th className="py-3 px-3.5">CONTATOS</th>
                 <th className="py-3 px-3.5">CIDADE</th>
                 <th className="py-3 px-3.5">ÚLTIMO SERVIÇO</th>
@@ -658,16 +657,6 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
                       {/* DOCUMENTO */}
                       <td className={`py-3 px-3.5 font-mono text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                         {c.document || '---'}
-                      </td>
-
-                      {/* PLANO & VALOR */}
-                      <td className="py-3 px-3.5">
-                        <div className={`text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                          Plano: <span className={isDark ? 'text-cyan-400 font-bold' : 'text-blue-600 font-bold'}>{c.planoNome || c.planName || c.plano || 'Plano Assistência Técnica'}</span>
-                        </div>
-                        <div className="text-[11px] font-mono text-emerald-400 mt-0.5">
-                          Valor: R$ {Number(c.valorPlano ?? c.planPrice ?? 69.90).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </div>
                       </td>
 
                       {/* CONTATOS */}

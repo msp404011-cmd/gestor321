@@ -2,6 +2,10 @@ export type UserRole = 'ADMINISTRADOR' | 'ADMIN' | 'GERENTE' | 'TECNICO' | 'VEND
 
 export type NavigationTab =
   | 'DASHBOARD'
+  | 'CAMERAS'
+  | 'SUPPLIER_ORDERS'
+  | 'EXCLUSIVE_ORDERS'
+  | 'ACCESSES'
   | 'CUSTOMERS'
   | 'DEVICES'
   | 'ORDERS'
@@ -28,6 +32,7 @@ export interface UserPermissions {
   canOperateCash: boolean;
   canManageExpenses: boolean;
   canDeleteRecords: boolean;
+  canAdjustStock?: boolean;
 }
 
 export interface Employee {
@@ -42,6 +47,7 @@ export interface Employee {
   pinCode?: string;
   commissionRate?: number;
   status: 'ATIVO' | 'INATIVO';
+  active?: boolean;
   permissions: UserPermissions;
   avatarUrl?: string;
   createdAt: string;
@@ -53,6 +59,10 @@ export interface Customer {
   document: string; // CPF or CNPJ
   phone: string;
   whatsapp: string;
+  whatsappAlt?: string; // WhatsApp Alternativo / Recado
+  alternativePhone?: string;
+  alternativeContactName?: string; // Nome do contato alternativo / de recado
+  preferredContact?: 'WhatsApp' | 'Telefone' | 'E-mail';
   email: string;
   address: string;
   neighborhood?: string;
@@ -138,6 +148,7 @@ export interface Device {
   photoUrl?: string;
   status?: 'Em assistência' | 'Concluído' | 'Sem movimento' | string;
   osCount?: number;
+  nickname?: string;
   createdAt: string;
 }
 
@@ -239,6 +250,7 @@ export interface ServiceOrder {
   totalPrice: number;
   paymentMethod?: PaymentMethod;
   paymentStatus: 'PENDENTE' | 'PAGO' | 'PARCIAL';
+  payments?: { paymentMethod: PaymentMethod | string; amount: number; date?: string }[];
 
   // Responsáveis e datas
   technicianName: string;
@@ -284,7 +296,10 @@ export interface Product {
   stock?: number;
   minStockQuantity: number;
   minStock?: number;
-  location: string;
+  manageStock?: boolean; // Controla estoque (true = sim, false = não / sem controle / ilimitado / serviço)
+  hasStock?: boolean; // Indicador se possui estoque no momento
+  stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'LOW_STOCK' | 'UNLIMITED';
+  location?: string;
   description?: string;
   notes?: string;
   isActive: boolean;
@@ -593,6 +608,7 @@ export interface AuditLog {
 export interface CompanySettings {
   name: string;
   commercialName: string; // MSP Informática
+  tradeName?: string;
   ownerName?: string; // Vicente Pereira Dias
   slogan?: string; // A TECNOLOGIA SIMPLIFICADA
   cnpj?: string;
@@ -643,7 +659,7 @@ export interface Supplier {
   notes?: string;
 }
 
-export type PlanType = 'TRIAL' | 'PDV_VENDAS' | 'ASSISTENCIA' | 'REVENDA' | 'FREE' | 'LOJA' | 'PRO' | 'ENTERPRISE';
+export type PlanType = 'TRIAL' | 'PDV_VENDAS' | 'ASSISTENCIA' | 'REVENDA' | 'FREE' | 'LOJA' | 'PRO' | 'ENTERPRISE' | 'SUPER_ADMIN';
 export type SubscriptionStatus = 'active' | 'expired' | 'canceled' | 'trial' | 'ATIVO' | 'EXPIRANDO' | 'VENCIDO' | 'TRIAL';
 export type BillingCycle = 'monthly' | 'annual';
 
