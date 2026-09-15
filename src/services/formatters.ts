@@ -1,4 +1,5 @@
 import { OrderStatus, PaymentMethod } from '../types';
+import { StorageService, defaultCustomOSStatuses, CustomOSStatusItem } from './storage';
 
 export function formatCurrency(value: number | undefined | null): string {
   if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
@@ -82,84 +83,149 @@ export type CanonicalStatus =
   | 'AGUARDANDO_PECA'
   | 'ATRASADO'
   | 'PRONTO'
-  | 'ENTREGUE';
+  | 'ENTREGUE'
+  | 'GARANTIA'
+  | 'CANCELADA'
+  | string;
 
-export function getCanonicalStatus(status?: string): CanonicalStatus {
-  const s = (status || '').toUpperCase().trim();
+export function findCustomStatus(status?: string): CustomOSStatusItem | undefined {
+  if (!status) return undefined;
+  const s = String(status).trim();
+  const sUpper = s.toUpperCase();
 
+  try {
+    const list = StorageService.getCustomOSStatuses();
+    if (Array.isArray(list) && list.length > 0) {
+      const match = list.find(
+        (item) =>
+          item.code?.toUpperCase() === sUpper ||
+          item.id?.toUpperCase() === sUpper ||
+          item.label?.toUpperCase() === sUpper
+      );
+      if (match) return match;
+    }
+  } catch {
+    // fallback if storage isn't accessible
+  }
+
+  return defaultCustomOSStatuses.find(
+    (item) =>
+      item.code?.toUpperCase() === sUpper ||
+      item.id?.toUpperCase() === sUpper ||
+      item.label?.toUpperCase() === sUpper
+  );
+}
+
+export function getCanonicalStatus(status?: string): string {
+  if (!status) return 'ORCAMENTO';
+  const s = String(status).trim();
+  const sUpper = s.toUpperCase();
+
+  // 1. Direct custom status code match
+  const custom = findCustomStatus(s);
+  if (custom && custom.code) {
+    return custom.code.toUpperCase();
+  }
+
+  // 2. Standard canonical aliases
   if (
-    s === 'ORCAMENTO' ||
-    s === 'NOVA' ||
-    s === 'ABERTA' ||
-    s === 'EM_ANALISE' ||
-    s === 'AGUARDANDO_DIAGNOSTICO' ||
-    s === 'AGUARDANDO_ORCAMENTO'
+    sUpper === 'ORCAMENTO' ||
+    sUpper === 'NOVA' ||
+    sUpper === 'ABERTA' ||
+    sUpper === 'EM_ANALISE' ||
+    sUpper === 'AGUARDANDO_DIAGNOSTICO' ||
+    sUpper === 'AGUARDANDO_ORCAMENTO'
   ) {
     return 'ORCAMENTO';
   }
 
   if (
-    s === 'AGUARDANDO_AUTORIZACAO' ||
-    s === 'AGUARDANDO' ||
-    s === 'AGUARDANDO_APROVACAO' ||
-    s === 'NAO_APROVADA'
+    sUpper === 'AGUARDANDO_AUTORIZACAO' ||
+    sUpper === 'AGUARDANDO' ||
+    sUpper === 'AGUARDANDO_APROVACAO' ||
+    sUpper === 'NAO_APROVADA'
   ) {
     return 'AGUARDANDO_AUTORIZACAO';
   }
 
   if (
-    s === 'AGUARDANDO_PECA' ||
-    s === 'AGUARDANDO_PECAS' ||
-    s === 'AGUARDANDO_PERCA'
+    sUpper === 'AGUARDANDO_PECA' ||
+    sUpper === 'AGUARDANDO_PECAS' ||
+    sUpper === 'AGUARDANDO_PERCA'
   ) {
     return 'AGUARDANDO_PECA';
   }
 
-  if (s === 'ATRASADO' || s === 'ATRASADA') {
+  if (sUpper === 'ATRASADO' || sUpper === 'ATRASADA') {
     return 'ATRASADO';
   }
 
   if (
-    s === 'PRONTO' ||
-    s === 'PRONTA' ||
-    s === 'PRONTO_ENTREGA' ||
-    s === 'PRONTAS' ||
-    s === 'TESTES_CONCLUIDOS' ||
-    s === 'AVISADO_CLIENTE'
+    sUpper === 'PRONTO' ||
+    sUpper === 'PRONTA' ||
+    sUpper === 'PRONTO_ENTREGA' ||
+    sUpper === 'PRONTAS' ||
+    sUpper === 'TESTES_CONCLUIDOS' ||
+    sUpper === 'AVISADO_CLIENTE'
   ) {
     return 'PRONTO';
   }
 
-  if (s === 'ENTREGUE' || s === 'ENTREGUES' || s === 'FINALIZADA') {
+  if (sUpper === 'ENTREGUE' || sUpper === 'ENTREGUES' || sUpper === 'FINALIZADA') {
     return 'ENTREGUE';
   }
 
   if (
-    s === 'AUTORIZADO' ||
-    s === 'AUTORIZADA' ||
-    s === 'APROVADA' ||
-    s === 'EM_BANCADA' ||
-    s === 'EM_MANUTENCAO' ||
-    s === 'EM_REPARO'
+    sUpper === 'AUTORIZADO' ||
+    sUpper === 'AUTORIZADA' ||
+    sUpper === 'APROVADA' ||
+    sUpper === 'EM_BANCADA' ||
+    sUpper === 'EM_MANUTENCAO' ||
+    sUpper === 'EM_REPARO'
   ) {
     return 'AUTORIZADO';
   }
 
-  return 'ORCAMENTO';
+  if (sUpper === 'GARANTIA' || sUpper === 'RETORNO_GARANTIA') {
+    return 'GARANTIA';
+  }
+
+  if (sUpper === 'CANCELADA' || sUpper === 'CANCELADO' || sUpper === 'RECUSADA') {
+    return 'CANCELADA';
+  }
+
+  return sUpper;
 }
 
 export function getOrderStatusLabel(status: OrderStatus | string): string {
+  if (!status) return 'Orçamento';
+
+  // 1. Check custom status configured list first
+  const custom = findCustomStatus(String(status));
+  if (custom && custom.label) {
+    return custom.label;
+  }
+
   const canonical = getCanonicalStatus(status);
-  const map: Record<CanonicalStatus, string> = {
+  const map: Record<string, string> = {
     ORCAMENTO: 'Orçamento',
     AGUARDANDO_AUTORIZACAO: 'Aguardando Autorização',
-    AUTORIZADO: 'Autorizado',
+    AUTORIZADO: 'Autorizado (Em Manutenção)',
     AGUARDANDO_PECA: 'Aguardando Peça',
     ATRASADO: 'Atrasado',
-    PRONTO: 'Pronto',
-    ENTREGUE: 'Entregue',
+    PRONTO: 'Pronto para Retirada',
+    ENTREGUE: 'Entregue / Concluído',
+    GARANTIA: 'Retorno em Garantia',
+    CANCELADA: 'Cancelado pelo Cliente',
+    EM_MANUTENCAO: 'Em Manutenção',
+    EM_ANALISE: 'Em Análise',
   };
-  return map[canonical] || 'Orçamento';
+
+  if (map[canonical]) return map[canonical];
+  if (map[String(status).toUpperCase()]) return map[String(status).toUpperCase()];
+
+  // If status is a code like STATUS_123 or CUSTOM_NAME, format nicely
+  return String(status).replace(/^STATUS_/i, '').replace(/_/g, ' ').trim();
 }
 
 export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
@@ -168,6 +234,17 @@ export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
   border: string;
   dot: string;
 } {
+  // 1. Check custom status configured colors
+  const custom = findCustomStatus(String(status));
+  if (custom && custom.colorBg && custom.colorText) {
+    return {
+      bg: custom.colorBg,
+      text: custom.colorText,
+      border: custom.colorBorder || 'border-current/30',
+      dot: custom.colorDot || 'bg-current',
+    };
+  }
+
   const canonical = getCanonicalStatus(status);
   switch (canonical) {
     case 'ORCAMENTO':
@@ -177,6 +254,7 @@ export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
       return { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/40', dot: 'bg-purple-400' };
 
     case 'AUTORIZADO':
+    case 'EM_MANUTENCAO':
       return { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/40', dot: 'bg-cyan-400' };
 
     case 'AGUARDANDO_PECA':
@@ -191,8 +269,14 @@ export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
     case 'ENTREGUE':
       return { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/40', dot: 'bg-teal-400' };
 
-    default:
+    case 'GARANTIA':
+      return { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/40', dot: 'bg-indigo-400' };
+
+    case 'CANCELADA':
       return { bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/40', dot: 'bg-slate-400' };
+
+    default:
+      return { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/40', dot: 'bg-blue-400' };
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Wrench,
   X,
@@ -21,6 +21,7 @@ import {
   CustomDeviceType,
   CustomAccessoryItem,
   CustomPaymentMethodItem,
+  CustomOSStatusItem,
   Product,
 } from '../../types';
 import { StorageService, isAccessoryForDeviceType } from '../../services/storage';
@@ -169,6 +170,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Parts list & Stock Products for OS Accounting
   const [parts, setParts] = useState<OrderPartItem[]>([]);
   const [products, setProducts] = useState<Product[]>(() => StorageService.getProducts());
+  const [customOSStatuses, setCustomOSStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses());
   const [partInputMode, setPartInputMode] = useState<'ESTOQUE' | 'AVULSO'>('ESTOQUE');
   const [partSearch, setPartSearch] = useState('');
   const [isPartSearchOpen, setIsPartSearchOpen] = useState(false);
@@ -194,10 +196,22 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setCustomDeviceTypes(StorageService.getCustomDeviceTypes());
       setCustomAccessories(StorageService.getCustomAccessories());
       setCustomPaymentMethods(StorageService.getCustomPaymentMethods());
+      setCustomOSStatuses(StorageService.getCustomOSStatuses());
       setProducts(StorageService.getProducts());
     });
     return unsub;
   }, []);
+
+  const dynamicStatusChoices = useMemo(() => {
+    if (Array.isArray(customOSStatuses) && customOSStatuses.length > 0) {
+      return customOSStatuses.map((s) => ({
+        status: (s.code || s.id) as OrderStatus,
+        label: s.label,
+        icon: s.icon || '📌',
+      }));
+    }
+    return STATUS_CHOICES;
+  }, [customOSStatuses]);
 
   // Initialize data on open - ALWAYS clean/zeroed unless editing
   useEffect(() => {
@@ -1082,7 +1096,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             customPaymentMethods={customPaymentMethods}
             initialStatus={initialStatus}
             setInitialStatus={setInitialStatus}
-            statusChoices={STATUS_CHOICES}
+            statusChoices={dynamicStatusChoices}
           />
         </div>
 

@@ -706,112 +706,38 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('ORCAMENTO')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'ORCAMENTO'
-                    ? 'bg-amber-500 text-white border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.5)] ring-2 ring-amber-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-amber-300 border-slate-700'
-                    : 'bg-white hover:bg-amber-50 text-amber-800 border-slate-300'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Orçamento</span>
-              </button>
+              {StorageService.getCustomOSStatuses().map((st) => {
+                const statusCode = (st.code || st.id).toUpperCase();
+                const isCurrent =
+                  getCanonicalStatus(order.status as string) === statusCode ||
+                  (order.status as string)?.toUpperCase() === statusCode;
 
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('AGUARDANDO_AUTORIZACAO')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'AGUARDANDO_AUTORIZACAO'
-                    ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_14px_rgba(168,85,247,0.5)] ring-2 ring-purple-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-purple-300 border-slate-700'
-                    : 'bg-white hover:bg-purple-50 text-purple-800 border-slate-300'
-                }`}
-              >
-                <Hourglass className="w-3.5 h-3.5 text-purple-400" />
-                <span>Aguardando Autorização</span>
-              </button>
+                const badgeConfig = getOrderStatusBadgeClasses(statusCode);
 
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('AUTORIZADO')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'AUTORIZADO'
-                    ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.5)] ring-2 ring-cyan-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-cyan-300 border-slate-700'
-                    : 'bg-white hover:bg-cyan-50 text-cyan-800 border-slate-300'
-                }`}
-              >
-                <Wrench className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Autorizado</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('AGUARDANDO_PECA')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'AGUARDANDO_PECA'
-                    ? 'bg-orange-600 text-white border-orange-400 shadow-[0_0_14px_rgba(249,115,22,0.5)] ring-2 ring-orange-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-orange-300 border-slate-700'
-                    : 'bg-white hover:bg-orange-50 text-orange-800 border-slate-300'
-                }`}
-              >
-                <Puzzle className="w-3.5 h-3.5 text-orange-400" />
-                <span>Aguardando Peça</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('ATRASADO')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'ATRASADO'
-                    ? 'bg-rose-600 text-white border-rose-400 shadow-[0_0_14px_rgba(244,63,94,0.5)] ring-2 ring-rose-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-rose-300 border-slate-700'
-                    : 'bg-white hover:bg-rose-50 text-rose-800 border-slate-300'
-                }`}
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                <span>Atrasado</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus('PRONTO')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'PRONTO'
-                    ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.5)] ring-2 ring-emerald-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-emerald-300 border-slate-700'
-                    : 'bg-white hover:bg-emerald-50 text-emerald-800 border-slate-300'
-                }`}
-              >
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Pronto</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDeliveryModal(true);
-                }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                  canonical === 'ENTREGUE'
-                    ? 'bg-teal-600 text-white border-teal-400 shadow-[0_0_14px_rgba(20,184,166,0.5)] ring-2 ring-teal-400/50'
-                    : isDark
-                    ? 'bg-[#0e1d38] hover:bg-[#172c54] text-teal-300 border-slate-700'
-                    : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border-slate-300'
-                }`}
-              >
-                <Package className="w-3.5 h-3.5 text-teal-400" />
-                <span>Entregue</span>
-              </button>
+                return (
+                  <button
+                    key={st.id || st.code}
+                    type="button"
+                    onClick={() => {
+                      if (statusCode === 'ENTREGUE') {
+                        setShowDeliveryModal(true);
+                      } else {
+                        handleUpdateStatus(st.code as OrderStatus);
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      isCurrent
+                        ? `${badgeConfig.bg} ${badgeConfig.text} ${badgeConfig.border} shadow-[0_0_12px_rgba(59,130,246,0.3)] ring-2 ring-current/50 scale-[1.02]`
+                        : isDark
+                        ? 'bg-[#0e1d38] hover:bg-[#172c54] text-slate-200 border-slate-700'
+                        : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${badgeConfig.dot || 'bg-current'}`} />
+                    <span>{st.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

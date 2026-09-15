@@ -372,13 +372,15 @@ export interface CustomOSStatusItem {
 }
 
 export const defaultCustomOSStatuses: CustomOSStatusItem[] = [
-  { id: 'os-1', code: 'ORCAMENTO', label: 'Orçamento', colorBg: 'bg-amber-500/15', colorText: 'text-amber-400', colorBorder: 'border-amber-500/40', colorDot: 'bg-amber-400' },
-  { id: 'os-2', code: 'AGUARDANDO_PECA', label: 'Aguardando Peça', colorBg: 'bg-[#ff7b00]/15', colorText: 'text-[#ff9100]', colorBorder: 'border-[#ff7b00]/40', colorDot: 'bg-[#ff9100]' },
-  { id: 'os-3', code: 'EM_MANUTENCAO', label: 'Em Manutenção', colorBg: 'bg-blue-500/15', colorText: 'text-blue-400', colorBorder: 'border-blue-500/40', colorDot: 'bg-blue-400' },
-  { id: 'os-4', code: 'PRONTO', label: 'Pronto / Aguardando Retirada', colorBg: 'bg-emerald-500/15', colorText: 'text-emerald-400', colorBorder: 'border-emerald-500/40', colorDot: 'bg-emerald-400' },
-  { id: 'os-5', code: 'ENTREGUE', label: 'Entregue / Concluído', colorBg: 'bg-teal-500/15', colorText: 'text-teal-400', colorBorder: 'border-teal-500/40', colorDot: 'bg-teal-400' },
-  { id: 'os-6', code: 'GARANTIA', label: 'Retorno em Garantia', colorBg: 'bg-purple-500/15', colorText: 'text-purple-400', colorBorder: 'border-purple-500/40', colorDot: 'bg-purple-400' },
-  { id: 'os-7', code: 'CANCELADA', label: 'Cancelado pelo Cliente', colorBg: 'bg-rose-500/15', colorText: 'text-rose-400', colorBorder: 'border-rose-500/40', colorDot: 'bg-rose-400' },
+  { id: 'os-1', code: 'ORCAMENTO', label: 'Orçamento', colorBg: 'bg-amber-500/15', colorText: 'text-amber-400', colorBorder: 'border-amber-500/40', colorDot: 'bg-amber-400', isSystem: true },
+  { id: 'os-2', code: 'AGUARDANDO_AUTORIZACAO', label: 'Aguardando Autorização', colorBg: 'bg-purple-500/15', colorText: 'text-purple-400', colorBorder: 'border-purple-500/40', colorDot: 'bg-purple-400', isSystem: true },
+  { id: 'os-3', code: 'AUTORIZADO', label: 'Autorizado (Em Manutenção)', colorBg: 'bg-cyan-500/15', colorText: 'text-cyan-400', colorBorder: 'border-cyan-500/40', colorDot: 'bg-cyan-400', isSystem: true },
+  { id: 'os-4', code: 'AGUARDANDO_PECA', label: 'Aguardando Peça', colorBg: 'bg-orange-500/15', colorText: 'text-orange-400', colorBorder: 'border-orange-500/40', colorDot: 'bg-orange-400', isSystem: true },
+  { id: 'os-5', code: 'ATRASADO', label: 'Atrasado', colorBg: 'bg-rose-500/15', colorText: 'text-rose-400', colorBorder: 'border-rose-500/40', colorDot: 'bg-rose-400', isSystem: true },
+  { id: 'os-6', code: 'PRONTO', label: 'Pronto para Retirada', colorBg: 'bg-emerald-500/15', colorText: 'text-emerald-400', colorBorder: 'border-emerald-500/40', colorDot: 'bg-emerald-400', isSystem: true },
+  { id: 'os-7', code: 'ENTREGUE', label: 'Entregue / Concluído', colorBg: 'bg-teal-500/15', colorText: 'text-teal-400', colorBorder: 'border-teal-500/40', colorDot: 'bg-teal-400', isSystem: true },
+  { id: 'os-8', code: 'GARANTIA', label: 'Retorno em Garantia', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
+  { id: 'os-9', code: 'CANCELADA', label: 'Cancelado pelo Cliente', colorBg: 'bg-slate-500/15', colorText: 'text-slate-400', colorBorder: 'border-slate-500/40', colorDot: 'bg-slate-400' },
 ];
 
 export interface SystemFormatOptions {

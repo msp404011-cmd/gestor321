@@ -711,6 +711,17 @@ export interface GoogleUserProfile {
   sub?: string;
 }
 
+export interface CustomOSStatusItem {
+  id: string;
+  code: string;
+  label: string;
+  colorBg?: string;
+  colorText?: string;
+  colorBorder?: string;
+  colorDot?: string;
+  isCustom?: boolean;
+}
+
 export interface UserAccount {
   id: string;
   shopName: string;

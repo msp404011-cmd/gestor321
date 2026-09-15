@@ -29,7 +29,7 @@ import {
   Puzzle,
   X,
 } from 'lucide-react';
-import { ServiceOrder, OrderStatus } from '../../types';
+import { ServiceOrder, OrderStatus, CustomOSStatusItem } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   formatCurrency,
@@ -37,6 +37,7 @@ import {
   getOrderStatusLabel,
   cleanPhoneForWhatsApp,
   getCanonicalStatus,
+  getOrderStatusBadgeClasses,
   CanonicalStatus,
 } from '../../services/formatters';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -50,16 +51,7 @@ interface OrderListViewProps {
   onOpenPrint: (order: ServiceOrder) => void;
 }
 
-// Exactly the 7 requested statuses + TODAS option
-type FilterPreset =
-  | 'TODAS'
-  | 'ORCAMENTO'
-  | 'AGUARDANDO_AUTORIZACAO'
-  | 'AUTORIZADO'
-  | 'AGUARDANDO_PECA'
-  | 'ATRASADO'
-  | 'PRONTO'
-  | 'ENTREGUE';
+type FilterPreset = string;
 
 type PeriodFilter = 'TODOS' | 'HOJE' | 'SEMANA' | 'MES' | 'MES_ANTERIOR';
 
@@ -127,6 +119,14 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   const [orderToDelete, setOrderToDelete] = useState<ServiceOrder | null>(null);
   const [orderForDelivery, setOrderForDelivery] = useState<ServiceOrder | null>(null);
   const [orderForStatusChange, setOrderForStatusChange] = useState<ServiceOrder | null>(null);
+  const [customOSStatuses, setCustomOSStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses());
+
+  useEffect(() => {
+    const unsub = StorageService.subscribe(() => {
+      setCustomOSStatuses(StorageService.getCustomOSStatuses());
+    });
+    return unsub;
+  }, []);
 
   const orders = StorageService.getOrders();
   const currentUser = StorageService.getCurrentUser();
@@ -143,222 +143,70 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     return calculated > 0 ? calculated : 0;
   };
 
-  // Exact counts for the 7 requested status cards (no overlapping/mixing)
-  const counts = {
-    total: orders.length,
-    orcamento: orders.filter((o) => getCanonicalStatus(o.status as string) === 'ORCAMENTO').length,
-    aguardandoAutorizacao: orders.filter((o) => getCanonicalStatus(o.status as string) === 'AGUARDANDO_AUTORIZACAO').length,
-    autorizado: orders.filter((o) => getCanonicalStatus(o.status as string) === 'AUTORIZADO').length,
-    aguardandoPeca: orders.filter((o) => getCanonicalStatus(o.status as string) === 'AGUARDANDO_PECA').length,
-    atrasado: orders.filter((o) => getCanonicalStatus(o.status as string) === 'ATRASADO').length,
-    pronto: orders.filter((o) => getCanonicalStatus(o.status as string) === 'PRONTO').length,
-    entregue: orders.filter((o) => getCanonicalStatus(o.status as string) === 'ENTREGUE').length,
-  };
+  // Calculate counts and sum of repair values for each custom status
+  const statusMetrics = useMemo(() => {
+    const map: Record<string, { count: number; totalAmount: number }> = {};
 
-  // Sum of repair values (valor de conserto somado) for each status
-  const sums = {
-    total: orders.reduce((acc, o) => acc + getOrderAmount(o), 0),
-    orcamento: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'ORCAMENTO')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    aguardandoAutorizacao: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'AGUARDANDO_AUTORIZACAO')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    autorizado: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'AUTORIZADO')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    aguardandoPeca: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'AGUARDANDO_PECA')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    atrasado: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'ATRASADO')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    pronto: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'PRONTO')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-    entregue: orders
-      .filter((o) => getCanonicalStatus(o.status as string) === 'ENTREGUE')
-      .reduce((acc, o) => acc + getOrderAmount(o), 0),
-  };
+    customOSStatuses.forEach((s) => {
+      map[s.code.toUpperCase()] = { count: 0, totalAmount: 0 };
+    });
 
-  // Top Status Cards configuration (with 2 lines support and dedicated status colors + summed repair value)
-  const statusCardsConfig = [
-    {
-      id: 'ORCAMENTO' as const,
-      line1: 'Orçamento',
-      line2: '',
-      title: 'Orçamento',
-      count: counts.orcamento,
-      totalAmount: sums.orcamento,
-      icon: <Clock className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#281c06] via-[#1a1204] to-[#0f0a02] border-amber-500/70 text-amber-300'
-        : 'bg-gradient-to-br from-amber-50 to-white border-amber-300 text-amber-900',
-      activeRing: 'ring-2 ring-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.5)] scale-[1.02] border-amber-400',
-      countColor: isDark ? 'text-amber-200' : 'text-amber-800',
-      tagColor: isDark ? 'text-amber-400' : 'text-amber-600',
-    },
-    {
-      id: 'AGUARDANDO_AUTORIZACAO' as const,
-      line1: 'Aguardando',
-      line2: 'Autorização',
-      title: 'Aguardando Autorização',
-      count: counts.aguardandoAutorizacao,
-      totalAmount: sums.aguardandoAutorizacao,
-      icon: <Hourglass className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#240c38] via-[#170724] to-[#0d0414] border-purple-500/70 text-purple-300'
-        : 'bg-gradient-to-br from-purple-50 to-white border-purple-300 text-purple-900',
-      activeRing: 'ring-2 ring-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.5)] scale-[1.02] border-purple-400',
-      countColor: isDark ? 'text-purple-200' : 'text-purple-800',
-      tagColor: isDark ? 'text-purple-400' : 'text-purple-600',
-    },
-    {
-      id: 'AUTORIZADO' as const,
-      line1: 'Autorizado',
-      line2: '',
-      title: 'Autorizado',
-      count: counts.autorizado,
-      totalAmount: sums.autorizado,
-      icon: <Wrench className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#062633] via-[#041922] to-[#020e14] border-cyan-500/70 text-cyan-300'
-        : 'bg-gradient-to-br from-cyan-50 to-white border-cyan-300 text-cyan-900',
-      activeRing: 'ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.5)] scale-[1.02] border-cyan-400',
-      countColor: isDark ? 'text-cyan-200' : 'text-cyan-800',
-      tagColor: isDark ? 'text-cyan-400' : 'text-cyan-600',
-    },
-    {
-      id: 'AGUARDANDO_PECA' as const,
-      line1: 'Aguardando',
-      line2: 'Peça',
-      title: 'Aguardando Peça',
-      count: counts.aguardandoPeca,
-      totalAmount: sums.aguardandoPeca,
-      icon: <Puzzle className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#2c1404] via-[#1c0c02] to-[#100701] border-orange-500/70 text-orange-300'
-        : 'bg-gradient-to-br from-orange-50 to-white border-orange-300 text-orange-900',
-      activeRing: 'ring-2 ring-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.5)] scale-[1.02] border-orange-400',
-      countColor: isDark ? 'text-orange-200' : 'text-orange-800',
-      tagColor: isDark ? 'text-orange-400' : 'text-orange-600',
-    },
-    {
-      id: 'ATRASADO' as const,
-      line1: 'Atrasado',
-      line2: '',
-      title: 'Atrasado',
-      count: counts.atrasado,
-      totalAmount: sums.atrasado,
-      icon: <AlertTriangle className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-rose-600 shadow-[0_0_10px_rgba(244,63,94,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#2d0912] via-[#1d050b] to-[#100206] border-rose-500/70 text-rose-300'
-        : 'bg-gradient-to-br from-rose-50 to-white border-rose-300 text-rose-900',
-      activeRing: 'ring-2 ring-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.5)] scale-[1.02] border-rose-400',
-      countColor: isDark ? 'text-rose-200' : 'text-rose-800',
-      tagColor: isDark ? 'text-rose-400' : 'text-rose-600',
-    },
-    {
-      id: 'PRONTO' as const,
-      line1: 'Pronto',
-      line2: '',
-      title: 'Pronto',
-      count: counts.pronto,
-      totalAmount: sums.pronto,
-      icon: <CheckCircle2 className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-emerald-600 shadow-[0_0_10px_rgba(16,185,129,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#062916] via-[#041a0e] to-[#020f08] border-emerald-500/70 text-emerald-300'
-        : 'bg-gradient-to-br from-emerald-50 to-white border-emerald-300 text-emerald-900',
-      activeRing: 'ring-2 ring-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)] scale-[1.02] border-emerald-400',
-      countColor: isDark ? 'text-emerald-200' : 'text-emerald-800',
-      tagColor: isDark ? 'text-emerald-400' : 'text-emerald-600',
-    },
-    {
-      id: 'ENTREGUE' as const,
-      line1: 'Entregue',
-      line2: '',
-      title: 'Entregue',
-      count: counts.entregue,
-      totalAmount: sums.entregue,
-      icon: <Package className="w-4 h-4 text-white" />,
-      iconBoxBg: 'bg-teal-600 shadow-[0_0_10px_rgba(20,184,166,0.5)]',
-      cardBg: isDark
-        ? 'bg-gradient-to-br from-[#062927] via-[#041c1a] to-[#02100f] border-teal-500/70 text-teal-300'
-        : 'bg-gradient-to-br from-teal-50 to-white border-teal-300 text-teal-900',
-      activeRing: 'ring-2 ring-teal-400 shadow-[0_0_20px_rgba(20,184,166,0.5)] scale-[1.02] border-teal-400',
-      countColor: isDark ? 'text-teal-200' : 'text-teal-800',
-      tagColor: isDark ? 'text-teal-400' : 'text-teal-600',
-    },
-  ];
+    orders.forEach((o) => {
+      const canonical = getCanonicalStatus(o.status as string);
+      const amount = getOrderAmount(o);
+      if (!map[canonical]) {
+        map[canonical] = { count: 0, totalAmount: 0 };
+      }
+      map[canonical].count += 1;
+      map[canonical].totalAmount += amount;
+    });
 
-  // Status badge style helper strictly based on the 7 canonical statuses
+    return map;
+  }, [orders, customOSStatuses]);
+
+  // Top Status Cards configuration generated dynamically from customOSStatuses
+  const statusCardsConfig = useMemo(() => {
+    return customOSStatuses.map((s) => {
+      const codeUpper = s.code.toUpperCase();
+      const metric = statusMetrics[codeUpper] || { count: 0, totalAmount: 0 };
+      const badgeClasses = getOrderStatusBadgeClasses(codeUpper);
+
+      let icon = <Clock className="w-4 h-4 text-white" />;
+      if (codeUpper === 'AGUARDANDO_AUTORIZACAO') icon = <Hourglass className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'AUTORIZADO' || codeUpper === 'EM_MANUTENCAO') icon = <Wrench className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'AGUARDANDO_PECA') icon = <Puzzle className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'ATRASADO') icon = <AlertTriangle className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'PRONTO') icon = <CheckCircle2 className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'ENTREGUE') icon = <Package className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'GARANTIA') icon = <Layers className="w-4 h-4 text-white" />;
+
+      const labelParts = s.label.split(' ');
+      const line1 = labelParts.length > 2 ? labelParts.slice(0, Math.ceil(labelParts.length / 2)).join(' ') : labelParts[0] || s.label;
+      const line2 = labelParts.length > 2 ? labelParts.slice(Math.ceil(labelParts.length / 2)).join(' ') : labelParts.slice(1).join(' ');
+
+      return {
+        id: codeUpper,
+        line1,
+        line2,
+        title: s.label,
+        count: metric.count,
+        totalAmount: metric.totalAmount,
+        icon,
+        badgeClasses,
+      };
+    });
+  }, [customOSStatuses, statusMetrics]);
+
+  // Status badge style helper
   const getStatusBadgeConfig = (rawStatus: string) => {
-    const canonical = getCanonicalStatus(rawStatus);
-
-    switch (canonical) {
-      case 'ORCAMENTO':
-        return {
-          label: 'Orçamento',
-          icon: <Clock className="w-3.5 h-3.5" />,
-          bg: 'bg-amber-500 text-white border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)]',
-          dot: 'bg-amber-200',
-        };
-      case 'AGUARDANDO_AUTORIZACAO':
-        return {
-          label: 'Aguardando Autorização',
-          icon: <Hourglass className="w-3.5 h-3.5" />,
-          bg: 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.4)]',
-          dot: 'bg-purple-200',
-        };
-      case 'AUTORIZADO':
-        return {
-          label: 'Autorizado',
-          icon: <Wrench className="w-3.5 h-3.5" />,
-          bg: 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]',
-          dot: 'bg-cyan-200',
-        };
-      case 'AGUARDANDO_PECA':
-        return {
-          label: 'Aguardando Peça',
-          icon: <Puzzle className="w-3.5 h-3.5" />,
-          bg: 'bg-orange-500 text-white border-orange-300 shadow-[0_0_10px_rgba(249,115,22,0.4)]',
-          dot: 'bg-orange-200',
-        };
-      case 'ATRASADO':
-        return {
-          label: 'Atrasado',
-          icon: <AlertTriangle className="w-3.5 h-3.5" />,
-          bg: 'bg-rose-600 text-white border-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.4)]',
-          dot: 'bg-rose-200',
-        };
-      case 'PRONTO':
-        return {
-          label: 'Pronto',
-          icon: <Check className="w-3.5 h-3.5" />,
-          bg: 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.4)]',
-          dot: 'bg-emerald-200',
-        };
-      case 'ENTREGUE':
-        return {
-          label: 'Entregue',
-          icon: <Package className="w-3.5 h-3.5" />,
-          bg: 'bg-teal-600 text-white border-teal-400 shadow-[0_0_10px_rgba(20,184,166,0.4)]',
-          dot: 'bg-teal-200',
-        };
-      default:
-        return {
-          label: 'Orçamento',
-          icon: <Clock className="w-3.5 h-3.5" />,
-          bg: 'bg-amber-500 text-white border-amber-300',
-          dot: 'bg-amber-200',
-        };
-    }
+    const label = getOrderStatusLabel(rawStatus);
+    const classes = getOrderStatusBadgeClasses(rawStatus);
+    return {
+      label,
+      icon: <Clock className="w-3.5 h-3.5" />,
+      bg: `${classes.bg} ${classes.text} ${classes.border}`,
+      dot: classes.dot,
+    };
   };
 
   // Status Change handler
@@ -445,23 +293,19 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
 
   // Breakdown of matching orders per status tab
   const matchesByStatus = useMemo(() => {
-    const map: Record<CanonicalStatus, ServiceOrder[]> = {
-      ORCAMENTO: [],
-      AGUARDANDO_AUTORIZACAO: [],
-      AUTORIZADO: [],
-      AGUARDANDO_PECA: [],
-      ATRASADO: [],
-      PRONTO: [],
-      ENTREGUE: [],
-    };
+    const map: Record<string, ServiceOrder[]> = {};
+    customOSStatuses.forEach((s) => {
+      map[s.code.toUpperCase()] = [];
+    });
     allMatchingOrders.forEach((o) => {
       const canonical = getCanonicalStatus(o.status as string);
-      if (map[canonical]) {
-        map[canonical].push(o);
+      if (!map[canonical]) {
+        map[canonical] = [];
       }
+      map[canonical].push(o);
     });
     return map;
-  }, [allMatchingOrders]);
+  }, [allMatchingOrders, customOSStatuses]);
 
   // Filtered orders strictly based on selected preset (no mixing, 100% accurate)
   const filteredOrders = useMemo(() => {
@@ -563,100 +407,37 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     setStatusMenuOpenForId(null);
   };
 
-  // Exactly the 7 requested columns in Kanban view
-  const kanbanColumns: KanbanColumnDef[] = [
-    {
-      id: 'ORCAMENTO',
-      title: 'Orçamento',
-      count: counts.orcamento,
-      icon: <Clock className="w-4 h-4 text-amber-400" />,
-      headerBg: 'bg-amber-950/60',
-      headerBorder: 'border-amber-500/70',
-      headerText: 'text-amber-300',
-      columnBorder: 'border-amber-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(245,158,11,0.25)]',
-      badgeBg: 'bg-amber-900/80 text-amber-200 border-amber-500',
-      targetStatus: 'ORCAMENTO',
-    },
-    {
-      id: 'AGUARDANDO_AUTORIZACAO',
-      title: 'Aguardando Autorização',
-      count: counts.aguardandoAutorizacao,
-      icon: <Hourglass className="w-4 h-4 text-purple-400" />,
-      headerBg: 'bg-purple-950/60',
-      headerBorder: 'border-purple-500/70',
-      headerText: 'text-purple-300',
-      columnBorder: 'border-purple-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(168,85,247,0.25)]',
-      badgeBg: 'bg-purple-900/80 text-purple-200 border-purple-500',
-      targetStatus: 'AGUARDANDO_AUTORIZACAO',
-    },
-    {
-      id: 'AUTORIZADO',
-      title: 'Autorizado',
-      count: counts.autorizado,
-      icon: <Wrench className="w-4 h-4 text-cyan-400" />,
-      headerBg: 'bg-cyan-950/60',
-      headerBorder: 'border-cyan-500/70',
-      headerText: 'text-cyan-300',
-      columnBorder: 'border-cyan-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(6,182,212,0.25)]',
-      badgeBg: 'bg-cyan-900/80 text-cyan-200 border-cyan-500',
-      targetStatus: 'AUTORIZADO',
-    },
-    {
-      id: 'AGUARDANDO_PECA',
-      title: 'Aguardando Peça',
-      count: counts.aguardandoPeca,
-      icon: <Puzzle className="w-4 h-4 text-orange-400" />,
-      headerBg: 'bg-orange-950/60',
-      headerBorder: 'border-orange-500/70',
-      headerText: 'text-orange-300',
-      columnBorder: 'border-orange-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(249,115,22,0.25)]',
-      badgeBg: 'bg-orange-900/80 text-orange-200 border-orange-500',
-      targetStatus: 'AGUARDANDO_PECA',
-    },
-    {
-      id: 'ATRASADO',
-      title: 'Atrasado',
-      count: counts.atrasado,
-      icon: <AlertTriangle className="w-4 h-4 text-rose-400" />,
-      headerBg: 'bg-rose-950/60',
-      headerBorder: 'border-rose-500/70',
-      headerText: 'text-rose-300',
-      columnBorder: 'border-rose-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(244,63,94,0.25)]',
-      badgeBg: 'bg-rose-900/80 text-rose-200 border-rose-500',
-      targetStatus: 'ATRASADO',
-    },
-    {
-      id: 'PRONTO',
-      title: 'Pronto',
-      count: counts.pronto,
-      icon: <Check className="w-4 h-4 text-emerald-400" />,
-      headerBg: 'bg-emerald-950/60',
-      headerBorder: 'border-emerald-500/70',
-      headerText: 'text-emerald-300',
-      columnBorder: 'border-emerald-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(16,185,129,0.25)]',
-      badgeBg: 'bg-emerald-900/80 text-emerald-200 border-emerald-500',
-      targetStatus: 'PRONTO',
-    },
-    {
-      id: 'ENTREGUE',
-      title: 'Entregue',
-      count: counts.entregue,
-      icon: <Package className="w-4 h-4 text-teal-400" />,
-      headerBg: 'bg-teal-950/60',
-      headerBorder: 'border-teal-500/70',
-      headerText: 'text-teal-300',
-      columnBorder: 'border-teal-500/50',
-      columnGlow: 'shadow-[0_0_15px_rgba(20,184,166,0.25)]',
-      badgeBg: 'bg-teal-900/80 text-teal-200 border-teal-500',
-      targetStatus: 'ENTREGUE',
-    },
-  ];
+  // Kanban columns dynamically constructed from customOSStatuses
+  const kanbanColumns: KanbanColumnDef[] = useMemo(() => {
+    return customOSStatuses.map((s) => {
+      const codeUpper = s.code.toUpperCase();
+      const metric = statusMetrics[codeUpper] || { count: 0, totalAmount: 0 };
+      const badgeClasses = getOrderStatusBadgeClasses(codeUpper);
+
+      let icon = <Clock className="w-4 h-4 text-amber-400" />;
+      if (codeUpper === 'AGUARDANDO_AUTORIZACAO') icon = <Hourglass className="w-4 h-4 text-purple-400" />;
+      else if (codeUpper === 'AUTORIZADO' || codeUpper === 'EM_MANUTENCAO') icon = <Wrench className="w-4 h-4 text-cyan-400" />;
+      else if (codeUpper === 'AGUARDANDO_PECA') icon = <Puzzle className="w-4 h-4 text-orange-400" />;
+      else if (codeUpper === 'ATRASADO') icon = <AlertTriangle className="w-4 h-4 text-rose-400" />;
+      else if (codeUpper === 'PRONTO') icon = <Check className="w-4 h-4 text-emerald-400" />;
+      else if (codeUpper === 'ENTREGUE') icon = <Package className="w-4 h-4 text-teal-400" />;
+
+      return {
+        id: codeUpper,
+        title: s.label,
+        count: metric.count,
+        totalAmount: metric.totalAmount,
+        icon,
+        headerBg: 'bg-slate-900/80',
+        headerBorder: badgeClasses.border || 'border-slate-700',
+        headerText: badgeClasses.text || 'text-white',
+        columnBorder: badgeClasses.border || 'border-slate-800',
+        columnGlow: 'shadow-md',
+        badgeBg: `${badgeClasses.bg} ${badgeClasses.text} border`,
+        targetStatus: codeUpper as OrderStatus,
+      };
+    });
+  }, [customOSStatuses, statusMetrics]);
 
   // Helper for device image
   const getDeviceThumbnail = (os: ServiceOrder) => {
@@ -760,49 +541,51 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         </div>
       </div>
 
-      {/* 2. TOP STATUS CARDS (The 7 requested statuses with clear 2-line title support and dedicated status colors) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5">
+      {/* 2. TOP STATUS CARDS (Dynamically mapped for all active OS statuses) */}
+      <div className="flex flex-wrap sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8 gap-2 sm:gap-2.5 overflow-x-auto pb-1">
         {statusCardsConfig.map((card) => {
           const isActive = filterPreset === card.id;
+          const badge = card.badgeClasses;
           return (
             <button
               key={card.id}
               type="button"
-              onClick={() => setFilterPreset(filterPreset === card.id ? 'TODAS' : (card.id as FilterPreset))}
-              className={`p-2.5 sm:p-3 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[92px] sm:min-h-[102px] ${
-                card.cardBg
-              } ${isActive ? card.activeRing : 'hover:scale-[1.01]'}`}
+              onClick={() => setFilterPreset(filterPreset === card.id ? 'TODAS' : card.id)}
+              className={`p-2.5 sm:p-3 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[92px] sm:min-h-[100px] flex-1 min-w-[130px] sm:min-w-0 ${
+                badge.bg
+              } ${badge.border} ${badge.text} ${
+                isActive ? 'ring-2 ring-current shadow-lg scale-[1.02]' : 'hover:scale-[1.01] opacity-90 hover:opacity-100'
+              }`}
             >
-              {/* Top: Title (in 2 lines if needed) + Status Color Icon Box */}
+              {/* Top: Title (in 2 lines if needed) + Status Icon Box */}
               <div className="flex items-start justify-between gap-1.5 w-full">
                 <div className="min-w-0 flex-1">
-                  <span className="text-[11px] sm:text-xs font-bold block leading-tight">
+                  <span className="text-[11px] sm:text-xs font-extrabold block leading-tight">
                     {card.line1}
                   </span>
                   {card.line2 && (
-                    <span className="text-[10px] sm:text-[11px] font-bold block leading-tight opacity-90">
+                    <span className="text-[10px] sm:text-[11px] font-extrabold block leading-tight opacity-90">
                       {card.line2}
                     </span>
                   )}
                 </div>
-                <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 ${card.iconBoxBg}`}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-black/20 border border-white/20">
                   {card.icon}
                 </div>
               </div>
 
-              {/* Bottom: Big Count + OS Label + Valor de Conserto Somado */}
-              <div className="mt-1 sm:mt-1.5 pt-1 sm:pt-1.5 border-t border-current/15">
-                <div className="flex items-baseline gap-1">
-                  <span className={`text-base sm:text-lg font-black leading-none ${card.countColor}`}>
+              {/* Bottom: Count ("X OS") + Total Value ("R$ X,XX") on ONE visible line with clean spacing */}
+              <div className="mt-2 pt-1.5 border-t border-current/20 flex items-center justify-between gap-1.5 flex-wrap">
+                <div className="flex items-baseline gap-1 shrink-0">
+                  <span className="text-sm sm:text-base font-black leading-none">
                     {card.count}
                   </span>
-                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase ${card.tagColor}`}>
+                  <span className="text-[10px] font-bold uppercase opacity-80">
                     OS
                   </span>
                 </div>
-                <div className="mt-1 pt-0.5 border-t border-current/10 flex items-center justify-between gap-1" title={`Valor Total dos Consertos neste status: ${formatCurrency(card.totalAmount)}`}>
-                  <span className="text-[9px] font-bold uppercase tracking-wider opacity-75">Conserto:</span>
-                  <span className={`text-[11px] sm:text-xs font-black font-mono tracking-tight block truncate ${card.countColor}`}>
+                <div className="flex items-center gap-0.5 shrink-0" title={`Valor Total: ${formatCurrency(card.totalAmount)}`}>
+                  <span className="text-[11px] sm:text-xs font-black font-mono tracking-tight leading-none whitespace-nowrap">
                     {formatCurrency(card.totalAmount)}
                   </span>
                 </div>
@@ -872,7 +655,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Todas ({counts.total}) • {formatCurrency(sums.total)}</span>
+              <span>Todas ({orders.length}) • {formatCurrency(orders.reduce((acc, o) => acc + getOrderAmount(o), 0))}</span>
             </button>
 
             {/* Período Selector */}
@@ -1174,7 +957,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/30"
                         >
                           <Filter className="w-3.5 h-3.5" />
-                          <span>Limpar Filtros e Ver Todas ({counts.total})</span>
+                          <span>Limpar Filtros e Ver Todas ({orders.length})</span>
                         </button>
                       </div>
                     </td>
@@ -1764,97 +1547,39 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
               <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 px-1">
                 Selecione o novo status:
               </div>
-              {[
-                {
-                  status: 'ORCAMENTO',
-                  label: 'Em Orçamento',
-                  desc: 'Aparelho em diagnóstico e montagem do orçamento inicial',
-                  icon: <Clock className="w-4 h-4 text-amber-400" />,
-                  borderClass: 'hover:border-amber-500/80',
-                  activeClass: 'bg-amber-500/20 border-amber-500 text-amber-300 ring-2 ring-amber-500/40',
-                },
-                {
-                  status: 'AGUARDANDO_AUTORIZACAO',
-                  label: 'Aguardando Autorização',
-                  desc: 'Orçamento repassado, aguardando aprovação do cliente',
-                  icon: <Hourglass className="w-4 h-4 text-purple-400" />,
-                  borderClass: 'hover:border-purple-500/80',
-                  activeClass: 'bg-purple-500/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/40',
-                },
-                {
-                  status: 'AUTORIZADO',
-                  label: 'Autorizado (Em Manutenção)',
-                  desc: 'Serviço aprovado, técnico realizando o reparo na bancada',
-                  icon: <Wrench className="w-4 h-4 text-cyan-400" />,
-                  borderClass: 'hover:border-cyan-500/80',
-                  activeClass: 'bg-cyan-500/20 border-cyan-500 text-cyan-300 ring-2 ring-cyan-500/40',
-                },
-                {
-                  status: 'AGUARDANDO_PECA',
-                  label: 'Aguardando Peça',
-                  desc: 'Reparo pausado aguardando fornecedor/chegada de peças',
-                  icon: <Puzzle className="w-4 h-4 text-orange-400" />,
-                  borderClass: 'hover:border-orange-500/80',
-                  activeClass: 'bg-orange-500/20 border-orange-500 text-orange-300 ring-2 ring-orange-500/40',
-                },
-                {
-                  status: 'ATRASADO',
-                  label: 'Atrasado',
-                  desc: 'Prazo estourado ou imprevisto técnico na bancada',
-                  icon: <AlertTriangle className="w-4 h-4 text-rose-400" />,
-                  borderClass: 'hover:border-rose-500/80',
-                  activeClass: 'bg-rose-500/20 border-rose-500 text-rose-300 ring-2 ring-rose-500/40',
-                },
-                {
-                  status: 'PRONTO',
-                  label: 'Pronto para Retirada',
-                  desc: 'Serviço concluído e testado, pronto para o cliente retirar',
-                  icon: <Check className="w-4 h-4 text-emerald-400" />,
-                  borderClass: 'hover:border-emerald-500/80',
-                  activeClass: 'bg-emerald-500/20 border-emerald-500 text-emerald-300 ring-2 ring-emerald-500/40',
-                },
-                {
-                  status: 'ENTREGUE',
-                  label: 'Entregue / Concluído',
-                  desc: 'Aparelho entregue ao cliente (baixa financeira à vista ou a prazo)',
-                  icon: <Package className="w-4 h-4 text-teal-400" />,
-                  borderClass: 'hover:border-teal-500/80',
-                  activeClass: 'bg-teal-500/20 border-teal-500 text-teal-300 ring-2 ring-teal-500/40',
-                },
-              ].map((item) => {
-                const isCurrent = getCanonicalStatus(orderForStatusChange.status as string) === item.status;
+              {customOSStatuses.map((item) => {
+                const itemCode = (item.code || item.id).toUpperCase();
+                const isCurrent =
+                  getCanonicalStatus(orderForStatusChange.status as string) === itemCode ||
+                  (orderForStatusChange.status as string)?.toUpperCase() === itemCode;
+
+                const badge = getOrderStatusBadgeClasses(itemCode);
+
                 return (
                   <button
-                    key={item.status}
+                    key={item.id || item.code}
                     type="button"
                     onClick={() => {
                       const targetOrder = orderForStatusChange;
                       setOrderForStatusChange(null);
-                      handleUpdateOrderStatus(targetOrder, item.status as OrderStatus);
+                      handleUpdateOrderStatus(targetOrder, item.code as OrderStatus);
                     }}
-                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                    className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
                       isCurrent
-                        ? item.activeClass
+                        ? `${badge.bg} ${badge.text} ${badge.border} ring-2 ring-current/40 font-bold shadow-md`
                         : isDark
-                        ? `bg-[#070f1e] border-slate-800 text-slate-200 hover:bg-[#0d1c38] ${item.borderClass}`
-                        : `bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100 ${item.borderClass}`
+                        ? 'bg-[#070f1e] border-slate-800 text-slate-200 hover:bg-[#0d1c38]'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 rounded-lg bg-black/20 shrink-0">
-                        {item.icon}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold truncate">{item.label}</span>
-                          {isCurrent && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-600 text-white uppercase tracking-wider">
-                              Atual
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.desc}</p>
-                      </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${badge.dot}`} />
+                      <span className="text-xs font-bold truncate">{item.label}</span>
+                      {isCurrent && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-600 text-white uppercase tracking-wider ml-1">
+                          Atual
+                        </span>
+                      )}
                     </div>
                     <ChevronRight className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-white' : 'text-slate-500'}`} />
                   </button>
