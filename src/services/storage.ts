@@ -2148,7 +2148,7 @@ export const StorageService = {
   // Settings
   getCompanySettings(): CompanySettings {
     const saved = getItem<CompanySettings | null>(STORAGE_KEYS.SETTINGS, null);
-    if (!saved || saved.name === 'MSP INFORMATICA') {
+    if (!saved) {
       setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings, false);
       return initialCompanySettings;
     }
@@ -2179,7 +2179,12 @@ export const StorageService = {
   saveCompanySettings(settings: CompanySettings): void {
     setItem(STORAGE_KEYS.SETTINGS, settings);
     this.logAction('Configurações da empresa atualizadas.');
-    FirestoreSyncService.saveCompanySettings(settings);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCompanySettings(settings);
+    } catch (e) {
+      console.warn('FirestoreSyncService saveCompanySettings error:', e);
+    }
   },
 
   // Subscription & Plan info (Painel Ativo)
@@ -3049,6 +3054,46 @@ export const StorageService = {
       };
       this.setAuthSession(session);
 
+      // Restore company settings and OS configs from Firestore if present
+      if (params.accountData) {
+        const ad = params.accountData;
+        if (ad.companySettings) {
+          this.saveCompanySettings(ad.companySettings);
+        } else if (ad.logoUrl || ad.empresa || ad.nomeFantasia) {
+          const cur = this.getCompanySettings();
+          this.saveCompanySettings({
+            ...cur,
+            logoUrl: ad.logoUrl || cur.logoUrl,
+            commercialName: ad.nomeFantasia || ad.empresa || cur.commercialName,
+            name: ad.nomeEmpresa || ad.empresa || cur.name,
+            phone: ad.telefone || ad.whatsapp || cur.phone,
+            whatsapp: ad.whatsapp || ad.telefone || cur.whatsapp,
+            cnpj: ad.cnpj || cur.cnpj,
+            address: ad.endereco || cur.address,
+            ownerName: ad.responsavel || ad.nome || cur.ownerName,
+          });
+        }
+        if (ad.customOsConfigs) {
+          if (Array.isArray(ad.customOsConfigs.customOSStatuses)) {
+            this.saveCustomOSStatuses(ad.customOsConfigs.customOSStatuses);
+          }
+          if (Array.isArray(ad.customOsConfigs.customDeviceTypes)) {
+            this.saveCustomDeviceTypes(ad.customOsConfigs.customDeviceTypes);
+          }
+          if (Array.isArray(ad.customOsConfigs.customAccessories)) {
+            this.saveCustomAccessories(ad.customOsConfigs.customAccessories);
+          }
+          if (Array.isArray(ad.customOsConfigs.customPaymentMethods)) {
+            this.saveCustomPaymentMethods(ad.customOsConfigs.customPaymentMethods);
+          }
+          if (Array.isArray(ad.customOsConfigs.customCategories)) {
+            this.saveCustomCategories(ad.customOsConfigs.customCategories);
+          }
+        }
+      }
+
+      const currentComp = this.getCompanySettings();
+
       // Auto-save/sync Super Admin account to Firestore
       FirestoreSyncService.saveFullTenantProfile({
         id: cleanEmail,
@@ -3056,7 +3101,7 @@ export const StorageService = {
         email: cleanEmail,
         nome: 'Administrador Master',
         responsavel: 'Administrador Master',
-        empresa: 'Painel Master Gestor',
+        empresa: currentComp.commercialName || currentComp.name || 'Painel Master Gestor',
         role: 'superadmin',
         tipo: 'superadmin',
         planoId: 'SUPER_ADMIN',
@@ -3088,19 +3133,44 @@ export const StorageService = {
     const ownerName = data.nome || data.name || data.responsavel || 'Administrador';
     const shopName = data.empresa || data.nomeEmpresa || data.nomeFantasia || ownerName;
 
-    // Atualiza o nome da assistência nas configurações da empresa se informado
+    // Atualiza configurações da empresa e customizações da OS vindas do Firestore
     try {
-      const currentCompany = this.getCompanySettings();
-      if (shopName && shopName !== 'Administrador') {
+      if (data.companySettings) {
+        this.saveCompanySettings(data.companySettings);
+      } else {
+        const currentCompany = this.getCompanySettings();
         this.saveCompanySettings({
           ...currentCompany,
-          commercialName: shopName,
-          name: shopName,
+          commercialName: shopName && shopName !== 'Administrador' ? shopName : currentCompany.commercialName,
+          name: shopName && shopName !== 'Administrador' ? shopName : currentCompany.name,
           ownerName: ownerName !== 'Administrador' ? ownerName : currentCompany.ownerName,
+          logoUrl: data.logoUrl || currentCompany.logoUrl,
+          phone: data.telefone || data.whatsapp || currentCompany.phone,
+          whatsapp: data.whatsapp || data.telefone || currentCompany.whatsapp,
+          cnpj: data.cnpj || currentCompany.cnpj,
+          address: data.endereco || currentCompany.address,
         });
       }
+
+      if (data.customOsConfigs) {
+        if (Array.isArray(data.customOsConfigs.customOSStatuses)) {
+          this.saveCustomOSStatuses(data.customOsConfigs.customOSStatuses);
+        }
+        if (Array.isArray(data.customOsConfigs.customDeviceTypes)) {
+          this.saveCustomDeviceTypes(data.customOsConfigs.customDeviceTypes);
+        }
+        if (Array.isArray(data.customOsConfigs.customAccessories)) {
+          this.saveCustomAccessories(data.customOsConfigs.customAccessories);
+        }
+        if (Array.isArray(data.customOsConfigs.customPaymentMethods)) {
+          this.saveCustomPaymentMethods(data.customOsConfigs.customPaymentMethods);
+        }
+        if (Array.isArray(data.customOsConfigs.customCategories)) {
+          this.saveCustomCategories(data.customOsConfigs.customCategories);
+        }
+      }
     } catch (e) {
-      console.warn('Erro ao atualizar configurações da empresa com dados do login:', e);
+      console.warn('Erro ao restaurar configurações e OS do Firestore:', e);
     }
 
     // Cria o Employee apenas em memória para a sessão atual
@@ -3508,6 +3578,12 @@ export const StorageService = {
 
   saveCustomCategories(cats: CustomCategory[]): void {
     setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, cats);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCustomOsConfigs({ customCategories: cats });
+    } catch (e) {
+      console.warn('Sync custom categories error:', e);
+    }
   },
 
   getCustomBrands(): string[] {
@@ -3516,6 +3592,7 @@ export const StorageService = {
 
   saveCustomBrands(brands: string[]): void {
     setItem(STORAGE_KEYS.CUSTOM_BRANDS, brands);
+    notifyListeners();
   },
 
   getCustomOSStatuses(): CustomOSStatusItem[] {
@@ -3524,6 +3601,12 @@ export const StorageService = {
 
   saveCustomOSStatuses(statuses: CustomOSStatusItem[]): void {
     setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, statuses);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCustomOsConfigs({ customOSStatuses: statuses });
+    } catch (e) {
+      console.warn('Sync custom OS statuses error:', e);
+    }
   },
 
   getCustomDeviceTypes(): CustomDeviceType[] {
@@ -3532,6 +3615,12 @@ export const StorageService = {
 
   saveCustomDeviceTypes(types: CustomDeviceType[]): void {
     setItem(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, types);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCustomOsConfigs({ customDeviceTypes: types });
+    } catch (e) {
+      console.warn('Sync custom device types error:', e);
+    }
   },
 
   getCustomAccessories(): CustomAccessoryItem[] {
@@ -3544,6 +3633,12 @@ export const StorageService = {
 
   saveCustomAccessories(accessories: CustomAccessoryItem[]): void {
     setItem(STORAGE_KEYS.CUSTOM_ACCESSORIES, accessories);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCustomOsConfigs({ customAccessories: accessories });
+    } catch (e) {
+      console.warn('Sync custom accessories error:', e);
+    }
   },
 
   getCustomPaymentMethods(): CustomPaymentMethodItem[] {
@@ -3557,6 +3652,12 @@ export const StorageService = {
 
   saveCustomPaymentMethods(methods: CustomPaymentMethodItem[]): void {
     setItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, methods);
+    notifyListeners();
+    try {
+      FirestoreSyncService.saveCustomOsConfigs({ customPaymentMethods: methods });
+    } catch (e) {
+      console.warn('Sync custom payment methods error:', e);
+    }
   },
 
   // Suppliers & Purchases Config

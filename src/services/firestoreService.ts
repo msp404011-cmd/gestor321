@@ -65,14 +65,69 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * (Disabled) Prevent creating 'settings' folder in Firebase. Operates locally only.
+   * Save company settings & shop info to Firestore /accounts/{tenantId}
    */
   async saveCompanySettings(settings: CompanySettings): Promise<void> {
     try {
-      // Disabled to strictly comply with flat data structure
-      return;
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId);
+      await setDoc(
+        docRef,
+        {
+          companySettings: settings,
+          empresa: settings.commercialName || settings.name || 'Assistência Técnica',
+          nomeEmpresa: settings.name || settings.commercialName || 'Assistência Técnica',
+          nomeFantasia: settings.commercialName || settings.name || 'Assistência Técnica',
+          logoUrl: settings.logoUrl || '',
+          telefone: settings.phone || settings.whatsapp || '',
+          whatsapp: settings.whatsapp || settings.phone || '',
+          cnpj: settings.cnpj || settings.cnpjCpf || '',
+          endereco: settings.address || '',
+          responsavel: settings.ownerName || '',
+          slogan: settings.slogan || '',
+          cidade: settings.city || '',
+          bairro: settings.neighborhood || '',
+          cep: settings.zipCode || '',
+          uf: settings.state || '',
+          chavePix: settings.pixKey || '',
+          termoGarantia: settings.warrantyText || settings.defaultWarrantyTerms || '',
+          prazoGarantia: settings.defaultWarrantyDays || 90,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (err) {
       console.warn('Firestore saveCompanySettings error:', err);
+    }
+  },
+
+  /**
+   * Save custom OS configurations (device types, accessories, statuses, payments) to Firestore
+   */
+  async saveCustomOsConfigs(configs: {
+    customOSStatuses?: any[];
+    customDeviceTypes?: any[];
+    customAccessories?: any[];
+    customPaymentMethods?: any[];
+    customCategories?: any[];
+  }): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId);
+      await setDoc(
+        docRef,
+        {
+          customOsConfigs: configs,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Firestore saveCustomOsConfigs error:', err);
     }
   },
 

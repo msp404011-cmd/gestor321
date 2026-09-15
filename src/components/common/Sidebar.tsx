@@ -301,13 +301,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 title={isMasterAdmin ? 'Painel Master (Administrador)' : (company.commercialName || company.name || 'Gestor')}
               >
                 {company.logoUrl ? (
-                  <img
-                    src={company.logoUrl}
-                    alt="Logo"
-                    className={`max-h-10 max-w-[140px] object-contain drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] transition-transform ${
-                      isMasterAdmin ? 'group-hover:scale-105' : ''
-                    }`}
-                  />
+                  <div className="flex items-center min-w-0">
+                    <img
+                      src={company.logoUrl}
+                      alt="Logo da Empresa"
+                      className={`max-h-12 max-w-[180px] object-contain drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] transition-transform ${
+                        isMasterAdmin ? 'group-hover:scale-105' : ''
+                      }`}
+                    />
+                  </div>
                 ) : (
                   <div className="min-w-0">
                     <span className="text-base font-black italic tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500 drop-shadow-[0_0_10px_rgba(56,189,248,0.5)] block truncate">
@@ -351,12 +353,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     handleSelect('DASHBOARD');
                   }
                 }}
-                className={`w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,99,235,0.6)] transition-transform ${
-                  isMasterAdmin ? 'cursor-pointer hover:scale-105' : 'cursor-default'
-                }`}
-                title={isMasterAdmin ? 'Painel Master (Administrador)' : 'Gestor'}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-transform ${
+                  company.logoUrl
+                    ? 'bg-slate-900/80 border border-cyan-500/40 p-1 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                    : 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.6)]'
+                } ${isMasterAdmin ? 'cursor-pointer hover:scale-105' : 'cursor-default'}`}
+                title={isMasterAdmin ? 'Painel Master (Administrador)' : (company.commercialName || company.name || 'Gestor')}
               >
-                <Wrench className="w-5 h-5 text-white" />
+                {company.logoUrl ? (
+                  <img
+                    src={company.logoUrl}
+                    alt="Logo"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Wrench className="w-5 h-5 text-white" />
+                )}
               </div>
               <button
                 type="button"

@@ -646,7 +646,7 @@ export interface CompanySettings {
   osShowNotesBox?: boolean; // Default: true
   osShowSignatures?: boolean; // Default: true
   osShowCustomerAddress?: boolean; // Default: true
-  osDefaultPaperFormat?: '80mm' | '58mm' | 'a4'; // Default: '80mm'
+  osDefaultPaperFormat?: '80mm' | '58mm' | '50mm' | 'a4'; // Default: '80mm'
 }
 
 export interface Supplier {

@@ -50,17 +50,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   const currentPlan = StorageService.getSubscriptionPlan();
   const { isDark, toggleTheme } = useTheme();
 
-  const company = StorageService.getCompanySettings();
+  const [company, setCompany] = React.useState(() => StorageService.getCompanySettings());
   const authSession = StorageService.getAuthSession();
   const userAccounts = StorageService.getUserAccounts();
   const userAccount = authSession?.email
     ? userAccounts.find((a) => a.email.toLowerCase() === authSession.email.toLowerCase())
     : null;
+
+  React.useEffect(() => {
+    const unsub = StorageService.subscribe(() => {
+      setCompany(StorageService.getCompanySettings());
+    });
+    return unsub;
+  }, []);
+
   const assistanceName =
-    userAccount?.shopName ||
     company?.commercialName ||
     company?.name ||
     company?.tradeName ||
+    userAccount?.shopName ||
     'Assistência Técnica';
 
   const orders = StorageService.getOrders();

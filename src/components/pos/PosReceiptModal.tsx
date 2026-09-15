@@ -68,6 +68,38 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150 cursor-pointer"
       onClick={onClose}
     >
+      {/* Dynamic Print CSS Injection */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-pos-receipt, #printable-pos-receipt * {
+            visibility: visible;
+          }
+          #printable-pos-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: ${paperFormat === '50mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
+            max-width: ${paperFormat === '50mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: white !important;
+            color: black !important;
+          }
+          @page {
+            size: ${paperFormat === '50mm' ? '50mm auto' : paperFormat === '80mm' ? '80mm auto' : 'A4 portrait'};
+            margin: ${paperFormat === 'A4' ? '10mm' : '0mm'};
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <div 
         className={`w-full ${
           paperFormat === 'A4' ? 'max-w-2xl' : paperFormat === '50mm' ? 'max-w-xs' : 'max-w-md'
@@ -157,17 +189,24 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
         </div>
 
         {/* Printable Receipt Content */}
-        <div className={`overflow-y-auto flex-1 font-mono text-slate-900 bg-white printable-content ${
-          paperFormat === '50mm' ? 'p-3 text-[10px]' : paperFormat === 'A4' ? 'p-8 text-xs' : 'p-6 text-xs'
-        }`}>
+        <div 
+          id="printable-pos-receipt"
+          className={`overflow-y-auto flex-1 font-mono text-slate-900 bg-white printable-content ${
+            paperFormat === '50mm' ? 'p-2 text-[9px] w-[50mm] max-w-[50mm] mx-auto' : paperFormat === 'A4' ? 'p-8 text-xs' : 'p-4 text-xs w-[80mm] max-w-[80mm] mx-auto'
+          }`}
+          style={{ color: '#000000', wordBreak: 'break-word' }}
+        >
           {paperFormat === 'A4' ? (
             /* A4 Full Page Format */
             <div className="space-y-6">
               <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
                 <div>
-                  <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">{company.name}</h1>
+                  {company.logoUrl && (
+                    <img src={company.logoUrl} alt="Logo" className="max-h-12 max-w-[160px] object-contain mb-2" />
+                  )}
+                  <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">{company.commercialName || company.name}</h1>
                   <p className="text-xs text-slate-600 font-sans mt-0.5">{company.slogan}</p>
-                  <p className="text-xs text-slate-600 mt-1">CNPJ: {company.cnpj} | WhatsApp: {company.phone}</p>
+                  <p className="text-xs text-slate-600 mt-1">CNPJ: {company.cnpj || company.cnpjCpf} | WhatsApp: {company.phone || company.whatsapp}</p>
                   <p className="text-xs text-slate-600">{company.address} - {company.city}/{company.state}</p>
                 </div>
                 <div className="text-right">
@@ -249,23 +288,32 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
           ) : (
             /* Thermal Roll (80mm or 50mm) */
             <div>
-              <div className="text-center pb-2.5 border-b border-dashed border-slate-300">
-                <h2 className={`${paperFormat === '50mm' ? 'text-xs' : 'text-sm'} font-black tracking-tight uppercase`}>
-                  {company.name}
+              <div className="text-center pb-2 border-b border-dashed border-slate-300">
+                {company.logoUrl && (
+                  <div className="flex justify-center mb-1">
+                    <img
+                      src={company.logoUrl}
+                      alt="Logo"
+                      className={`${paperFormat === '50mm' ? 'max-h-10 max-w-[110px]' : 'max-h-12 max-w-[140px]'} object-contain`}
+                    />
+                  </div>
+                )}
+                <h2 className={`${paperFormat === '50mm' ? 'text-[11px]' : 'text-sm'} font-black tracking-tight uppercase`}>
+                  {company.commercialName || company.name}
                 </h2>
-                <p className="text-[9px] text-slate-600">{company.slogan}</p>
-                <p className="text-[9px] text-slate-500 mt-0.5">CNPJ: {company.cnpj}</p>
-                <p className="text-[9px] text-slate-500">
+                {company.slogan && <p className="text-[8px] text-slate-600">{company.slogan}</p>}
+                <p className="text-[8px] text-slate-600 mt-0.5">CNPJ: {company.cnpj || company.cnpjCpf}</p>
+                <p className="text-[8px] text-slate-600">
                   {company.address} - {company.city}/{company.state}
                 </p>
-                <p className="text-[9px] text-slate-500">Whats: {company.phone}</p>
+                <p className="text-[8px] text-slate-600">Fone: {company.phone || company.whatsapp}</p>
               </div>
 
               {/* Sale details */}
-              <div className="py-2 border-b border-dashed border-slate-300 space-y-0.5 text-[10px]">
+              <div className="py-1.5 border-b border-dashed border-slate-300 space-y-0.5 text-[9px]">
                 <div className="flex justify-between">
                   <span>VENDA Nº:</span>
-                  <span className="font-bold">#{sale.saleNumber}</span>
+                  <span className="font-black">#{sale.saleNumber}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>DATA:</span>
@@ -273,7 +321,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span>CLIENTE:</span>
-                  <span className="font-bold truncate max-w-[140px]">{sale.customerName}</span>
+                  <span className="font-bold truncate max-w-[120px]">{sale.customerName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>VENDEDOR:</span>
@@ -282,21 +330,21 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
               </div>
 
               {/* Items Table */}
-              <div className="py-2 border-b border-dashed border-slate-300">
-                <div className="flex justify-between font-bold text-[9px] uppercase text-slate-500 pb-1">
+              <div className="py-1.5 border-b border-dashed border-slate-300">
+                <div className="flex justify-between font-bold text-[8.5px] uppercase text-slate-600 pb-0.5">
                   <span>ITEM</span>
                   <span>TOTAL</span>
                 </div>
 
-                <div className="space-y-1.5 mt-1">
+                <div className="space-y-1 mt-0.5">
                   {sale.items.map((item, idx) => (
-                    <div key={idx}>
+                    <div key={idx} className="text-[8.5px]">
                       <p className="font-bold leading-tight truncate">{item.productName}</p>
-                      <div className="flex justify-between text-slate-600">
+                      <div className="flex justify-between text-slate-700">
                         <span>
                           {item.quantity} x {formatCurrency(item.unitPrice)}
                         </span>
-                        <span className="font-bold text-slate-900">{formatCurrency(item.total)}</span>
+                        <span className="font-black text-black">{formatCurrency(item.total)}</span>
                       </div>
                     </div>
                   ))}
@@ -304,32 +352,32 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
               </div>
 
               {/* Financials */}
-              <div className="py-2 border-b border-dashed border-slate-300 space-y-1 text-[10px]">
+              <div className="py-1.5 border-b border-dashed border-slate-300 space-y-0.5 text-[9px]">
                 <div className="flex justify-between">
                   <span>SUBTOTAL:</span>
                   <span>{formatCurrency(sale.subtotal)}</span>
                 </div>
                 {sale.discount > 0 && (
-                  <div className="flex justify-between text-rose-600">
+                  <div className="flex justify-between text-rose-600 font-bold">
                     <span>DESCONTO:</span>
                     <span>- {formatCurrency(sale.discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-black pt-1 border-t border-slate-200 text-xs">
+                <div className="flex justify-between font-black pt-1 border-t border-slate-300 text-[10px]">
                   <span>TOTAL:</span>
                   <span>{formatCurrency(sale.total)}</span>
                 </div>
-                <div className="flex justify-between pt-0.5">
-                  <span>PGTO:</span>
+                <div className="flex justify-between pt-0.5 text-[8.5px]">
+                  <span>FORMA PGTO:</span>
                   <span className="font-bold">{sale.paymentMethod}</span>
                 </div>
               </div>
 
               {/* Footer note */}
-              <div className="pt-3 text-center text-[9px] text-slate-500 space-y-0.5">
+              <div className="pt-2 text-center text-[8px] text-slate-600 space-y-0.5">
                 <p className="font-bold">Obrigado pela preferência!</p>
                 <p>Guarde este comprovante.</p>
-                <p className="text-[8px] text-slate-400 mt-1">Documento Não Fiscal</p>
+                <p className="text-[7.5px] text-slate-400 mt-0.5">Documento Não Fiscal</p>
               </div>
             </div>
           )}

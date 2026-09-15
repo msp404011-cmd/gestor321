@@ -279,8 +279,10 @@ export const SettingsView: React.FC = () => {
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
-  const handleSaveCompany = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveCompany = (e?: React.SyntheticEvent | React.FormEvent | Event) => {
+    if (e && typeof (e as any).preventDefault === 'function') {
+      (e as any).preventDefault();
+    }
     StorageService.saveCompanySettings(company);
     showSuccessFeedback();
   };
@@ -2371,7 +2373,7 @@ export const SettingsView: React.FC = () => {
                           }`}
                         >
                           <option value="80mm">🧾 Bobina 80mm (Padrão Térmico)</option>
-                          <option value="58mm">📱 Bobina 58mm / 50mm (Mini Térmica)</option>
+                          <option value="50mm">📱 Bobina 50mm / 58mm (Mini Térmica)</option>
                           <option value="a4">📄 Folha A4</option>
                         </select>
                       </div>
@@ -2587,14 +2589,14 @@ export const SettingsView: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPreviewPaperFormat('58mm')}
+                          onClick={() => setPreviewPaperFormat('50mm' as any)}
                           className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                            previewPaperFormat === '58mm'
+                            previewPaperFormat === '50mm' || previewPaperFormat === '58mm'
                               ? 'bg-blue-600 text-white shadow-xs'
                               : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          58mm
+                          50mm
                         </button>
                       </div>
                     </div>

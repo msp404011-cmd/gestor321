@@ -13,7 +13,7 @@ interface OrderPrintModalProps {
   mode?: 'entrance' | 'internal' | 'receipt';
 }
 
-export type PaperFormat = 'a4' | '80mm' | '58mm';
+export type PaperFormat = 'a4' | '80mm' | '58mm' | '50mm';
 
 export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   isOpen,
@@ -23,7 +23,13 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 }) => {
   const company = StorageService.getCompanySettings();
   const [printType, setPrintType] = useState<'entrance' | 'internal' | 'receipt'>(mode);
-  const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => (company.osDefaultPaperFormat as PaperFormat) || '80mm');
+  const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => {
+    const defaultFormat = company.osDefaultPaperFormat as PaperFormat;
+    if (defaultFormat === '50mm' || defaultFormat === '58mm') return '50mm';
+    if (defaultFormat === '80mm') return '80mm';
+    if (defaultFormat === 'a4') return 'a4';
+    return '80mm';
+  });
 
   if (!isOpen || !order) return null;
 
@@ -152,7 +158,8 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             position: absolute;
             left: 0;
             top: 0;
-            width: ${paperFormat === '58mm' ? '58mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
+            width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
+            max-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
             margin: 0 auto !important;
             padding: 0 !important;
             box-shadow: none !important;
@@ -160,7 +167,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             background: white !important;
           }
           @page {
-            size: ${paperFormat === '58mm' ? '58mm auto' : paperFormat === '80mm' ? '80mm auto' : 'A4 portrait'};
+            size: ${paperFormat === '50mm' || paperFormat === '58mm' ? '50mm auto' : paperFormat === '80mm' ? '80mm auto' : 'A4 portrait'};
             margin: ${paperFormat === 'a4' ? '10mm' : '0mm'};
           }
           .no-print {
@@ -233,7 +240,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               </button>
             </div>
 
-            {/* 2. Paper Format Selector (A4, 80mm, 58mm) */}
+            {/* 2. Paper Format Selector (A4, 80mm, 50mm) */}
             <div className="flex items-center bg-slate-950 p-0.5 sm:p-1 rounded-xl text-[10px] sm:text-xs font-bold text-slate-300 border border-slate-800">
               <button
                 type="button"
@@ -257,13 +264,13 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setPaperFormat('58mm')}
+                onClick={() => setPaperFormat('50mm')}
                 className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  paperFormat === '58mm' ? 'bg-emerald-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-800'
+                  paperFormat === '50mm' || paperFormat === '58mm' ? 'bg-emerald-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-800'
                 }`}
-                title="Impressora Térmica 58mm / 50mm"
+                title="Impressora Térmica 50mm / 58mm"
               >
-                📱 58mm
+                📱 50mm
               </button>
             </div>
 

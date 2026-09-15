@@ -6,7 +6,7 @@ import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../service
 interface ThermalOrderReceiptProps {
   order: ServiceOrder;
   company: CompanySettings;
-  paperFormat?: '80mm' | '58mm';
+  paperFormat?: '80mm' | '58mm' | '50mm';
   subtitle?: string;
 }
 
@@ -17,6 +17,8 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
   subtitle,
 }) => {
   if (!order) return null;
+
+  const isMini = paperFormat === '50mm' || paperFormat === '58mm';
 
   // Look up customer full details if available
   const customer = order.customerId
@@ -103,30 +105,30 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
 
   return (
     <div
-      className={`mx-auto bg-white text-slate-950 select-text ${
-        paperFormat === '58mm'
-          ? 'w-[58mm] max-w-[58mm] p-2 text-[9px] leading-tight font-mono'
+      className={`mx-auto bg-white text-black select-text ${
+        isMini
+          ? 'w-[50mm] max-w-[50mm] p-1.5 text-[8.5px] leading-tight font-sans'
           : 'w-[80mm] max-w-[80mm] p-3 text-[10px] leading-tight font-sans'
       }`}
-      style={{ color: '#000000' }}
+      style={{ color: '#000000', wordBreak: 'break-word' }}
     >
       {/* 1. BRAND / LOGO HEADER */}
       <div className="text-center">
         {company.logoUrl ? (
-          <div className="flex justify-center mb-1.5">
+          <div className="flex justify-center mb-1">
             <img
               src={company.logoUrl}
               alt="Logo"
-              className="max-h-14 max-w-[150px] object-contain"
+              className={`${isMini ? 'max-h-10 max-w-[110px]' : 'max-h-14 max-w-[150px]'} object-contain`}
             />
           </div>
         ) : (
           <div className="mb-1">
-            <div className="font-black tracking-wide leading-tight text-base uppercase font-sans">
+            <div className={`font-black tracking-wide leading-tight ${isMini ? 'text-xs' : 'text-base'} uppercase font-sans`}>
               {company.commercialName || company.name || 'TECHNOVA ASSISTÊNCIA TÉCNICA'}
             </div>
             {company.slogan && (
-              <div className="text-[8px] tracking-wider uppercase text-center mt-0.5 font-bold text-slate-700">
+              <div className="text-[7.5px] tracking-wider uppercase text-center mt-0.5 font-bold text-slate-700">
                 {company.slogan}
               </div>
             )}
@@ -134,7 +136,7 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
         )}
 
         {/* Company address and identification */}
-        <div className="text-center text-[9.5px] leading-snug mt-1 text-slate-900">
+        <div className={`text-center ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-snug mt-1 text-slate-900`}>
           <div className="font-black uppercase">{company.commercialName || company.name || 'TECHNOVA ASSISTÊNCIA TÉCNICA'}</div>
           {company.ownerName && <div>{company.ownerName}</div>}
           <div>
@@ -149,20 +151,20 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 2. ORDER NUMBER & TITLE */}
-      <div className="text-center my-2.5">
-        <div className="text-[11px] font-bold tracking-wide">
+      <div className="text-center my-2">
+        <div className={`${isMini ? 'text-[9px]' : 'text-[11px]'} font-bold tracking-wide`}>
           {company.osReceiptTitle || 'Ordem Servico'}
         </div>
-        <div className="text-2xl font-black my-0.5 tracking-wider font-mono">
+        <div className={`${isMini ? 'text-xl' : 'text-2xl'} font-black my-0.5 tracking-wider font-mono`}>
           {order.orderNumber}
         </div>
-        <div className="text-[10px] font-semibold text-slate-800">
+        <div className={`${isMini ? 'text-[8.5px]' : 'text-[10px]'} font-semibold text-slate-800`}>
           {subtitle || company.osReceiptSubtitle || 'Comprovante de Recebimento'}
         </div>
       </div>
 
       {/* 3. STATUS & DATES */}
-      <div className="my-1.5 text-[9.5px] leading-tight">
+      <div className={`my-1.5 ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight`}>
         <div className="flex justify-between items-center py-0.5">
           <span className="font-bold">Status OS:</span>
           <span className="font-black uppercase">
@@ -194,18 +196,18 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 4. CUSTOMER INFORMATION */}
-      <div className="text-left text-[9.5px] leading-tight space-y-0.5 my-2 pt-1 border-t border-slate-300">
+      <div className={`text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight space-y-0.5 my-1.5 pt-1 border-t border-slate-300`}>
         <div className="flex">
-          <span className="w-16 shrink-0 font-medium">Cliente:</span>
+          <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>Cliente:</span>
           <span className="font-black uppercase truncate">{customer?.name || order.customerName}</span>
         </div>
         <div className="flex">
-          <span className="w-16 shrink-0 font-medium">WhatsApp:</span>
+          <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>WhatsApp:</span>
           <span>{customer?.whatsapp || customer?.phone || order.customerWhatsapp || order.customerPhone || ''}</span>
         </div>
         {(customer?.whatsappAlt || customer?.alternativePhone) && (
           <div className="flex">
-            <span className="w-16 shrink-0 font-medium">Recado:</span>
+            <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>Recado:</span>
             <span>
               {customer.whatsappAlt || customer.alternativePhone}
               {customer.alternativeContactName ? ` (${customer.alternativeContactName})` : ''}
@@ -214,25 +216,25 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
         )}
         {(customer?.document || order.customerDocument) && (
           <div className="flex">
-            <span className="w-16 shrink-0 font-medium">CPF/CNPJ:</span>
+            <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>CPF/CNPJ:</span>
             <span>{customer?.document || order.customerDocument}</span>
           </div>
         )}
         {company.osShowCustomerAddress !== false && customer?.address && (
           <>
             <div className="flex">
-              <span className="w-16 shrink-0 font-medium">Endereço:</span>
+              <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>Endereço:</span>
               <span className="truncate">{customer.address}</span>
             </div>
             {customer.neighborhood && (
               <div className="flex">
-                <span className="w-16 shrink-0 font-medium">Bairro:</span>
+                <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>Bairro:</span>
                 <span>{customer.neighborhood}</span>
               </div>
             )}
             {(customer.city || customer.state) && (
               <div className="flex">
-                <span className="w-16 shrink-0 font-medium">Cidade/UF:</span>
+                <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-medium`}>Cidade/UF:</span>
                 <span>
                   {customer.city || ''}
                   {customer.state ? `/${customer.state}` : ''}
@@ -244,30 +246,30 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 5. DEVICE INFORMATION */}
-      <div className="text-left text-[9.5px] leading-tight space-y-0.5 my-2 pt-1 border-t border-slate-300">
+      <div className={`text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight space-y-0.5 my-1.5 pt-1 border-t border-slate-300`}>
         <div className="flex">
-          <span className="w-24 shrink-0 font-medium">Produto:</span>
+          <span className={`${isMini ? 'w-16' : 'w-24'} shrink-0 font-medium`}>Produto:</span>
           <span className="font-bold uppercase">
             {order.brand ? `${order.brand} ${order.model}` : order.model || 'Equipamento'}
           </span>
         </div>
         {(order.imei || order.serialNumber) && (
           <div className="flex">
-            <span className="w-24 shrink-0 font-medium">Nº Serie / Imei:</span>
-            <span className="font-mono">{order.imei || order.serialNumber}</span>
+            <span className={`${isMini ? 'w-16' : 'w-24'} shrink-0 font-medium`}>Nº Serie/Imei:</span>
+            <span className="font-mono text-[8px]">{order.imei || order.serialNumber}</span>
           </div>
         )}
         <div className="flex">
-          <span className="w-24 shrink-0 font-medium">Tp. Prod.:</span>
+          <span className={`${isMini ? 'w-16' : 'w-24'} shrink-0 font-medium`}>Tp. Prod.:</span>
           <span>{order.deviceType || 'Celular'}</span>
         </div>
       </div>
 
-      {/* 6. OBSERVAÇÕES DO ATENDIMENTO / APARELHO (ESPAÇO DEDICADO ÀS OBSERVAÇÕES DA OS) */}
-      <div className="my-2 text-left text-[9.5px] pt-1 border-t border-slate-300">
+      {/* 6. OBSERVAÇÕES DO ATENDIMENTO / APARELHO */}
+      <div className={`my-1.5 text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} pt-1 border-t border-slate-300`}>
         <span className="font-bold block mb-0.5">Observações:</span>
         <div
-          className="px-2 py-1.5 min-h-[38px] text-[9.5px] leading-relaxed whitespace-pre-line"
+          className={`px-1.5 py-1 min-h-[30px] ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-relaxed whitespace-pre-line`}
           style={{ border: '1px solid #000000' }}
         >
           {([
@@ -279,13 +281,13 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
         </div>
       </div>
 
-      {/* 7. PROBLEM & LAUDO TÉCNICO (CAIXAS RETANGULARES COM BORDA) */}
-      <div className="my-2 text-left text-[9.5px] space-y-2">
+      {/* 7. PROBLEM & LAUDO TÉCNICO */}
+      <div className={`my-1.5 text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} space-y-1.5`}>
         {company.osShowProblemBox !== false && (
           <div>
             <span className="font-bold block mb-0.5">Problema:</span>
             <div
-              className="px-2 py-1 min-h-[22px] font-black uppercase text-[10px] tracking-wide"
+              className={`px-1.5 py-0.5 min-h-[20px] font-black uppercase ${isMini ? 'text-[8.5px]' : 'text-[10px]'} tracking-wide`}
               style={{ border: '1px solid #000000' }}
             >
               {order.clientDefect || 'NÃO ESPECIFICADO'}
@@ -297,7 +299,7 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
           <div>
             <span className="font-bold block mb-0.5">Laudo:</span>
             <div
-              className="px-2 py-1 min-h-[22px] font-black uppercase text-[10px] tracking-wide"
+              className={`px-1.5 py-0.5 min-h-[20px] font-black uppercase ${isMini ? 'text-[8.5px]' : 'text-[10px]'} tracking-wide`}
               style={{ border: '1px solid #000000' }}
             >
               {order.technicalDiagnosis || order.performedService || 'EM ANÁLISE / REPARO'}
@@ -307,115 +309,163 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 8. PARTS AND LABOR TABLE */}
-      <div className="my-2.5 text-left text-[9.5px] leading-tight">
-        <div className="font-bold mb-1">Peças Utilizadas / Mão de Obra:</div>
-        <div className="text-[9px] font-bold pb-0.5">Código / Descrição Produto</div>
-        <div className="grid grid-cols-5 text-[9px] font-bold pb-1 border-b border-slate-400">
-          <span>Un.</span>
-          <span className="text-center">Qtde</span>
-          <span className="text-right">V. Unit</span>
-          <span className="text-right">Desc</span>
-          <span className="text-right">T. Líquido</span>
-        </div>
+      <div className={`my-2 text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight`}>
+        <div className="font-bold mb-1">Peças / Serviços:</div>
 
-        <div className="divide-y divide-slate-200 text-[9px]">
-          {((order.items && order.items.length > 0) ? order.items : (order.parts || [])).length > 0 ? (
-            ((order.items && order.items.length > 0) ? order.items : (order.parts || [])).map((p, idx) => (
-              <div key={idx} className="py-1">
-                <div className="font-mono text-[9px] truncate font-semibold">
-                  {p.productId ? `${p.productId} - ` : ''}{p.productName || p.name}
+        {isMini ? (
+          /* Mini (50mm/58mm) 2-line layout per item to prevent squeezing */
+          <div className="divide-y divide-slate-300 border-t border-b border-slate-300 py-1 space-y-1">
+            {((order.items && order.items.length > 0) ? order.items : (order.parts || [])).length > 0 ? (
+              ((order.items && order.items.length > 0) ? order.items : (order.parts || [])).map((p, idx) => (
+                <div key={idx} className="pt-1 first:pt-0">
+                  <div className="font-semibold truncate">{p.productName || p.name}</div>
+                  <div className="flex justify-between text-slate-800">
+                    <span>{p.quantity}x {formatCurrency(p.unitPrice)}</span>
+                    <span className="font-black">{formatCurrency(p.totalPrice || p.total)}</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-5 pt-0.5">
-                  <span>UN</span>
-                  <span className="text-center">{p.quantity},00</span>
-                  <span className="text-right">{formatCurrency(p.unitPrice)}</span>
-                  <span className="text-right">{p.discount > 0 ? formatCurrency(p.discount) : 'R$ 0,00'}</span>
-                  <span className="text-right font-bold">{formatCurrency(p.totalPrice || p.total)}</span>
-                </div>
-              </div>
-            ))
-          ) : null}
+              ))
+            ) : null}
 
-          {order.laborPrice > 0 &&
-            !((order.items && order.items.length > 0) ? order.items : (order.parts || [])).some(
-              (p) => p.type === 'SERVICO'
-            ) && (
-              <div className="py-1">
-                <div className="font-mono text-[9px] truncate font-semibold">
-                  SRV-001 MÃO DE OBRA / SERVIÇO TÉCNICO
+            {order.laborPrice > 0 &&
+              !((order.items && order.items.length > 0) ? order.items : (order.parts || [])).some(
+                (p) => p.type === 'SERVICO'
+              ) && (
+                <div className="pt-1 first:pt-0">
+                  <div className="font-semibold">SRV - MÃO DE OBRA TÉCNICA</div>
+                  <div className="flex justify-between text-slate-800">
+                    <span>1x {formatCurrency(order.laborPrice)}</span>
+                    <span className="font-black">{formatCurrency(order.laborPrice)}</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-5 pt-0.5">
-                  <span>UN</span>
-                  <span className="text-center">1,00</span>
-                  <span className="text-right">{formatCurrency(order.laborPrice)}</span>
-                  <span className="text-right">{order.discount > 0 ? formatCurrency(order.discount) : 'R$ 0,00'}</span>
-                  <span className="text-right font-bold">{formatCurrency(order.laborPrice)}</span>
-                </div>
-              </div>
-            )}
+              )}
 
-          {(!order.items || order.items.length === 0) &&
-            (!order.parts || order.parts.length === 0) &&
-            (!order.laborPrice || order.laborPrice === 0) && (
-              <div className="py-1">
-                <div className="font-mono text-[9px] truncate font-semibold">
-                  SRV-GERAL {order.technicalDiagnosis || order.clientDefect || 'SERVIÇO TÉCNICO'}
+            {(!order.items || order.items.length === 0) &&
+              (!order.parts || order.parts.length === 0) &&
+              (!order.laborPrice || order.laborPrice === 0) && (
+                <div className="pt-1 first:pt-0">
+                  <div className="font-semibold">{order.technicalDiagnosis || order.clientDefect || 'SERVIÇO TÉCNICO'}</div>
+                  <div className="flex justify-between text-slate-800">
+                    <span>1x {formatCurrency(order.totalPrice)}</span>
+                    <span className="font-black">{formatCurrency(order.totalPrice)}</span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-5 pt-0.5">
-                  <span>UN</span>
-                  <span className="text-center">1,00</span>
-                  <span className="text-right">{formatCurrency(order.totalPrice)}</span>
-                  <span className="text-right">{order.discount > 0 ? formatCurrency(order.discount) : 'R$ 0,00'}</span>
-                  <span className="text-right font-bold">{formatCurrency(order.totalPrice)}</span>
-                </div>
-              </div>
-            )}
-        </div>
+              )}
+          </div>
+        ) : (
+          /* 80mm Full 5-column table */
+          <>
+            <div className="text-[9px] font-bold pb-0.5">Código / Descrição Produto</div>
+            <div className="grid grid-cols-5 text-[9px] font-bold pb-1 border-b border-slate-400">
+              <span>Un.</span>
+              <span className="text-center">Qtde</span>
+              <span className="text-right">V. Unit</span>
+              <span className="text-right">Desc</span>
+              <span className="text-right">T. Líquido</span>
+            </div>
+
+            <div className="divide-y divide-slate-200 text-[9px]">
+              {((order.items && order.items.length > 0) ? order.items : (order.parts || [])).length > 0 ? (
+                ((order.items && order.items.length > 0) ? order.items : (order.parts || [])).map((p, idx) => (
+                  <div key={idx} className="py-1">
+                    <div className="font-mono text-[9px] truncate font-semibold">
+                      {p.productId ? `${p.productId} - ` : ''}{p.productName || p.name}
+                    </div>
+                    <div className="grid grid-cols-5 pt-0.5">
+                      <span>UN</span>
+                      <span className="text-center">{p.quantity},00</span>
+                      <span className="text-right">{formatCurrency(p.unitPrice)}</span>
+                      <span className="text-right">{p.discount > 0 ? formatCurrency(p.discount) : 'R$ 0,00'}</span>
+                      <span className="text-right font-bold">{formatCurrency(p.totalPrice || p.total)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : null}
+
+              {order.laborPrice > 0 &&
+                !((order.items && order.items.length > 0) ? order.items : (order.parts || [])).some(
+                  (p) => p.type === 'SERVICO'
+                ) && (
+                  <div className="py-1">
+                    <div className="font-mono text-[9px] truncate font-semibold">
+                      SRV-001 MÃO DE OBRA / SERVIÇO TÉCNICO
+                    </div>
+                    <div className="grid grid-cols-5 pt-0.5">
+                      <span>UN</span>
+                      <span className="text-center">1,00</span>
+                      <span className="text-right">{formatCurrency(order.laborPrice)}</span>
+                      <span className="text-right">{order.discount > 0 ? formatCurrency(order.discount) : 'R$ 0,00'}</span>
+                      <span className="text-right font-bold">{formatCurrency(order.laborPrice)}</span>
+                    </div>
+                  </div>
+                )}
+
+              {(!order.items || order.items.length === 0) &&
+                (!order.parts || order.parts.length === 0) &&
+                (!order.laborPrice || order.laborPrice === 0) && (
+                  <div className="py-1">
+                    <div className="font-mono text-[9px] truncate font-semibold">
+                      SRV-GERAL {order.technicalDiagnosis || order.clientDefect || 'SERVIÇO TÉCNICO'}
+                    </div>
+                    <div className="grid grid-cols-5 pt-0.5">
+                      <span>UN</span>
+                      <span className="text-center">1,00</span>
+                      <span className="text-right">{formatCurrency(order.totalPrice)}</span>
+                      <span className="text-right">{order.discount > 0 ? formatCurrency(order.discount) : 'R$ 0,00'}</span>
+                      <span className="text-right font-bold">{formatCurrency(order.totalPrice)}</span>
+                    </div>
+                  </div>
+                )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 9. FINANCIAL TOTALS IN RECTANGULAR BOXES */}
-      <div className="my-3 flex flex-col items-center justify-center text-[9.5px] space-y-1.5 w-full">
-        <div className="text-center w-full max-w-[170px]">
-          <span className="font-bold block text-[9.5px] mb-0.5 text-center">Total Bruto:</span>
+      <div className={`my-2 flex flex-col items-center justify-center ${isMini ? 'text-[8px] space-y-1' : 'text-[9.5px] space-y-1.5'} w-full`}>
+        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[170px]'}`}>
+          <span className="font-bold block mb-0.5 text-center">Total Bruto:</span>
           <div
-            className="px-3 py-1 text-center font-black w-full"
+            className="px-2 py-0.5 text-center font-black w-full"
             style={{ border: '1px solid #000000' }}
           >
             {formatCurrency(totalGross)}
           </div>
         </div>
-        <div className="text-center w-full max-w-[170px]">
-          <span className="font-bold block text-[9.5px] mb-0.5 text-center">Desconto:</span>
-          <div
-            className="px-3 py-1 text-center font-black w-full"
-            style={{ border: '1px solid #000000' }}
-          >
-            {formatCurrency(order.discount || 0)}
+        {order.discount > 0 && (
+          <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[170px]'}`}>
+            <span className="font-bold block mb-0.5 text-center">Desconto:</span>
+            <div
+              className="px-2 py-0.5 text-center font-black w-full"
+              style={{ border: '1px solid #000000' }}
+            >
+              {formatCurrency(order.discount || 0)}
+            </div>
           </div>
-        </div>
-        <div className="text-center w-full max-w-[170px]">
-          <span className="font-bold block text-[9.5px] mb-0.5 text-center">Total Líquido:</span>
+        )}
+        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[170px]'}`}>
+          <span className="font-bold block mb-0.5 text-center">Total Líquido:</span>
           <div
-            className="px-3 py-1 text-center font-black w-full"
+            className="px-2 py-0.5 text-center font-black w-full"
             style={{ border: '1px solid #000000' }}
           >
             {formatCurrency(order.totalPrice)}
           </div>
         </div>
-        <div className="text-center w-full max-w-[170px]">
-          <span className="font-bold block text-[9.5px] mb-0.5 text-center">Total Pago:</span>
+        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[170px]'}`}>
+          <span className="font-bold block mb-0.5 text-center">Total Pago:</span>
           <div
-            className="px-3 py-1 text-center font-black w-full"
+            className="px-2 py-0.5 text-center font-black w-full"
             style={{ border: '1px solid #000000' }}
           >
             {formatCurrency(totalPaid)}
           </div>
         </div>
         {remainingAmount > 0 && (
-          <div className="text-center w-full max-w-[170px]">
-            <span className="font-bold block text-[9.5px] mb-0.5 text-center text-rose-600">Restante a Pagar:</span>
+          <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[170px]'}`}>
+            <span className="font-bold block mb-0.5 text-center text-rose-600">Restante a Pagar:</span>
             <div
-              className="px-3 py-1 text-center font-black w-full text-rose-600"
+              className="px-2 py-0.5 text-center font-black w-full text-rose-600"
               style={{ border: '1px solid #e11d48' }}
             >
               {formatCurrency(remainingAmount)}
@@ -425,14 +475,14 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 10. PAYMENT METHODS */}
-      <div className="my-3 text-[9.5px] space-y-1.5 text-left border-t border-dashed border-slate-300 pt-2">
-        <div className="font-bold mb-1">Detalhamento dos Recebimentos:</div>
+      <div className={`my-2 ${isMini ? 'text-[8px]' : 'text-[9.5px]'} space-y-1 text-left border-t border-dashed border-slate-300 pt-1.5`}>
+        <div className="font-bold mb-0.5">Detalhamento dos Recebimentos:</div>
         {paymentsList.length > 0 ? (
           paymentsList.map((p, idx) => (
-            <div key={idx} className="flex justify-between items-start pb-1 last:pb-0">
+            <div key={idx} className="flex justify-between items-start pb-0.5 last:pb-0">
               <div>
                 <span className="font-bold block">{p.label}:</span>
-                <span className="text-[8px] text-slate-700 font-bold uppercase">
+                <span className={`${isMini ? 'text-[7.5px]' : 'text-[8px]'} text-slate-700 font-bold uppercase`}>
                   {getPaymentMethodLabel(p.method)}{p.date ? ` (${formatDate(p.date)})` : ''}
                 </span>
               </div>
@@ -450,7 +500,7 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
       </div>
 
       {/* 11. WARRANTY & LEGAL FOOTER */}
-      <div className="text-center text-[8.5px] leading-tight text-slate-800 pt-2 space-y-0.5">
+      <div className={`text-center ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} leading-tight text-slate-800 pt-1.5 space-y-0.5`}>
         {(
           company.osFooterTerms ||
           'Garantia de 90 dias sobre serviços e peças\nGuarde essa OS ela é a sua garantia do serviço\nA Garantia não cobre mau uso'
