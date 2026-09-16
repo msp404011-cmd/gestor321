@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
-import { StorageService } from '../../services/storage';
+import { StorageService, setRamItem, getRamItem } from '../../services/storage';
 import { getTenantId } from '../../services/firestoreService';
 import { CloudEngineBadge } from '../common/CloudEngineBadge';
 import { SupplierPurchaseItem, SupplierPurchasesView, RegisteredSupplier } from './SupplierPurchasesView';
@@ -76,9 +76,9 @@ interface SupplierOrderGroup {
   obs?: string;
 }
 
-const STORAGE_KEY_GROUPS = 'msp_supplier_order_groups_v3';
-const STORAGE_KEY_PURCHASES = 'msp_supplier_purchases_v3';
-const STORAGE_KEY_SUPPLIERS = 'msp_registered_suppliers_v3';
+const STORAGE_KEY_GROUPS = 'msp_supplier_order_groups_v1';
+const STORAGE_KEY_PURCHASES = 'msp_supplier_purchases_v1';
+const STORAGE_KEY_SUPPLIERS = 'msp_suppliers_v1';
 
 const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
   { id: 'sup_diamond', name: 'DIAMOND', phone: '', pixKey: '', obs: 'Fornecedor de Telas', createdAt: new Date().toISOString() },
@@ -86,36 +86,18 @@ const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
 ];
 
 export const SupplierOrdersManagement: React.FC = () => {
-  // Safe initial state loaded synchronously from localStorage
+  // Safe initial state loaded synchronously from RAM store
   const [groups, setGroups] = useState<SupplierOrderGroup[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+    return getRamItem<SupplierOrderGroup[]>(STORAGE_KEY_GROUPS, []);
   });
 
   const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchaseItem[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_PURCHASES);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+    return getRamItem<SupplierPurchaseItem[]>(STORAGE_KEY_PURCHASES, []);
   });
 
   const [suppliers, setSuppliers] = useState<RegisteredSupplier[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_SUPPLIERS);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      return DEFAULT_SUPPLIERS;
-    } catch {
-      return DEFAULT_SUPPLIERS;
-    }
+    const list = getRamItem<RegisteredSupplier[]>(STORAGE_KEY_SUPPLIERS, []);
+    return list.length > 0 ? list : DEFAULT_SUPPLIERS;
   });
 
   const [loading, setLoading] = useState(false);
@@ -140,13 +122,8 @@ export const SupplierOrdersManagement: React.FC = () => {
   const [cardCategoryFilter, setCardCategoryFilter] = useState<Record<string, string>>({});
 
   const [fieldSettings, setFieldSettings] = useState<SupplierFieldSettings>(() => {
-    try {
-      const raw = localStorage.getItem('msp_supplier_field_settings_v4');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.templates && parsed.templates.length > 0) return parsed;
-      }
-    } catch {}
+    const cached = getRamItem<SupplierFieldSettings | null>('msp_supplier_field_settings_v4', null);
+    if (cached && cached.templates && cached.templates.length > 0) return cached;
     return {
       templates: [
         {
@@ -311,7 +288,9 @@ export const SupplierOrdersManagement: React.FC = () => {
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (!isSubscribed) return;
       if (docSnap.exists()) {
-        setFieldSettings(docSnap.data() as SupplierFieldSettings);
+        const data = docSnap.data() as SupplierFieldSettings;
+        setFieldSettings(data);
+        setRamItem('msp_supplier_field_settings_v4', data);
       }
     }, (err) => {
       console.warn('Settings snapshot notice:', err.message);
@@ -330,9 +309,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       const cleaned = purgeOldHistory(fetched, userEmail);
 
       setSupplierPurchases(cleaned);
-      try {
-        localStorage.setItem(STORAGE_KEY_PURCHASES, JSON.stringify(cleaned));
-      } catch {}
+      setRamItem(STORAGE_KEY_PURCHASES, cleaned);
     }, (err) => {
       console.warn('Purchases sync notice (using local data):', err.message);
     });
@@ -348,9 +325,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       
       setGroups(loaded);
-      try {
-        localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(loaded));
-      } catch {}
+      setRamItem(STORAGE_KEY_GROUPS, loaded);
       setLoading(false);
     }, (err) => {
       console.warn('Supplier orders sync notice (using local data):', err.message);
@@ -368,9 +343,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         });
         loaded.sort((a, b) => a.name.localeCompare(b.name));
         setSuppliers(loaded);
-        try {
-          localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(loaded));
-        } catch {}
+        setRamItem(STORAGE_KEY_SUPPLIERS, loaded);
       }
     }, (err) => {
       console.warn('Suppliers sync notice:', err.message);
@@ -383,14 +356,12 @@ export const SupplierOrdersManagement: React.FC = () => {
       unsubGroups();
       unsubSuppliers();
     };
-  }, []);
+  }, [getUserAccountEmail()]);
 
   // Save changes helper to update both state & storage
   const savePurchasesLocallyAndRemote = async (updatedList: SupplierPurchaseItem[], actionFn?: () => Promise<void>) => {
     setSupplierPurchases(updatedList);
-    try {
-      localStorage.setItem(STORAGE_KEY_PURCHASES, JSON.stringify(updatedList));
-    } catch {}
+    setRamItem(STORAGE_KEY_PURCHASES, updatedList);
     if (actionFn) {
       try {
         await actionFn();
@@ -413,7 +384,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     };
     const updated = [...suppliers, supplierObj].sort((a, b) => a.name.localeCompare(b.name));
     setSuppliers(updated);
-    try { localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(updated)); } catch {}
+    setRamItem(STORAGE_KEY_SUPPLIERS, updated);
 
     try {
       await setDoc(doc(db, `accounts/${userEmail}/suppliers`, newId), supplierObj);
@@ -427,7 +398,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     const userEmail = getUserAccountEmail();
     const updated = suppliers.map(s => s.id === sup.id ? sup : s).sort((a, b) => a.name.localeCompare(b.name));
     setSuppliers(updated);
-    try { localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(updated)); } catch {}
+    setRamItem(STORAGE_KEY_SUPPLIERS, updated);
 
     try {
       await updateDoc(doc(db, `accounts/${userEmail}/suppliers`, sup.id), {
@@ -450,7 +421,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         const userEmail = getUserAccountEmail();
         const filtered = suppliers.filter(s => s.id !== supplierId);
         setSuppliers(filtered);
-        try { localStorage.setItem(STORAGE_KEY_SUPPLIERS, JSON.stringify(filtered)); } catch {}
+        setRamItem(STORAGE_KEY_SUPPLIERS, filtered);
 
         try {
           await deleteDoc(doc(db, `accounts/${userEmail}/suppliers`, supplierId));
@@ -568,9 +539,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     });
 
     setGroups(updatedGroups);
-    try {
-      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedGroups));
-    } catch {}
+    setRamItem(STORAGE_KEY_GROUPS, updatedGroups);
 
     // Update in Firestore asynchronously for groups whose items changed
     for (const g of updatedGroups) {
@@ -833,7 +802,7 @@ export const SupplierOrdersManagement: React.FC = () => {
           return g;
         });
         setGroups(updatedList);
-        try { localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList)); } catch {}
+        setRamItem(STORAGE_KEY_GROUPS, updatedList);
 
         const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, editingGroup.id);
         await updateDoc(docRef, {
@@ -855,7 +824,7 @@ export const SupplierOrdersManagement: React.FC = () => {
 
         const updatedList = [newGroup, ...groups];
         setGroups(updatedList);
-        try { localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList)); } catch {}
+        setRamItem(STORAGE_KEY_GROUPS, updatedList);
 
         const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, newId);
         await setDoc(docRef, newGroup);
@@ -879,7 +848,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         const userEmail = getUserAccountEmail();
         const updated = groups.filter(g => g.id !== groupId);
         setGroups(updated);
-        try { localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated)); } catch {}
+        setRamItem(STORAGE_KEY_GROUPS, updated);
 
         try {
           await deleteDoc(doc(db, `accounts/${userEmail}/supplier_orders`, groupId));
@@ -899,7 +868,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     }));
 
     setGroups(updated);
-    try { localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated)); } catch {}
+    setRamItem(STORAGE_KEY_GROUPS, updated);
 
     for (const g of updated) {
       try {
@@ -2919,7 +2888,7 @@ export const SupplierOrdersManagement: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
-                    localStorage.setItem('msp_supplier_field_settings_v4', JSON.stringify(fieldSettings));
+                    setRamItem('msp_supplier_field_settings_v4', fieldSettings);
                     const userEmail = getUserAccountEmail();
                     await setDoc(doc(db, `accounts/${userEmail}/settings`, 'supplierOrderFields'), fieldSettings);
                     showToast('Configurações salvas e sincronizadas na Nuvem Firebase!', 'success');

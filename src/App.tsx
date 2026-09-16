@@ -215,23 +215,29 @@ export default function App() {
 
   // Subscribe to storage changes & real-time Firestore listeners
   useEffect(() => {
-    StorageService.syncTwoWayWithCloud().then(() => {
-      setTick((prev) => prev + 1);
-    }).catch(() => {});
-
     const unsubStorage = StorageService.subscribe(() => {
       setTick((prev) => prev + 1);
     });
+    return () => {
+      unsubStorage();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authSession?.isAuthenticated) return;
+
+    StorageService.syncTwoWayWithCloud().then(() => {
+      setTick((prev) => prev + 1);
+    }).catch(() => {});
 
     const unsubRealTime = FirestoreSyncService.startAllRealTimeListeners(() => {
       setTick((prev) => prev + 1);
     });
 
     return () => {
-      unsubStorage();
       unsubRealTime();
     };
-  }, []);
+  }, [authSession?.email, authSession?.isAuthenticated]);
 
   // Sincroniza o operador e a sessão de forma reativa quando o storage muda
   useEffect(() => {

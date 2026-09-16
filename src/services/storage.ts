@@ -4257,26 +4257,7 @@ function alignCustomersAcrossSectors(): void {
 }
 
 function ensureInitialized(): void {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    purgeDemoOrdersFromStorage();
-
-    const isInit = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
-    if (!isInit) {
-      localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
-    } else {
-      // Auto self-heal and align legacy mock/existing data on boot
-      alignCustomersAcrossSectors();
-    }
-
-    const isFinanceZeroed = localStorage.getItem('msp_finance_zeroed_v3');
-    if (!isFinanceZeroed) {
-      StorageService.zeroCashAndFinancialData();
-      localStorage.setItem('msp_finance_zeroed_v3', 'true');
-    }
-  } catch (e) {
-    console.error('Storage initialization check failed', e);
-  }
+  // Pure Cloud-Only Mode initialization - no local storage side effects or resets
 }
 
 ensureInitialized();
