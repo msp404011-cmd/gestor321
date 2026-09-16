@@ -10,7 +10,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { getTenantId } from './firestoreService';
+import { getTenantId, DEMO_ORDER_IDS } from './firestoreService';
 import { STORAGE_KEYS } from './storage';
 
 export interface CloudEngineStatus {
@@ -164,7 +164,7 @@ class MegaCloudEngine {
     };
 
     // 1. Ordens de Serviço
-    syncCollection('orders', STORAGE_KEYS.ORDERS, 'orders', (o) => !o.id?.startsWith('os-10'));
+    syncCollection('orders', STORAGE_KEYS.ORDERS, 'orders', (o) => o && o.id && !DEMO_ORDER_IDS.has(o.id));
     // 2. Clientes
     syncCollection('customers', STORAGE_KEYS.CUSTOMERS, 'customers');
     // 3. Produtos / Peças Estoque

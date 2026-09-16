@@ -16,7 +16,7 @@ import {
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 import { CloudEngine } from './cloudEngine';
 
-const DEMO_ORDER_IDS = new Set([
+export const DEMO_ORDER_IDS = new Set([
   'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
   'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
   'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
@@ -24,15 +24,15 @@ const DEMO_ORDER_IDS = new Set([
 
 export function getTenantId(): string {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const rawSession1 = localStorage.getItem('msp_auth_session_v1');
+    if (typeof window !== 'undefined') {
+      const rawSession1 = sessionStorage.getItem('msp_auth_session_v1') || localStorage.getItem('msp_auth_session_v1');
       if (rawSession1) {
         const session = JSON.parse(rawSession1);
         if (session && session.email && session.email.includes('@')) {
           return session.email.trim().toLowerCase();
         }
       }
-      const rawSession2 = localStorage.getItem('msp_auth_session');
+      const rawSession2 = sessionStorage.getItem('msp_auth_session') || localStorage.getItem('msp_auth_session');
       if (rawSession2) {
         const session = JSON.parse(rawSession2);
         if (session && session.email && session.email.includes('@')) {

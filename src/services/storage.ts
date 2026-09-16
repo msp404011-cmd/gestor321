@@ -488,11 +488,17 @@ const GLOBAL_KEYS = new Set([
 
 function loadInitialAuthSession(): AuthSession | null {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || localStorage.getItem('msp_auth_session_v1');
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || sessionStorage.getItem('msp_auth_session_v1');
       if (raw) {
         return JSON.parse(raw);
       }
+    }
+    // Clean legacy persistent local storage auth keys to ensure URL access requires login
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      localStorage.removeItem('msp_auth_session_v1');
+      localStorage.removeItem('msp_auth_session');
     }
   } catch (_) {}
   return null;
@@ -509,53 +515,27 @@ export function isDemoOrder(o: { id?: string }): boolean {
   return DEMO_ORDER_IDS.has(o.id);
 }
 
+const RAM_STORE = new Map<string, any>();
+
 export function purgeDemoOrdersFromStorage(): void {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.includes('msp_orders_v2')) {
-        try {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              const cleaned = parsed.filter((o) => o && o.id && !DEMO_ORDER_IDS.has(o.id));
-              localStorage.setItem(k, JSON.stringify(cleaned));
-            }
-          }
-        } catch (_) {}
-      }
-    }
-  } catch (e) {}
+  // Pure cloud mode - RAM only
 }
 
 let activeAuthSession: AuthSession | null = loadInitialAuthSession();
 
 export function getAllLocalItemsForEntity<T extends { id: string }>(baseKey: string): T[] {
   const itemsMap = new Map<string, T>();
-  if (typeof window === 'undefined' || !window.localStorage) return [];
-
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k) continue;
-      if (k === baseKey || k.endsWith(`__${baseKey}`) || k.endsWith(`_${baseKey}`)) {
-        try {
-          const raw = localStorage.getItem(k);
-          if (!raw) continue;
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            for (const item of parsed) {
-              if (item && typeof item === 'object' && item.id) {
-                if (baseKey === STORAGE_KEYS.ORDERS && isDemoOrder(item)) {
-                  continue;
-                }
-                itemsMap.set(String(item.id), item as T);
-              }
-            }
+    const scopedKey = getScopedKey(baseKey);
+    const list = RAM_STORE.get(scopedKey) || RAM_STORE.get(baseKey);
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (item && typeof item === 'object' && item.id) {
+          if (baseKey === STORAGE_KEYS.ORDERS && isDemoOrder(item)) {
+            continue;
           }
-        } catch (_) {}
+          itemsMap.set(String(item.id), item as T);
+        }
       }
     }
   } catch (e) {
@@ -592,23 +572,15 @@ function getScopedKey(key: string): string {
 function getItem<T>(key: string, fallback: T): T {
   try {
     const scopedKey = getScopedKey(key);
-    let raw = localStorage.getItem(scopedKey);
-
-    // Self-healing migration for legacy un-scoped data:
-    // If tenant key has no data yet, but un-scoped legacy key exists, copy legacy data once to tenant
-    if (!raw && scopedKey !== key) {
-      const legacyRaw = localStorage.getItem(key);
-      if (legacyRaw) {
-        localStorage.setItem(scopedKey, legacyRaw);
-        localStorage.removeItem(key);
-        raw = legacyRaw;
-      }
+    if (RAM_STORE.has(scopedKey)) {
+      return RAM_STORE.get(scopedKey);
     }
-
-    if (!raw) return fallback;
-    return JSON.parse(raw);
+    if (RAM_STORE.has(key)) {
+      return RAM_STORE.get(key);
+    }
+    return fallback;
   } catch (e) {
-    console.error(`Error reading ${key} from storage`, e);
+    console.error(`Error reading ${key} from RAM`, e);
     return fallback;
   }
 }
@@ -616,12 +588,13 @@ function getItem<T>(key: string, fallback: T): T {
 function setItem<T>(key: string, value: T, notify: boolean = true): void {
   try {
     const scopedKey = getScopedKey(key);
-    localStorage.setItem(scopedKey, JSON.stringify(value));
+    RAM_STORE.set(scopedKey, value);
+    RAM_STORE.set(key, value);
     if (notify) {
       notifyListeners();
     }
   } catch (e) {
-    console.error(`Error saving ${key} to storage`, e);
+    console.error(`Error saving ${key} to RAM`, e);
   }
 }
 
@@ -2408,9 +2381,12 @@ export const StorageService = {
     const isDifferentUser = !activeAuthSession || activeAuthSession.email !== session.email;
     activeAuthSession = session;
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
-        localStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+        sessionStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
+        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        localStorage.removeItem('msp_auth_session_v1');
+        localStorage.removeItem('msp_auth_session');
       }
     } catch (_) {}
     notifyListeners();
@@ -2440,8 +2416,14 @@ export const StorageService = {
   clearAuthSession(): void {
     activeAuthSession = null;
     try {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-      localStorage.removeItem('msp_auth_session_v1');
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        sessionStorage.removeItem('msp_auth_session_v1');
+        sessionStorage.removeItem('msp_auth_session');
+        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        localStorage.removeItem('msp_auth_session_v1');
+        localStorage.removeItem('msp_auth_session');
+      }
     } catch (_) {}
     notifyListeners();
   },
