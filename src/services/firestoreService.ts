@@ -11,11 +11,16 @@ import {
   Customer,
   Product,
   Device,
-  Sale
+  Sale,
+  CashSession,
+  CashMovement,
+  Reseller,
+  ResellerTransaction,
+  StockMovement
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 import { CloudEngine } from './cloudEngine';
-import { setRamItem, notifyStorageListeners } from './storage';
+import { setRamItem, notifyStorageListeners, getItem, STORAGE_KEYS } from './storage';
 
 export const DEMO_ORDER_IDS = new Set([
   'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
@@ -67,6 +72,23 @@ function getTenantStorageScope(): string {
 }
 
 let ordersUnsubscribe: Unsubscribe | null = null;
+
+export function sanitizeObject(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeObject);
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(obj)) {
+      if (obj[key] !== undefined) {
+        cleaned[key] = sanitizeObject(obj[key]);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
 
 export const FirestoreSyncService = {
   /**
@@ -153,10 +175,22 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId);
+
+      // Gather current values from Storage to avoid partial nested overwriting in Firestore
+      const fullConfigs = {
+        customOSStatuses: configs.customOSStatuses !== undefined ? configs.customOSStatuses : getItem<any[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, []),
+        customDeviceTypes: configs.customDeviceTypes !== undefined ? configs.customDeviceTypes : getItem<any[]>(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, []),
+        customAccessories: configs.customAccessories !== undefined ? configs.customAccessories : getItem<any[]>(STORAGE_KEYS.CUSTOM_ACCESSORIES, []),
+        customPaymentMethods: configs.customPaymentMethods !== undefined ? configs.customPaymentMethods : getItem<any[]>(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, []),
+        customCategories: configs.customCategories !== undefined ? configs.customCategories : getItem<any[]>(STORAGE_KEYS.CUSTOM_CATEGORIES, []),
+      };
+
+      const sanitized = sanitizeObject(fullConfigs);
+
       await setDoc(
         docRef,
         {
-          customOsConfigs: configs,
+          customOsConfigs: sanitized,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -175,7 +209,8 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'orders', order.id);
-      await setDoc(docRef, order, { merge: true });
+      const sanitized = sanitizeObject(order);
+      await setDoc(docRef, sanitized, { merge: true });
     } catch (err) {
       console.warn('Firestore saveOrder error:', err);
     }
@@ -190,7 +225,8 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'customers', customer.id);
-      await setDoc(docRef, customer, { merge: true });
+      const sanitized = sanitizeObject(customer);
+      await setDoc(docRef, sanitized, { merge: true });
     } catch (err) {
       console.warn('Firestore saveCustomer error:', err);
     }
@@ -205,7 +241,8 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'products', product.id);
-      await setDoc(docRef, product, { merge: true });
+      const sanitized = sanitizeObject(product);
+      await setDoc(docRef, sanitized, { merge: true });
     } catch (err) {
       console.warn('Firestore saveProduct error:', err);
     }
@@ -220,7 +257,8 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'devices', device.id);
-      await setDoc(docRef, device, { merge: true });
+      const sanitized = sanitizeObject(device);
+      await setDoc(docRef, sanitized, { merge: true });
     } catch (err) {
       console.warn('Firestore saveDevice error:', err);
     }
@@ -235,7 +273,8 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'sales', sale.id);
-      await setDoc(docRef, sale, { merge: true });
+      const sanitized = sanitizeObject(sale);
+      await setDoc(docRef, sanitized, { merge: true });
     } catch (err) {
       console.warn('Firestore saveSale error:', err);
     }
@@ -765,7 +804,7 @@ export const FirestoreSyncService = {
 
       const scope = getTenantStorageScope();
 
-      // 1. Fetch Company Settings & Custom OS Configs from tenant doc
+      // 1. Fetch Company Settings, Custom OS Configs, and Subscription Plan from tenant doc
       const tenantDocRef = doc(db, 'accounts', tenantId);
       const tenantSnap = await getDoc(tenantDocRef);
       if (tenantSnap.exists()) {
@@ -792,6 +831,22 @@ export const FirestoreSyncService = {
             setRamItem(`${scope}_msp_custom_payment_methods_v1`, cfg.customPaymentMethods, false);
             setRamItem('msp_custom_payment_methods_v1', cfg.customPaymentMethods, false);
           }
+        }
+        // Fetch and reconstruct Subscription Plan if it exists
+        if (data.planName || data.plan || data.plano) {
+          const fetchedPlan: SubscriptionPlanInfo = {
+            planType: data.planType || data.planoId || 'LOJA',
+            planName: data.planName || data.plan || data.plano || 'Plano Loja',
+            planPrice: Number(data.planPrice || data.valorPlano || data.amount || 69.90),
+            billingCycle: data.billingCycle || 'monthly',
+            billingPeriod: data.billingPeriod || 'MENSAL',
+            expiryDate: data.expiryDate || data.vencimento || data.dataVencimento || data.dueDate || '2026-10-15',
+            status: data.status === 'ativo' || data.situacao === 'active' || data.userStatus === 'active' ? 'active' : 'expired',
+            clientName: data.clientName || 'Cliente',
+            autoRenew: data.autoRenew ?? true,
+          };
+          setRamItem('msp_subscription_plan_v1', fetchedPlan, false);
+          setRamItem(`${scope}_msp_subscription_plan_v1`, fetchedPlan, false);
         }
       }
 
@@ -840,6 +895,34 @@ export const FirestoreSyncService = {
       // 9. Fetch Expenses
       const remoteExpenses = await this.fetchExpenses();
       setLocalKey('msp_expenses_v1', remoteExpenses);
+
+      // 10. Fetch Sales
+      const remoteSales = await this.fetchSales();
+      setLocalKey('msp_sales_v1', remoteSales);
+
+      // 11. Fetch Cash Session
+      const remoteCashSession = await this.fetchCashSession();
+      if (remoteCashSession) {
+        setRamItem('msp_cash_session_v1', remoteCashSession, false);
+        setRamItem(`${scope}_msp_cash_session_v1`, remoteCashSession, false);
+        setRamItem(`${scope}__msp_cash_session_v1`, remoteCashSession, false);
+      }
+
+      // 12. Fetch Cash Movements
+      const remoteCashMovements = await this.fetchCashMovements();
+      setLocalKey('msp_cash_movements_v1', remoteCashMovements);
+
+      // 13. Fetch Stock Movements
+      const remoteStockMovements = await this.fetchStockMovements();
+      setLocalKey('msp_stock_movements_v1', remoteStockMovements);
+
+      // 14. Fetch Resellers
+      const remoteResellers = await this.fetchResellers();
+      setLocalKey('msp_resellers_v1', remoteResellers);
+
+      // 15. Fetch Reseller Transactions
+      const remoteResellerTransactions = await this.fetchResellerTransactions();
+      setLocalKey('msp_reseller_transactions_v1', remoteResellerTransactions);
 
       notifyStorageListeners();
       console.log('✅ [FirestoreSyncService] Sincronização 100% Nuvem Firebase concluída!');
@@ -980,6 +1063,265 @@ export const FirestoreSyncService = {
     } catch (err) {
       console.warn('Error starting RealTime Orders Listener:', err);
       return () => {};
+    }
+  },
+
+  /**
+   * Save cash session to Firestore /accounts/{tenantId}/settings/cashSession
+   */
+  async saveCashSession(session: CashSession | null): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'settings', 'cashSession');
+      if (session) {
+        const sanitized = sanitizeObject(session);
+        await setDoc(docRef, sanitized);
+      } else {
+        await setDoc(docRef, { status: 'CLOSED', currentBalance: 0, movements: [] });
+      }
+    } catch (err) {
+      console.warn('Firestore saveCashSession error:', err);
+    }
+  },
+
+  /**
+   * Fetch cash session from Firestore /accounts/{tenantId}/settings/cashSession
+   */
+  async fetchCashSession(): Promise<CashSession | null> {
+    try {
+      if (!db) return null;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return null;
+      const docRef = doc(db, 'accounts', tenantId, 'settings', 'cashSession');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        return snap.data() as CashSession;
+      }
+      return null;
+    } catch (err) {
+      console.warn('Firestore fetchCashSession error:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Save cash movement to Firestore /accounts/{tenantId}/cash_movements/{id}
+   */
+  async saveCashMovement(movement: CashMovement): Promise<void> {
+    try {
+      if (!db || !movement.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'cash_movements', movement.id);
+      const sanitized = sanitizeObject(movement);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveCashMovement error:', err);
+    }
+  },
+
+  /**
+   * Fetch cash movements from Firestore /accounts/{tenantId}/cash_movements
+   */
+  async fetchCashMovements(): Promise<CashMovement[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'cash_movements');
+      const snap = await getDocs(colRef);
+      const list: CashMovement[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as CashMovement;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchCashMovements error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Delete cash movement from Firestore /accounts/{tenantId}/cash_movements/{id}
+   */
+  async deleteCashMovement(id: string): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'cash_movements', id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('Firestore deleteCashMovement error:', err);
+    }
+  },
+
+  /**
+   * Save reseller to Firestore /accounts/{tenantId}/resellers/{id}
+   */
+  async saveReseller(reseller: Reseller): Promise<void> {
+    try {
+      if (!db || !reseller.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'resellers', reseller.id);
+      const sanitized = sanitizeObject(reseller);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveReseller error:', err);
+    }
+  },
+
+  /**
+   * Fetch resellers from Firestore /accounts/{tenantId}/resellers
+   */
+  async fetchResellers(): Promise<Reseller[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'resellers');
+      const snap = await getDocs(colRef);
+      const list: Reseller[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as Reseller;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchResellers error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Delete reseller from Firestore /accounts/{tenantId}/resellers/{id}
+   */
+  async deleteReseller(id: string): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'resellers', id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('Firestore deleteReseller error:', err);
+    }
+  },
+
+  /**
+   * Save reseller transaction to Firestore /accounts/{tenantId}/reseller_transactions/{id}
+   */
+  async saveResellerTransaction(tx: ResellerTransaction): Promise<void> {
+    try {
+      if (!db || !tx.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'reseller_transactions', tx.id);
+      const sanitized = sanitizeObject(tx);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveResellerTransaction error:', err);
+    }
+  },
+
+  /**
+   * Fetch reseller transactions from Firestore /accounts/{tenantId}/reseller_transactions
+   */
+  async fetchResellerTransactions(): Promise<ResellerTransaction[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'reseller_transactions');
+      const snap = await getDocs(colRef);
+      const list: ResellerTransaction[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as ResellerTransaction;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchResellerTransactions error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Delete reseller transaction from Firestore /accounts/{tenantId}/reseller_transactions/{id}
+   */
+  async deleteResellerTransaction(id: string): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'reseller_transactions', id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('Firestore deleteResellerTransaction error:', err);
+    }
+  },
+
+  /**
+   * Fetch sales from Firestore /accounts/{tenantId}/sales
+   */
+  async fetchSales(): Promise<Sale[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'sales');
+      const snap = await getDocs(colRef);
+      const list: Sale[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as Sale;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchSales error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Save stock movement to Firestore /accounts/{tenantId}/stock_movements/{id}
+   */
+  async saveStockMovement(sm: StockMovement): Promise<void> {
+    try {
+      if (!db || !sm.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'stock_movements', sm.id);
+      const sanitized = sanitizeObject(sm);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveStockMovement error:', err);
+    }
+  },
+
+  /**
+   * Fetch stock movements from Firestore /accounts/{tenantId}/stock_movements
+   */
+  async fetchStockMovements(): Promise<StockMovement[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'stock_movements');
+      const snap = await getDocs(colRef);
+      const list: StockMovement[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as StockMovement;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchStockMovements error:', err);
+      return [];
     }
   },
 

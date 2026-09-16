@@ -33,6 +33,10 @@ export interface CloudEngineStatus {
     supplier_orders: number;
     supplier_purchases: number;
     settings: number;
+    cash_movements: number;
+    stock_movements: number;
+    resellers: number;
+    reseller_transactions: number;
   };
 }
 
@@ -62,6 +66,10 @@ class MegaCloudEngine {
       supplier_orders: 0,
       supplier_purchases: 0,
       settings: 1,
+      cash_movements: 0,
+      stock_movements: 0,
+      resellers: 0,
+      reseller_transactions: 0,
     },
   };
 
@@ -185,8 +193,16 @@ class MegaCloudEngine {
     syncCollection('supplier_orders', 'msp_supplier_order_groups_v1', 'supplier_orders');
     // 11. Peças Compradas / Débitos Fornecedores
     syncCollection('supplier_purchases', 'msp_supplier_purchases_v1', 'supplier_purchases');
+    // 12. Movimentações de Caixa
+    syncCollection('cash_movements', STORAGE_KEYS.CASH_MOVEMENTS, 'cash_movements');
+    // 13. Histórico de Estoque / Stock Movements
+    syncCollection('stock_movements', STORAGE_KEYS.STOCK_MOVEMENTS, 'stock_movements');
+    // 14. Revendedores
+    syncCollection('resellers', STORAGE_KEYS.RESELLERS, 'resellers');
+    // 15. Transações de Revendedores
+    syncCollection('reseller_transactions', STORAGE_KEYS.RESELLER_TRANSACTIONS, 'reseller_transactions');
 
-    // 12. Configurações Globais da Conta no Firestore
+    // 16. Configurações Globais da Conta no Firestore
     try {
       const accountDocRef = doc(db, 'accounts', tenantId);
       const unsubAccount = onSnapshot(accountDocRef, (snap) => {
@@ -230,7 +246,7 @@ class MegaCloudEngine {
       console.warn('[MegaCloudEngine] Erro no listener da conta:', e);
     }
 
-    // 13. Configurações de Campos de Pedidos de Peças (Botões, Categorias, Opções)
+    // 17. Configurações de Campos de Pedidos de Peças (Botões, Categorias, Opções)
     try {
       const fieldsDocRef = doc(db, 'accounts', tenantId, 'settings', 'supplierOrderFields');
       const unsubFields = onSnapshot(fieldsDocRef, (snap) => {
@@ -247,6 +263,28 @@ class MegaCloudEngine {
       this.activeUnsubs.push(unsubFields);
     } catch (e) {
       console.warn('[MegaCloudEngine] Erro no listener de supplierOrderFields:', e);
+    }
+
+    // 18. Sessão Ativa de Caixa (Financeiro / Fluxo de Caixa)
+    try {
+      const cashSessDocRef = doc(db, 'accounts', tenantId, 'settings', 'cashSession');
+      const unsubCashSess = onSnapshot(cashSessDocRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          try {
+            const scope = `tenant_${tenantId.replace(/[^a-z0-9_]/g, '_')}`;
+            setRamItem(STORAGE_KEYS.CASH_SESSION, data, false);
+            setRamItem(`${scope}_${STORAGE_KEYS.CASH_SESSION}`, data, false);
+            setRamItem(`${scope}__${STORAGE_KEYS.CASH_SESSION}`, data, false);
+            notifyStorageListeners();
+          } catch (_) {}
+          this.notify();
+          if (onDataUpdated) onDataUpdated();
+        }
+      });
+      this.activeUnsubs.push(unsubCashSess);
+    } catch (e) {
+      console.warn('[MegaCloudEngine] Erro no listener de cashSession:', e);
     }
 
     this.status.activeListenersCount = this.activeUnsubs.length;

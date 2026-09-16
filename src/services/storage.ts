@@ -597,11 +597,11 @@ export function notifyStorageListeners(): void {
   notifyListeners();
 }
 
-function getItem<T>(key: string, fallback: T): T {
+export function getItem<T>(key: string, fallback: T): T {
   return getRamItem<T>(key, fallback);
 }
 
-function setItem<T>(key: string, value: T, notify: boolean = true): void {
+export function setItem<T>(key: string, value: T, notify: boolean = true): void {
   setRamItem<T>(key, value, notify);
 }
 
@@ -1325,12 +1325,18 @@ export const StorageService = {
     const prevStock = prod.stockQuantity;
     const newStock = Math.max(0, prevStock + qtyDelta);
     prod.stockQuantity = newStock;
+    prod.stock = newStock;
     setItem(STORAGE_KEYS.PRODUCTS, products);
+
+    try {
+      FirestoreSyncService.saveProduct(prod);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveProduct error inside updateProductStock:', e);
+    }
 
     // Register Stock Movement
     const user = this.getCurrentUser();
-    const sm: StockMovement = {
-      id: 'sm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+    this.addStockMovement({
       productId: prod.id,
       productName: prod.name,
       type,
@@ -1338,14 +1344,10 @@ export const StorageService = {
       previousStock: prevStock,
       newStock,
       unitCost: prod.costPrice,
-      date: new Date().toISOString(),
       userName: user.name,
       reason,
       referenceId: refId,
-    };
-    const movements = this.getStockMovements();
-    movements.unshift(sm);
-    setItem(STORAGE_KEYS.STOCK_MOVEMENTS, movements);
+    });
 
     this.logAction(`Estoque alterado: ${prod.name} (${qtyDelta > 0 ? '+' : ''}${qtyDelta}) -> Novo: ${newStock}`);
     return true;
@@ -1353,6 +1355,23 @@ export const StorageService = {
 
   getStockMovements(): StockMovement[] {
     return getItem<StockMovement[]>(STORAGE_KEYS.STOCK_MOVEMENTS, []);
+  },
+
+  addStockMovement(movement: Omit<StockMovement, 'id' | 'date'>): StockMovement {
+    const sm: StockMovement = {
+      ...movement,
+      id: 'sm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      date: new Date().toISOString(),
+    };
+    const movements = this.getStockMovements();
+    movements.unshift(sm);
+    setItem(STORAGE_KEYS.STOCK_MOVEMENTS, movements);
+    try {
+      FirestoreSyncService.saveStockMovement(sm);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveStockMovement error:', e);
+    }
+    return sm;
   },
 
   // Service Orders
@@ -1674,6 +1693,13 @@ export const StorageService = {
     session.movements = [aberturaMov];
     setItem(STORAGE_KEYS.CASH_SESSION, session);
 
+    try {
+      FirestoreSyncService.saveCashSession(session);
+      FirestoreSyncService.saveCashMovement(aberturaMov);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside openCashSession:', e);
+    }
+
     this.logAction(`Caixa aberto por ${user.name}`, `Saldo inicial: R$ ${openingBalance.toFixed(2)}`);
     return session;
   },
@@ -1744,6 +1770,12 @@ export const StorageService = {
     };
 
     setItem(STORAGE_KEYS.CASH_SESSION, closed);
+    try {
+      FirestoreSyncService.saveCashSession(closed);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside closeCashSession:', e);
+    }
+
     this.logAction(
       `Caixa fechado por ${user.name}`,
       `Esperado: R$ ${expectedDrawerCash.toFixed(2)}, Informado: R$ ${reportedBalance.toFixed(2)}, Diferença: R$ ${difference.toFixed(2)}`
@@ -1782,6 +1814,15 @@ export const StorageService = {
       setItem(STORAGE_KEYS.CASH_SESSION, session);
     }
 
+    try {
+      FirestoreSyncService.saveCashMovement(mov);
+      if (session) {
+        FirestoreSyncService.saveCashSession(session);
+      }
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside addCashMovement:', e);
+    }
+
     this.logAction(`Movimentação de caixa: ${mov.type} de R$ ${mov.amount.toFixed(2)} (${mov.description})`);
     return mov;
   },
@@ -1801,6 +1842,12 @@ export const StorageService = {
     setItem(STORAGE_KEYS.CASH_SESSION, zeroSession);
     setItem(STORAGE_KEYS.CASH_MOVEMENTS, []);
     setItem(STORAGE_KEYS.SALES, []);
+
+    try {
+      FirestoreSyncService.saveCashSession(zeroSession);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside zeroCashAndFinancialData:', e);
+    }
 
     // Set any delivered order to not generate inflows
     const orders = this.getOrders();
@@ -3880,12 +3927,17 @@ export const StorageService = {
 
     if (idx >= 0) {
       list[idx] = computed;
-      this.logAction(`Revendedor atualizado: ${computed.name}`);
+      this.logAction(`Revendedor updated: ${computed.name}`);
     } else {
       list.unshift(computed);
       this.logAction(`Novo revendedor cadastrado: ${computed.name}`);
     }
     setItem(STORAGE_KEYS.RESELLERS, list);
+    try {
+      FirestoreSyncService.saveReseller(computed);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveReseller error:', e);
+    }
     return computed;
   },
 
@@ -3895,6 +3947,11 @@ export const StorageService = {
     setItem(STORAGE_KEYS.RESELLERS, list.filter((r) => r.id !== id));
     if (target) {
       this.logAction(`Revendedor excluído: ${target.name}`);
+    }
+    try {
+      FirestoreSyncService.deleteReseller(id);
+    } catch (e) {
+      console.warn('FirestoreSyncService.deleteReseller error:', e);
     }
   },
 
@@ -3915,6 +3972,11 @@ export const StorageService = {
       list.unshift(transaction);
     }
     setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, list);
+    try {
+      FirestoreSyncService.saveResellerTransaction(transaction);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveResellerTransaction error:', e);
+    }
     return transaction;
   },
 
@@ -3922,6 +3984,11 @@ export const StorageService = {
     const list = this.getResellerTransactions();
     setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, list.filter((t) => t.id !== id));
     this.logAction('Transação de revenda excluída');
+    try {
+      FirestoreSyncService.deleteResellerTransaction(id);
+    } catch (e) {
+      console.warn('FirestoreSyncService.deleteResellerTransaction error:', e);
+    }
   },
 
   // Helper to record a new wholesale sale to a reseller with stock deduction and balance update
