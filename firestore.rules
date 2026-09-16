@@ -7,8 +7,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'msp404011@gmail.com' ||
+        request.auth.token.email == 'mmspmartins62@gmail.com'
+      );
+    }
+
     function isOwner(accountId) {
       return isAuthenticated() && (
+        isSuperAdmin() ||
         request.auth.uid == accountId || 
         (request.auth.token.email != null && (
           request.auth.token.email == accountId ||
@@ -52,14 +60,14 @@ service cloud.firestore {
       );
 
       // Updates by regular user: can update profile/settings, but CANNOT modify plan, status, or due date
-      allow update: if isOwner(accountId) && isDocNotBlocked() && doesNotModifyAdminFields();
+      allow update: if isOwner(accountId) && (isSuperAdmin() || (isDocNotBlocked() && doesNotModifyAdminFields()));
 
       // Deletions: forbidden from client-side SDK. Managed strictly via secure Admin backend
-      allow delete: if false;
+      allow delete: if isSuperAdmin();
 
-      // SUBCOLLECTIONS (orders, receivables, expenses, products, customers)
-      match /{subcollection}/{docId} {
-        allow read, write: if isOwner(accountId) && isDocNotBlocked();
+      // SUBCOLLECTIONS (orders, receivables, expenses, products, customers, suppliers, purchases, employees, settings, etc.)
+      match /{subcollection}/{document=**} {
+        allow read, write: if isOwner(accountId) && (isSuperAdmin() || isDocNotBlocked());
       }
     }
 

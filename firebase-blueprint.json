@@ -14,52 +14,94 @@
         "createdAt": { "type": "string" },
         "lastLoginAt": { "type": "string" }
       },
-      "required": ["id", "email", "shopName"]
+      "required": ["id", "email"]
     },
-    "Company": {
-      "title": "Company",
-      "description": "Store or Technical Assistance account settings and subscription status",
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "Technical assistance service order entity",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "commercialName": { "type": "string" },
-        "cnpjCpf": { "type": "string" },
-        "email": { "type": "string" },
-        "phone": { "type": "string" },
+        "orderNumber": { "type": "number" },
+        "customerName": { "type": "string" },
+        "deviceModel": { "type": "string" },
         "status": { "type": "string" },
-        "plan": { "type": "string" },
-        "expiryDate": { "type": "string" },
-        "updatedAt": { "type": "string" }
-      },
-      "required": ["id", "commercialName", "status", "plan"]
-    },
-    "Payment": {
-      "title": "Payment",
-      "description": "Pix payments log",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "companyId": { "type": "string" },
-        "amount": { "type": "number" },
-        "status": { "type": "string" },
-        "plan": { "type": "string" },
+        "totalAmount": { "type": "number" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "amount", "status"]
+      "required": ["id", "status"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Store employee or collaborator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "role"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Component or parts supplier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "SupplierOrder": {
+      "title": "SupplierOrder",
+      "description": "Parts order group for suppliers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "title"]
+    },
+    "SupplierPurchase": {
+      "title": "SupplierPurchase",
+      "description": "Ordered parts tracked by supplier, payment and debt",
+      "type": "object",
+      "properties": {
+        "purchaseId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "paymentStatus": { "type": "string" }
+      },
+      "required": ["purchaseId", "paymentStatus"]
     }
   },
   "firestore": {
-    "/user_accounts/{accountId}": {
+    "/accounts/{accountId}": {
       "schema": "UserAccount",
-      "description": "Registered user shop accounts"
+      "description": "Tenant profile, settings and subscription record"
     },
-    "/companies/{companyId}": {
-      "schema": "Company",
-      "description": "Collection of subscriber stores"
+    "/accounts/{accountId}/orders/{orderId}": {
+      "schema": "ServiceOrder",
+      "description": "Service orders for tenant"
     },
-    "/payments/{paymentId}": {
-      "schema": "Payment",
-      "description": "Collection of payment transactions"
+    "/accounts/{accountId}/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Employees for tenant"
+    },
+    "/accounts/{accountId}/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Suppliers for tenant"
+    },
+    "/accounts/{accountId}/supplier_orders/{orderId}": {
+      "schema": "SupplierOrder",
+      "description": "Supplier order groups for tenant"
+    },
+    "/accounts/{accountId}/supplier_purchases/{purchaseId}": {
+      "schema": "SupplierPurchase",
+      "description": "Supplier purchases and parts debits for tenant"
     }
   }
 }
