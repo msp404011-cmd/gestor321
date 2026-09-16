@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, deleteDoc, Unsubscribe } from 'firebase/firestore';
 import firebaseConfig, { db } from '../lib/firebase';
 import {
   UserAccount,
@@ -14,6 +14,12 @@ import {
   Sale
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
+
+const DEMO_ORDER_IDS = new Set([
+  'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
+  'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
+]);
 
 export function getTenantId(): string {
   try {
@@ -186,7 +192,7 @@ export const FirestoreSyncService = {
    */
   async saveOrder(order: ServiceOrder): Promise<void> {
     try {
-      if (!db || !order.id) return;
+      if (!db || !order.id || DEMO_ORDER_IDS.has(order.id)) return;
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return;
       const docRef = doc(db, 'accounts', tenantId, 'orders', order.id);
@@ -335,7 +341,7 @@ export const FirestoreSyncService = {
       const orders: ServiceOrder[] = [];
       snap.forEach((d) => {
         const o = d.data() as ServiceOrder;
-        if (o && o.id) orders.push(o);
+        if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) orders.push(o);
       });
       return orders;
     } catch (err) {
@@ -490,7 +496,10 @@ export const FirestoreSyncService = {
               const parsed = JSON.parse(raw);
               if (Array.isArray(parsed)) {
                 parsed.forEach((item) => {
-                  if (item && item.id) map.set(item.id, item as T);
+                  if (item && item.id) {
+                    if (key === 'msp_orders_v2' && DEMO_ORDER_IDS.has(item.id)) return;
+                    map.set(item.id, item as T);
+                  }
                 });
               }
             }
@@ -501,9 +510,13 @@ export const FirestoreSyncService = {
         }
       };
 
-      const setLocalKey = <T>(key: string, data: T[]): void => {
+      const setLocalKey = <T extends { id?: string }>(key: string, data: T[]): void => {
         try {
-          const json = JSON.stringify(data);
+          let cleanData = data;
+          if (key === 'msp_orders_v2') {
+            cleanData = data.filter((item) => item && item.id && !DEMO_ORDER_IDS.has(item.id));
+          }
+          const json = JSON.stringify(cleanData);
           localStorage.setItem(`${scope}__${key}`, json);
           localStorage.setItem(`${scope}_${key}`, json);
           localStorage.setItem(key, json);
@@ -644,7 +657,7 @@ export const FirestoreSyncService = {
           const remoteOrders: ServiceOrder[] = [];
           snapshot.forEach((d) => {
             const o = d.data() as ServiceOrder;
-            if (o && o.id) remoteOrders.push(o);
+            if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) remoteOrders.push(o);
           });
 
           if (remoteOrders.length > 0) {
@@ -656,15 +669,25 @@ export const FirestoreSyncService = {
                 const raw = localStorage.getItem(k);
                 if (raw) {
                   const parsed = JSON.parse(raw);
-                  if (Array.isArray(parsed)) parsed.forEach((item) => item && item.id && mapLoc.set(item.id, item));
+                  if (Array.isArray(parsed)) {
+                    parsed.forEach((item) => {
+                      if (item && item.id && !DEMO_ORDER_IDS.has(item.id)) {
+                        mapLoc.set(item.id, item);
+                      }
+                    });
+                  }
                 }
               }
               localOrders = Array.from(mapLoc.values());
             } catch {}
 
             const map = new Map<string, ServiceOrder>();
-            localOrders.forEach((o) => map.set(o.id, o));
-            remoteOrders.forEach((o) => map.set(o.id, o));
+            localOrders.forEach((o) => {
+              if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) map.set(o.id, o);
+            });
+            remoteOrders.forEach((o) => {
+              if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) map.set(o.id, o);
+            });
             const merged = Array.from(map.values());
 
             const jsonStr = JSON.stringify(merged);

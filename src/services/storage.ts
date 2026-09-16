@@ -497,6 +497,38 @@ function loadInitialAuthSession(): AuthSession | null {
   return null;
 }
 
+export const DEMO_ORDER_IDS = new Set([
+  'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
+  'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
+]);
+
+export function isDemoOrder(o: { id?: string }): boolean {
+  if (!o || !o.id) return false;
+  return DEMO_ORDER_IDS.has(o.id);
+}
+
+export function purgeDemoOrdersFromStorage(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.includes('msp_orders_v2')) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const cleaned = parsed.filter((o) => o && o.id && !DEMO_ORDER_IDS.has(o.id));
+              localStorage.setItem(k, JSON.stringify(cleaned));
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {}
+}
+
 let activeAuthSession: AuthSession | null = loadInitialAuthSession();
 
 export function getAllLocalItemsForEntity<T extends { id: string }>(baseKey: string): T[] {
@@ -515,6 +547,9 @@ export function getAllLocalItemsForEntity<T extends { id: string }>(baseKey: str
           if (Array.isArray(parsed)) {
             for (const item of parsed) {
               if (item && typeof item === 'object' && item.id) {
+                if (baseKey === STORAGE_KEYS.ORDERS && isDemoOrder(item)) {
+                  continue;
+                }
                 itemsMap.set(String(item.id), item as T);
               }
             }
@@ -1337,7 +1372,8 @@ export const StorageService = {
 
   // Service Orders
   getOrders(): ServiceOrder[] {
-    return getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    return orders.filter((o) => !isDemoOrder(o));
   },
 
   getOrderById(id: string): ServiceOrder | undefined {
@@ -4186,9 +4222,10 @@ function alignCustomersAcrossSectors(): void {
 function ensureInitialized(): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return;
+    purgeDemoOrdersFromStorage();
+
     const isInit = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
     if (!isInit) {
-      StorageService.resetToDemoData();
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     } else {
       // Auto self-heal and align legacy mock/existing data on boot
