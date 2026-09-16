@@ -569,23 +569,7 @@ function getScopedKey(key: string): string {
   return `${tenant}__${key}`;
 }
 
-function getItem<T>(key: string, fallback: T): T {
-  try {
-    const scopedKey = getScopedKey(key);
-    if (RAM_STORE.has(scopedKey)) {
-      return RAM_STORE.get(scopedKey);
-    }
-    if (RAM_STORE.has(key)) {
-      return RAM_STORE.get(key);
-    }
-    return fallback;
-  } catch (e) {
-    console.error(`Error reading ${key} from RAM`, e);
-    return fallback;
-  }
-}
-
-function setItem<T>(key: string, value: T, notify: boolean = true): void {
+export function setRamItem<T>(key: string, value: T, notify: boolean = true): void {
   try {
     const scopedKey = getScopedKey(key);
     RAM_STORE.set(scopedKey, value);
@@ -596,6 +580,29 @@ function setItem<T>(key: string, value: T, notify: boolean = true): void {
   } catch (e) {
     console.error(`Error saving ${key} to RAM`, e);
   }
+}
+
+export function getRamItem<T>(key: string, fallback: T): T {
+  try {
+    const scopedKey = getScopedKey(key);
+    if (RAM_STORE.has(scopedKey)) return RAM_STORE.get(scopedKey);
+    if (RAM_STORE.has(key)) return RAM_STORE.get(key);
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+export function notifyStorageListeners(): void {
+  notifyListeners();
+}
+
+function getItem<T>(key: string, fallback: T): T {
+  return getRamItem<T>(key, fallback);
+}
+
+function setItem<T>(key: string, value: T, notify: boolean = true): void {
+  setRamItem<T>(key, value, notify);
 }
 
 export const StorageService = {

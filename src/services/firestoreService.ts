@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 import { CloudEngine } from './cloudEngine';
+import { setRamItem, notifyStorageListeners } from './storage';
 
 export const DEMO_ORDER_IDS = new Set([
   'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
@@ -770,60 +771,29 @@ export const FirestoreSyncService = {
       if (tenantSnap.exists()) {
         const data = tenantSnap.data();
         if (data.companySettings) {
-          localStorage.setItem(`${scope}_msp_settings_v1`, JSON.stringify(data.companySettings));
+          setRamItem(`${scope}_msp_settings_v1`, data.companySettings, false);
+          setRamItem('msp_settings_v1', data.companySettings, false);
         }
         if (data.customOsConfigs) {
           const cfg = data.customOsConfigs;
           if (cfg.customOSStatuses) {
-            localStorage.setItem(`${scope}_msp_custom_os_statuses_v1`, JSON.stringify(cfg.customOSStatuses));
+            setRamItem(`${scope}_msp_custom_os_statuses_v1`, cfg.customOSStatuses, false);
+            setRamItem('msp_custom_os_statuses_v1', cfg.customOSStatuses, false);
           }
           if (cfg.customDeviceTypes) {
-            localStorage.setItem(`${scope}_msp_custom_device_types_v1`, JSON.stringify(cfg.customDeviceTypes));
+            setRamItem(`${scope}_msp_custom_device_types_v1`, cfg.customDeviceTypes, false);
+            setRamItem('msp_custom_device_types_v1', cfg.customDeviceTypes, false);
           }
           if (cfg.customAccessories) {
-            localStorage.setItem(`${scope}_msp_custom_accessories_v4`, JSON.stringify(cfg.customAccessories));
+            setRamItem(`${scope}_msp_custom_accessories_v4`, cfg.customAccessories, false);
+            setRamItem('msp_custom_accessories_v4', cfg.customAccessories, false);
           }
           if (cfg.customPaymentMethods) {
-            localStorage.setItem(`${scope}_msp_custom_payment_methods_v1`, JSON.stringify(cfg.customPaymentMethods));
+            setRamItem(`${scope}_msp_custom_payment_methods_v1`, cfg.customPaymentMethods, false);
+            setRamItem('msp_custom_payment_methods_v1', cfg.customPaymentMethods, false);
           }
         }
       }
-
-      // Helper to merge remote array with local array by ID (remote takes priority)
-      const mergeCollections = <T extends { id: string }>(localArr: T[], remoteArr: T[]): T[] => {
-        const map = new Map<string, T>();
-        localArr.forEach((item) => {
-          if (item && item.id) map.set(item.id, item);
-        });
-        remoteArr.forEach((item) => {
-          if (item && item.id) map.set(item.id, item);
-        });
-        return Array.from(map.values());
-      };
-
-      const getLocalKey = <T extends { id: string }>(key: string): T[] => {
-        try {
-          const map = new Map<string, T>();
-          const keysToTry = [`${scope}__${key}`, `${scope}_${key}`, key];
-          for (const k of keysToTry) {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) {
-                parsed.forEach((item) => {
-                  if (item && item.id) {
-                    if (key === 'msp_orders_v2' && DEMO_ORDER_IDS.has(item.id)) return;
-                    map.set(item.id, item as T);
-                  }
-                });
-              }
-            }
-          }
-          return Array.from(map.values());
-        } catch {
-          return [];
-        }
-      };
 
       const setLocalKey = <T extends { id?: string }>(key: string, data: T[]): void => {
         try {
@@ -831,12 +801,11 @@ export const FirestoreSyncService = {
           if (key === 'msp_orders_v2') {
             cleanData = data.filter((item) => item && item.id && !DEMO_ORDER_IDS.has(item.id));
           }
-          const json = JSON.stringify(cleanData);
-          localStorage.setItem(`${scope}__${key}`, json);
-          localStorage.setItem(`${scope}_${key}`, json);
-          localStorage.setItem(key, json);
+          setRamItem(key, cleanData, false);
+          setRamItem(`${scope}_${key}`, cleanData, false);
+          setRamItem(`${scope}__${key}`, cleanData, false);
         } catch (e) {
-          console.warn('Error setting local key during sync:', e);
+          console.warn('Error setting RAM key during sync:', e);
         }
       };
 
@@ -872,6 +841,7 @@ export const FirestoreSyncService = {
       const remoteExpenses = await this.fetchExpenses();
       setLocalKey('msp_expenses_v1', remoteExpenses);
 
+      notifyStorageListeners();
       console.log('✅ [FirestoreSyncService] Sincronização 100% Nuvem Firebase concluída!');
       if (onSuccess) onSuccess();
       return true;
@@ -991,10 +961,9 @@ export const FirestoreSyncService = {
             if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) remoteOrders.push(o);
           });
 
-          const jsonStr = JSON.stringify(remoteOrders);
-          localStorage.setItem(`${scope}__msp_orders_v2`, jsonStr);
-          localStorage.setItem(`${scope}_msp_orders_v2`, jsonStr);
-          localStorage.setItem('msp_orders_v2', jsonStr);
+          setRamItem('msp_orders_v2', remoteOrders, false);
+          setRamItem(`${scope}_msp_orders_v2`, remoteOrders, false);
+          setRamItem(`${scope}__msp_orders_v2`, remoteOrders, true);
           if (onOrdersUpdated) onOrdersUpdated();
         },
         (err) => {

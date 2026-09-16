@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getTenantId, DEMO_ORDER_IDS } from './firestoreService';
-import { STORAGE_KEYS } from './storage';
+import { STORAGE_KEYS, setRamItem, notifyStorageListeners } from './storage';
 
 export interface CloudEngineStatus {
   isConnected: boolean;
@@ -144,12 +144,12 @@ class MegaCloudEngine {
             // Armazena na memória do StorageService de forma transparente para reatividade instantânea
             try {
               const scope = `tenant_${tenantId.replace(/[^a-z0-9_]/g, '_')}`;
-              const json = JSON.stringify(list);
-              localStorage.setItem(`${scope}__${storageKey}`, json);
-              localStorage.setItem(`${scope}_${storageKey}`, json);
-              localStorage.setItem(storageKey, json);
+              setRamItem(storageKey, list, false);
+              setRamItem(`${scope}_${storageKey}`, list, false);
+              setRamItem(`${scope}__${storageKey}`, list, false);
             } catch (_) {}
 
+            notifyStorageListeners();
             this.notify();
             if (onDataUpdated) onDataUpdated();
           },
@@ -195,27 +195,32 @@ class MegaCloudEngine {
           const scope = `tenant_${tenantId.replace(/[^a-z0-9_]/g, '_')}`;
           if (data.companySettings) {
             try {
-              localStorage.setItem(`${scope}_msp_settings_v1`, JSON.stringify(data.companySettings));
-              localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.companySettings));
+              setRamItem(`${scope}_msp_settings_v1`, data.companySettings, false);
+              setRamItem(STORAGE_KEYS.SETTINGS, data.companySettings, false);
             } catch (_) {}
           }
           if (data.customOsConfigs) {
             const cfg = data.customOsConfigs;
             try {
               if (cfg.customOSStatuses) {
-                localStorage.setItem(`${scope}_msp_custom_os_statuses_v1`, JSON.stringify(cfg.customOSStatuses));
+                setRamItem(`${scope}_msp_custom_os_statuses_v1`, cfg.customOSStatuses, false);
+                setRamItem('msp_custom_os_statuses_v1', cfg.customOSStatuses, false);
               }
               if (cfg.customDeviceTypes) {
-                localStorage.setItem(`${scope}_msp_custom_device_types_v1`, JSON.stringify(cfg.customDeviceTypes));
+                setRamItem(`${scope}_msp_custom_device_types_v1`, cfg.customDeviceTypes, false);
+                setRamItem('msp_custom_device_types_v1', cfg.customDeviceTypes, false);
               }
               if (cfg.customAccessories) {
-                localStorage.setItem(`${scope}_msp_custom_accessories_v4`, JSON.stringify(cfg.customAccessories));
+                setRamItem(`${scope}_msp_custom_accessories_v4`, cfg.customAccessories, false);
+                setRamItem('msp_custom_accessories_v4', cfg.customAccessories, false);
               }
               if (cfg.customPaymentMethods) {
-                localStorage.setItem(`${scope}_msp_custom_payment_methods_v1`, JSON.stringify(cfg.customPaymentMethods));
+                setRamItem(`${scope}_msp_custom_payment_methods_v1`, cfg.customPaymentMethods, false);
+                setRamItem('msp_custom_payment_methods_v1', cfg.customPaymentMethods, false);
               }
             } catch (_) {}
           }
+          notifyStorageListeners();
           this.notify();
           if (onDataUpdated) onDataUpdated();
         }
@@ -232,7 +237,8 @@ class MegaCloudEngine {
         if (snap.exists()) {
           const data = snap.data();
           try {
-            localStorage.setItem('msp_supplier_field_settings_v4', JSON.stringify(data));
+            setRamItem('msp_supplier_field_settings_v4', data, false);
+            notifyStorageListeners();
           } catch (_) {}
           this.notify();
           if (onDataUpdated) onDataUpdated();
