@@ -20,7 +20,17 @@ import {
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 import { CloudEngine } from './cloudEngine';
-import { setRamItem, notifyStorageListeners, getItem, STORAGE_KEYS } from './storage';
+import {
+  setRamItem,
+  notifyStorageListeners,
+  getItem,
+  STORAGE_KEYS,
+  defaultCustomDeviceTypes,
+  defaultCustomOSStatuses,
+  defaultCustomAccessories,
+  defaultCustomPaymentMethods,
+  defaultCustomCategories,
+} from './storage';
 
 export const DEMO_ORDER_IDS = new Set([
   'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
@@ -178,11 +188,11 @@ export const FirestoreSyncService = {
 
       // Gather current values from Storage to avoid partial nested overwriting in Firestore
       const fullConfigs = {
-        customOSStatuses: configs.customOSStatuses !== undefined ? configs.customOSStatuses : getItem<any[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, []),
-        customDeviceTypes: configs.customDeviceTypes !== undefined ? configs.customDeviceTypes : getItem<any[]>(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, []),
-        customAccessories: configs.customAccessories !== undefined ? configs.customAccessories : getItem<any[]>(STORAGE_KEYS.CUSTOM_ACCESSORIES, []),
-        customPaymentMethods: configs.customPaymentMethods !== undefined ? configs.customPaymentMethods : getItem<any[]>(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, []),
-        customCategories: configs.customCategories !== undefined ? configs.customCategories : getItem<any[]>(STORAGE_KEYS.CUSTOM_CATEGORIES, []),
+        customOSStatuses: configs.customOSStatuses !== undefined ? configs.customOSStatuses : getItem<any[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses),
+        customDeviceTypes: configs.customDeviceTypes !== undefined ? configs.customDeviceTypes : getItem<any[]>(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, defaultCustomDeviceTypes),
+        customAccessories: configs.customAccessories !== undefined ? configs.customAccessories : getItem<any[]>(STORAGE_KEYS.CUSTOM_ACCESSORIES, defaultCustomAccessories),
+        customPaymentMethods: configs.customPaymentMethods !== undefined ? configs.customPaymentMethods : getItem<any[]>(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods),
+        customCategories: configs.customCategories !== undefined ? configs.customCategories : getItem<any[]>(STORAGE_KEYS.CUSTOM_CATEGORIES, defaultCustomCategories),
       };
 
       const sanitized = sanitizeObject(fullConfigs);
@@ -1334,6 +1344,93 @@ export const FirestoreSyncService = {
     } catch (err) {
       console.warn('Error starting MegaCloudEngine listeners:', err);
       return () => {};
+    }
+  },
+
+  /**
+   * Registers or overwrites the active session for a user in Firestore /active_sessions/{uid}
+   */
+  async registerActiveSession(uid: string, email: string, sessionId: string): Promise<void> {
+    try {
+      if (!db || !uid) return;
+      const docRef = doc(db, 'active_sessions', uid);
+      const now = new Date().toISOString();
+      await setDoc(docRef, {
+        uid,
+        email: email.toLowerCase().trim(),
+        sessionId,
+        createdAt: now,
+        lastHeartbeat: now,
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore registerActiveSession error:', err);
+    }
+  },
+
+  /**
+   * Updates the heartbeat timestamp for the current active session in Firestore /active_sessions/{uid}
+   */
+  async updateSessionHeartbeat(uid: string, sessionId: string): Promise<void> {
+    try {
+      if (!db || !uid || !sessionId) return;
+      const docRef = doc(db, 'active_sessions', uid);
+      await setDoc(docRef, {
+        sessionId,
+        lastHeartbeat: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firestore updateSessionHeartbeat error:', err);
+    }
+  },
+
+  /**
+   * Subscribes in real-time to /active_sessions/{uid} to detect if another device took over the session
+   */
+  subscribeToActiveSession(uid: string, currentSessionId: string, onSessionTakenOver: () => void): () => void {
+    try {
+      if (!db || !uid || !currentSessionId) return () => {};
+      const docRef = doc(db, 'active_sessions', uid);
+      return onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.sessionId && data.sessionId !== currentSessionId) {
+            // Check if heartbeat is recent (e.g. within 90 seconds) to avoid immediate false-positives
+            const lastHb = data.lastHeartbeat ? new Date(data.lastHeartbeat).getTime() : 0;
+            const now = Date.now();
+            if (now - lastHb < 120000) { // 2 minutes timeout
+              console.warn('⚠️ [Session] Sola-sessão violada: outra sessão assumiu o acesso.');
+              onSessionTakenOver();
+            }
+          }
+        }
+      }, (err) => {
+        console.warn('Firestore subscribeToActiveSession error:', err);
+      });
+    } catch (err) {
+      console.warn('Error starting active session listener:', err);
+      return () => {};
+    }
+  },
+
+  /**
+   * Invalidates active session in Firestore upon explicit logout
+   */
+  async invalidateActiveSession(uid: string, sessionId: string): Promise<void> {
+    try {
+      if (!db || !uid || !sessionId) return;
+      const docRef = doc(db, 'active_sessions', uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.sessionId === sessionId) {
+          await setDoc(docRef, {
+            sessionId: 'LOGGED_OUT_' + Date.now(),
+            lastHeartbeat: new Date(0).toISOString(),
+          }, { merge: true });
+        }
+      }
+    } catch (err) {
+      console.warn('Firestore invalidateActiveSession error:', err);
     }
   },
 };

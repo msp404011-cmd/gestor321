@@ -848,7 +848,7 @@ export const StorageService = {
     return list;
   },
 
-  saveEmployee(employee: Employee): void {
+  saveEmployee(employee: Employee, localOnly: boolean = false): void {
     const list = this.getEmployees();
     const idx = list.findIndex((e) => e.id === employee.id);
     if (idx >= 0) {
@@ -859,7 +859,9 @@ export const StorageService = {
       this.logAction(`Novo funcionário cadastrado: ${employee.name} (${employee.role})`);
     }
     setItem(STORAGE_KEYS.EMPLOYEES, list);
-    FirestoreSyncService.saveEmployee(employee);
+    if (!localOnly) {
+      FirestoreSyncService.saveEmployee(employee);
+    }
   },
 
   deleteEmployee(id: string): void {
@@ -2309,14 +2311,16 @@ export const StorageService = {
     return this.getCompanySettings();
   },
 
-  saveCompanySettings(settings: CompanySettings): void {
+  saveCompanySettings(settings: CompanySettings, localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.SETTINGS, settings);
     this.logAction('Configurações da empresa atualizadas.');
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCompanySettings(settings);
-    } catch (e) {
-      console.warn('FirestoreSyncService saveCompanySettings error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCompanySettings(settings);
+      } catch (e) {
+        console.warn('FirestoreSyncService saveCompanySettings error:', e);
+      }
     }
   },
 
@@ -2693,6 +2697,7 @@ export const StorageService = {
     phone?: string;
     securityQuestion?: string;
     securityAnswer?: string;
+    uid?: string;
   }): {
     user: Employee;
     plan: SubscriptionPlanInfo;
@@ -2710,7 +2715,7 @@ export const StorageService = {
 
     // 1. Create UserAccount object
     const newAccount: UserAccount = {
-      id: cleanEmail,
+      id: params.uid || cleanEmail,
       shopName: cleanShop,
       ownerName: cleanOwner,
       email: cleanEmail,
@@ -2731,6 +2736,7 @@ export const StorageService = {
       name: cleanOwner,
       avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanOwner)}&background=0284c7&color=ffffff`,
       loggedAt: new Date().toISOString(),
+      uid: params.uid,
     };
     this.setAuthSession(session);
 
@@ -3737,21 +3743,31 @@ export const StorageService = {
   },
 
   getCustomCategories(): CustomCategory[] {
-    return getItem(STORAGE_KEYS.CUSTOM_CATEGORIES, defaultCustomCategories);
+    const list = getItem<CustomCategory[]>(STORAGE_KEYS.CUSTOM_CATEGORIES, defaultCustomCategories);
+    if (!list || list.length === 0) {
+      return defaultCustomCategories;
+    }
+    return list;
   },
 
-  saveCustomCategories(cats: CustomCategory[]): void {
+  saveCustomCategories(cats: CustomCategory[], localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, cats);
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCustomOsConfigs({ customCategories: cats });
-    } catch (e) {
-      console.warn('Sync custom categories error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customCategories: cats });
+      } catch (e) {
+        console.warn('Sync custom categories error:', e);
+      }
     }
   },
 
   getCustomBrands(): string[] {
-    return getItem(STORAGE_KEYS.CUSTOM_BRANDS, defaultCustomBrands);
+    const list = getItem<string[]>(STORAGE_KEYS.CUSTOM_BRANDS, defaultCustomBrands);
+    if (!list || list.length === 0) {
+      return defaultCustomBrands;
+    }
+    return list;
   },
 
   saveCustomBrands(brands: string[]): void {
@@ -3801,27 +3817,35 @@ export const StorageService = {
     return defaultCustomOSStatuses;
   },
 
-  saveCustomOSStatuses(statuses: CustomOSStatusItem[]): void {
+  saveCustomOSStatuses(statuses: CustomOSStatusItem[], localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, statuses);
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCustomOsConfigs({ customOSStatuses: statuses });
-    } catch (e) {
-      console.warn('Sync custom OS statuses error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customOSStatuses: statuses });
+      } catch (e) {
+        console.warn('Sync custom OS statuses error:', e);
+      }
     }
   },
 
   getCustomDeviceTypes(): CustomDeviceType[] {
-    return getItem(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, defaultCustomDeviceTypes);
+    const list = getItem<CustomDeviceType[]>(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, defaultCustomDeviceTypes);
+    if (!list || list.length === 0) {
+      return defaultCustomDeviceTypes;
+    }
+    return list;
   },
 
-  saveCustomDeviceTypes(types: CustomDeviceType[]): void {
+  saveCustomDeviceTypes(types: CustomDeviceType[], localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, types);
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCustomOsConfigs({ customDeviceTypes: types });
-    } catch (e) {
-      console.warn('Sync custom device types error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customDeviceTypes: types });
+      } catch (e) {
+        console.warn('Sync custom device types error:', e);
+      }
     }
   },
 
@@ -3833,18 +3857,24 @@ export const StorageService = {
     return list;
   },
 
-  saveCustomAccessories(accessories: CustomAccessoryItem[]): void {
+  saveCustomAccessories(accessories: CustomAccessoryItem[], localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.CUSTOM_ACCESSORIES, accessories);
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCustomOsConfigs({ customAccessories: accessories });
-    } catch (e) {
-      console.warn('Sync custom accessories error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customAccessories: accessories });
+      } catch (e) {
+        console.warn('Sync custom accessories error:', e);
+      }
     }
   },
 
   getCustomPaymentMethods(): CustomPaymentMethodItem[] {
-    return getItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods);
+    const list = getItem<CustomPaymentMethodItem[]>(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods);
+    if (!list || list.length === 0) {
+      return defaultCustomPaymentMethods;
+    }
+    return list;
   },
 
   getDeduplicatedPaymentOptions(): FormattedPaymentOption[] {
@@ -3852,13 +3882,15 @@ export const StorageService = {
     return getDeduplicatedPaymentOptions(methods);
   },
 
-  saveCustomPaymentMethods(methods: CustomPaymentMethodItem[]): void {
+  saveCustomPaymentMethods(methods: CustomPaymentMethodItem[], localOnly: boolean = false): void {
     setItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, methods);
     notifyListeners();
-    try {
-      FirestoreSyncService.saveCustomOsConfigs({ customPaymentMethods: methods });
-    } catch (e) {
-      console.warn('Sync custom payment methods error:', e);
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customPaymentMethods: methods });
+      } catch (e) {
+        console.warn('Sync custom payment methods error:', e);
+      }
     }
   },
 

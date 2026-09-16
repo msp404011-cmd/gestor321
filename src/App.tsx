@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-react';
 import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
@@ -74,6 +74,7 @@ export default function App() {
   const [authSession, setAuthSession] = useState(() => StorageService.getAuthSession());
   const [currentUser, setCurrentUser] = useState(() => StorageService.getCurrentUser());
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Storage state tick to trigger reactive updates across all components
   const [tick, setTick] = useState(0);
@@ -175,38 +176,52 @@ export default function App() {
 
   // Automatically restore and maintain Firebase Auth session across all machines/browsers
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setIsAuthChecking(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser && fbUser.email) {
-        const cleanEmail = fbUser.email.toLowerCase().trim();
-        let accountData: any = null;
-        if (db) {
-          try {
-            const docRefUid = doc(db, 'accounts', fbUser.uid);
-            const snapUid = await getDoc(docRefUid);
-            if (snapUid.exists()) {
-              accountData = snapUid.data();
-            } else {
-              const docRefEmail = doc(db, 'accounts', cleanEmail);
-              const snapEmail = await getDoc(docRefEmail);
-              if (snapEmail.exists()) {
-                accountData = snapEmail.data();
+      try {
+        if (fbUser && fbUser.email) {
+          const cleanEmail = fbUser.email.toLowerCase().trim();
+          let accountData: any = null;
+          if (db) {
+            try {
+              const docRefUid = doc(db, 'accounts', fbUser.uid);
+              const snapUid = await getDoc(docRefUid);
+              if (snapUid.exists()) {
+                accountData = snapUid.data();
+              } else {
+                const docRefEmail = doc(db, 'accounts', cleanEmail);
+                const snapEmail = await getDoc(docRefEmail);
+                if (snapEmail.exists()) {
+                  accountData = snapEmail.data();
+                }
               }
+            } catch (err) {
+              console.warn('Error fetching Firestore account on auth state change:', err);
             }
-          } catch (err) {
-            console.warn('Error fetching Firestore account on auth state change:', err);
           }
+
+          StorageService.loginFromFirebaseAuth({
+            uid: fbUser.uid,
+            email: cleanEmail,
+            accountData,
+          });
+
+          setAuthSession(StorageService.getAuthSession());
+          setCurrentUser(StorageService.getCurrentUser());
+          setTick((prev) => prev + 1);
+        } else {
+          // Explicitly clear session if Firebase Auth state is unauthenticated (e.g. after logout)
+          StorageService.clearAuthSession();
+          setAuthSession(null);
+          setCurrentUser(null);
         }
-
-        StorageService.loginFromFirebaseAuth({
-          uid: fbUser.uid,
-          email: cleanEmail,
-          accountData,
-        });
-
-        setAuthSession(StorageService.getAuthSession());
-        setCurrentUser(StorageService.getCurrentUser());
-        setTick((prev) => prev + 1);
+      } catch (err) {
+        console.error('Error in onAuthStateChanged:', err);
+      } finally {
+        setIsAuthChecking(false);
       }
     });
 
@@ -234,8 +249,46 @@ export default function App() {
       setTick((prev) => prev + 1);
     });
 
+    // Single Session Control: Register session and listen for session takeover
+    const uid = authSession.uid || currentUser?.id;
+    let currentSessionId = sessionStorage.getItem('msp_current_session_id');
+    if (!currentSessionId) {
+      currentSessionId = 'sess_' + Math.random().toString(36).substring(2) + '_' + Date.now();
+      sessionStorage.setItem('msp_current_session_id', currentSessionId);
+    }
+
+    if (uid && db) {
+      FirestoreSyncService.registerActiveSession(uid, authSession.email, currentSessionId);
+    }
+
+    // Heartbeat every 45 seconds (controlled, no spam)
+    const hbInterval = setInterval(() => {
+      if (uid && currentSessionId) {
+        FirestoreSyncService.updateSessionHeartbeat(uid, currentSessionId);
+      }
+    }, 45000);
+
+    // Listen to active session changes in Firestore
+    const unsubActiveSession = uid && currentSessionId ? FirestoreSyncService.subscribeToActiveSession(uid, currentSessionId, () => {
+      // Session taken over by another device!
+      console.warn('🔒 Sessão encerrada: Outro dispositivo entrou com esta conta.');
+      StorageService.clearAuthSession();
+      sessionStorage.removeItem('msp_current_session_id');
+      if (auth) {
+        signOut(auth).catch(() => {});
+      }
+      setAuthSession(null);
+      setCurrentUser(null);
+      alert('Sua sessão foi encerrada porque esta conta foi acessada em outro computador ou dispositivo.');
+      window.location.reload();
+    }) : () => {};
+
     return () => {
       unsubRealTime();
+      clearInterval(hbInterval);
+      if (typeof unsubActiveSession === 'function') {
+        unsubActiveSession();
+      }
     };
   }, [authSession?.email, authSession?.isAuthenticated]);
 
@@ -570,6 +623,13 @@ export default function App() {
       console.warn('Backup on logout error:', e);
     }
 
+    // Call Firebase Auth signOut to completely destroy the remote/device session
+    if (auth) {
+      signOut(auth).catch((err) => {
+        console.warn('Error calling Firebase Auth signOut:', err);
+      });
+    }
+
     // Immediately clear tokens, master session, and auth session synchronously
     GoogleDriveBackupService.setAccessToken(null);
     StorageService.clearAuthSession();
@@ -583,6 +643,20 @@ export default function App() {
     setIsLoginOpen(false);
     setActiveTab('DASHBOARD');
   };
+
+  // If we are verifying the security session from Firebase Auth on load, show full-screen spinner
+  if (isAuthChecking) {
+    return (
+      <div className={`flex flex-col items-center justify-center min-h-screen w-full transition-colors duration-300 ${
+        isDark ? 'bg-[#050814] text-slate-100' : 'bg-[#f0f4fa] text-slate-900'
+      }`}>
+        <div className="flex flex-col items-center gap-4 text-cyan-500">
+          <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+          <span className="text-sm font-semibold tracking-wide text-slate-400">Verificando sessão de segurança...</span>
+        </div>
+      </div>
+    );
+  }
 
   // If user is not authenticated, render Login/Landing View
   if (!authSession || !authSession.isAuthenticated) {

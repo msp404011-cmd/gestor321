@@ -121,7 +121,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         firebaseAuthSuccess = true;
         firebaseAuthUid = userCred.user.uid;
 
-        // Busca o documento correspondente no Firestore usando o UID
+        // Busca o documento correspondente no Firestore usando o UID ou e-mail
         if (db) {
           const docRefUid = doc(db, 'accounts', firebaseAuthUid);
           const snapUid = await getDoc(docRefUid);
@@ -133,17 +133,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             const snapEmail = await getDoc(docRefEmail);
             if (snapEmail.exists()) {
               firebaseAccountData = snapEmail.data();
-            } else {
-              const q = query(collection(db, 'accounts'), where('email', '==', cleanEmail));
-              const qSnap = await getDocs(q);
-              if (!qSnap.empty) {
-                firebaseAccountData = qSnap.docs[0].data();
-              }
             }
           }
         }
       } catch (authErr: any) {
-        console.warn('Tentativa de autenticação Firebase Auth:', authErr?.code);
+        console.warn('Tentativa de autenticação Firebase Auth falhou:', authErr?.code);
 
         // Se for Super Admin, tenta registrar automaticamente no Firebase Auth se não existir
         if (isMaster) {
@@ -157,7 +151,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           }
         }
 
-        // Para contas comuns ou Super Admin: busca no Firestore para permitir login entre máquinas
+        // Busca no Firestore para permitir login ou auto-migração se for usuário legado
         if (db) {
           try {
             const docRefEmail = doc(db, 'accounts', cleanEmail);
@@ -172,30 +166,37 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               }
             }
           } catch (findErr) {
-            console.warn('Erro ao buscar conta no Firestore:', findErr);
+            console.warn('Erro ao buscar conta no Firestore durante tratamento de erro de auth:', findErr);
           }
         }
 
-        if (isMaster) {
-          const storedPass = firebaseAccountData?.senha || firebaseAccountData?.password || firebaseAccountData?.pass;
-          const isStoredMatch = storedPass && (storedPass === loginPassword || storedPass === trimmedPass);
-          if (!isValidMasterPassword && !isStoredMatch && !firebaseAuthSuccess) {
-            throw new Error('Senha incorreta para a conta de Super Administrador.');
+        // Se falhou no Firebase Auth, mas temos a conta no Firestore:
+        if (firebaseAccountData) {
+          const storedPass = firebaseAccountData.senha || firebaseAccountData.password || firebaseAccountData.pass || firebaseAccountData.pin || firebaseAccountData.passwordHash;
+          const isPassCorrect = storedPass && (storedPass === loginPassword || storedPass === trimmedPass);
+
+          if (isPassCorrect) {
+            // Se a senha local/Firestore está correta, mas falhou no Firebase Auth, tentamos migrar criando no Firebase Auth!
+            try {
+              const auth = getAuth();
+              const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, trimmedPass);
+              firebaseAuthSuccess = true;
+              firebaseAuthUid = newCred.user.uid;
+              console.log('Usuário legado migrado com sucesso para o Firebase Auth:', cleanEmail);
+            } catch (migErr: any) {
+              if (migErr.code === 'auth/email-already-in-use') {
+                // Se já existe no Firebase Auth, significa que a senha digitada está INCORRETA para a conta do Firebase Auth!
+                throw new Error('Senha incorreta para esta conta do Firebase Authentication.');
+              } else {
+                throw new Error('Erro ao migrar conta para autenticação segura: ' + (migErr.message || migErr.code));
+              }
+            }
+          } else {
+            throw new Error('Senha incorreta ou credenciais inválidas. Verifique seus dados.');
           }
         } else {
-          if (firebaseAccountData) {
-            const storedPass = firebaseAccountData.senha || firebaseAccountData.password || firebaseAccountData.pass || firebaseAccountData.pin;
-            if (storedPass && storedPass !== loginPassword && storedPass !== trimmedPass) {
-              throw new Error('Senha incorreta. Verifique seus dados de acesso.');
-            }
-          } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-            const localAcc = StorageService.getUserAccounts().find(a => a.email.toLowerCase() === cleanEmail);
-            if (!localAcc) {
-              throw new Error('Senha incorreta ou credenciais inválidas. Verifique seus dados.');
-            }
-          } else if (authErr.code === 'auth/user-disabled') {
-            throw new Error('⚠️ Este usuário foi desativado no Firebase Authentication.');
-          }
+          // Se não há conta no Firebase e nem no Firestore:
+          throw new Error('Credenciais inválidas. Nenhuma conta encontrada com este e-mail.');
         }
       }
 
@@ -277,16 +278,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Fallback para contas locais
-      const result = StorageService.loginWithEmailPassword({
-        email: cleanEmail,
-        password: loginPassword,
-      });
-
-      setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
-      setTimeout(() => {
-        onLoginSuccess(result);
-      }, 500);
+      // Se passou por tudo e não conseguiu autenticação oficial, rejeita
+      throw new Error('Não foi possível estabelecer uma sessão de autenticação segura.');
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login. Verifique seus dados.');
       setIsLoading(false);
@@ -294,7 +287,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   };
 
   // 2. Submit Register (Create Shop Account + 7 Days Free Trial)
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
@@ -326,12 +319,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
     try {
       setIsLoading(true);
+
+      // 1. Register user on Firebase Authentication first
+      const auth = getAuth();
+      const userCred = await createUserWithEmailAndPassword(auth, regEmail.trim().toLowerCase(), regPassword);
+      const uid = userCred.user.uid;
+
+      // 2. Register user account locally and in Firestore using Firebase UID
       const result = StorageService.registerUserAccount({
         shopName: regShopName,
         ownerName: regOwnerName,
         email: regEmail,
         password: regPassword,
         phone: regPhone,
+        uid: uid,
       });
 
       setSuccessMsg('🎉 Conta criada com sucesso! 7 dias grátis ativados.');
@@ -343,7 +344,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         });
       }, 800);
     } catch (err: any) {
-      setError(err.message || 'Erro ao criar conta. Tente outro e-mail.');
+      let friendlyMessage = err.message || 'Erro ao criar conta. Tente outro e-mail.';
+      if (err.code === 'auth/email-already-in-use') {
+        friendlyMessage = '⚠️ Este e-mail já está cadastrado no Firebase Authentication.';
+      } else if (err.code === 'auth/weak-password') {
+        friendlyMessage = '⚠️ A senha deve conter pelo menos 6 caracteres para segurança do Firebase.';
+      }
+      setError(friendlyMessage);
       setIsLoading(false);
     }
   };
