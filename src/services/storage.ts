@@ -2315,12 +2315,33 @@ export const StorageService = {
     } catch (_) {}
     notifyListeners();
     try {
-      FirestoreSyncService.syncAllFromFirestore().then(() => {
+      this.syncTwoWayWithCloud().then(() => {
         notifyListeners();
       }).catch((e) => console.warn('Auto sync on setAuthSession failed:', e));
-      FirestoreSyncService.startRealTimeOrdersListener(notifyListeners);
     } catch (e) {
       console.warn('RealTimeListener setup failed:', e);
+    }
+  },
+
+  async syncTwoWayWithCloud(): Promise<boolean> {
+    try {
+      const localData = {
+        orders: this.getOrders(),
+        customers: this.getCustomers(),
+        products: this.getProducts(),
+        devices: this.getDevices(),
+        receivables: this.getReceivables(),
+        expenses: this.getExpenses(),
+        settings: this.getCompanySettings(),
+      };
+      await FirestoreSyncService.syncAllToFirestore(localData);
+      const success = await FirestoreSyncService.syncAllFromFirestore();
+      FirestoreSyncService.startRealTimeOrdersListener(notifyListeners);
+      notifyListeners();
+      return success;
+    } catch (err) {
+      console.warn('syncTwoWayWithCloud error:', err);
+      return false;
     }
   },
 

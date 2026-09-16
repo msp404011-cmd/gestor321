@@ -11,6 +11,7 @@ import {
   Crown,
   ShieldCheck,
   Store,
+  Cloud,
 } from 'lucide-react';
 import { Employee, CashSession } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -82,6 +83,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleMobileMenu = () => {
     if (onOpenMobileMenu) onOpenMobileMenu();
     else if (onToggleMobileMenu) onToggleMobileMenu();
+  };
+
+  const [isSyncingCloud, setIsSyncingCloud] = React.useState(false);
+  const [syncCloudSuccess, setSyncCloudSuccess] = React.useState(false);
+
+  const handleSyncCloud = async () => {
+    setIsSyncingCloud(true);
+    setSyncCloudSuccess(false);
+    try {
+      await StorageService.syncTwoWayWithCloud();
+      setSyncCloudSuccess(true);
+      setTimeout(() => setSyncCloudSuccess(false), 3000);
+    } catch (e) {
+      console.warn('Sync cloud error:', e);
+    } finally {
+      setIsSyncingCloud(false);
+    }
   };
 
   const handleWhatsApp = () => {
@@ -179,6 +197,26 @@ export const Navbar: React.FC<NavbarProps> = ({
           title={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
         >
           {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
+        </button>
+
+        {/* Cloud Two-Way Sync Button */}
+        <button
+          type="button"
+          onClick={handleSyncCloud}
+          disabled={isSyncingCloud}
+          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+            syncCloudSuccess
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+              : isDark
+              ? 'bg-slate-900/80 hover:bg-slate-800 text-cyan-300 border-slate-700'
+              : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300'
+          }`}
+          title="Sincronizar todos os dados locais com a Nuvem (Firebase)"
+        >
+          <Cloud className={`w-4 h-4 ${isSyncingCloud ? 'animate-bounce text-cyan-400' : syncCloudSuccess ? 'text-emerald-400' : 'text-cyan-400'}`} />
+          <span className="hidden sm:inline text-[11px]">
+            {isSyncingCloud ? 'Sincronizando...' : syncCloudSuccess ? 'Sincronizado!' : 'Nuvem'}
+          </span>
         </button>
 
         {/* Plan & Subscription Badge Button */}

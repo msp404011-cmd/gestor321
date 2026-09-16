@@ -201,6 +201,10 @@ export default function App() {
 
   // Subscribe to storage changes
   useEffect(() => {
+    StorageService.syncTwoWayWithCloud().then(() => {
+      setTick((prev) => prev + 1);
+    }).catch(() => {});
+
     const unsubscribe = StorageService.subscribe(() => {
       setTick((prev) => prev + 1);
     });
