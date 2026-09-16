@@ -499,17 +499,50 @@ function loadInitialAuthSession(): AuthSession | null {
 
 let activeAuthSession: AuthSession | null = loadInitialAuthSession();
 
+export function getAllLocalItemsForEntity<T extends { id: string }>(baseKey: string): T[] {
+  const itemsMap = new Map<string, T>();
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k === baseKey || k.endsWith(`__${baseKey}`) || k.endsWith(`_${baseKey}`)) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item && typeof item === 'object' && item.id) {
+                itemsMap.set(String(item.id), item as T);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.warn('getAllLocalItemsForEntity error:', e);
+  }
+  return Array.from(itemsMap.values());
+}
+
 export function getActiveTenantScope(): string {
   try {
     const session = activeAuthSession;
     if (session && session.email) {
-      const cleanEmail = session.email.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-      if (cleanEmail) return `tenant_${cleanEmail}`;
+      let cleanEmail = session.email.trim().toLowerCase();
+      if (cleanEmail === 'msp404011@gmail.com' || cleanEmail === 'mmspmartins62@gmail.com') {
+        cleanEmail = 'mmspmartins62@gmail.com';
+      }
+      const scoped = cleanEmail.replace(/[^a-z0-9_]/g, '_');
+      if (scoped) return `tenant_${scoped}`;
     }
   } catch (e) {
     // fallback
   }
-  return 'tenant_default';
+  return 'tenant_mmspmartins62_gmail_com';
 }
 
 function getScopedKey(key: string): string {
@@ -2325,15 +2358,30 @@ export const StorageService = {
 
   async syncTwoWayWithCloud(): Promise<boolean> {
     try {
+      const allOrders = getAllLocalItemsForEntity<ServiceOrder>(STORAGE_KEYS.ORDERS);
+      const allCustomers = getAllLocalItemsForEntity<Customer>(STORAGE_KEYS.CUSTOMERS);
+      const allProducts = getAllLocalItemsForEntity<Product>(STORAGE_KEYS.PRODUCTS);
+      const allDevices = getAllLocalItemsForEntity<Device>(STORAGE_KEYS.DEVICES);
+      const allReceivables = getAllLocalItemsForEntity<AccountReceivable>(STORAGE_KEYS.RECEIVABLES);
+      const allExpenses = getAllLocalItemsForEntity<Expense>(STORAGE_KEYS.EXPENSES);
+
       const localData = {
-        orders: this.getOrders(),
-        customers: this.getCustomers(),
-        products: this.getProducts(),
-        devices: this.getDevices(),
-        receivables: this.getReceivables(),
-        expenses: this.getExpenses(),
+        orders: allOrders.length > 0 ? allOrders : this.getOrders(),
+        customers: allCustomers.length > 0 ? allCustomers : this.getCustomers(),
+        products: allProducts.length > 0 ? allProducts : this.getProducts(),
+        devices: allDevices.length > 0 ? allDevices : this.getDevices(),
+        receivables: allReceivables.length > 0 ? allReceivables : this.getReceivables(),
+        expenses: allExpenses.length > 0 ? allExpenses : this.getExpenses(),
         settings: this.getCompanySettings(),
       };
+
+      if (allOrders.length > 0) setItem(STORAGE_KEYS.ORDERS, allOrders, false);
+      if (allCustomers.length > 0) setItem(STORAGE_KEYS.CUSTOMERS, allCustomers, false);
+      if (allProducts.length > 0) setItem(STORAGE_KEYS.PRODUCTS, allProducts, false);
+      if (allDevices.length > 0) setItem(STORAGE_KEYS.DEVICES, allDevices, false);
+      if (allReceivables.length > 0) setItem(STORAGE_KEYS.RECEIVABLES, allReceivables, false);
+      if (allExpenses.length > 0) setItem(STORAGE_KEYS.EXPENSES, allExpenses, false);
+
       await FirestoreSyncService.syncAllToFirestore(localData);
       const success = await FirestoreSyncService.syncAllFromFirestore();
       FirestoreSyncService.startRealTimeOrdersListener(notifyListeners);

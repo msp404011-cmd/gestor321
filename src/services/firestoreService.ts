@@ -18,24 +18,55 @@ import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from '.
 export function getTenantId(): string {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const rawSession = localStorage.getItem('msp_auth_session_v1');
-      if (rawSession) {
-        const session = JSON.parse(rawSession);
-        if (session && session.email) {
+      const rawSession1 = localStorage.getItem('msp_auth_session_v1');
+      if (rawSession1) {
+        const session = JSON.parse(rawSession1);
+        if (session && session.email && session.email.includes('@')) {
           const clean = session.email.trim().toLowerCase();
-          if (clean) return clean;
+          if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
+            return 'mmspmartins62@gmail.com';
+          }
+          return clean;
+        }
+      }
+      const rawSession2 = localStorage.getItem('msp_auth_session');
+      if (rawSession2) {
+        const session = JSON.parse(rawSession2);
+        if (session && session.email && session.email.includes('@')) {
+          const clean = session.email.trim().toLowerCase();
+          if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
+            return 'mmspmartins62@gmail.com';
+          }
+          return clean;
+        }
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.includes('current_user')) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const u = JSON.parse(raw);
+              if (u && u.email && u.email.includes('@')) {
+                const clean = u.email.trim().toLowerCase();
+                if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
+                  return 'mmspmartins62@gmail.com';
+                }
+                return clean;
+              }
+            }
+          } catch (_) {}
         }
       }
     }
   } catch (e) {
     // fallback
   }
-  return 'default_tenant';
+  return 'mmspmartins62@gmail.com';
 }
 
 function getTenantStorageScope(): string {
   const t = getTenantId();
-  if (!t || t === 'default_tenant') return 'tenant_default';
   return `tenant_${t.replace(/[^a-z0-9_]/g, '_')}`;
 }
 
@@ -449,10 +480,22 @@ export const FirestoreSyncService = {
         return Array.from(map.values());
       };
 
-      const getLocalKey = <T>(key: string): T[] => {
+      const getLocalKey = <T extends { id: string }>(key: string): T[] => {
         try {
-          const raw = localStorage.getItem(`${scope}_${key}`);
-          return raw ? JSON.parse(raw) : [];
+          const map = new Map<string, T>();
+          const keysToTry = [`${scope}__${key}`, `${scope}_${key}`, key];
+          for (const k of keysToTry) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                parsed.forEach((item) => {
+                  if (item && item.id) map.set(item.id, item as T);
+                });
+              }
+            }
+          }
+          return Array.from(map.values());
         } catch {
           return [];
         }
@@ -460,7 +503,10 @@ export const FirestoreSyncService = {
 
       const setLocalKey = <T>(key: string, data: T[]): void => {
         try {
-          localStorage.setItem(`${scope}_${key}`, JSON.stringify(data));
+          const json = JSON.stringify(data);
+          localStorage.setItem(`${scope}__${key}`, json);
+          localStorage.setItem(`${scope}_${key}`, json);
+          localStorage.setItem(key, json);
         } catch (e) {
           console.warn('Error setting local key during sync:', e);
         }
@@ -604,8 +650,16 @@ export const FirestoreSyncService = {
           if (remoteOrders.length > 0) {
             let localOrders: ServiceOrder[] = [];
             try {
-              const raw = localStorage.getItem(`${scope}_msp_orders_v2`);
-              localOrders = raw ? JSON.parse(raw) : [];
+              const keysToTry = [`${scope}__msp_orders_v2`, `${scope}_msp_orders_v2`, 'msp_orders_v2'];
+              const mapLoc = new Map<string, ServiceOrder>();
+              for (const k of keysToTry) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (Array.isArray(parsed)) parsed.forEach((item) => item && item.id && mapLoc.set(item.id, item));
+                }
+              }
+              localOrders = Array.from(mapLoc.values());
             } catch {}
 
             const map = new Map<string, ServiceOrder>();
@@ -613,7 +667,10 @@ export const FirestoreSyncService = {
             remoteOrders.forEach((o) => map.set(o.id, o));
             const merged = Array.from(map.values());
 
-            localStorage.setItem(`${scope}_msp_orders_v2`, JSON.stringify(merged));
+            const jsonStr = JSON.stringify(merged);
+            localStorage.setItem(`${scope}__msp_orders_v2`, jsonStr);
+            localStorage.setItem(`${scope}_msp_orders_v2`, jsonStr);
+            localStorage.setItem('msp_orders_v2', jsonStr);
             if (onOrdersUpdated) onOrdersUpdated();
           }
         },
