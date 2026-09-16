@@ -930,6 +930,7 @@ export const StorageService = {
       this.logAction(`Novo cliente cadastrado: ${normalizedCustomer.name}`);
     }
     setItem(STORAGE_KEYS.CUSTOMERS, list);
+    FirestoreSyncService.saveCustomer(normalizedCustomer);
 
     // Cascade update to all sectors in the system (Orders, Receivables/A Prazo, Devices, Sales, Cash)
     this.cascadeUpdateCustomerAcrossSystem(normalizedCustomer, oldCustomer);
@@ -1151,6 +1152,7 @@ export const StorageService = {
       this.logAction(`Novo aparelho vinculado: ${device.brand} ${device.model} (${device.customerName || 'Cliente'})`);
     }
     setItem(STORAGE_KEYS.DEVICES, list);
+    FirestoreSyncService.saveDevice(device);
     return device;
   },
 
@@ -1248,6 +1250,7 @@ export const StorageService = {
       this.logAction(`Novo produto cadastrado: ${computed.name}`);
     }
     setItem(STORAGE_KEYS.PRODUCTS, list);
+    FirestoreSyncService.saveProduct(computed);
     return computed;
   },
 
@@ -1525,6 +1528,7 @@ export const StorageService = {
     // 4. Save sale
     sales.unshift(sale);
     setItem(STORAGE_KEYS.SALES, sales);
+    FirestoreSyncService.saveSale(sale);
 
     // 5. Audit Log
     this.logAction(
@@ -1849,6 +1853,7 @@ export const StorageService = {
     const list = this.getExpenses();
     list.unshift(expense);
     setItem(STORAGE_KEYS.EXPENSES, list);
+    FirestoreSyncService.saveExpense(expense);
 
     // If paid from cash drawer, record cash movement
     if (expense.paidFromCash) {
@@ -2309,6 +2314,14 @@ export const StorageService = {
       }
     } catch (_) {}
     notifyListeners();
+    try {
+      FirestoreSyncService.syncAllFromFirestore().then(() => {
+        notifyListeners();
+      }).catch((e) => console.warn('Auto sync on setAuthSession failed:', e));
+      FirestoreSyncService.startRealTimeOrdersListener(notifyListeners);
+    } catch (e) {
+      console.warn('RealTimeListener setup failed:', e);
+    }
   },
 
   clearAuthSession(): void {

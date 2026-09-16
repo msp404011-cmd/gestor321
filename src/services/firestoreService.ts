@@ -1,6 +1,18 @@
-import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import firebaseConfig, { db } from '../lib/firebase';
-import { UserAccount, Employee, CompanySettings, AccountReceivable, Expense, ServiceOrder, SubscriptionPlanInfo } from '../types';
+import {
+  UserAccount,
+  Employee,
+  CompanySettings,
+  AccountReceivable,
+  Expense,
+  ServiceOrder,
+  SubscriptionPlanInfo,
+  Customer,
+  Product,
+  Device,
+  Sale
+} from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 
 export function getTenantId(): string {
@@ -20,6 +32,14 @@ export function getTenantId(): string {
   }
   return 'default_tenant';
 }
+
+function getTenantStorageScope(): string {
+  const t = getTenantId();
+  if (!t || t === 'default_tenant') return 'tenant_default';
+  return `tenant_${t.replace(/[^a-z0-9_]/g, '_')}`;
+}
+
+let ordersUnsubscribe: Unsubscribe | null = null;
 
 export const FirestoreSyncService = {
   /**
@@ -57,7 +77,6 @@ export const FirestoreSyncService = {
    */
   async saveEmployee(employee: Employee): Promise<void> {
     try {
-      // Disabled to strictly comply with flat data structure
       return;
     } catch (err) {
       console.warn('Firestore saveEmployee error:', err);
@@ -147,6 +166,66 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Save customer to Firestore /accounts/{tenantId}/customers/{id}
+   */
+  async saveCustomer(customer: Customer): Promise<void> {
+    try {
+      if (!db || !customer.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'customers', customer.id);
+      await setDoc(docRef, customer, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveCustomer error:', err);
+    }
+  },
+
+  /**
+   * Save product to Firestore /accounts/{tenantId}/products/{id}
+   */
+  async saveProduct(product: Product): Promise<void> {
+    try {
+      if (!db || !product.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'products', product.id);
+      await setDoc(docRef, product, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveProduct error:', err);
+    }
+  },
+
+  /**
+   * Save device to Firestore /accounts/{tenantId}/devices/{id}
+   */
+  async saveDevice(device: Device): Promise<void> {
+    try {
+      if (!db || !device.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'devices', device.id);
+      await setDoc(docRef, device, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveDevice error:', err);
+    }
+  },
+
+  /**
+   * Save sale to Firestore /accounts/{tenantId}/sales/{id}
+   */
+  async saveSale(sale: Sale): Promise<void> {
+    try {
+      if (!db || !sale.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'sales', sale.id);
+      await setDoc(docRef, sale, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveSale error:', err);
+    }
+  },
+
+  /**
    * Save accounts receivable to Firestore /accounts/{tenantId}/receivables/{id}
    */
   async saveReceivable(receivable: AccountReceivable): Promise<void> {
@@ -213,6 +292,94 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Load all service orders from Firestore for current tenant
+   */
+  async fetchOrders(): Promise<ServiceOrder[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'orders');
+      const snap = await getDocs(colRef);
+      const orders: ServiceOrder[] = [];
+      snap.forEach((d) => {
+        const o = d.data() as ServiceOrder;
+        if (o && o.id) orders.push(o);
+      });
+      return orders;
+    } catch (err) {
+      console.warn('Firestore fetchOrders error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Load all customers from Firestore for current tenant
+   */
+  async fetchCustomers(): Promise<Customer[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'customers');
+      const snap = await getDocs(colRef);
+      const customers: Customer[] = [];
+      snap.forEach((d) => {
+        const c = d.data() as Customer;
+        if (c && c.id) customers.push(c);
+      });
+      return customers;
+    } catch (err) {
+      console.warn('Firestore fetchCustomers error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Load all products from Firestore for current tenant
+   */
+  async fetchProducts(): Promise<Product[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'products');
+      const snap = await getDocs(colRef);
+      const products: Product[] = [];
+      snap.forEach((d) => {
+        const p = d.data() as Product;
+        if (p && p.id) products.push(p);
+      });
+      return products;
+    } catch (err) {
+      console.warn('Firestore fetchProducts error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Load all devices from Firestore for current tenant
+   */
+  async fetchDevices(): Promise<Device[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'devices');
+      const snap = await getDocs(colRef);
+      const devices: Device[] = [];
+      snap.forEach((d) => {
+        const dev = d.data() as Device;
+        if (dev && dev.id) devices.push(dev);
+      });
+      return devices;
+    } catch (err) {
+      console.warn('Firestore fetchDevices error:', err);
+      return [];
+    }
+  },
+
+  /**
    * Load all user accounts from Firestore
    */
   async fetchUserAccounts(): Promise<CanonicalAccount[]> {
@@ -232,5 +399,240 @@ export const FirestoreSyncService = {
       return [];
     }
   },
+
+  /**
+   * Downloads all tenant data from Firestore and merges it into local storage.
+   * Ensures that any computer logging in immediately sees all OS, Customers, Products, etc.
+   */
+  async syncAllFromFirestore(onSuccess?: () => void): Promise<boolean> {
+    try {
+      if (!db) return false;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return false;
+
+      const scope = getTenantStorageScope();
+
+      // 1. Fetch Company Settings & Custom OS Configs from tenant doc
+      const tenantDocRef = doc(db, 'accounts', tenantId);
+      const tenantSnap = await getDoc(tenantDocRef);
+      if (tenantSnap.exists()) {
+        const data = tenantSnap.data();
+        if (data.companySettings) {
+          localStorage.setItem(`${scope}_msp_settings_v1`, JSON.stringify(data.companySettings));
+        }
+        if (data.customOsConfigs) {
+          const cfg = data.customOsConfigs;
+          if (cfg.customOSStatuses) {
+            localStorage.setItem(`${scope}_msp_custom_os_statuses_v1`, JSON.stringify(cfg.customOSStatuses));
+          }
+          if (cfg.customDeviceTypes) {
+            localStorage.setItem(`${scope}_msp_custom_device_types_v1`, JSON.stringify(cfg.customDeviceTypes));
+          }
+          if (cfg.customAccessories) {
+            localStorage.setItem(`${scope}_msp_custom_accessories_v4`, JSON.stringify(cfg.customAccessories));
+          }
+          if (cfg.customPaymentMethods) {
+            localStorage.setItem(`${scope}_msp_custom_payment_methods_v1`, JSON.stringify(cfg.customPaymentMethods));
+          }
+        }
+      }
+
+      // Helper to merge remote array with local array by ID (remote takes priority)
+      const mergeCollections = <T extends { id: string }>(localArr: T[], remoteArr: T[]): T[] => {
+        const map = new Map<string, T>();
+        localArr.forEach((item) => {
+          if (item && item.id) map.set(item.id, item);
+        });
+        remoteArr.forEach((item) => {
+          if (item && item.id) map.set(item.id, item);
+        });
+        return Array.from(map.values());
+      };
+
+      const getLocalKey = <T>(key: string): T[] => {
+        try {
+          const raw = localStorage.getItem(`${scope}_${key}`);
+          return raw ? JSON.parse(raw) : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const setLocalKey = <T>(key: string, data: T[]): void => {
+        try {
+          localStorage.setItem(`${scope}_${key}`, JSON.stringify(data));
+        } catch (e) {
+          console.warn('Error setting local key during sync:', e);
+        }
+      };
+
+      // 2. Fetch Orders
+      const remoteOrders = await this.fetchOrders();
+      if (remoteOrders.length > 0) {
+        const localOrders = getLocalKey<ServiceOrder>('msp_orders_v2');
+        const mergedOrders = mergeCollections(localOrders, remoteOrders);
+        setLocalKey('msp_orders_v2', mergedOrders);
+      }
+
+      // 3. Fetch Customers
+      const remoteCustomers = await this.fetchCustomers();
+      if (remoteCustomers.length > 0) {
+        const localCustomers = getLocalKey<Customer>('msp_customers_v1');
+        const mergedCustomers = mergeCollections(localCustomers, remoteCustomers);
+        setLocalKey('msp_customers_v1', mergedCustomers);
+      }
+
+      // 4. Fetch Products
+      const remoteProducts = await this.fetchProducts();
+      if (remoteProducts.length > 0) {
+        const localProducts = getLocalKey<Product>('msp_products_v1');
+        const mergedProducts = mergeCollections(localProducts, remoteProducts);
+        setLocalKey('msp_products_v1', mergedProducts);
+      }
+
+      // 5. Fetch Devices
+      const remoteDevices = await this.fetchDevices();
+      if (remoteDevices.length > 0) {
+        const localDevices = getLocalKey<Device>('msp_devices_v1');
+        const mergedDevices = mergeCollections(localDevices, remoteDevices);
+        setLocalKey('msp_devices_v1', mergedDevices);
+      }
+
+      console.log('✅ [FirestoreSyncService] Sincronização da Nuvem concluída com sucesso!');
+      if (onSuccess) onSuccess();
+      return true;
+    } catch (err) {
+      console.warn('❌ [FirestoreSyncService] Erro ao baixar dados da nuvem:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Uploads all local data for active tenant to Firestore
+   */
+  async syncAllToFirestore(localData: {
+    orders?: ServiceOrder[];
+    customers?: Customer[];
+    products?: Product[];
+    devices?: Device[];
+    receivables?: AccountReceivable[];
+    expenses?: Expense[];
+    settings?: CompanySettings;
+    customOsConfigs?: any;
+  }): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+
+      if (localData.settings) {
+        await this.saveCompanySettings(localData.settings);
+      }
+
+      if (localData.customOsConfigs) {
+        await this.saveCustomOsConfigs(localData.customOsConfigs);
+      }
+
+      if (localData.orders && localData.orders.length > 0) {
+        for (const order of localData.orders) {
+          await this.saveOrder(order);
+        }
+      }
+
+      if (localData.customers && localData.customers.length > 0) {
+        for (const customer of localData.customers) {
+          await this.saveCustomer(customer);
+        }
+      }
+
+      if (localData.products && localData.products.length > 0) {
+        for (const product of localData.products) {
+          await this.saveProduct(product);
+        }
+      }
+
+      if (localData.devices && localData.devices.length > 0) {
+        for (const device of localData.devices) {
+          await this.saveDevice(device);
+        }
+      }
+
+      if (localData.receivables && localData.receivables.length > 0) {
+        for (const receivable of localData.receivables) {
+          await this.saveReceivable(receivable);
+        }
+      }
+
+      if (localData.expenses && localData.expenses.length > 0) {
+        for (const expense of localData.expenses) {
+          await this.saveExpense(expense);
+        }
+      }
+
+      console.log('✅ [FirestoreSyncService] Envio completo de dados para a nuvem concluído!');
+    } catch (err) {
+      console.warn('❌ [FirestoreSyncService] Erro ao enviar dados para a nuvem:', err);
+    }
+  },
+
+  /**
+   * Listens to changes on Orders in real time so other computers update automatically
+   */
+  startRealTimeOrdersListener(onOrdersUpdated?: () => void): () => void {
+    if (ordersUnsubscribe) {
+      ordersUnsubscribe();
+      ordersUnsubscribe = null;
+    }
+
+    try {
+      if (!db) return () => {};
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return () => {};
+
+      const colRef = collection(db, 'accounts', tenantId, 'orders');
+      ordersUnsubscribe = onSnapshot(
+        colRef,
+        (snapshot) => {
+          if (snapshot.empty) return;
+          const scope = getTenantStorageScope();
+          const remoteOrders: ServiceOrder[] = [];
+          snapshot.forEach((d) => {
+            const o = d.data() as ServiceOrder;
+            if (o && o.id) remoteOrders.push(o);
+          });
+
+          if (remoteOrders.length > 0) {
+            let localOrders: ServiceOrder[] = [];
+            try {
+              const raw = localStorage.getItem(`${scope}_msp_orders_v2`);
+              localOrders = raw ? JSON.parse(raw) : [];
+            } catch {}
+
+            const map = new Map<string, ServiceOrder>();
+            localOrders.forEach((o) => map.set(o.id, o));
+            remoteOrders.forEach((o) => map.set(o.id, o));
+            const merged = Array.from(map.values());
+
+            localStorage.setItem(`${scope}_msp_orders_v2`, JSON.stringify(merged));
+            if (onOrdersUpdated) onOrdersUpdated();
+          }
+        },
+        (err) => {
+          console.warn('RealTime Orders listener error:', err);
+        }
+      );
+
+      return () => {
+        if (ordersUnsubscribe) {
+          ordersUnsubscribe();
+          ordersUnsubscribe = null;
+        }
+      };
+    } catch (err) {
+      console.warn('Error starting RealTime Orders Listener:', err);
+      return () => {};
+    }
+  },
 };
+
 
