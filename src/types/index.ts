@@ -272,7 +272,27 @@ export interface ServiceOrder {
   statusHistory: OrderStatusHistory[];
   history?: OrderStatusHistory[];
 
+  // Envio exclusivo terceirizado C/ Eulis
+  eulisDispatchInfo?: EulisDispatchInfo;
+
   companyId?: string;
+}
+
+export interface EulisDispatchInfo {
+  hasChipTray: boolean; // Gaveta de Chip
+  chip1: boolean; // Chip 1
+  chip2: boolean; // Chip 2
+  memoryCard: boolean; // Cartão de Memória
+  caseCover: boolean; // Capa
+  screenFilm: boolean; // Película
+  charger: boolean; // Carregador
+  battery: boolean; // Bateria
+  accessoriesNotes?: string; // Outros acessórios / detalhes de envio
+  assemblyState: 'COMPLETO' | 'DESMONTADO' | 'SO_PARTE' | string; // Aparelho completo ou desmontado ou só uma parte
+  assemblyStateDescription: string; // Espaço pra descrever o estado / partes enviadas
+  dispatchNotes?: string; // Observação / recado exclusivo para C/ Eulis
+  dispatchedAt?: string;
+  dispatchedBy?: string;
 }
 
 export type ProductCategory = string;

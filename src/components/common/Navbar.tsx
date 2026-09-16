@@ -199,25 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
         </button>
 
-        {/* Cloud Two-Way Sync Button */}
-        <button
-          type="button"
-          onClick={handleSyncCloud}
-          disabled={isSyncingCloud}
-          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-            syncCloudSuccess
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-              : isDark
-              ? 'bg-slate-900/80 hover:bg-slate-800 text-cyan-300 border-slate-700'
-              : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300'
-          }`}
-          title="Sincronizar todos os dados locais com a Nuvem (Firebase)"
-        >
-          <Cloud className={`w-4 h-4 ${isSyncingCloud ? 'animate-bounce text-cyan-400' : syncCloudSuccess ? 'text-emerald-400' : 'text-cyan-400'}`} />
-          <span className="hidden sm:inline text-[11px]">
-            {isSyncingCloud ? 'Sincronizando...' : syncCloudSuccess ? 'Sincronizado!' : 'Nuvem'}
-          </span>
-        </button>
+
 
         {/* Plan & Subscription Badge Button */}
         {onOpenPlans && (

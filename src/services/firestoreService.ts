@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, deleteDoc, Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, deleteDoc, writeBatch, Unsubscribe } from 'firebase/firestore';
 import firebaseConfig, { db } from '../lib/firebase';
 import {
   UserAccount,
@@ -14,6 +14,7 @@ import {
   Sale
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
+import { CloudEngine } from './cloudEngine';
 
 const DEMO_ORDER_IDS = new Set([
   'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
@@ -28,22 +29,14 @@ export function getTenantId(): string {
       if (rawSession1) {
         const session = JSON.parse(rawSession1);
         if (session && session.email && session.email.includes('@')) {
-          const clean = session.email.trim().toLowerCase();
-          if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
-            return 'mmspmartins62@gmail.com';
-          }
-          return clean;
+          return session.email.trim().toLowerCase();
         }
       }
       const rawSession2 = localStorage.getItem('msp_auth_session');
       if (rawSession2) {
         const session = JSON.parse(rawSession2);
         if (session && session.email && session.email.includes('@')) {
-          const clean = session.email.trim().toLowerCase();
-          if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
-            return 'mmspmartins62@gmail.com';
-          }
-          return clean;
+          return session.email.trim().toLowerCase();
         }
       }
       for (let i = 0; i < localStorage.length; i++) {
@@ -54,11 +47,7 @@ export function getTenantId(): string {
             if (raw) {
               const u = JSON.parse(raw);
               if (u && u.email && u.email.includes('@')) {
-                const clean = u.email.trim().toLowerCase();
-                if (clean === 'msp404011@gmail.com' || clean === 'mmspmartins62@gmail.com') {
-                  return 'mmspmartins62@gmail.com';
-                }
-                return clean;
+                return u.email.trim().toLowerCase();
               }
             }
           } catch (_) {}
@@ -68,7 +57,7 @@ export function getTenantId(): string {
   } catch (e) {
     // fallback
   }
-  return 'mmspmartins62@gmail.com';
+  return 'msp404011@gmail.com';
 }
 
 function getTenantStorageScope(): string {
@@ -106,17 +95,6 @@ export const FirestoreSyncService = {
       await setDoc(docRef, prepared, { merge: true });
     } catch (err) {
       console.warn('Firestore saveFullTenantProfile error:', err);
-    }
-  },
-
-  /**
-   * (Disabled) Prevent creating 'employees' folder in Firebase. Operates locally only.
-   */
-  async saveEmployee(employee: Employee): Promise<void> {
-    try {
-      return;
-    } catch (err) {
-      console.warn('Firestore saveEmployee error:', err);
     }
   },
 
@@ -293,6 +271,299 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Delete service order from Firestore
+   */
+  async deleteOrder(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'orders', id));
+    } catch (err) {
+      console.warn('Firestore deleteOrder error:', err);
+    }
+  },
+
+  /**
+   * Delete customer from Firestore
+   */
+  async deleteCustomer(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'customers', id));
+    } catch (err) {
+      console.warn('Firestore deleteCustomer error:', err);
+    }
+  },
+
+  /**
+   * Delete product from Firestore
+   */
+  async deleteProduct(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'products', id));
+    } catch (err) {
+      console.warn('Firestore deleteProduct error:', err);
+    }
+  },
+
+  /**
+   * Delete device from Firestore
+   */
+  async deleteDevice(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'devices', id));
+    } catch (err) {
+      console.warn('Firestore deleteDevice error:', err);
+    }
+  },
+
+  /**
+   * Delete sale from Firestore
+   */
+  async deleteSale(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'sales', id));
+    } catch (err) {
+      console.warn('Firestore deleteSale error:', err);
+    }
+  },
+
+  /**
+   * Delete expense from Firestore
+   */
+  async deleteExpense(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'expenses', id));
+    } catch (err) {
+      console.warn('Firestore deleteExpense error:', err);
+    }
+  },
+
+  /**
+   * Delete receivable from Firestore
+   */
+  async deleteReceivable(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'receivables', id));
+    } catch (err) {
+      console.warn('Firestore deleteReceivable error:', err);
+    }
+  },
+
+  /**
+   * Save employee to Firestore /accounts/{tenantId}/employees/{id}
+   */
+  async saveEmployee(employee: Employee): Promise<void> {
+    try {
+      if (!db || !employee.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'employees', employee.id);
+      await setDoc(docRef, employee, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveEmployee error:', err);
+    }
+  },
+
+  /**
+   * Delete employee from Firestore
+   */
+  async deleteEmployee(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'employees', id));
+    } catch (err) {
+      console.warn('Firestore deleteEmployee error:', err);
+    }
+  },
+
+  /**
+   * Fetch employees from Firestore
+   */
+  async fetchEmployees(): Promise<Employee[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'employees');
+      const snap = await getDocs(colRef);
+      const list: Employee[] = [];
+      snap.forEach((d) => {
+        const item = d.data() as Employee;
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchEmployees error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Save supplier to Firestore /accounts/{tenantId}/suppliers/{id}
+   */
+  async saveSupplier(supplier: any): Promise<void> {
+    try {
+      if (!db || !supplier.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'suppliers', supplier.id);
+      await setDoc(docRef, supplier, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveSupplier error:', err);
+    }
+  },
+
+  /**
+   * Delete supplier from Firestore
+   */
+  async deleteSupplier(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'suppliers', id));
+    } catch (err) {
+      console.warn('Firestore deleteSupplier error:', err);
+    }
+  },
+
+  /**
+   * Fetch suppliers from Firestore
+   */
+  async fetchSuppliers(): Promise<any[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'suppliers');
+      const snap = await getDocs(colRef);
+      const list: any[] = [];
+      snap.forEach((d) => {
+        const item = d.data();
+        if (item && item.id) list.push(item);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Firestore fetchSuppliers error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Save supplier order group to Firestore
+   */
+  async saveSupplierOrder(order: any): Promise<void> {
+    try {
+      if (!db || !order.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'supplier_orders', order.id);
+      await setDoc(docRef, order, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveSupplierOrder error:', err);
+    }
+  },
+
+  /**
+   * Delete supplier order group from Firestore
+   */
+  async deleteSupplierOrder(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'supplier_orders', id));
+    } catch (err) {
+      console.warn('Firestore deleteSupplierOrder error:', err);
+    }
+  },
+
+  /**
+   * Save supplier purchase piece/debt to Firestore
+   */
+  async saveSupplierPurchase(item: any): Promise<void> {
+    try {
+      if (!db || !item.purchaseId) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'supplier_purchases', item.purchaseId);
+      await setDoc(docRef, item, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveSupplierPurchase error:', err);
+    }
+  },
+
+  /**
+   * Delete supplier purchase piece from Firestore
+   */
+  async deleteSupplierPurchase(purchaseId: string): Promise<void> {
+    try {
+      if (!db || !purchaseId) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'supplier_purchases', purchaseId));
+    } catch (err) {
+      console.warn('Firestore deleteSupplierPurchase error:', err);
+    }
+  },
+
+  /**
+   * Save supplier field settings (Categories, Buttons, Options) directly to Firestore
+   */
+  async saveSupplierFieldSettings(settings: any): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'settings', 'supplierOrderFields');
+      await setDoc(docRef, settings, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveSupplierFieldSettings error:', err);
+    }
+  },
+
+  /**
+   * Clear all tenant data from Firestore
+   */
+  async clearAllFirestoreData(): Promise<void> {
+    try {
+      if (!db) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const collections = ['orders', 'customers', 'products', 'devices', 'sales', 'expenses', 'receivables'];
+      for (const colName of collections) {
+        const snap = await getDocs(collection(db, 'accounts', tenantId, colName));
+        for (const d of snap.docs) {
+          await deleteDoc(d.ref);
+        }
+      }
+    } catch (err) {
+      console.warn('Firestore clearAllFirestoreData error:', err);
+    }
+  },
+
+  /**
    * Save subscription plan to Firestore /accounts/{tenantId} (Flat structure)
    */
   async saveSubscriptionPlan(plan: SubscriptionPlanInfo): Promise<void> {
@@ -417,6 +688,50 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Load all receivables (fiados) from Firestore for current tenant
+   */
+  async fetchReceivables(): Promise<AccountReceivable[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'receivables');
+      const snap = await getDocs(colRef);
+      const receivables: AccountReceivable[] = [];
+      snap.forEach((d) => {
+        const rec = d.data() as AccountReceivable;
+        if (rec && rec.id) receivables.push(rec);
+      });
+      return receivables;
+    } catch (err) {
+      console.warn('Firestore fetchReceivables error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Load all expenses from Firestore for current tenant
+   */
+  async fetchExpenses(): Promise<Expense[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'expenses');
+      const snap = await getDocs(colRef);
+      const expenses: Expense[] = [];
+      snap.forEach((d) => {
+        const exp = d.data() as Expense;
+        if (exp && exp.id) expenses.push(exp);
+      });
+      return expenses;
+    } catch (err) {
+      console.warn('Firestore fetchExpenses error:', err);
+      return [];
+    }
+  },
+
+  /**
    * Load all user accounts from Firestore
    */
   async fetchUserAccounts(): Promise<CanonicalAccount[]> {
@@ -525,39 +840,39 @@ export const FirestoreSyncService = {
         }
       };
 
-      // 2. Fetch Orders
+      // 2. Fetch Orders (Remote is 100% authoritative - never restore deleted items)
       const remoteOrders = await this.fetchOrders();
-      if (remoteOrders.length > 0) {
-        const localOrders = getLocalKey<ServiceOrder>('msp_orders_v2');
-        const mergedOrders = mergeCollections(localOrders, remoteOrders);
-        setLocalKey('msp_orders_v2', mergedOrders);
-      }
+      setLocalKey('msp_orders_v2', remoteOrders);
 
       // 3. Fetch Customers
       const remoteCustomers = await this.fetchCustomers();
-      if (remoteCustomers.length > 0) {
-        const localCustomers = getLocalKey<Customer>('msp_customers_v1');
-        const mergedCustomers = mergeCollections(localCustomers, remoteCustomers);
-        setLocalKey('msp_customers_v1', mergedCustomers);
-      }
+      setLocalKey('msp_customers_v1', remoteCustomers);
 
       // 4. Fetch Products
       const remoteProducts = await this.fetchProducts();
-      if (remoteProducts.length > 0) {
-        const localProducts = getLocalKey<Product>('msp_products_v1');
-        const mergedProducts = mergeCollections(localProducts, remoteProducts);
-        setLocalKey('msp_products_v1', mergedProducts);
-      }
+      setLocalKey('msp_products_v1', remoteProducts);
 
       // 5. Fetch Devices
       const remoteDevices = await this.fetchDevices();
-      if (remoteDevices.length > 0) {
-        const localDevices = getLocalKey<Device>('msp_devices_v1');
-        const mergedDevices = mergeCollections(localDevices, remoteDevices);
-        setLocalKey('msp_devices_v1', mergedDevices);
-      }
+      setLocalKey('msp_devices_v1', remoteDevices);
 
-      console.log('✅ [FirestoreSyncService] Sincronização da Nuvem concluída com sucesso!');
+      // 6. Fetch Employees
+      const remoteEmployees = await this.fetchEmployees();
+      setLocalKey('msp_employees_v1', remoteEmployees);
+
+      // 7. Fetch Suppliers
+      const remoteSuppliers = await this.fetchSuppliers();
+      setLocalKey('msp_suppliers_v1', remoteSuppliers);
+
+      // 8. Fetch Receivables (Fiados)
+      const remoteReceivables = await this.fetchReceivables();
+      setLocalKey('msp_receivables_v1', remoteReceivables);
+
+      // 9. Fetch Expenses
+      const remoteExpenses = await this.fetchExpenses();
+      setLocalKey('msp_expenses_v1', remoteExpenses);
+
+      console.log('✅ [FirestoreSyncService] Sincronização 100% Nuvem Firebase concluída!');
       if (onSuccess) onSuccess();
       return true;
     } catch (err) {
@@ -567,7 +882,7 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Uploads all local data for active tenant to Firestore
+   * Uploads local data for active tenant to Firestore using safe batched writes
    */
   async syncAllToFirestore(localData: {
     orders?: ServiceOrder[];
@@ -592,45 +907,62 @@ export const FirestoreSyncService = {
         await this.saveCustomOsConfigs(localData.customOsConfigs);
       }
 
-      if (localData.orders && localData.orders.length > 0) {
-        for (const order of localData.orders) {
-          await this.saveOrder(order);
+      // Safe batch helper (max 100 items per batch to stay far below the 500-op limit and avoid bandwidth bursts)
+      const commitItemsInBatches = async <T extends { id?: string }>(
+        subcollection: string,
+        items: T[],
+        filter?: (item: T) => boolean
+      ) => {
+        if (!items || items.length === 0) return;
+        const validItems = items.filter((item) => item && item.id && (!filter || filter(item)));
+        const CHUNK_SIZE = 50;
+
+        for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+          const chunk = validItems.slice(i, i + CHUNK_SIZE);
+          try {
+            const batch = writeBatch(db);
+            for (const item of chunk) {
+              const docRef = doc(db, 'accounts', tenantId, subcollection, item.id!);
+              batch.set(docRef, item, { merge: true });
+            }
+            await batch.commit();
+            // Small pause between batches to respect Firestore bandwidth
+            await new Promise((resolve) => setTimeout(resolve, 80));
+          } catch (batchErr: any) {
+            console.warn(`[FirestoreSyncService] Batch commit error on ${subcollection}:`, batchErr?.message || batchErr);
+            // If rate-limited, wait 1 second before attempting remaining chunks
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         }
+      };
+
+      if (localData.orders && localData.orders.length > 0) {
+        await commitItemsInBatches('orders', localData.orders, (o) => !DEMO_ORDER_IDS.has(o.id));
       }
 
       if (localData.customers && localData.customers.length > 0) {
-        for (const customer of localData.customers) {
-          await this.saveCustomer(customer);
-        }
+        await commitItemsInBatches('customers', localData.customers);
       }
 
       if (localData.products && localData.products.length > 0) {
-        for (const product of localData.products) {
-          await this.saveProduct(product);
-        }
+        await commitItemsInBatches('products', localData.products);
       }
 
       if (localData.devices && localData.devices.length > 0) {
-        for (const device of localData.devices) {
-          await this.saveDevice(device);
-        }
+        await commitItemsInBatches('devices', localData.devices);
       }
 
       if (localData.receivables && localData.receivables.length > 0) {
-        for (const receivable of localData.receivables) {
-          await this.saveReceivable(receivable);
-        }
+        await commitItemsInBatches('receivables', localData.receivables);
       }
 
       if (localData.expenses && localData.expenses.length > 0) {
-        for (const expense of localData.expenses) {
-          await this.saveExpense(expense);
-        }
+        await commitItemsInBatches('expenses', localData.expenses);
       }
 
-      console.log('✅ [FirestoreSyncService] Envio completo de dados para a nuvem concluído!');
-    } catch (err) {
-      console.warn('❌ [FirestoreSyncService] Erro ao enviar dados para a nuvem:', err);
+      console.log('✅ [FirestoreSyncService] Envio controlado de dados para a nuvem concluído!');
+    } catch (err: any) {
+      console.warn('❌ [FirestoreSyncService] Erro ao enviar dados para a nuvem:', err?.message || err);
     }
   },
 
@@ -648,54 +980,22 @@ export const FirestoreSyncService = {
       const tenantId = getTenantId();
       if (!tenantId || tenantId === 'default_tenant') return () => {};
 
+      const scope = getTenantStorageScope();
       const colRef = collection(db, 'accounts', tenantId, 'orders');
       ordersUnsubscribe = onSnapshot(
         colRef,
         (snapshot) => {
-          if (snapshot.empty) return;
-          const scope = getTenantStorageScope();
           const remoteOrders: ServiceOrder[] = [];
           snapshot.forEach((d) => {
             const o = d.data() as ServiceOrder;
             if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) remoteOrders.push(o);
           });
 
-          if (remoteOrders.length > 0) {
-            let localOrders: ServiceOrder[] = [];
-            try {
-              const keysToTry = [`${scope}__msp_orders_v2`, `${scope}_msp_orders_v2`, 'msp_orders_v2'];
-              const mapLoc = new Map<string, ServiceOrder>();
-              for (const k of keysToTry) {
-                const raw = localStorage.getItem(k);
-                if (raw) {
-                  const parsed = JSON.parse(raw);
-                  if (Array.isArray(parsed)) {
-                    parsed.forEach((item) => {
-                      if (item && item.id && !DEMO_ORDER_IDS.has(item.id)) {
-                        mapLoc.set(item.id, item);
-                      }
-                    });
-                  }
-                }
-              }
-              localOrders = Array.from(mapLoc.values());
-            } catch {}
-
-            const map = new Map<string, ServiceOrder>();
-            localOrders.forEach((o) => {
-              if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) map.set(o.id, o);
-            });
-            remoteOrders.forEach((o) => {
-              if (o && o.id && !DEMO_ORDER_IDS.has(o.id)) map.set(o.id, o);
-            });
-            const merged = Array.from(map.values());
-
-            const jsonStr = JSON.stringify(merged);
-            localStorage.setItem(`${scope}__msp_orders_v2`, jsonStr);
-            localStorage.setItem(`${scope}_msp_orders_v2`, jsonStr);
-            localStorage.setItem('msp_orders_v2', jsonStr);
-            if (onOrdersUpdated) onOrdersUpdated();
-          }
+          const jsonStr = JSON.stringify(remoteOrders);
+          localStorage.setItem(`${scope}__msp_orders_v2`, jsonStr);
+          localStorage.setItem(`${scope}_msp_orders_v2`, jsonStr);
+          localStorage.setItem('msp_orders_v2', jsonStr);
+          if (onOrdersUpdated) onOrdersUpdated();
         },
         (err) => {
           console.warn('RealTime Orders listener error:', err);
@@ -710,6 +1010,18 @@ export const FirestoreSyncService = {
       };
     } catch (err) {
       console.warn('Error starting RealTime Orders Listener:', err);
+      return () => {};
+    }
+  },
+
+  /**
+   * Subscribes to real-time updates for all collections via MegaCloudEngine
+   */
+  startAllRealTimeListeners(onUpdated?: () => void): () => void {
+    try {
+      return CloudEngine.start(onUpdated);
+    } catch (err) {
+      console.warn('Error starting MegaCloudEngine listeners:', err);
       return () => {};
     }
   },

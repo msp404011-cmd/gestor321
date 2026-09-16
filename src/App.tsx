@@ -1,52 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-react';
 import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
-import { GlobalSearchModal } from './components/common/GlobalSearchModal';
-import { NotificationDrawer } from './components/common/NotificationDrawer';
-import { LoginModal } from './components/auth/LoginModal';
-
-// Views
-import { DashboardView } from './components/dashboard/DashboardView';
-import { CustomerListView } from './components/customers/CustomerListView';
-import { CustomerModal } from './components/customers/CustomerModal';
-import { CustomerDetailModal } from './components/customers/CustomerDetailModal';
-import { DeviceListView } from './components/devices/DeviceListView';
-import { DeviceModal } from './components/devices/DeviceModal';
-import { OrderListView } from './components/orders/OrderListView';
-import { OrderModal } from './components/orders/OrderModal';
-import { OrderDetailModal } from './components/orders/OrderDetailModal';
-import { OrderPrintModal } from './components/orders/OrderPrintModal';
-import { PosView } from './components/pos/PosView';
-import { ProductListView } from './components/products/ProductListView';
-import { ProductModal } from './components/products/ProductModal';
-import { PurchasesView } from './components/purchases/PurchasesView';
-import { ResellerListView } from './components/resellers/ResellerListView';
-import { FinanceView } from './components/finance/FinanceView';
-import { ReportsView } from './components/reports/ReportsView';
-import { SettingsView } from './components/settings/SettingsView';
-import { EmployeesView } from './components/employees/EmployeesView';
-import { ReceivablesView } from './components/receivables/ReceivablesView';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
-import { SubscriptionModal } from './components/subscription/SubscriptionModal';
-import { PaywallModal } from './components/subscription/PaywallModal';
-import { BlockedAccountModal } from './components/common/BlockedAccountModal';
 import { SubscriptionService, normalizePlanType } from './services/subscriptionService';
-import { LoginView } from './components/auth/LoginView';
-import { MasterAuthModal } from './components/master/MasterAuthModal';
-import { MasterPanel } from './components/master/MasterPanel';
-import { AppAccessManagement } from './components/master/AppAccessManagement';
-import { CameraPackageManagement } from './components/master/CameraPackageManagement';
-import { SupplierOrdersManagement } from './components/master/SupplierOrdersManagement';
-import { ExclusiveOrdersManagement } from './components/master/ExclusiveOrdersManagement';
 import { AdminBackendService } from './services/adminBackendService';
+
+// Lazy-loaded Views & Modals for Code Splitting
+const DashboardView = lazy(() => import('./components/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
+const CustomerListView = lazy(() => import('./components/customers/CustomerListView').then(m => ({ default: m.CustomerListView })));
+const CustomerModal = lazy(() => import('./components/customers/CustomerModal').then(m => ({ default: m.CustomerModal })));
+const CustomerDetailModal = lazy(() => import('./components/customers/CustomerDetailModal').then(m => ({ default: m.CustomerDetailModal })));
+const DeviceListView = lazy(() => import('./components/devices/DeviceListView').then(m => ({ default: m.DeviceListView })));
+const DeviceModal = lazy(() => import('./components/devices/DeviceModal').then(m => ({ default: m.DeviceModal })));
+const OrderListView = lazy(() => import('./components/orders/OrderListView').then(m => ({ default: m.OrderListView })));
+const OrderModal = lazy(() => import('./components/orders/OrderModal').then(m => ({ default: m.OrderModal })));
+const OrderDetailModal = lazy(() => import('./components/orders/OrderDetailModal').then(m => ({ default: m.OrderDetailModal })));
+const OrderPrintModal = lazy(() => import('./components/orders/OrderPrintModal').then(m => ({ default: m.OrderPrintModal })));
+const PosView = lazy(() => import('./components/pos/PosView').then(m => ({ default: m.PosView })));
+const ProductListView = lazy(() => import('./components/products/ProductListView').then(m => ({ default: m.ProductListView })));
+const ProductModal = lazy(() => import('./components/products/ProductModal').then(m => ({ default: m.ProductModal })));
+const PurchasesView = lazy(() => import('./components/purchases/PurchasesView').then(m => ({ default: m.PurchasesView })));
+const ResellerListView = lazy(() => import('./components/resellers/ResellerListView').then(m => ({ default: m.ResellerListView })));
+const FinanceView = lazy(() => import('./components/finance/FinanceView').then(m => ({ default: m.FinanceView })));
+const ReportsView = lazy(() => import('./components/reports/ReportsView').then(m => ({ default: m.ReportsView })));
+const SettingsView = lazy(() => import('./components/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const EmployeesView = lazy(() => import('./components/employees/EmployeesView').then(m => ({ default: m.EmployeesView })));
+const ReceivablesView = lazy(() => import('./components/receivables/ReceivablesView').then(m => ({ default: m.ReceivablesView })));
+const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionModal').then(m => ({ default: m.SubscriptionModal })));
+const PaywallModal = lazy(() => import('./components/subscription/PaywallModal').then(m => ({ default: m.PaywallModal })));
+const BlockedAccountModal = lazy(() => import('./components/common/BlockedAccountModal').then(m => ({ default: m.BlockedAccountModal })));
+const LoginView = lazy(() => import('./components/auth/LoginView').then(m => ({ default: m.LoginView })));
+const LoginModal = lazy(() => import('./components/auth/LoginModal').then(m => ({ default: m.LoginModal })));
+const MasterAuthModal = lazy(() => import('./components/master/MasterAuthModal').then(m => ({ default: m.MasterAuthModal })));
+const MasterPanel = lazy(() => import('./components/master/MasterPanel').then(m => ({ default: m.MasterPanel })));
+const AppAccessManagement = lazy(() => import('./components/master/AppAccessManagement').then(m => ({ default: m.AppAccessManagement })));
+const CameraPackageManagement = lazy(() => import('./components/master/CameraPackageManagement').then(m => ({ default: m.CameraPackageManagement })));
+const SupplierOrdersManagement = lazy(() => import('./components/master/SupplierOrdersManagement').then(m => ({ default: m.SupplierOrdersManagement })));
+const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
+const GlobalSearchModal = lazy(() => import('./components/common/GlobalSearchModal').then(m => ({ default: m.GlobalSearchModal })));
+const NotificationDrawer = lazy(() => import('./components/common/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
+
+// Loading Component for Smooth Async Chunk Loading
+function ViewLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[350px] w-full p-8 text-cyan-500">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+        <span className="text-xs font-medium text-slate-400">Carregando módulo...</span>
+      </div>
+    </div>
+  );
+}
 
 // Models & Services
 import { NavigationTab, Customer, Device, ServiceOrder, Product, Employee, SubscriptionPlanInfo, PlanType } from './types';
 import { StorageService } from './services/storage';
+import { FirestoreSyncService } from './services/firestoreService';
 import { useTheme } from './context/ThemeContext';
 import { GoogleDriveBackupService } from './services/googleDriveBackupService';
 
@@ -97,6 +110,7 @@ export default function App() {
   const [orderPrintState, setOrderPrintState] = useState<{
     isOpen: boolean;
     order: ServiceOrder | null;
+    mode?: 'entrance' | 'internal' | 'receipt' | 'eulis';
   }>({ isOpen: false, order: null });
 
   const [globalOrderToDelete, setGlobalOrderToDelete] = useState<ServiceOrder | null>(null);
@@ -199,16 +213,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to storage changes
+  // Subscribe to storage changes & real-time Firestore listeners
   useEffect(() => {
     StorageService.syncTwoWayWithCloud().then(() => {
       setTick((prev) => prev + 1);
     }).catch(() => {});
 
-    const unsubscribe = StorageService.subscribe(() => {
+    const unsubStorage = StorageService.subscribe(() => {
       setTick((prev) => prev + 1);
     });
-    return unsubscribe;
+
+    const unsubRealTime = FirestoreSyncService.startAllRealTimeListeners(() => {
+      setTick((prev) => prev + 1);
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealTime();
+    };
   }, []);
 
   // Sincroniza o operador e a sessão de forma reativa quando o storage muda
@@ -234,11 +256,17 @@ export default function App() {
     if (orderDetailState.order) {
       const orders = StorageService.getOrders();
       const updated = orders.find((o) => o.id === orderDetailState.order?.id);
-      if (updated) {
+      if (
+        updated &&
+        (updated.updatedAt !== orderDetailState.order.updatedAt ||
+          updated.status !== orderDetailState.order.status ||
+          updated.totalPrice !== orderDetailState.order.totalPrice ||
+          updated.paymentStatus !== orderDetailState.order.paymentStatus)
+      ) {
         setOrderDetailState((prev) => ({ ...prev, order: updated }));
       }
     }
-  }, [tick]);
+  }, [tick, orderDetailState.order?.id, orderDetailState.order?.updatedAt, orderDetailState.order?.status, orderDetailState.order?.totalPrice, orderDetailState.order?.paymentStatus]);
 
   // Enforce plan-based tab permissions automatically (PDV & VENDAS / ASSISTENCIA modes)
   useEffect(() => {
@@ -552,7 +580,11 @@ export default function App() {
 
   // If user is not authenticated, render Login/Landing View
   if (!authSession || !authSession.isAuthenticated) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <Suspense fallback={<ViewLoadingFallback />}>
+        <LoginView onLoginSuccess={handleLoginSuccess} />
+      </Suspense>
+    );
   }
 
   return (
@@ -602,148 +634,150 @@ export default function App() {
             ? "flex-1 h-screen w-screen overflow-hidden p-0 flex flex-col"
             : "flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-[1780px] w-full mx-auto scrollbar-thin"
         }>
-          {/* Master Panel */}
-          {showMasterAuth && (
-            <MasterAuthModal 
-              onClose={() => setShowMasterAuth(false)} 
-              onSuccess={() => {
-                setShowMasterAuth(false); 
-                setShowMasterPanel(true);
-                try { sessionStorage.setItem('msp_master_panel_open', 'true'); } catch {}
-              }} 
-            />
-          )}
-          {showMasterPanel && (
-            <MasterPanel 
-              onClose={() => {
-                setShowMasterPanel(false);
-                try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
-                AdminBackendService.clearToken();
-              }} 
-            />
-          )}
+          <Suspense fallback={<ViewLoadingFallback />}>
+            {/* Master Panel */}
+            {showMasterAuth && (
+              <MasterAuthModal 
+                onClose={() => setShowMasterAuth(false)} 
+                onSuccess={() => {
+                  setShowMasterAuth(false); 
+                  setShowMasterPanel(true);
+                  try { sessionStorage.setItem('msp_master_panel_open', 'true'); } catch {}
+                }} 
+              />
+            )}
+            {showMasterPanel && (
+              <MasterPanel 
+                onClose={() => {
+                  setShowMasterPanel(false);
+                  try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
+                  AdminBackendService.clearToken();
+                }} 
+              />
+            )}
 
-          {/* Dynamic Main View Components */}
-          {activeTab === 'DASHBOARD' && (
-            <DashboardView
-              onOpenNewOrder={() => handleOpenNewOrder()}
-              onOpenPDV={() => setActiveTab('POS')}
-              onViewOrder={(order) => setOrderDetailState({ isOpen: true, order })}
-              onNavigate={(tab) => setActiveTab(tab as NavigationTab)}
-              onOpenNewProduct={() => handleOpenNewProduct()}
-              onOpenPlans={() => setIsSubscriptionModalOpen(true)}
-            />
-          )}
+            {/* Dynamic Main View Components */}
+            {activeTab === 'DASHBOARD' && (
+              <DashboardView
+                onOpenNewOrder={() => handleOpenNewOrder()}
+                onOpenPDV={() => setActiveTab('POS')}
+                onViewOrder={(order) => setOrderDetailState({ isOpen: true, order })}
+                onNavigate={(tab) => setActiveTab(tab as NavigationTab)}
+                onOpenNewProduct={() => handleOpenNewProduct()}
+                onOpenPlans={() => setIsSubscriptionModalOpen(true)}
+              />
+            )}
 
-          {activeTab === 'ACCESSES' && (
-            <AppAccessManagement />
-          )}
+            {activeTab === 'ACCESSES' && (
+              <AppAccessManagement />
+            )}
 
-          {activeTab === 'CAMERAS' && (
-            <CameraPackageManagement />
-          )}
+            {activeTab === 'CAMERAS' && (
+              <CameraPackageManagement />
+            )}
 
-          {activeTab === 'SUPPLIER_ORDERS' && (
-            <SupplierOrdersManagement />
-          )}
+            {activeTab === 'SUPPLIER_ORDERS' && (
+              <SupplierOrdersManagement />
+            )}
 
-          {activeTab === 'EXCLUSIVE_ORDERS' && (
-            <ExclusiveOrdersManagement />
-          )}
+            {activeTab === 'EXCLUSIVE_ORDERS' && (
+              <ExclusiveOrdersManagement />
+            )}
 
-          {activeTab === 'CUSTOMERS' && (
-            <CustomerListView
-              onOpenNewCustomer={() =>
-                setCustomerModalState({ isOpen: true, customerToEdit: null })
-              }
-              onEditCustomer={(customer) =>
-                setCustomerModalState({ isOpen: true, customerToEdit: customer })
-              }
-              onViewCustomer={(customer) =>
-                setCustomerDetailState({ isOpen: true, customer })
-              }
-              onOpenNewOrderForCustomer={(customer) =>
-                handleOpenNewOrder(customer.id)
-              }
-            />
-          )}
-
-          {activeTab === 'DEVICES' && (
-            <DeviceListView
-              onOpenNewDevice={() =>
-                setDeviceModalState({ isOpen: true, deviceToEdit: null })
-              }
-              onEditDevice={(device) =>
-                setDeviceModalState({ isOpen: true, deviceToEdit: device })
-              }
-              onOpenNewOrderForDevice={(device) =>
-                handleOpenNewOrder(device.customerId, device.id)
-              }
-            />
-          )}
-
-          {activeTab === 'ORDERS' && (
-            <OrderListView
-              onOpenNewOrder={() => handleOpenNewOrder()}
-              onEditOrder={(order) =>
-                setOrderModalState({ isOpen: true, orderToEdit: order })
-              }
-              onViewOrderDetail={(order) =>
-                setOrderDetailState({ isOpen: true, order })
-              }
-              onOpenPrint={(order) =>
-                setOrderPrintState({ isOpen: true, order })
-              }
-            />
-          )}
-
-          {activeTab === 'RECEIVABLES' && (
-            <ReceivablesView
-              onOpenOrder={(orderId) => {
-                const order = StorageService.getOrderById(orderId);
-                if (order) {
-                  setOrderDetailState({ isOpen: true, order });
+            {activeTab === 'CUSTOMERS' && (
+              <CustomerListView
+                onOpenNewCustomer={() =>
+                  setCustomerModalState({ isOpen: true, customerToEdit: null })
                 }
-              }}
-            />
-          )}
+                onEditCustomer={(customer) =>
+                  setCustomerModalState({ isOpen: true, customerToEdit: customer })
+                }
+                onViewCustomer={(customer) =>
+                  setCustomerDetailState({ isOpen: true, customer })
+                }
+                onOpenNewOrderForCustomer={(customer) =>
+                  handleOpenNewOrder(customer.id)
+                }
+              />
+            )}
 
-          {activeTab === 'POS' && (
-            <PosView
-              onOpenNewCustomer={() =>
-                setCustomerModalState({ isOpen: true, customerToEdit: null })
-              }
-              onOpenCash={() => setActiveTab('CASH')}
-              onClose={() => setActiveTab('DASHBOARD')}
-            />
-          )}
+            {activeTab === 'DEVICES' && (
+              <DeviceListView
+                onOpenNewDevice={() =>
+                  setDeviceModalState({ isOpen: true, deviceToEdit: null })
+                }
+                onEditDevice={(device) =>
+                  setDeviceModalState({ isOpen: true, deviceToEdit: device })
+                }
+                onOpenNewOrderForDevice={(device) =>
+                  handleOpenNewOrder(device.customerId, device.id)
+                }
+              />
+            )}
 
-          {activeTab === 'PRODUCTS' && (
-            <ProductListView
-              onOpenNewProduct={() => handleOpenNewProduct()}
-              onEditProduct={(product) =>
-                setProductModalState({ isOpen: true, productToEdit: product })
-              }
-            />
-          )}
+            {activeTab === 'ORDERS' && (
+              <OrderListView
+                onOpenNewOrder={() => handleOpenNewOrder()}
+                onEditOrder={(order) =>
+                  setOrderModalState({ isOpen: true, orderToEdit: order })
+                }
+                onViewOrderDetail={(order) =>
+                  setOrderDetailState({ isOpen: true, order })
+                }
+                onOpenPrint={(order, mode) =>
+                  setOrderPrintState({ isOpen: true, order, mode })
+                }
+              />
+            )}
 
-          {activeTab === 'PURCHASES' && (
-            <PurchasesView
-              onOpenNewProduct={() => handleOpenNewProduct()}
-            />
-          )}
+            {activeTab === 'RECEIVABLES' && (
+              <ReceivablesView
+                onOpenOrder={(orderId) => {
+                  const order = StorageService.getOrderById(orderId);
+                  if (order) {
+                    setOrderDetailState({ isOpen: true, order });
+                  }
+                }}
+              />
+            )}
 
-          {activeTab === 'RESELLERS' && <ResellerListView />}
+            {activeTab === 'POS' && (
+              <PosView
+                onOpenNewCustomer={() =>
+                  setCustomerModalState({ isOpen: true, customerToEdit: null })
+                }
+                onOpenCash={() => setActiveTab('CASH')}
+                onClose={() => setActiveTab('DASHBOARD')}
+              />
+            )}
 
-          {activeTab === 'CASH' && <FinanceView initialTab="CASH" key="cash-view" />}
+            {activeTab === 'PRODUCTS' && (
+              <ProductListView
+                onOpenNewProduct={() => handleOpenNewProduct()}
+                onEditProduct={(product) =>
+                  setProductModalState({ isOpen: true, productToEdit: product })
+                }
+              />
+            )}
 
-          {activeTab === 'FINANCE' && <FinanceView initialTab="EXPENSES" key="finance-view" />}
+            {activeTab === 'PURCHASES' && (
+              <PurchasesView
+                onOpenNewProduct={() => handleOpenNewProduct()}
+              />
+            )}
 
-          {activeTab === 'REPORTS' && <ReportsView onOpenPlans={() => setIsSubscriptionModalOpen(true)} />}
+            {activeTab === 'RESELLERS' && <ResellerListView />}
 
-          {activeTab === 'EMPLOYEES' && <EmployeesView />}
+            {activeTab === 'CASH' && <FinanceView initialTab="CASH" key="cash-view" />}
 
-          {activeTab === 'SETTINGS' && <SettingsView />}
+            {activeTab === 'FINANCE' && <FinanceView initialTab="EXPENSES" key="finance-view" />}
+
+            {activeTab === 'REPORTS' && <ReportsView onOpenPlans={() => setIsSubscriptionModalOpen(true)} />}
+
+            {activeTab === 'EMPLOYEES' && <EmployeesView />}
+
+            {activeTab === 'SETTINGS' && <SettingsView />}
+          </Suspense>
         </main>
 
         {/* Mobile Bottom Navigation Bar */}
@@ -788,158 +822,160 @@ export default function App() {
       </div>
 
       {/* Global Modals */}
+      <Suspense fallback={null}>
+        {/* Customer Modal */}
+        <CustomerModal
+          isOpen={customerModalState.isOpen}
+          onClose={() => setCustomerModalState({ isOpen: false })}
+          onSave={handleSaveCustomer}
+          customerToEdit={customerModalState.customerToEdit}
+        />
 
-      {/* Customer Modal */}
-      <CustomerModal
-        isOpen={customerModalState.isOpen}
-        onClose={() => setCustomerModalState({ isOpen: false })}
-        onSave={handleSaveCustomer}
-        customerToEdit={customerModalState.customerToEdit}
-      />
+        {/* Customer Detail Modal */}
+        <CustomerDetailModal
+          isOpen={customerDetailState.isOpen}
+          onClose={() => setCustomerDetailState({ isOpen: false, customer: null })}
+          customer={customerDetailState.customer}
+          onEdit={(customer) =>
+            setCustomerModalState({ isOpen: true, customerToEdit: customer })
+          }
+          onOpenNewOrder={(customer) =>
+            handleOpenNewOrder(customer.id)
+          }
+        />
 
-      {/* Customer Detail Modal */}
-      <CustomerDetailModal
-        isOpen={customerDetailState.isOpen}
-        onClose={() => setCustomerDetailState({ isOpen: false, customer: null })}
-        customer={customerDetailState.customer}
-        onEdit={(customer) =>
-          setCustomerModalState({ isOpen: true, customerToEdit: customer })
-        }
-        onOpenNewOrder={(customer) =>
-          handleOpenNewOrder(customer.id)
-        }
-      />
+        {/* Device Modal */}
+        <DeviceModal
+          isOpen={deviceModalState.isOpen}
+          onClose={() => setDeviceModalState({ isOpen: false, deviceToEdit: null })}
+          onSave={handleSaveDevice}
+          deviceToEdit={deviceModalState.deviceToEdit}
+          initialCustomerId={deviceModalState.initialCustomerId}
+          onOpenNewCustomer={() =>
+            setCustomerModalState({ isOpen: true, customerToEdit: null })
+          }
+        />
 
-      {/* Device Modal */}
-      <DeviceModal
-        isOpen={deviceModalState.isOpen}
-        onClose={() => setDeviceModalState({ isOpen: false, deviceToEdit: null })}
-        onSave={handleSaveDevice}
-        deviceToEdit={deviceModalState.deviceToEdit}
-        initialCustomerId={deviceModalState.initialCustomerId}
-        onOpenNewCustomer={() =>
-          setCustomerModalState({ isOpen: true, customerToEdit: null })
-        }
-      />
+        {/* Order Modal */}
+        <OrderModal
+          isOpen={orderModalState.isOpen}
+          onClose={() => setOrderModalState({ isOpen: false })}
+          onSave={handleSaveOrder}
+          orderToEdit={orderModalState.orderToEdit}
+          initialCustomerId={orderModalState.initialCustomerId}
+          initialDeviceId={orderModalState.initialDeviceId}
+          onOpenNewCustomer={() =>
+            setCustomerModalState({ isOpen: true, customerToEdit: null })
+          }
+          onOpenNewDevice={(customerId) =>
+            setDeviceModalState({
+              isOpen: true,
+              deviceToEdit: null,
+              initialCustomerId: customerId,
+            })
+          }
+          onOpenPrint={(order) => setOrderPrintState({ isOpen: true, order })}
+        />
 
-      {/* Order Modal */}
-      <OrderModal
-        isOpen={orderModalState.isOpen}
-        onClose={() => setOrderModalState({ isOpen: false })}
-        onSave={handleSaveOrder}
-        orderToEdit={orderModalState.orderToEdit}
-        initialCustomerId={orderModalState.initialCustomerId}
-        initialDeviceId={orderModalState.initialDeviceId}
-        onOpenNewCustomer={() =>
-          setCustomerModalState({ isOpen: true, customerToEdit: null })
-        }
-        onOpenNewDevice={(customerId) =>
-          setDeviceModalState({
-            isOpen: true,
-            deviceToEdit: null,
-            initialCustomerId: customerId,
-          })
-        }
-        onOpenPrint={(order) => setOrderPrintState({ isOpen: true, order })}
-      />
+        {/* Order Detail Modal */}
+        <OrderDetailModal
+          isOpen={orderDetailState.isOpen}
+          onClose={() => setOrderDetailState({ isOpen: false, order: null })}
+          order={orderDetailState.order}
+          onEdit={(order) => setOrderModalState({ isOpen: true, orderToEdit: order })}
+          onOpenPrint={(order, mode) => setOrderPrintState({ isOpen: true, order, mode })}
+          onDelete={(order) => setGlobalOrderToDelete(order)}
+        />
 
-      {/* Order Detail Modal */}
-      <OrderDetailModal
-        isOpen={orderDetailState.isOpen}
-        onClose={() => setOrderDetailState({ isOpen: false, order: null })}
-        order={orderDetailState.order}
-        onEdit={(order) => setOrderModalState({ isOpen: true, orderToEdit: order })}
-        onOpenPrint={(order) => setOrderPrintState({ isOpen: true, order })}
-        onDelete={(order) => setGlobalOrderToDelete(order)}
-      />
+        {/* Order Print Modal */}
+        <OrderPrintModal
+          isOpen={orderPrintState.isOpen}
+          onClose={() => setOrderPrintState({ isOpen: false, order: null, mode: undefined })}
+          order={orderPrintState.order}
+          mode={orderPrintState.mode}
+        />
 
-      {/* Order Print Modal */}
-      <OrderPrintModal
-        isOpen={orderPrintState.isOpen}
-        onClose={() => setOrderPrintState({ isOpen: false, order: null })}
-        order={orderPrintState.order}
-      />
+        {/* Product Modal */}
+        <ProductModal
+          isOpen={productModalState.isOpen}
+          onClose={() => setProductModalState({ isOpen: false })}
+          onSave={handleSaveProduct}
+          productToEdit={productModalState.productToEdit}
+        />
 
-      {/* Product Modal */}
-      <ProductModal
-        isOpen={productModalState.isOpen}
-        onClose={() => setProductModalState({ isOpen: false })}
-        onSave={handleSaveProduct}
-        productToEdit={productModalState.productToEdit}
-      />
+        {/* Global Search Modal */}
+        <GlobalSearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          onSelectCustomer={(c) => {
+            setActiveTab('CUSTOMERS');
+            setCustomerDetailState({ isOpen: true, customer: c });
+          }}
+          onSelectOrder={(o) => {
+            setActiveTab('ORDERS');
+            setOrderDetailState({ isOpen: true, order: o });
+          }}
+          onSelectProduct={() => {
+            setActiveTab('PRODUCTS');
+          }}
+          onSelectDevice={() => {
+            setActiveTab('DEVICES');
+          }}
+        />
 
-      {/* Global Search Modal */}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onSelectCustomer={(c) => {
-          setActiveTab('CUSTOMERS');
-          setCustomerDetailState({ isOpen: true, customer: c });
-        }}
-        onSelectOrder={(o) => {
-          setActiveTab('ORDERS');
-          setOrderDetailState({ isOpen: true, order: o });
-        }}
-        onSelectProduct={() => {
-          setActiveTab('PRODUCTS');
-        }}
-        onSelectDevice={() => {
-          setActiveTab('DEVICES');
-        }}
-      />
+        {/* Notification Drawer */}
+        <NotificationDrawer
+          isOpen={isNotificationOpen}
+          onClose={() => setIsNotificationOpen(false)}
+          onSelectOrder={(order) => {
+            setActiveTab('ORDERS');
+            setOrderDetailState({ isOpen: true, order });
+          }}
+          onSelectProduct={() => {
+            setActiveTab('PRODUCTS');
+          }}
+        />
 
-      {/* Notification Drawer */}
-      <NotificationDrawer
-        isOpen={isNotificationOpen}
-        onClose={() => setIsNotificationOpen(false)}
-        onSelectOrder={(order) => {
-          setActiveTab('ORDERS');
-          setOrderDetailState({ isOpen: true, order });
-        }}
-        onSelectProduct={() => {
-          setActiveTab('PRODUCTS');
-        }}
-      />
+        {/* Login / Switch User Modal */}
+        <LoginModal
+          isOpen={isLoginOpen}
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            setAuthSession(StorageService.getAuthSession());
+            setIsLoginOpen(false);
+            setTick((prev) => prev + 1);
+          }}
+          onClose={() => setIsLoginOpen(false)}
+          onLogout={handleLogout}
+        />
 
-      {/* Login / Switch User Modal */}
-      <LoginModal
-        isOpen={isLoginOpen}
-        onLoginSuccess={(user) => {
-          setCurrentUser(user);
-          setAuthSession(StorageService.getAuthSession());
-          setIsLoginOpen(false);
-          setTick((prev) => prev + 1);
-        }}
-        onClose={() => setIsLoginOpen(false)}
-        onLogout={handleLogout}
-      />
+        {/* Blocked Account Modal (Immediate lockout when blocked in Firebase) */}
+        <BlockedAccountModal
+          isOpen={isAccountBlocked}
+          email={blockedAccountInfo.email || authSession?.email}
+          name={blockedAccountInfo.name || authSession?.name}
+          onLogout={handleLogout}
+        />
 
-      {/* Blocked Account Modal (Immediate lockout when blocked in Firebase) */}
-      <BlockedAccountModal
-        isOpen={isAccountBlocked}
-        email={blockedAccountInfo.email || authSession?.email}
-        name={blockedAccountInfo.name || authSession?.name}
-        onLogout={handleLogout}
-      />
+        {/* Subscription Plans Modal */}
+        <SubscriptionModal
+          isOpen={isSubscriptionModalOpen && !isAccountBlocked}
+          onClose={() => setIsSubscriptionModalOpen(false)}
+        />
 
-      {/* Subscription Plans Modal */}
-      <SubscriptionModal
-        isOpen={isSubscriptionModalOpen && !isAccountBlocked}
-        onClose={() => setIsSubscriptionModalOpen(false)}
-      />
-
-      {/* Paywall Blocking Modal */}
-      <PaywallModal
-        isOpen={paywallModalState.isOpen}
-        onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
-        title={paywallModalState.title}
-        description={paywallModalState.description}
-        feature={paywallModalState.feature}
-        onOpenPlans={() => {
-          setPaywallModalState((prev) => ({ ...prev, isOpen: false }));
-          setIsSubscriptionModalOpen(true);
-        }}
-      />
+        {/* Paywall Blocking Modal */}
+        <PaywallModal
+          isOpen={paywallModalState.isOpen}
+          onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
+          title={paywallModalState.title}
+          description={paywallModalState.description}
+          feature={paywallModalState.feature}
+          onOpenPlans={() => {
+            setPaywallModalState((prev) => ({ ...prev, isOpen: false }));
+            setIsSubscriptionModalOpen(true);
+          }}
+        />
+      </Suspense>
 
       {/* Global Order Delete Confirmation Dialog */}
       <ConfirmDialog

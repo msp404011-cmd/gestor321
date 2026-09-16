@@ -44,7 +44,7 @@ import {
   initialResellerTransactions,
 } from './mockData';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   CUSTOMERS: 'msp_customers_v1',
   DEVICES: 'msp_devices_v1',
   PRODUCTS: 'msp_products_v1',
@@ -375,6 +375,7 @@ export const defaultCustomOSStatuses: CustomOSStatusItem[] = [
   { id: 'os-1', code: 'ORCAMENTO', label: 'Orçamento', colorBg: 'bg-amber-500/15', colorText: 'text-amber-400', colorBorder: 'border-amber-500/40', colorDot: 'bg-amber-400', isSystem: true },
   { id: 'os-2', code: 'AGUARDANDO_AUTORIZACAO', label: 'Aguardando Autorização', colorBg: 'bg-purple-500/15', colorText: 'text-purple-400', colorBorder: 'border-purple-500/40', colorDot: 'bg-purple-400', isSystem: true },
   { id: 'os-3', code: 'AUTORIZADO', label: 'Autorizado (Em Manutenção)', colorBg: 'bg-cyan-500/15', colorText: 'text-cyan-400', colorBorder: 'border-cyan-500/40', colorDot: 'bg-cyan-400', isSystem: true },
+  { id: 'os-eulis', code: 'C_EULIS', label: 'C/ Euklis', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
   { id: 'os-4', code: 'AGUARDANDO_PECA', label: 'Aguardando Peça', colorBg: 'bg-orange-500/15', colorText: 'text-orange-400', colorBorder: 'border-orange-500/40', colorDot: 'bg-orange-400', isSystem: true },
   { id: 'os-5', code: 'ATRASADO', label: 'Atrasado', colorBg: 'bg-rose-500/15', colorText: 'text-rose-400', colorBorder: 'border-rose-500/40', colorDot: 'bg-rose-400', isSystem: true },
   { id: 'os-6', code: 'PRONTO', label: 'Pronto para Retirada', colorBg: 'bg-emerald-500/15', colorText: 'text-emerald-400', colorBorder: 'border-emerald-500/40', colorDot: 'bg-emerald-400', isSystem: true },
@@ -886,6 +887,7 @@ export const StorageService = {
     const target = list.find((e) => e.id === id);
     const filtered = list.filter((e) => e.id !== id);
     setItem(STORAGE_KEYS.EMPLOYEES, filtered);
+    FirestoreSyncService.deleteEmployee(id);
     if (target) {
       this.logAction(`Funcionário excluído: ${target.name}`);
     }
@@ -1199,6 +1201,7 @@ export const StorageService = {
     const target = list.find((c) => c.id === id);
     const filtered = list.filter((c) => c.id !== id);
     setItem(STORAGE_KEYS.CUSTOMERS, filtered);
+    FirestoreSyncService.deleteCustomer(id);
     if (target) {
       this.logAction(`Cliente removido: ${target.name}`);
     }
@@ -1280,6 +1283,7 @@ export const StorageService = {
     const target = list.find((d) => d.id === id);
     const filtered = list.filter((d) => d.id !== id);
     setItem(STORAGE_KEYS.DEVICES, filtered);
+    FirestoreSyncService.deleteDevice(id);
     if (target) {
       this.logAction(`Aparelho excluído: ${target.brand} ${target.model}`);
     }
@@ -1327,6 +1331,7 @@ export const StorageService = {
     const target = list.find((p) => p.id === id);
     const filtered = list.filter((p) => p.id !== id);
     setItem(STORAGE_KEYS.PRODUCTS, filtered);
+    FirestoreSyncService.deleteProduct(id);
     if (target) {
       this.logAction(`Produto excluído: ${target.name}`);
     }
@@ -1461,6 +1466,7 @@ export const StorageService = {
     const target = orders.find((o) => o.id === id);
     const filtered = orders.filter((o) => o.id !== id);
     setItem(STORAGE_KEYS.ORDERS, filtered);
+    FirestoreSyncService.deleteOrder(id);
     if (target) {
       this.logAction(`OS #${target.orderNumber} excluída.`);
     }
@@ -1512,14 +1518,24 @@ export const StorageService = {
     if (sale.paymentMethod === 'FIADO') {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 30);
+      const productDesc = sale.items && sale.items.length > 0
+        ? sale.items.map((it: any) => `${it.productName || 'Item'} (${it.quantity || 1}x)`).join(', ')
+        : 'Venda de produtos no balcão';
+
       const rec: AccountReceivable = {
         id: 'rec-' + Date.now(),
         customerId: sale.customerId || 'anon',
         customerName: sale.customerName,
+        customerPhone: (sale as any).customerPhone,
         originType: 'VENDA',
         referenceNumber: `Venda #${nextNumber}`,
         referenceId: sale.id,
         amount: sale.total,
+        originalAmount: sale.total,
+        paidAmount: 0,
+        remainingAmount: sale.total,
+        serviceDescription: productDesc,
+        deviceInfo: 'Produtos no Balcão',
         dueDate: dueDate.toISOString().slice(0, 10),
         status: 'PENDENTE',
         paymentMethod: 'FIADO',
@@ -1944,6 +1960,7 @@ export const StorageService = {
     const target = list.find((e) => e.id === id);
     const filtered = list.filter((e) => e.id !== id);
     setItem(STORAGE_KEYS.EXPENSES, filtered);
+    FirestoreSyncService.deleteExpense(id);
     if (target) {
       this.logAction(`Despesa excluída: ${target.description}`);
     }
@@ -2163,8 +2180,21 @@ export const StorageService = {
     const target = list.find((r) => r.id === id);
     const filtered = list.filter((r) => r.id !== id);
     setItem(STORAGE_KEYS.RECEIVABLES, filtered);
+    FirestoreSyncService.deleteReceivable(id);
     if (target) {
       this.logAction(`Conta a receber ${target.referenceNumber} (${target.customerName}) excluída.`);
+      if (target.customerId) {
+        const customers = this.getCustomers();
+        const cIdx = customers.findIndex((c) => c.id === target.customerId);
+        if (cIdx >= 0) {
+          const newDebt = filtered
+            .filter((r) => r.customerId === target.customerId && r.status !== 'PAGO' && (Number(r.remainingAmount ?? r.amount) > 0))
+            .reduce((sum, r) => sum + Number(r.remainingAmount ?? r.amount), 0);
+          customers[cIdx].debtBalance = newDebt;
+          setItem(STORAGE_KEYS.CUSTOMERS, customers);
+          FirestoreSyncService.saveCustomer(customers[cIdx]);
+        }
+      }
     }
   },
 
@@ -2375,6 +2405,7 @@ export const StorageService = {
       this.clearAuthSession();
       return;
     }
+    const isDifferentUser = !activeAuthSession || activeAuthSession.email !== session.email;
     activeAuthSession = session;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -2383,44 +2414,21 @@ export const StorageService = {
       }
     } catch (_) {}
     notifyListeners();
-    try {
-      this.syncTwoWayWithCloud().then(() => {
-        notifyListeners();
-      }).catch((e) => console.warn('Auto sync on setAuthSession failed:', e));
-    } catch (e) {
-      console.warn('RealTimeListener setup failed:', e);
+    if (isDifferentUser) {
+      try {
+        this.syncTwoWayWithCloud().then(() => {
+          notifyListeners();
+        }).catch((e) => console.warn('Auto sync on setAuthSession failed:', e));
+      } catch (e) {
+        console.warn('RealTimeListener setup failed:', e);
+      }
     }
   },
 
   async syncTwoWayWithCloud(): Promise<boolean> {
     try {
-      const allOrders = getAllLocalItemsForEntity<ServiceOrder>(STORAGE_KEYS.ORDERS);
-      const allCustomers = getAllLocalItemsForEntity<Customer>(STORAGE_KEYS.CUSTOMERS);
-      const allProducts = getAllLocalItemsForEntity<Product>(STORAGE_KEYS.PRODUCTS);
-      const allDevices = getAllLocalItemsForEntity<Device>(STORAGE_KEYS.DEVICES);
-      const allReceivables = getAllLocalItemsForEntity<AccountReceivable>(STORAGE_KEYS.RECEIVABLES);
-      const allExpenses = getAllLocalItemsForEntity<Expense>(STORAGE_KEYS.EXPENSES);
-
-      const localData = {
-        orders: allOrders.length > 0 ? allOrders : this.getOrders(),
-        customers: allCustomers.length > 0 ? allCustomers : this.getCustomers(),
-        products: allProducts.length > 0 ? allProducts : this.getProducts(),
-        devices: allDevices.length > 0 ? allDevices : this.getDevices(),
-        receivables: allReceivables.length > 0 ? allReceivables : this.getReceivables(),
-        expenses: allExpenses.length > 0 ? allExpenses : this.getExpenses(),
-        settings: this.getCompanySettings(),
-      };
-
-      if (allOrders.length > 0) setItem(STORAGE_KEYS.ORDERS, allOrders, false);
-      if (allCustomers.length > 0) setItem(STORAGE_KEYS.CUSTOMERS, allCustomers, false);
-      if (allProducts.length > 0) setItem(STORAGE_KEYS.PRODUCTS, allProducts, false);
-      if (allDevices.length > 0) setItem(STORAGE_KEYS.DEVICES, allDevices, false);
-      if (allReceivables.length > 0) setItem(STORAGE_KEYS.RECEIVABLES, allReceivables, false);
-      if (allExpenses.length > 0) setItem(STORAGE_KEYS.EXPENSES, allExpenses, false);
-
-      await FirestoreSyncService.syncAllToFirestore(localData);
+      // Sincronização segura: baixa dados da nuvem para o cache local sem sobrecarregar escritas do Firestore
       const success = await FirestoreSyncService.syncAllFromFirestore();
-      FirestoreSyncService.startRealTimeOrdersListener(notifyListeners);
       notifyListeners();
       return success;
     } catch (err) {
@@ -3716,7 +3724,45 @@ export const StorageService = {
   },
 
   getCustomOSStatuses(): CustomOSStatusItem[] {
-    return getItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses);
+    const list = getItem<CustomOSStatusItem[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses);
+    if (Array.isArray(list) && list.length > 0) {
+      let modified = false;
+
+      // Auto-correct any legacy "Eulis" to "C/ Euklis"
+      list.forEach((s) => {
+        if (s.label && s.label !== 'C/ Euklis' && (s.label.toUpperCase() === 'C/ EULIS' || s.label.toUpperCase() === 'EULIS' || s.label.toUpperCase() === 'EUKLIS')) {
+          s.label = 'C/ Euklis';
+          modified = true;
+        }
+      });
+
+      const hasEulis = list.some(
+        (s) => s.code?.toUpperCase().includes('EULIS') || s.code?.toUpperCase().includes('EUKLIS') || s.label?.toUpperCase().includes('EULIS') || s.label?.toUpperCase().includes('EUKLIS')
+      );
+      if (!hasEulis) {
+        list.splice(3, 0, {
+          id: 'os-eulis',
+          code: 'C_EULIS',
+          label: 'C/ Euklis',
+          colorBg: 'bg-indigo-500/15',
+          colorText: 'text-indigo-400',
+          colorBorder: 'border-indigo-500/40',
+          colorDot: 'bg-indigo-400',
+        });
+        modified = true;
+      }
+
+      if (modified) {
+        // Save quietly without triggering broadcast feedback loop during a get read
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, JSON.stringify(list));
+          }
+        } catch (_) {}
+      }
+      return list;
+    }
+    return defaultCustomOSStatuses;
   },
 
   saveCustomOSStatuses(statuses: CustomOSStatusItem[]): void {
@@ -3811,6 +3857,7 @@ export const StorageService = {
     }
     
     setItem(STORAGE_KEYS.SUPPLIERS, stored);
+    FirestoreSyncService.saveSupplier(computed);
     return computed;
   },
 
@@ -3818,6 +3865,7 @@ export const StorageService = {
     const stored = getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
     const filtered = stored.filter((s) => s.id !== id);
     setItem(STORAGE_KEYS.SUPPLIERS, filtered);
+    FirestoreSyncService.deleteSupplier(id);
     this.logAction('Fornecedor excluído');
   },
 

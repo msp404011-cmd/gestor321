@@ -32,6 +32,7 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  Send,
 } from 'lucide-react';
 import { ServiceOrder, OrderStatus, PaymentMethod, OrderPartItem, Product } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -55,7 +56,7 @@ interface OrderDetailModalProps {
   onClose: () => void;
   order: ServiceOrder | null;
   onEdit: (order: ServiceOrder) => void;
-  onOpenPrint: (order: ServiceOrder) => void;
+  onOpenPrint: (order: ServiceOrder, mode?: 'entrance' | 'internal' | 'receipt' | 'eulis') => void;
   onDelete?: (order: ServiceOrder) => void;
 }
 
@@ -79,7 +80,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       const fresh = StorageService.getOrderById(order.id) || order;
       setCurrentOrder(fresh);
     }
-  }, [order, isOpen]);
+  }, [order?.id, isOpen]);
 
   useEffect(() => {
     if (!order?.id) return;
@@ -177,7 +178,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         ]);
       }
     }
-  }, [order, isOpen]);
+  }, [order?.id, isOpen]);
 
   // Handle outside click for part search
   useEffect(() => {
@@ -616,6 +617,19 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               >
                 <Printer className="w-4 h-4" />
                 <span>Imprimir OS</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenPrint(targetOrder, 'eulis');
+                }}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="Imprimir Guia Exclusiva de Remessa Técnica C/ Euklis"
+              >
+                <Send className="w-4 h-4" />
+                <span>Via C/ Euklis</span>
               </button>
 
               {onDelete && (

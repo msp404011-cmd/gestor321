@@ -48,7 +48,7 @@ interface OrderListViewProps {
   onOpenNewOrder: () => void;
   onEditOrder: (order: ServiceOrder) => void;
   onViewOrderDetail: (order: ServiceOrder) => void;
-  onOpenPrint: (order: ServiceOrder) => void;
+  onOpenPrint: (order: ServiceOrder, mode?: 'entrance' | 'internal' | 'receipt' | 'eulis') => void;
 }
 
 type FilterPreset = string;

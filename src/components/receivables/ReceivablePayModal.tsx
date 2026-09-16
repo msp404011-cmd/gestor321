@@ -9,12 +9,15 @@ import {
   Trash2,
   Info,
   FileText,
+  Calendar,
 } from 'lucide-react';
 import { AccountReceivable, PaymentMethod } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   formatCurrency,
   formatPhone,
+  formatDate,
+  formatDateTime,
   cleanPhoneForWhatsApp,
   generateReceivableWhatsAppMessage,
   openWhatsAppLink,
@@ -26,6 +29,7 @@ interface ReceivablePayModalProps {
   receivable: AccountReceivable | null;
   onClose: () => void;
   onSuccess: () => void;
+  onDelete?: (rec: AccountReceivable) => void;
 }
 
 interface PaymentRow {
@@ -39,6 +43,7 @@ export const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
   receivable,
   onClose,
   onSuccess,
+  onDelete,
 }) => {
   if (!isOpen || !receivable) return null;
 
@@ -203,8 +208,56 @@ export const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
 
   const debtDescriptionText =
     receivable.serviceDescription ||
-    receivable.deviceInfo ||
-    `Débito Ref: ${receivable.referenceNumber}`;
+    (() => {
+      if (receivable.originType === 'ORDEM_SERVICO' || receivable.referenceNumber.toLowerCase().includes('os')) {
+        const os = StorageService.getOrders().find(
+          (o) => o.id === receivable.referenceId || `OS #${o.orderNumber}` === receivable.referenceNumber
+        );
+        if (os) {
+          const parts: string[] = [];
+          if (os.performedService) parts.push(os.performedService);
+          else if (os.requestedService) parts.push(os.requestedService);
+          if (os.clientDefect) parts.push(`Defeito: ${os.clientDefect}`);
+          if (parts.length > 0) return parts.join(' • ');
+          if (os.model) return `Serviço técnico em ${os.brand || ''} ${os.model}`;
+        }
+      } else {
+        const sale = StorageService.getSales().find(
+          (s) => s.id === receivable.referenceId || `Venda #${s.saleNumber}` === receivable.referenceNumber
+        );
+        if (sale && sale.items && sale.items.length > 0) {
+          return sale.items.map((i) => `${i.productName} (${i.quantity}x)`).join(', ');
+        }
+      }
+      return receivable.deviceInfo || `Débito Ref: ${receivable.referenceNumber}`;
+    })();
+
+  const priorPaymentsList: {
+    label: string;
+    amount: number;
+    method: string;
+    date: string;
+  }[] = [];
+
+  if (receivable.downPayment && receivable.downPayment > 0) {
+    priorPaymentsList.push({
+      label: 'Entrada Inicial',
+      amount: receivable.downPayment,
+      method: receivable.downPaymentMethod || 'DINHEIRO',
+      date: receivable.createdAt,
+    });
+  }
+
+  if (receivable.payments && receivable.payments.length > 0) {
+    receivable.payments.forEach((p, i) => {
+      priorPaymentsList.push({
+        label: `Abatimento #${i + 1}`,
+        amount: p.amount,
+        method: p.paymentMethod || 'PIX',
+        date: p.date,
+      });
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -263,6 +316,35 @@ export const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
                 <span className="text-xs font-extrabold text-amber-400 font-mono">{formatCurrency(remaining)}</span>
               </div>
             </div>
+
+            {/* Histórico de Abatimentos Anteriores */}
+            {priorPaymentsList.length > 0 && (
+              <div className="pt-2 border-t border-slate-700/60 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Abatimentos Anteriores ({priorPaymentsList.length}):
+                </span>
+                <div className="space-y-1 max-h-24 overflow-y-auto pr-0.5">
+                  {priorPaymentsList.map((p, idx) => (
+                    <div
+                      key={idx}
+                      className="px-2 py-1 bg-slate-900/80 rounded border border-slate-750 flex items-center justify-between text-[11px]"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-200">{p.label}</span>
+                        <span className="text-[10px] text-slate-400">({getPaymentMethodLabel(p.method)})</span>
+                        <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                          <Calendar size={10} className="text-slate-500" />
+                          {formatDateTime(p.date)}
+                        </span>
+                      </div>
+                      <strong className="text-emerald-400 font-mono font-bold">
+                        - {formatCurrency(p.amount)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {isCompleted ? (
@@ -465,29 +547,47 @@ export const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
               )}
 
               {/* Botões de Ação */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-700/60">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePay}
-                  disabled={loading || sumPaid <= 0}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 flex items-center gap-1.5 transition-all"
-                >
-                  {loading ? (
-                    'Salvando...'
-                  ) : (
-                    <>
-                      <CheckCircle2 size={15} />
-                      Confirmar Baixa de {formatCurrency(sumPaid)}
-                    </>
-                  )}
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
+                {onDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onDelete(receivable);
+                    }}
+                    className="px-3 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:bg-rose-500/20 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Excluir este fiado permanentemente"
+                  >
+                    <Trash2 size={14} />
+                    <span>Excluir Fiado</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePay}
+                    disabled={loading || sumPaid <= 0}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    {loading ? (
+                      'Salvando...'
+                    ) : (
+                      <>
+                        <CheckCircle2 size={15} />
+                        Confirmar Baixa de {formatCurrency(sumPaid)}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
