@@ -123,6 +123,10 @@ export const CameraPackageManagement: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<CameraUser | null>(null);
   const [targetClientIdForUser, setTargetClientIdForUser] = useState<string | null>(null);
 
+  // Deletion modals state
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [userToDelete, setUserToDelete] = useState<{ clientId: string; userId: string; userName: string } | null>(null);
+
   // Form states for Client
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -291,25 +295,33 @@ export const CameraPackageManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteClient = async (id: string, name: string) => {
-    if (window.confirm(`Deseja realmente excluir o cliente "${name}" e todas as suas contas de usuário?`)) {
-      try {
-        const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id);
-        await deleteDoc(docRef);
-        showToast("Cliente excluído permanentemente!");
-      } catch (err) {
-        console.error(err);
-        showToast("Erro ao excluir do Firebase", "error");
-      }
+  const handleDeleteClient = (id: string, name: string) => {
+    setClientToDelete({ id, name });
+  };
+
+  const confirmDeleteClient = async (id: string) => {
+    setClients(prev => prev.filter(c => c.id !== id));
+    setClientToDelete(null);
+
+    try {
+      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id);
+      await deleteDoc(docRef);
+      showToast("Cliente excluído permanentemente!");
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao excluir do Firebase", "error");
     }
   };
 
   // Quick toggle Contabilizar
   const handleToggleContabilizar = async (client: CameraClient) => {
+    const newStatus = !client.contabilizar;
+    setClients(prev => prev.map(c => c.id === client.id ? { ...c, contabilizar: newStatus } : c));
+
     try {
       const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', client.id);
       await updateDoc(docRef, {
-        contabilizar: !client.contabilizar
+        contabilizar: newStatus
       });
       showToast(`Status "Contabilizar" de ${client.name} alterado!`);
     } catch (err) {
@@ -382,36 +394,42 @@ export const CameraPackageManagement: React.FC = () => {
       updatedUsers.push(newUser);
     }
 
+    setClients(prev => prev.map(c => c.id === targetClientIdForUser ? { ...c, users: updatedUsers } : c));
+    setIsUserModalOpen(false);
+
     try {
       const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', targetClientIdForUser);
       await updateDoc(docRef, {
         users: updatedUsers
       });
       showToast(selectedUser ? "Conta de usuário atualizada!" : "Nova conta adicionada ao cliente!");
-      setIsUserModalOpen(false);
     } catch (err) {
       console.error(err);
-      showToast("Erro ao salvar conta de usuário", "error");
+      showToast("Erro ao salvar conta de usuário no Firebase", "error");
     }
   };
 
-  const handleDeleteUser = async (clientId: string, userId: string, userName: string) => {
-    if (window.confirm(`Deseja remover a conta de "${userName}" deste cliente?`)) {
-      const client = clients.find(c => c.id === clientId);
-      if (!client) return;
+  const handleDeleteUser = (clientId: string, userId: string, userName: string) => {
+    setUserToDelete({ clientId, userId, userName });
+  };
 
-      const updatedUsers = client.users.filter(u => u.id !== userId);
+  const confirmDeleteUser = async (clientId: string, userId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    setUserToDelete(null);
+    if (!client) return;
 
-      try {
-        const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', clientId);
-        await updateDoc(docRef, {
-          users: updatedUsers
-        });
-        showToast("Conta de usuário removida!");
-      } catch (err) {
-        console.error(err);
-        showToast("Erro ao remover conta", "error");
-      }
+    const updatedUsers = client.users.filter(u => u.id !== userId);
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, users: updatedUsers } : c));
+
+    try {
+      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', clientId);
+      await updateDoc(docRef, {
+        users: updatedUsers
+      });
+      showToast("Conta de usuário removida!");
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao remover conta no Firebase", "error");
     }
   };
 
@@ -948,6 +966,82 @@ export const CameraPackageManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRM CLIENT DELETION MODAL --- */}
+      {clientToDelete && (
+        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Excluir Cliente</h3>
+                <p className="text-xs text-rose-300/80 font-medium">Ação irreversível</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir o cliente <strong className="text-white">"{clientToDelete.name}"</strong> e todas as suas contas de usuário vinculadas?
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClientToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDeleteClient(clientToDelete.id)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRM USER DELETION MODAL --- */}
+      {userToDelete && (
+        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Remover Conta</h3>
+                <p className="text-xs text-rose-300/80 font-medium">Conta de usuário individual</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Tem certeza que deseja remover a conta de <strong className="text-white">"{userToDelete.userName}"</strong> deste cliente?
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDeleteUser(userToDelete.clientId, userToDelete.userId)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
+              >
+                Sim, Remover Conta
+              </button>
+            </div>
           </div>
         </div>
       )}

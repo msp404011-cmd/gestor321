@@ -117,6 +117,10 @@ export const AppAccessManagement: React.FC = () => {
   const [selectedAccess, setSelectedAccess] = useState<ClientAccess | null>(null);
   const [targetClientIdForAccess, setTargetClientIdForAccess] = useState<string | null>(null);
 
+  // Deletion modals state (replaces window.confirm)
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [accessToDelete, setAccessToDelete] = useState<{ clientId: string; accessId: string; personName: string } | null>(null);
+
   // Form states for Client
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -252,53 +256,75 @@ export const AppAccessManagement: React.FC = () => {
       return;
     }
 
-    const valueNum = parseFloat(clientMonthlyValue.replace(/[^\d.,]/g, '').replace(',', '.'));
-    if (isNaN(valueNum)) {
-      showToast("Informe um valor mensal válido", "error");
-      return;
-    }
+    const cleanedVal = clientMonthlyValue.toString().replace(/[^\d.,]/g, '').replace(',', '.');
+    const valueNum = cleanedVal.trim() === '' ? 0 : parseFloat(cleanedVal);
+    const finalMonthlyVal = isNaN(valueNum) ? 0 : valueNum;
 
+    const id = selectedClient ? selectedClient.id : `acc_cli_${Date.now()}`;
     const clientData = {
       name: clientName.trim(),
       phone: clientPhone.trim(),
       contractedCount: Number(clientContractedCount),
-      monthlyValue: valueNum,
+      monthlyValue: finalMonthlyVal,
       contabilizar: clientContabilizar,
       accesses: selectedClient ? selectedClient.accesses : [],
       createdAt: selectedClient ? selectedClient.createdAt : new Date().toISOString()
     };
 
+    const newOrUpdatedClient: AccessClient = {
+      id,
+      ...clientData
+    };
+
+    // Optimistic local state update
+    setClients(prev => {
+      const exists = prev.some(c => c.id === id);
+      if (exists) {
+        return prev.map(c => c.id === id ? newOrUpdatedClient : c);
+      }
+      return [...prev, newOrUpdatedClient];
+    });
+
+    setIsClientModalOpen(false);
+
     try {
-      const id = selectedClient ? selectedClient.id : `acc_cli_${Date.now()}`;
       const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', id);
       await setDoc(docRef, clientData, { merge: true });
       showToast(selectedClient ? "Cliente atualizado!" : "Cliente cadastrado com sucesso!");
-      setIsClientModalOpen(false);
     } catch (err) {
       console.error(err);
-      showToast("Erro ao salvar no Firebase", "error");
+      showToast("Erro ao sincronizar no Firebase", "error");
     }
   };
 
-  const handleDeleteClient = async (id: string, name: string) => {
-    if (window.confirm(`Deseja realmente excluir o cliente "${name}" e todos os seus acessos?`)) {
-      try {
-        const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', id);
-        await deleteDoc(docRef);
-        showToast("Cliente excluído permanentemente!");
-      } catch (err) {
-        console.error(err);
-        showToast("Erro ao excluir do Firebase", "error");
-      }
+  const handleDeleteClient = (id: string, name: string) => {
+    setClientToDelete({ id, name });
+  };
+
+  const confirmDeleteClient = async (id: string) => {
+    // Immediate local removal
+    setClients(prev => prev.filter(c => c.id !== id));
+    setClientToDelete(null);
+
+    try {
+      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', id);
+      await deleteDoc(docRef);
+      showToast("Cliente e acessos excluídos permanentemente!");
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao excluir do Firebase", "error");
     }
   };
 
   // Quick toggle Contabilizar status
   const handleToggleContabilizar = async (client: AccessClient) => {
+    const newStatus = !client.contabilizar;
+    setClients(prev => prev.map(c => c.id === client.id ? { ...c, contabilizar: newStatus } : c));
+
     try {
       const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', client.id);
       await updateDoc(docRef, {
-        contabilizar: !client.contabilizar
+        contabilizar: newStatus
       });
       showToast(`Status "Contabilizar" de ${client.name} atualizado!`);
     } catch (err) {
@@ -365,36 +391,45 @@ export const AppAccessManagement: React.FC = () => {
       updatedAccesses.push(newAccess);
     }
 
+    // Immediate optimistic state update
+    setClients(prev => prev.map(c => c.id === targetClientIdForAccess ? { ...c, accesses: updatedAccesses } : c));
+    setIsAccessModalOpen(false);
+
     try {
       const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', targetClientIdForAccess);
       await updateDoc(docRef, {
         accesses: updatedAccesses
       });
       showToast(selectedAccess ? "Acesso atualizado!" : "Novo acesso adicionado ao cliente!");
-      setIsAccessModalOpen(false);
     } catch (err) {
       console.error(err);
-      showToast("Erro ao salvar acesso", "error");
+      showToast("Erro ao sincronizar acesso no Firebase", "error");
     }
   };
 
-  const handleDeleteAccess = async (clientId: string, accessId: string, personName: string) => {
-    if (window.confirm(`Deseja remover o acesso de "${personName}" deste cliente?`)) {
-      const client = clients.find(c => c.id === clientId);
-      if (!client) return;
+  const handleDeleteAccess = (clientId: string, accessId: string, personName: string) => {
+    setAccessToDelete({ clientId, accessId, personName });
+  };
 
-      const updatedAccesses = client.accesses.filter(a => a.id !== accessId);
+  const confirmDeleteAccess = async (clientId: string, accessId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    setAccessToDelete(null);
+    if (!client) return;
 
-      try {
-        const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', clientId);
-        await updateDoc(docRef, {
-          accesses: updatedAccesses
-        });
-        showToast("Acesso removido com sucesso!");
-      } catch (err) {
-        console.error(err);
-        showToast("Erro ao remover acesso", "error");
-      }
+    const updatedAccesses = client.accesses.filter(a => a.id !== accessId);
+
+    // Immediate local state update
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, accesses: updatedAccesses } : c));
+
+    try {
+      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', clientId);
+      await updateDoc(docRef, {
+        accesses: updatedAccesses
+      });
+      showToast("Acesso removido com sucesso!");
+    } catch (err) {
+      console.error(err);
+      showToast("Erro ao remover acesso no Firebase", "error");
     }
   };
 
@@ -855,6 +890,82 @@ export const AppAccessManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRM CLIENT DELETION MODAL --- */}
+      {clientToDelete && (
+        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Excluir Cliente</h3>
+                <p className="text-xs text-rose-300/80 font-medium">Ação irreversível</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Tem certeza que deseja excluir o cliente <strong className="text-white">"{clientToDelete.name}"</strong> e todos os seus acessos vinculados?
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClientToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDeleteClient(clientToDelete.id)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
+              >
+                Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CONFIRM ACCESS DELETION MODAL --- */}
+      {accessToDelete && (
+        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Remover Acesso</h3>
+                <p className="text-xs text-rose-300/80 font-medium">Acesso individual</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 leading-relaxed">
+              Tem certeza que deseja remover o acesso de <strong className="text-white">"{accessToDelete.personName}"</strong> deste cliente?
+            </p>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAccessToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDeleteAccess(accessToDelete.clientId, accessToDelete.accessId)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
+              >
+                Sim, Remover Acesso
+              </button>
+            </div>
           </div>
         </div>
       )}
