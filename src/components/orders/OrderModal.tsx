@@ -120,6 +120,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
+  // Pickup authorization (Só o dono ou outra pessoa)
+  const [pickupType, setPickupType] = useState<'OWNER_ONLY' | 'THIRD_PARTY'>('OWNER_ONLY');
+  const [authorizedPickupName, setAuthorizedPickupName] = useState('');
+  const [authorizedPickupPhone, setAuthorizedPickupPhone] = useState('');
+
   // Device fields
   const [deviceId, setDeviceId] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceType>('Smartphone');
@@ -245,6 +250,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         }
       );
       setCustomerSearch(orderToEdit.customerName);
+      setPickupType((orderToEdit.pickupType as any) || (orderToEdit.authorizedPickupName ? 'THIRD_PARTY' : 'OWNER_ONLY'));
+      setAuthorizedPickupName(orderToEdit.authorizedPickupName || '');
+      setAuthorizedPickupPhone(orderToEdit.authorizedPickupPhone || '');
       setDeviceId(orderToEdit.deviceId || '');
       setDeviceType(orderToEdit.deviceType || (loadedDevTypes[0]?.name as DeviceType) || 'Smartphone');
       setBrand(orderToEdit.brand || '');
@@ -376,6 +384,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         setSelectedCustomer(null);
         setCustomerSearch('');
       }
+
+      setPickupType('OWNER_ONLY');
+      setAuthorizedPickupName('');
+      setAuthorizedPickupPhone('');
 
       // Device fields ZEROED
       if (defaultDevice) {
@@ -816,6 +828,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         customerPhone: targetCust.phone || targetCust.whatsapp || '',
         customerWhatsapp: targetCust.whatsapp || targetCust.phone || '',
         customerDocument: targetCust.document,
+        pickupType: pickupType,
+        authorizedPickupName: pickupType === 'THIRD_PARTY' ? authorizedPickupName.trim() : undefined,
+        authorizedPickupPhone: pickupType === 'THIRD_PARTY' ? authorizedPickupPhone.trim() : undefined,
         deviceId: deviceId || 'dev-' + Date.now(),
         deviceType: deviceType || 'Smartphone',
         brand: finalBrand,
@@ -999,6 +1014,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             selectedCustomer={selectedCustomer}
             setSelectedCustomer={setSelectedCustomer}
             whatsappClean={whatsappClean}
+            pickupType={pickupType}
+            setPickupType={setPickupType}
+            authorizedPickupName={authorizedPickupName}
+            setAuthorizedPickupName={setAuthorizedPickupName}
+            authorizedPickupPhone={authorizedPickupPhone}
+            setAuthorizedPickupPhone={setAuthorizedPickupPhone}
             onOpenNewCustomer={handleOpenFullCustomerModal}
             onOpenEditCustomer={handleOpenEditCustomer}
             deviceType={deviceType}

@@ -213,6 +213,11 @@ export interface ServiceOrder {
   customerPhone: string;
   customerWhatsapp?: string;
   customerDocument?: string;
+
+  // Autorização para Retirada (Só o Dono ou Outra Pessoa)
+  pickupType?: 'OWNER_ONLY' | 'THIRD_PARTY' | string;
+  authorizedPickupName?: string;
+  authorizedPickupPhone?: string;
   
   // Aparelho
   deviceId?: string;

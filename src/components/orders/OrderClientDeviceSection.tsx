@@ -4,6 +4,8 @@ import {
   Plus,
   Search,
   Smartphone,
+  Tablet,
+  Laptop,
   ChevronDown,
   FileText,
   CheckCircle2,
@@ -13,6 +15,7 @@ import {
   MessageCircle,
   Pencil,
   RotateCcw,
+  UserCheck,
 } from 'lucide-react';
 import { Customer, DeviceType, CustomDeviceType } from '../../types';
 import { PatternLock } from './PatternLock';
@@ -31,6 +34,12 @@ interface OrderClientDeviceSectionProps {
   selectedCustomer: Customer | null;
   setSelectedCustomer: (cust: Customer | null) => void;
   whatsappClean: string;
+  pickupType?: 'OWNER_ONLY' | 'THIRD_PARTY';
+  setPickupType?: (val: 'OWNER_ONLY' | 'THIRD_PARTY') => void;
+  authorizedPickupName?: string;
+  setAuthorizedPickupName?: (val: string) => void;
+  authorizedPickupPhone?: string;
+  setAuthorizedPickupPhone?: (val: string) => void;
   onOpenNewCustomer?: (prefill?: string) => void;
   onOpenEditCustomer?: (customer: Customer) => void;
   setShowQuickCustomerModal?: (val: boolean) => void;
@@ -80,6 +89,12 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
   selectedCustomer,
   setSelectedCustomer,
   whatsappClean,
+  pickupType = 'OWNER_ONLY',
+  setPickupType,
+  authorizedPickupName = '',
+  setAuthorizedPickupName,
+  authorizedPickupPhone = '',
+  setAuthorizedPickupPhone,
   onOpenNewCustomer,
   onOpenEditCustomer,
   setShowQuickCustomerModal,
@@ -115,9 +130,42 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
   patternNote,
   setPatternNote,
 }) => {
+  // Top most common device types quick-selector helper
+  const topDeviceTypes = [
+    { label: 'Celular', icon: Smartphone, matches: ['smartphone', 'celular', 'smartphone / celular'] },
+    { label: 'Tablet', icon: Tablet, matches: ['tablet', 'tablet / ipad', 'ipad'] },
+    { label: 'Notebook', icon: Laptop, matches: ['notebook', 'notebook / laptop', 'laptop'] },
+  ];
+
+  // Top most common brands quick-selector
+  const topBrands = ['Samsung', 'Xiaomi', 'Motorola', 'Apple'];
+
+  // Helper to resolve the matching type name from customDeviceTypes
+  const handleSelectQuickType = (canonicalLabel: string) => {
+    const norm = canonicalLabel.toLowerCase();
+    const found = customDeviceTypes.find((dt) => {
+      const n = dt.name.toLowerCase();
+      if (norm === 'celular' && (n.includes('smartphone') || n.includes('celular'))) return true;
+      if (norm === 'tablet' && (n.includes('tablet') || n.includes('ipad'))) return true;
+      if (norm === 'notebook' && (n.includes('notebook') || n.includes('laptop'))) return true;
+      return false;
+    });
+
+    if (found) {
+      setDeviceType(found.name as DeviceType);
+    } else {
+      setDeviceType((canonicalLabel === 'Celular' ? 'Smartphone' : canonicalLabel) as DeviceType);
+    }
+  };
+
+  const isQuickTypeActive = (matches: string[]) => {
+    const current = (deviceType || '').toLowerCase();
+    return matches.some((m) => current.includes(m));
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
-      {/* 1. CLIENTE */}
+      {/* 1. CLIENTE & RETIRADA */}
       <div className={`p-2.5 rounded-xl border shrink-0 space-y-2 ${
         isDark ? 'bg-[#07132c]/85 border-slate-800/90' : 'bg-white border-slate-200 shadow-xs'
       }`}>
@@ -283,6 +331,76 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
             </div>
           </div>
         )}
+
+        {/* AUTORIZAÇÃO DE RETIRADA (SÓ O DONO OU OUTRA PESSOA) */}
+        {setPickupType && (
+          <div className="p-2 rounded-lg bg-[#081530] border border-slate-700/70 space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1">
+                <UserCheck className="w-3 h-3 text-cyan-400" />
+                <span>Quem Retira o Aparelho?</span>
+              </span>
+
+              <div className="flex items-center bg-[#060e22] p-0.5 rounded-lg border border-slate-700/80 gap-1 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickupType('OWNER_ONLY');
+                    if (setAuthorizedPickupName) setAuthorizedPickupName('');
+                    if (setAuthorizedPickupPhone) setAuthorizedPickupPhone('');
+                  }}
+                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                    pickupType === 'OWNER_ONLY'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Só o Dono
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickupType('THIRD_PARTY')}
+                  className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                    pickupType === 'THIRD_PARTY'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Outra Pessoa
+                </button>
+              </div>
+            </div>
+
+            {pickupType === 'THIRD_PARTY' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-700/60 animate-in fade-in">
+                <div>
+                  <label className="block text-[10px] font-bold text-amber-300 mb-0.5">
+                    Nome da Pessoa Autorizada <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={authorizedPickupName}
+                    onChange={(e) => setAuthorizedPickupName && setAuthorizedPickupName(e.target.value)}
+                    placeholder="Ex: Maria Silva (Esposa / Irmão)"
+                    className="w-full px-2 py-1 bg-[#060e22] border border-amber-500/50 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
+                    WhatsApp da Pessoa (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={authorizedPickupPhone}
+                    onChange={(e) => setAuthorizedPickupPhone && setAuthorizedPickupPhone(e.target.value)}
+                    placeholder="Ex: (11) 98888-7777"
+                    className="w-full px-2 py-1 bg-[#060e22] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. EQUIPAMENTO */}
@@ -302,63 +420,120 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-2 pr-0.5">
-          {/* Row 1: Tipo, Marca, Modelo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-300 mb-0.5">Tipo</label>
-              <div className="relative">
-                <select
-                  value={deviceType}
-                  onChange={(e) => setDeviceType(e.target.value as DeviceType)}
-                  className="w-full px-2 py-1.5 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-6"
-                >
-                  {customDeviceTypes.map((dt) => (
-                    <option key={dt.id} value={dt.name}>
-                      {dt.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-2 pointer-events-none" />
-              </div>
+          {/* TIPO: BOTÕES VISÍVEIS E CLICÁVEIS (CELULAR, TABLET, NOTEBOOK) + SELETOR COMPLETO */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold text-slate-300">
+                Tipo de Aparelho <span className="text-cyan-400 font-normal">(Mais Usados)</span>
+              </label>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-1">
+              {topDeviceTypes.map((t) => {
+                const Icon = t.icon;
+                const active = isQuickTypeActive(t.matches);
+                return (
+                  <button
+                    key={t.label}
+                    type="button"
+                    onClick={() => handleSelectQuickType(t.label)}
+                    className={`px-2 py-1.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      active
+                        ? 'bg-cyan-600/30 border-cyan-400 text-cyan-300 shadow-xs ring-1 ring-cyan-500/40 font-black'
+                        : 'bg-[#091632] border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${active ? 'text-cyan-300' : 'text-slate-400'}`} />
+                    <span>{t.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
-                Marca <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="brands-list"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  placeholder="Ex: Samsung"
-                  className="w-full px-2 py-1.5 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
-                />
-                <datalist id="brands-list">
-                  {commonBrands.map((b) => (
-                    <option key={b} value={b} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
-                Modelo <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="Ex: Galaxy A32"
-                className="w-full px-2 py-1.5 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
-              />
+            {/* Dropdown com todos os tipos cadastrados */}
+            <div className="relative pt-0.5">
+              <select
+                value={deviceType}
+                onChange={(e) => setDeviceType(e.target.value as DeviceType)}
+                className="w-full px-2 py-1 bg-[#091632] border border-slate-700/80 rounded-lg text-[11px] text-slate-300 focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-6"
+              >
+                {customDeviceTypes.map((dt) => (
+                  <option key={dt.id} value={dt.name}>
+                    Outro tipo: {dt.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-2 pointer-events-none" />
             </div>
           </div>
 
-          {/* Row 2: IMEI / Nº Série & Avarias */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {/* MARCAS VISÍVEIS E CLICÁVEIS (SAMSUNG, XIAOMI, MOTOROLA, APPLE) + INPUT */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold text-slate-300">
+                Marca <span className="text-cyan-400 font-normal">(Mais Usadas)</span> <span className="text-rose-400">*</span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1">
+              {topBrands.map((bName) => {
+                const active = brand.trim().toLowerCase() === bName.toLowerCase();
+                return (
+                  <button
+                    key={bName}
+                    type="button"
+                    onClick={() => setBrand(bName)}
+                    className={`px-1.5 py-1 rounded-lg border text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ${
+                      active
+                        ? 'bg-blue-600/35 border-cyan-400 text-cyan-200 shadow-xs ring-1 ring-cyan-500/40 font-black'
+                        : 'bg-[#091632] border-slate-700/80 text-slate-300 hover:text-white hover:border-slate-600'
+                    }`}
+                  >
+                    <span>{bName}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+              <div>
+                <label className="block text-[9px] font-semibold text-slate-400 mb-0.5">
+                  Marca (digitar ou escolher)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="brands-list"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    placeholder="Ex: Samsung, Apple..."
+                    className="w-full px-2 py-1 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
+                  />
+                  <datalist id="brands-list">
+                    {commonBrands.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-semibold text-slate-400 mb-0.5">
+                  Modelo do Aparelho <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="Ex: Galaxy A32 / iPhone 13"
+                  className="w-full px-2 py-1 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Row: IMEI / Nº Série & Avarias */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-slate-800/80">
             <div>
               <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
                 IMEI / Nº Série
@@ -368,7 +543,7 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
                 value={imei}
                 onChange={(e) => setImei(e.target.value)}
                 placeholder="IMEI ou Serial (opcional)"
-                className="w-full px-2 py-1.5 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 font-mono focus:outline-hidden focus:border-cyan-400"
+                className="w-full px-2 py-1 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white placeholder-slate-500 font-mono focus:outline-hidden focus:border-cyan-400"
               />
             </div>
 
@@ -397,10 +572,10 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
                   value={physicalState}
                   onChange={(e) => setPhysicalState(e.target.value)}
                   placeholder="Ex: Tela riscada, tampa trincada..."
-                  className="w-full px-2 py-1.5 bg-[#091632] border border-amber-500/50 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-400"
+                  className="w-full px-2 py-1 bg-[#091632] border border-amber-500/50 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-400"
                 />
               ) : (
-                <div className="px-2 py-1.5 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] text-emerald-400/90 font-medium flex items-center gap-1">
+                <div className="px-2 py-1 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] text-emerald-400/90 font-medium flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                   <span>Sem avarias aparentes</span>
                 </div>
@@ -408,7 +583,7 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
             </div>
           </div>
 
-          {/* Row 3: SENHA DO APARELHO */}
+          {/* Row: SENHA DO APARELHO */}
           <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-bold text-cyan-300 flex items-center gap-1">
@@ -531,3 +706,4 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
     </div>
   );
 };
+

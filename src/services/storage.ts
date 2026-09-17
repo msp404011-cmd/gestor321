@@ -127,6 +127,7 @@ export interface CustomAccessoryItem {
 
 export const defaultCustomAccessories: CustomAccessoryItem[] = [
   // --- PADRÃO ESSENCIAL: SMARTPHONE / TABLET / GERAL ---
+  { id: 'acc-case', name: 'C/ Capa', defaultPresent: false, hasDetails: true, iconName: 'Shield', placeholder: 'Descreva a cor da capa (Ex: Preta, Transparente, Vermelha)', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
   { id: 'acc-sp-8', name: 'Gaveta de Chip', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Presente / Avaria', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
   { id: 'acc-sp-1', name: 'Chip 1', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Operadora / Detalhes', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
   { id: 'acc-sp-2', name: 'Chip 2', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Operadora / Detalhes', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
@@ -189,7 +190,6 @@ export const defaultCustomAccessories: CustomAccessoryItem[] = [
   { id: 'acc-au-4', name: 'Alça de Transporte / Suporte', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Alça de ombro / Fixação', deviceTypes: ['Caixa de Som / Áudio', 'Áudio'] },
 
   // --- ITENS GERAIS / OUTROS APARELHOS ---
-  { id: 'acc-all-1', name: 'Caixa Original / Embalagem', defaultPresent: false, hasDetails: true, iconName: 'Package', placeholder: 'Embalagem original / Sacola', deviceTypes: ['ALL'] },
   { id: 'acc-all-2', name: 'Outros Acessórios Deixados', defaultPresent: false, hasDetails: true, iconName: 'PlusCircle', placeholder: 'Descreva outros itens e detalhes...', deviceTypes: ['ALL'] },
 ];
 
@@ -3854,7 +3854,20 @@ export const StorageService = {
     if (!list || list.length === 0 || !list.some((item) => item.deviceTypes && item.deviceTypes.length > 0)) {
       return defaultCustomAccessories;
     }
-    return list;
+    // Filter out Caixa Original if still in cached list and ensure C/ Capa is present
+    const cleaned = list.filter((item) => item.id !== 'acc-all-1' && !item.name.toLowerCase().includes('caixa original'));
+    if (!cleaned.some((item) => item.id === 'acc-case' || item.name.toLowerCase() === 'c/ capa' || item.name.toLowerCase().includes('capa'))) {
+      cleaned.unshift({
+        id: 'acc-case',
+        name: 'C/ Capa',
+        defaultPresent: false,
+        hasDetails: true,
+        iconName: 'Shield',
+        placeholder: 'Descreva a cor da capa (Ex: Preta, Transparente, Vermelha)',
+        deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'],
+      });
+    }
+    return cleaned;
   },
 
   saveCustomAccessories(accessories: CustomAccessoryItem[], localOnly: boolean = false): void {

@@ -23,7 +23,11 @@ import {
   EyeOff, 
   UserPlus, 
   CheckCircle, 
-  AlertCircle 
+  AlertCircle,
+  Calendar,
+  Clock,
+  Smartphone,
+  Mail
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 
@@ -87,9 +91,10 @@ const CopyButton: React.FC<{ text: string; title?: string }> = ({ text, title })
 export interface CameraUser {
   id: string;
   name: string;      // Who uses this account
-  email: string;
+  email: string;     // Email ou Celular
   password: string;
   recoveryEmail: string;
+  expirationDate?: string; // Data / Vencimento
   createdAt?: string;
 }
 
@@ -132,6 +137,7 @@ export const CameraPackageManagement: React.FC = () => {
   const [userPassword, setUserPassword] = useState('');
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
   const [userRecoveryEmail, setUserRecoveryEmail] = useState('');
+  const [userExpirationDate, setUserExpirationDate] = useState('');
 
   // Toast notification
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -321,12 +327,14 @@ export const CameraPackageManagement: React.FC = () => {
       setUserEmail(user.email);
       setUserPassword(user.password);
       setUserRecoveryEmail(user.recoveryEmail);
+      setUserExpirationDate(user.expirationDate || '');
     } else {
       setSelectedUser(null);
       setUserName('');
       setUserEmail('');
       setUserPassword('');
       setUserRecoveryEmail('');
+      setUserExpirationDate('');
     }
     setIsUserModalOpen(true);
   };
@@ -336,7 +344,7 @@ export const CameraPackageManagement: React.FC = () => {
     if (!targetClientIdForUser) return;
 
     if (!userName.trim() || !userEmail.trim()) {
-      showToast("Nome e E-mail são obrigatórios", "error");
+      showToast("Nome e E-mail/Celular são obrigatórios", "error");
       return;
     }
 
@@ -355,6 +363,7 @@ export const CameraPackageManagement: React.FC = () => {
               email: userEmail.trim(), 
               password: userPassword.trim(), 
               recoveryEmail: userRecoveryEmail.trim(),
+              expirationDate: userExpirationDate.trim(),
               createdAt: u.createdAt || new Date().toISOString()
             }
           : u
@@ -367,6 +376,7 @@ export const CameraPackageManagement: React.FC = () => {
         email: userEmail.trim(),
         password: userPassword.trim(),
         recoveryEmail: userRecoveryEmail.trim(),
+        expirationDate: userExpirationDate.trim(),
         createdAt: new Date().toISOString()
       };
       updatedUsers.push(newUser);
@@ -629,11 +639,18 @@ export const CameraPackageManagement: React.FC = () => {
                           </div>
 
                           {/* Email, Pass, and Recovery info */}
-                          <div className="space-y-0.5 text-[11px] text-slate-300 font-mono">
+                          <div className="space-y-1 text-[11px] text-slate-300 font-mono">
                             {usr.email && (
                               <div className="flex items-center justify-between gap-1">
-                                <span className="truncate">E-mail: {usr.email}</span>
-                                <CopyButton text={usr.email} title="Copiar E-mail" />
+                                <span className="truncate flex items-center gap-1">
+                                  {usr.email.includes('@') ? (
+                                    <Mail className="w-3 h-3 text-cyan-400 shrink-0" />
+                                  ) : (
+                                    <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                  )}
+                                  <span>{usr.email}</span>
+                                </span>
+                                <CopyButton text={usr.email} title="Copiar E-mail/Celular" />
                               </div>
                             )}
                             {usr.password && (
@@ -660,9 +677,21 @@ export const CameraPackageManagement: React.FC = () => {
                                 <CopyButton text={usr.recoveryEmail} title="Copiar Recuperação" />
                               </div>
                             )}
+                            {usr.expirationDate && (
+                              <div className="flex items-center justify-between gap-1 text-amber-400 bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-800/40 text-[10px]">
+                                <span className="flex items-center gap-1 font-bold">
+                                  <Calendar className="w-2.5 h-2.5 shrink-0" />
+                                  <span>Vencimento: {usr.expirationDate}</span>
+                                </span>
+                                <CopyButton text={usr.expirationDate} title="Copiar Vencimento" />
+                              </div>
+                            )}
                             {usr.createdAt && (
-                              <div className="text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/40">
-                                Data: {new Date(usr.createdAt).toLocaleDateString('pt-BR')}
+                              <div className="text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/40 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>Criado em: {new Date(usr.createdAt).toLocaleDateString('pt-BR')}</span>
+                                </span>
                               </div>
                             )}
                           </div>
@@ -888,6 +917,18 @@ export const CameraPackageManagement: React.FC = () => {
                   className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
                   value={userRecoveryEmail}
                   onChange={(e) => setUserRecoveryEmail(e.target.value)}
+                />
+              </div>
+
+              {/* Data de Vencimento / Validade da Conta */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 font-bold block font-sans">Data de Vencimento / Validade</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Todo dia 10 ou 10/10/2026"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
+                  value={userExpirationDate}
+                  onChange={(e) => setUserExpirationDate(e.target.value)}
                 />
               </div>
 

@@ -910,6 +910,19 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                         {customerAddress && (
                           <p className="text-slate-600 text-[11px] leading-tight mt-0.5">Endereço: {customerAddress}</p>
                         )}
+
+                        {/* Autorizado para Retirada */}
+                        {order.pickupType === 'THIRD_PARTY' && order.authorizedPickupName && (
+                          <div className="mt-2 p-1.5 bg-amber-50 border border-amber-300 rounded text-xs text-amber-900">
+                            <span className="font-bold block text-[10px] uppercase text-amber-800">
+                              Autorizado p/ Retirada:
+                            </span>
+                            <span className="font-black text-slate-900">{order.authorizedPickupName}</span>
+                            {order.authorizedPickupPhone && (
+                              <span className="text-slate-700 ml-1 font-semibold">({order.authorizedPickupPhone})</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -923,30 +936,28 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                         {order.serialNumber && (
                           <p className="text-slate-600 font-mono">Nº Série: {order.serialNumber}</p>
                         )}
-                        {printType === 'internal' && (
-                          <div className="mt-1.5">
-                            {order.passwordPattern && order.passwordPattern.length > 0 ? (
-                              <div className="border border-slate-300 rounded p-2 bg-slate-50 inline-flex flex-col items-center">
-                                <span className="text-[10px] font-bold text-slate-800 uppercase block mb-1">
-                                  Padrão de Desenho:
-                                </span>
-                                <PatternLock
-                                  value={order.passwordPattern}
-                                  readOnly={true}
-                                  size={85}
-                                  theme="light"
-                                />
-                                <span className="text-[10px] font-mono font-bold text-blue-700 mt-1">
-                                  Seq: {order.passwordPattern.join(' ➔ ')}
-                                </span>
-                              </div>
-                            ) : order.passwordPin ? (
-                              <p className="text-slate-900 font-bold bg-amber-100 px-2 py-1 rounded inline-block">
-                                Senha / PIN: {order.passwordPin}
-                              </p>
-                            ) : null}
-                          </div>
-                        )}
+                        <div className="mt-1.5">
+                          {order.passwordPattern && order.passwordPattern.length > 0 ? (
+                            <div className="border border-slate-300 rounded p-2 bg-slate-50 inline-flex flex-col items-center">
+                              <span className="text-[10px] font-bold text-slate-800 uppercase block mb-1">
+                                Padrão de Desenho:
+                              </span>
+                              <PatternLock
+                                value={order.passwordPattern}
+                                readOnly={true}
+                                size={85}
+                                theme="light"
+                              />
+                              <span className="text-[10px] font-mono font-bold text-blue-700 mt-1">
+                                Seq: {order.passwordPattern.join(' ➔ ')}
+                              </span>
+                            </div>
+                          ) : order.passwordPin ? (
+                            <p className="text-slate-900 font-bold bg-amber-100 px-2 py-1 rounded inline-block">
+                              Senha / PIN: {order.passwordPin}
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
 

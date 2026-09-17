@@ -243,6 +243,15 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
             )}
           </>
         )}
+        {order.pickupType === 'THIRD_PARTY' && order.authorizedPickupName && (
+          <div className="flex font-bold text-black border-t border-slate-300 pt-0.5 mt-0.5">
+            <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-bold`}>Retirada:</span>
+            <span>
+              {order.authorizedPickupName}
+              {order.authorizedPickupPhone ? ` (${order.authorizedPickupPhone})` : ''}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 5. DEVICE INFORMATION */}
@@ -263,6 +272,17 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
           <span className={`${isMini ? 'w-16' : 'w-24'} shrink-0 font-medium`}>Tp. Prod.:</span>
           <span>{order.deviceType || 'Celular'}</span>
         </div>
+        {(order.passwordPin || (order.passwordPattern && order.passwordPattern.length > 0)) && (
+          <div className="flex">
+            <span className={`${isMini ? 'w-16' : 'w-24'} shrink-0 font-bold`}>Senha / Desbl:</span>
+            <span className="font-mono font-bold">
+              {order.passwordPin ? `PIN: ${order.passwordPin}` : ''}
+              {order.passwordPattern && order.passwordPattern.length > 0
+                ? ` Desenho: ${order.passwordPattern.join(' ➔ ')}`
+                : ''}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 6. OBSERVAÇÕES DO ATENDIMENTO / APARELHO */}
