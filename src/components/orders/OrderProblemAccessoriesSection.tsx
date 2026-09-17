@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Settings,
   Headphones,
@@ -58,6 +58,8 @@ export const OrderProblemAccessoriesSection: React.FC<
   const activeAccessories = customAccessories.filter((acc) =>
     isAccessoryForDeviceType(acc, deviceType)
   );
+
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const presentCount = activeAccessories.filter(
     (acc) => customAccMap[acc.id]?.present
   ).length;
@@ -264,15 +266,18 @@ export const OrderProblemAccessoriesSection: React.FC<
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
                             setCustomAccMap((prev) => ({
                               ...prev,
                               [acc.id]: {
                                 ...(prev[acc.id] || { details: '' }),
                                 present: true,
                               },
-                            }))
-                          }
+                            }));
+                            setTimeout(() => {
+                              inputRefs.current[acc.id]?.focus();
+                            }, 50);
+                          }}
                           className={`px-1.5 py-0.2 rounded text-[9px] font-bold cursor-pointer transition-colors ${
                             itemState.present
                               ? 'bg-emerald-600 text-white shadow-xs'
@@ -285,6 +290,7 @@ export const OrderProblemAccessoriesSection: React.FC<
 
                       {itemState.present && (
                         <input
+                          ref={(el) => (inputRefs.current[acc.id] = el)}
                           type="text"
                           value={itemState.details}
                           onChange={(e) =>

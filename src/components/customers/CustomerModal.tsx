@@ -66,7 +66,10 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const [preferredContact, setPreferredContact] = useState<'WhatsApp' | 'Telefone' | 'E-mail'>('WhatsApp');
   const [status, setStatus] = useState<'Ativo' | 'Inativo' | 'VIP'>('Ativo');
   const [creditLimit, setCreditLimit] = useState<number>(1000);
-  const [allowCrediario, setAllowCrediario] = useState<boolean>(true);
+  const [allowCrediario, setAllowCrediario] = useState<boolean>(false);
+  const [password, setPassword] = useState('');
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [accountType, setAccountType] = useState<'Gmail' | 'iCloud' | 'Outro'>('Gmail');
   const [notes, setNotes] = useState('');
 
   const [saveAndAddAnother, setSaveAndAddAnother] = useState(false);
@@ -82,6 +85,9 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setWhatsappAlt(customerToEdit.whatsappAlt || customerToEdit.alternativePhone || '');
       setAlternativeContactName(customerToEdit.alternativeContactName || '');
       setEmail(customerToEdit.email || '');
+      setPassword(customerToEdit.password || '');
+      setIsMobileDevice(!!customerToEdit.isMobileDevice);
+      setAccountType(customerToEdit.accountType || 'Gmail');
       setBirthDate(customerToEdit.birthDate || '');
       setGender(customerToEdit.gender || '');
       setClientType(customerToEdit.clientType || 'Pessoa Física');
@@ -94,7 +100,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setStatus(customerToEdit.status || 'Ativo');
       setPreferredContact(customerToEdit.preferredContact || 'WhatsApp');
       setCreditLimit(customerToEdit.creditLimit !== undefined ? customerToEdit.creditLimit : 1000);
-      setAllowCrediario(customerToEdit.allowCrediario !== undefined ? customerToEdit.allowCrediario : true);
+      setAllowCrediario(customerToEdit.allowCrediario !== undefined ? customerToEdit.allowCrediario : false);
     } else {
       resetForm();
       if (initialName) {
@@ -116,6 +122,9 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     setWhatsappAlt('');
     setAlternativeContactName('');
     setEmail('');
+    setPassword('');
+    setIsMobileDevice(false);
+    setAccountType('Gmail');
     setBirthDate('');
     setGender('');
     setClientType('Pessoa Física');
@@ -128,7 +137,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     setStatus('Ativo');
     setPreferredContact('WhatsApp');
     setCreditLimit(1000);
-    setAllowCrediario(true);
+    setAllowCrediario(false);
   };
 
   if (!isOpen) return null;
@@ -222,6 +231,9 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       alternativeContactName: alternativeContactName.trim(),
       preferredContact: preferredContact,
       email: email.trim(),
+      password: password.trim(),
+      isMobileDevice: isMobileDevice,
+      accountType: accountType,
       address: address.trim(),
       zipCode: zipCode.trim(),
       neighborhood: neighborhood.trim(),
@@ -407,20 +419,71 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                   </div>
                 </div>
 
-                {/* E-mail */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                    E-mail do Cliente
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                {/* E-mail & Senha & Conta */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                      E-mail do Cliente
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="cliente@email.com"
+                        className="w-full pl-9 pr-3 py-1.5 bg-[#040a17] border border-blue-900/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                      Senha (Banco / Conta)
+                    </label>
+                    <div className="relative">
+                      <ShieldCheck className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Senha de acesso/conta"
+                        className="w-full pl-9 pr-3 py-1.5 bg-[#040a17] border border-blue-900/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Opções de Dispositivo Móvel e Tipo de Conta */}
+                <div className="pt-1 flex flex-wrap items-center gap-4 bg-[#060e1d] p-2.5 rounded-xl border border-blue-900/40">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="cliente@email.com"
-                      className="w-full pl-9 pr-3 py-1.5 bg-[#040a17] border border-blue-900/80 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all"
+                      type="checkbox"
+                      checked={isMobileDevice}
+                      onChange={(e) => setIsMobileDevice(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-blue-900 bg-[#040a17] text-cyan-500 focus:ring-0 cursor-pointer"
                     />
+                    <span className="text-[11px] font-bold text-slate-200">É do Celular (Dispositivo Móvel)</span>
+                  </label>
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Tipo:</span>
+                    <div className="flex bg-[#040a17] rounded-lg p-0.5 border border-blue-900/80">
+                      {(['Gmail', 'iCloud', 'Outro'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setAccountType(type)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                            accountType === type
+                              ? 'bg-cyan-600 text-white shadow-xs'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

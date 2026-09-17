@@ -82,6 +82,9 @@ export interface Customer {
   creditLimit?: number; // Limite de Crediário / A Prazo
   allowCrediario?: boolean; // Se permite compras a prazo
   debtBalance?: number; // Saldo devedor total acumulado
+  password?: string;
+  isMobileDevice?: boolean;
+  accountType?: 'Gmail' | 'iCloud' | 'Outro';
   planName?: string;
   planoNome?: string;
   plano?: string;

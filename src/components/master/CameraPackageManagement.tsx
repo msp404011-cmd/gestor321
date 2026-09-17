@@ -90,6 +90,7 @@ export interface CameraUser {
   email: string;
   password: string;
   recoveryEmail: string;
+  createdAt?: string;
 }
 
 export interface CameraClient {
@@ -100,6 +101,7 @@ export interface CameraClient {
   monthlyValue: number;
   contabilizar: boolean;
   users: CameraUser[];
+  dueDate?: string; // Data de vencimento
   createdAt: string;
 }
 
@@ -121,6 +123,7 @@ export const CameraPackageManagement: React.FC = () => {
   const [clientPhone, setClientPhone] = useState('');
   const [clientCameraCount, setClientCameraCount] = useState<number>(1);
   const [clientMonthlyValue, setClientMonthlyValue] = useState<string>('');
+  const [clientDueDate, setClientDueDate] = useState<string>('');
   const [clientContabilizar, setClientContabilizar] = useState(true);
 
   // Form states for User account
@@ -232,6 +235,7 @@ export const CameraPackageManagement: React.FC = () => {
       setClientPhone(client.phone);
       setClientCameraCount(client.cameraCount);
       setClientMonthlyValue(client.monthlyValue.toString());
+      setClientDueDate(client.dueDate || '');
       setClientContabilizar(client.contabilizar);
     } else {
       setSelectedClient(null);
@@ -239,6 +243,7 @@ export const CameraPackageManagement: React.FC = () => {
       setClientPhone('');
       setClientCameraCount(1);
       setClientMonthlyValue('');
+      setClientDueDate('');
       setClientContabilizar(true);
     }
     setIsClientModalOpen(true);
@@ -262,6 +267,7 @@ export const CameraPackageManagement: React.FC = () => {
       phone: clientPhone.trim(),
       cameraCount: Number(clientCameraCount),
       monthlyValue: valueNum,
+      dueDate: clientDueDate.trim(),
       contabilizar: clientContabilizar,
       users: selectedClient ? selectedClient.users : [],
       createdAt: selectedClient ? selectedClient.createdAt : new Date().toISOString()
@@ -343,7 +349,14 @@ export const CameraPackageManagement: React.FC = () => {
       // Edit mode
       updatedUsers = updatedUsers.map(u => 
         u.id === selectedUser.id 
-          ? { ...u, name: userName.trim(), email: userEmail.trim(), password: userPassword.trim(), recoveryEmail: userRecoveryEmail.trim() }
+          ? { 
+              ...u, 
+              name: userName.trim(), 
+              email: userEmail.trim(), 
+              password: userPassword.trim(), 
+              recoveryEmail: userRecoveryEmail.trim(),
+              createdAt: u.createdAt || new Date().toISOString()
+            }
           : u
       );
     } else {
@@ -353,7 +366,8 @@ export const CameraPackageManagement: React.FC = () => {
         name: userName.trim(),
         email: userEmail.trim(),
         password: userPassword.trim(),
-        recoveryEmail: userRecoveryEmail.trim()
+        recoveryEmail: userRecoveryEmail.trim(),
+        createdAt: new Date().toISOString()
       };
       updatedUsers.push(newUser);
     }
@@ -538,6 +552,13 @@ export const CameraPackageManagement: React.FC = () => {
                     </span>
                   </span>
 
+                  {/* Vencimento Badge */}
+                  {client.dueDate && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-950/40 text-amber-400 border border-amber-800/40">
+                      <span>Vencimento: {client.dueDate}</span>
+                    </span>
+                  )}
+
                   {/* Contabilizar Switch Button */}
                   <button
                     type="button"
@@ -637,6 +658,11 @@ export const CameraPackageManagement: React.FC = () => {
                               <div className="flex items-center justify-between gap-1">
                                 <span className="truncate text-slate-400">Recup: {usr.recoveryEmail}</span>
                                 <CopyButton text={usr.recoveryEmail} title="Copiar Recuperação" />
+                              </div>
+                            )}
+                            {usr.createdAt && (
+                              <div className="text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/40">
+                                Data: {new Date(usr.createdAt).toLocaleDateString('pt-BR')}
                               </div>
                             )}
                           </div>
@@ -750,6 +776,18 @@ export const CameraPackageManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Data de Vencimento */}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-400 font-bold block">Data de Vencimento (Dia ou Data Completa)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Todo dia 10 ou 10/10/2026"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500 font-mono"
+                  value={clientDueDate}
+                  onChange={(e) => setClientDueDate(e.target.value)}
+                />
+              </div>
+
               {/* Opção Contabilizar */}
               <div className="flex items-center gap-2 py-2">
                 <input
@@ -816,13 +854,13 @@ export const CameraPackageManagement: React.FC = () => {
                 />
               </div>
 
-              {/* E-mail */}
+              {/* E-mail ou Celular */}
               <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block font-sans">E-mail da Conta *</label>
+                <label className="text-xs text-slate-400 font-bold block font-sans">E-mail ou Celular *</label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="email@dominio.com"
+                  placeholder="email@dominio.com ou (00) 90000-0000"
                   className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
                   value={userEmail}
                   onChange={(e) => setUserEmail(e.target.value)}
