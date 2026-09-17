@@ -10,6 +10,11 @@ import {
   Lock,
   ChevronDown,
   Unlock,
+  DollarSign,
+  Calendar,
+  CreditCard,
+  CheckCircle2,
+  Tag
 } from 'lucide-react';
 import {
   OrderPartItem,
@@ -70,9 +75,7 @@ interface OrderPartsFinancialSectionProps {
   statusChoices: { status: OrderStatus; label: string; icon: string }[];
 }
 
-export const OrderPartsFinancialSection: React.FC<
-  OrderPartsFinancialSectionProps
-> = ({
+export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProps> = ({
   isDark,
   parts,
   partInputMode,
@@ -126,42 +129,44 @@ export const OrderPartsFinancialSection: React.FC<
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       {/* 5. PEÇAS E COMPONENTES UTILIZADOS */}
       <div
-        className={`p-2.5 rounded-xl border flex-1 min-h-0 flex flex-col space-y-1.5 overflow-hidden ${
+        className={`p-2.5 rounded-xl border flex-1 min-h-0 flex flex-col space-y-2 overflow-hidden ${
           isDark
-            ? 'bg-[#07132c]/85 border-slate-800/90'
+            ? 'bg-[#07132c]/90 border-slate-800/90'
             : 'bg-white border-slate-200 shadow-xs'
         }`}
       >
-        <div className="flex items-center justify-between shrink-0 gap-1.5">
-          <div className="flex items-center gap-1.5 font-black text-[11px] uppercase tracking-wider text-slate-200">
-            <Package className="w-3.5 h-3.5 text-cyan-400" />
-            <span>5. PEÇAS NA OS</span>
-            <span className="text-[9px] font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-800 px-1.5 py-0.2 rounded-full">
-              {parts.length} itens ({formatCurrency(partsTotal)})
+        {/* Top Header of Section 5 */}
+        <div className="flex items-center justify-between shrink-0 gap-2">
+          <div className="flex items-center gap-1.5 font-black text-[11px] uppercase tracking-wider text-slate-200 min-w-0">
+            <Package className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="truncate">5. Peças na OS</span>
+            <span className="text-[9px] font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-800 px-1.5 py-0.5 rounded-full shrink-0">
+              {parts.length} {parts.length === 1 ? 'item' : 'itens'} ({formatCurrency(partsTotal)})
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Direct Cadastrar no Estoque Button */}
             <button
               type="button"
               onClick={() => onOpenNewProductModal(partSearch || manualPartName || '')}
-              className="px-2 py-0.5 bg-cyan-600/25 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/50 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
+              className="h-7 px-2 bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
               title="Cadastrar novo produto diretamente no Estoque"
             >
-              <Plus className="w-2.5 h-2.5" />
-              <span>+ Novo no Estoque</span>
+              <Plus className="w-3 h-3" />
+              <span className="hidden sm:inline">+ Novo no Estoque</span>
+              <span className="sm:hidden">+ Novo</span>
             </button>
 
             {/* Mode Switcher */}
-            <div className="inline-flex p-0.5 bg-[#050e1f] border border-slate-700/80 rounded-lg">
+            <div className="inline-flex h-7 p-0.5 bg-[#050e1f] border border-slate-700/80 rounded-lg">
               <button
                 type="button"
                 onClick={() => {
                   setPartInputMode('ESTOQUE');
                   setShowStockCatalog(false);
                 }}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                className={`h-full px-2.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   partInputMode === 'ESTOQUE'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white'
@@ -173,7 +178,7 @@ export const OrderPartsFinancialSection: React.FC<
               <button
                 type="button"
                 onClick={() => setPartInputMode('AVULSO')}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                className={`h-full px-2.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   partInputMode === 'AVULSO'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white'
@@ -186,13 +191,13 @@ export const OrderPartsFinancialSection: React.FC<
           </div>
         </div>
 
-        {/* Input Bar */}
+        {/* Input Bar (Mode ESTOQUE) */}
         {partInputMode === 'ESTOQUE' && (
-          <div className="space-y-1 relative" ref={partSearchRef}>
-            <div className="flex items-center gap-1">
+          <div className="space-y-1 relative shrink-0" ref={partSearchRef}>
+            <div className="flex items-center gap-1.5">
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-3 h-3" />
+                  <Search className="w-3.5 h-3.5" />
                 </span>
                 <input
                   type="text"
@@ -205,7 +210,7 @@ export const OrderPartsFinancialSection: React.FC<
                     if (partSearch.trim()) setIsPartSearchOpen(true);
                   }}
                   placeholder="Buscar peça no estoque..."
-                  className="w-full pl-7 pr-6 py-1.5 bg-[#091632] border border-cyan-500/40 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 shadow-inner"
+                  className="w-full h-8 pl-8 pr-7 bg-[#091632] border border-cyan-500/40 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 shadow-inner"
                 />
                 {partSearch && (
                   <button
@@ -216,7 +221,7 @@ export const OrderPartsFinancialSection: React.FC<
                     }}
                     className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-white cursor-pointer"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
@@ -224,17 +229,22 @@ export const OrderPartsFinancialSection: React.FC<
               <button
                 type="button"
                 onClick={() => onOpenNewProductModal(partSearch || '')}
-                className="px-2 py-1.5 bg-blue-600/30 hover:bg-blue-600 text-cyan-300 hover:text-white border border-blue-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                className="h-8 px-2.5 bg-blue-600/30 hover:bg-blue-600 text-cyan-300 hover:text-white border border-blue-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
                 title="Cadastrar produto novo no Estoque"
               >
                 <Plus className="w-3 h-3 text-cyan-400" />
-                <span>Cadastrar Peça</span>
+                <span>+ Peça</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowStockCatalog(!showStockCatalog)}
-                className="px-2 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                className={`h-8 px-2.5 border rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                  showStockCatalog
+                    ? 'bg-cyan-600 text-white border-cyan-400'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border-slate-700'
+                }`}
+                title="Ver catálogo de produtos"
               >
                 <Layers className="w-3 h-3" />
                 <span>Catálogo</span>
@@ -272,7 +282,7 @@ export const OrderPartsFinancialSection: React.FC<
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="text-xs font-bold text-emerald-400 block">
+                            <span className="text-xs font-bold text-emerald-400 block font-mono">
                               {formatCurrency(price)}
                             </span>
                             <span className="text-[9px] text-cyan-400 font-bold flex items-center justify-end">
@@ -317,7 +327,7 @@ export const OrderPartsFinancialSection: React.FC<
             {showStockCatalog && (
               <div className="p-2 bg-[#061024] border border-blue-900/60 rounded-xl space-y-1 animate-in fade-in">
                 <div className="flex items-center justify-between text-[10px] text-slate-300 font-bold">
-                  <span>Estoque ({products.length})</span>
+                  <span>Estoque ({products.length} itens)</span>
                   <span className="text-slate-400">Clique para adicionar</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto pr-0.5">
@@ -333,7 +343,7 @@ export const OrderPartsFinancialSection: React.FC<
                         <span className="truncate pr-1 text-[11px] text-slate-200">
                           {p.name}
                         </span>
-                        <span className="font-bold text-emerald-400 text-[10px] shrink-0">
+                        <span className="font-bold text-emerald-400 text-[10px] shrink-0 font-mono">
                           {formatCurrency(price)}
                         </span>
                       </button>
@@ -345,20 +355,23 @@ export const OrderPartsFinancialSection: React.FC<
           </div>
         )}
 
-        {/* Mode Avulso */}
+        {/* Input Bar (Mode AVULSO) - Everything in a single aligned row */}
         {partInputMode === 'AVULSO' && (
-          <div className="p-2 rounded-lg bg-[#081532] border border-amber-500/40 space-y-1.5">
-            <div className="grid grid-cols-12 gap-1.5">
-              <div className="col-span-6">
+          <div className="p-2 rounded-xl bg-[#081532] border border-amber-500/40 space-y-1.5 shrink-0">
+            <div className="flex items-center gap-1.5">
+              {/* Nome da peça avulsa */}
+              <div className="flex-1 min-w-0">
                 <input
                   type="text"
                   value={manualPartName}
                   onChange={(e) => setManualPartName(e.target.value)}
                   placeholder="Nome da peça avulsa..."
-                  className="w-full px-2 py-1 bg-[#050e1f] border border-slate-700 rounded text-xs text-white focus:border-amber-400 focus:outline-hidden"
+                  className="w-full h-8 px-2.5 bg-[#050e1f] border border-slate-700 rounded-lg text-xs text-white focus:border-amber-400 focus:outline-hidden"
                 />
               </div>
-              <div className="col-span-2">
+
+              {/* Quantidade */}
+              <div className="w-16 shrink-0">
                 <input
                   type="number"
                   min="1"
@@ -366,10 +379,14 @@ export const OrderPartsFinancialSection: React.FC<
                   onChange={(e) =>
                     setManualPartQty(Math.max(1, parseInt(e.target.value) || 1))
                   }
-                  className="w-full px-1 py-1 bg-[#050e1f] border border-slate-700 rounded text-xs text-white text-center font-bold focus:border-amber-400 focus:outline-hidden"
+                  title="Quantidade"
+                  placeholder="Qtd"
+                  className="w-full h-8 px-1 bg-[#050e1f] border border-slate-700 rounded-lg text-xs text-white text-center font-bold focus:border-amber-400 focus:outline-hidden"
                 />
               </div>
-              <div className="col-span-2">
+
+              {/* Preço Unitário */}
+              <div className="w-24 shrink-0">
                 <input
                   type="number"
                   step="0.01"
@@ -378,24 +395,25 @@ export const OrderPartsFinancialSection: React.FC<
                   onChange={(e) =>
                     setManualPartPrice(parseFloat(e.target.value) || 0)
                   }
-                  placeholder="R$ 0,00"
-                  className="w-full px-1.5 py-1 bg-[#050e1f] border border-slate-700 rounded text-xs text-emerald-400 font-bold focus:border-amber-400 focus:outline-hidden"
+                  placeholder="R$ Unitário"
+                  className="w-full h-8 px-2 bg-[#050e1f] border border-slate-700 rounded-lg text-xs text-emerald-400 font-bold focus:border-amber-400 focus:outline-hidden font-mono"
                 />
               </div>
-              <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={handleAddManualPart}
-                  disabled={!manualPartName.trim()}
-                  className="w-full py-1 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-[10px] font-bold rounded cursor-pointer transition-colors"
-                >
-                  + Add
-                </button>
-              </div>
+
+              {/* Botão Adicionar */}
+              <button
+                type="button"
+                onClick={handleAddManualPart}
+                disabled={!manualPartName.trim()}
+                className="h-8 px-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shrink-0 flex items-center gap-1 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
             </div>
 
-            <div className="flex items-center justify-between pt-0.5 text-[10px]">
-              <span className="text-slate-400">Peça avulsa não movimenta estoque.</span>
+            <div className="flex items-center justify-between text-[10px] px-0.5">
+              <span className="text-slate-400">Peça avulsa não afeta estoque.</span>
               <button
                 type="button"
                 onClick={() => onOpenNewProductModal(manualPartName)}
@@ -409,47 +427,48 @@ export const OrderPartsFinancialSection: React.FC<
         )}
 
         {/* Added Parts Table */}
-        <div className="flex-1 min-h-[60px] overflow-y-auto scrollbar-thin rounded-lg border border-slate-800 bg-[#091632]">
+        <div className="flex-1 min-h-[60px] overflow-y-auto scrollbar-thin rounded-xl border border-slate-800 bg-[#091632]">
           {parts.length === 0 ? (
-            <div className="p-3 text-center text-[10px] text-slate-400 flex items-center justify-center h-full">
-              Nenhuma peça vinculada à OS. Busque no estoque ou adicione avulsa.
+            <div className="p-3 text-center text-[10px] text-slate-400 flex flex-col items-center justify-center h-full gap-1">
+              <Package className="w-4 h-4 text-slate-600" />
+              <span>Nenhuma peça vinculada. Busque no estoque ou adicione avulsa acima.</span>
             </div>
           ) : (
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b1b3d] text-slate-400 text-[10px] border-b border-slate-800 sticky top-0">
+              <thead className="bg-[#0b1b3d] text-slate-400 text-[10px] border-b border-slate-800 sticky top-0 font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="px-2 py-1">Peça</th>
-                  <th className="px-1 py-1 text-center w-16">Qtd</th>
-                  <th className="px-1.5 py-1 text-right w-20">Unitário</th>
-                  <th className="px-1.5 py-1 text-right w-20">Subtotal</th>
-                  <th className="px-1 py-1 text-center w-6"></th>
+                  <th className="px-2.5 py-1.5">Peça / Componente</th>
+                  <th className="px-1.5 py-1.5 text-center w-20">Qtd</th>
+                  <th className="px-2 py-1.5 text-right w-20">Unitário</th>
+                  <th className="px-2 py-1.5 text-right w-20">Subtotal</th>
+                  <th className="px-1 py-1.5 text-center w-8"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-slate-800/80">
                 {parts.map((p, idx) => {
                   const sub =
                     p.totalPrice ||
                     p.total ||
                     p.quantity * p.unitPrice - (p.discount || 0);
                   return (
-                    <tr key={p.id || idx} className="hover:bg-slate-800/30">
-                      <td className="px-2 py-1">
-                        <span className="font-bold text-white text-[11px] truncate block max-w-[140px]">
+                    <tr key={p.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="px-2.5 py-1.5">
+                        <span className="font-bold text-white text-[11px] truncate block max-w-[150px]">
                           {p.name || p.productName}
                         </span>
                       </td>
-                      <td className="px-1 py-1 text-center">
-                        <div className="inline-flex items-center gap-0.5 bg-[#07132c] border border-slate-700 rounded p-0.2">
+                      <td className="px-1.5 py-1.5 text-center">
+                        <div className="inline-flex items-center gap-0.5 bg-[#07132c] border border-slate-700 rounded-md p-0.5">
                           <button
                             type="button"
                             onClick={() =>
                               handleUpdatePartQty(idx, p.quantity - 1)
                             }
-                            className="p-0.5 text-slate-400 hover:text-white"
+                            className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-800"
                           >
                             <Minus className="w-2.5 h-2.5" />
                           </button>
-                          <span className="w-4 text-center font-bold text-white text-[10px]">
+                          <span className="w-5 text-center font-bold text-white text-[11px] font-mono">
                             {p.quantity}
                           </span>
                           <button
@@ -457,13 +476,13 @@ export const OrderPartsFinancialSection: React.FC<
                             onClick={() =>
                               handleUpdatePartQty(idx, p.quantity + 1)
                             }
-                            className="p-0.5 text-slate-400 hover:text-white"
+                            className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-slate-800"
                           >
                             <Plus className="w-2.5 h-2.5" />
                           </button>
                         </div>
                       </td>
-                      <td className="px-1.5 py-1 text-right text-[11px] text-slate-300 font-mono">
+                      <td className="px-2 py-1.5 text-right text-[11px] text-slate-300 font-mono">
                         {isPriceUnlocked ? (
                           <input
                             type="number"
@@ -475,22 +494,23 @@ export const OrderPartsFinancialSection: React.FC<
                                 parseFloat(e.target.value) || 0
                               )
                             }
-                            className="w-16 px-1 py-0.2 bg-[#07132c] border border-amber-500/50 rounded text-right text-[10px] text-amber-300 font-bold"
+                            className="w-16 px-1 py-0.5 bg-[#07132c] border border-amber-500/50 rounded text-right text-[10px] text-amber-300 font-bold font-mono"
                           />
                         ) : (
                           formatCurrency(p.unitPrice)
                         )}
                       </td>
-                      <td className="px-1.5 py-1 text-right font-bold text-emerald-400 text-[11px] font-mono">
+                      <td className="px-2 py-1.5 text-right font-bold text-emerald-400 text-[11px] font-mono">
                         {formatCurrency(sub)}
                       </td>
-                      <td className="px-1 py-1 text-center">
+                      <td className="px-1 py-1.5 text-center">
                         <button
                           type="button"
                           onClick={() => handleRemovePart(idx)}
-                          className="p-1 text-rose-400 hover:text-rose-300 cursor-pointer"
+                          className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                          title="Remover peça"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -504,23 +524,24 @@ export const OrderPartsFinancialSection: React.FC<
 
       {/* 6. VALORES, STATUS E PAGAMENTO */}
       <div
-        className={`p-2.5 rounded-xl border shrink-0 space-y-2 ${
+        className={`p-2.5 rounded-xl border shrink-0 space-y-2.5 ${
           isDark
-            ? 'bg-[#07132c]/85 border-slate-800/90'
+            ? 'bg-[#07132c]/90 border-slate-800/90'
             : 'bg-white border-slate-200 shadow-xs'
         }`}
       >
-        {/* Row 1: Status Inicial, Forma de Pagamento, Previsão */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
+        {/* Row 1: Status Inicial, Forma de Pagamento, Previsão de Entrega */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* Status Inicial */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-slate-300 uppercase tracking-wider">
               Status Inicial
             </label>
             <div className="relative">
               <select
                 value={initialStatus}
                 onChange={(e) => setInitialStatus(e.target.value as OrderStatus)}
-                className="w-full px-2 py-1 bg-[#091632] border border-amber-500/40 rounded-lg text-xs font-bold text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer appearance-none pr-6 shadow-xs"
+                className="w-full h-8 px-2.5 bg-[#091632] border border-amber-500/40 rounded-lg text-xs font-bold text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer appearance-none pr-7 shadow-xs truncate"
               >
                 {statusChoices.map((s) => (
                   <option key={s.status} value={s.status}>
@@ -528,37 +549,51 @@ export const OrderPartsFinancialSection: React.FC<
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-3 h-3 text-amber-400 absolute right-2 top-2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-amber-400 absolute right-2 top-2.5 pointer-events-none" />
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-bold text-slate-300 mb-0.5">
+          {/* Forma de Pagamento */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-slate-300 uppercase tracking-wider">
               Forma de Pagamento
             </label>
             <div className="relative">
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full px-2 py-1 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-6"
+                className="w-full h-8 px-2.5 bg-[#091632] border border-slate-700/80 rounded-lg text-xs text-white focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-7 shadow-xs truncate"
               >
                 <option value="Não informado">Não informado</option>
-                {customPaymentMethods.map((pm) => (
-                  <option key={pm.id} value={pm.name}>
-                    {pm.name}
-                  </option>
-                ))}
+                <option value="A_PRAZO">⏳ A Prazo / Fiado</option>
+                <option value="DINHEIRO">💵 Dinheiro</option>
+                <option value="PIX">⚡ PIX</option>
+                <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                {customPaymentMethods
+                  .filter(
+                    (pm) =>
+                      !['Não informado', 'A_PRAZO', 'DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(
+                        pm.name
+                      )
+                  )
+                  .map((pm) => (
+                    <option key={pm.id} value={pm.name}>
+                      {pm.name}
+                    </option>
+                  ))}
               </select>
-              <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2.5 pointer-events-none" />
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-0.5">
-              <label className="block text-[10px] font-bold text-slate-300">
+          {/* Previsão de Entrega */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-bold text-slate-300 uppercase tracking-wider">
                 Previsão Entrega
               </label>
-              <label className="flex items-center gap-0.5 text-[9px] text-cyan-300 cursor-pointer select-none">
+              <label className="flex items-center gap-1 text-[9px] text-cyan-300 font-bold cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={isDeliveryOptional}
@@ -566,7 +601,7 @@ export const OrderPartsFinancialSection: React.FC<
                     setIsDeliveryOptional(e.target.checked);
                     if (e.target.checked) setDeliveryDate('');
                   }}
-                  className="w-2.5 h-2.5 rounded bg-[#091632] border-slate-700 text-cyan-500 cursor-pointer accent-cyan-500"
+                  className="w-3 h-3 rounded bg-[#091632] border-slate-700 text-cyan-500 cursor-pointer accent-cyan-500"
                 />
                 <span>A combinar</span>
               </label>
@@ -576,32 +611,34 @@ export const OrderPartsFinancialSection: React.FC<
                 type="date"
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.target.value)}
-                className="w-full px-2 py-1 bg-[#091632] border border-cyan-500/50 rounded-lg text-xs text-white focus:outline-hidden focus:border-cyan-400"
+                className="w-full h-8 px-2.5 bg-[#091632] border border-cyan-500/50 rounded-lg text-xs text-white focus:outline-hidden focus:border-cyan-400 font-mono"
               />
             ) : (
-              <div className="px-2 py-1 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] text-slate-400 italic">
-                📅 Sem data definida
+              <div className="h-8 px-2.5 bg-slate-900/60 border border-slate-800 rounded-lg text-xs text-cyan-300 font-bold flex items-center justify-center">
+                📅 A combinar com o cliente
               </div>
             )}
           </div>
         </div>
 
-        {/* Row 2: Financial Cards & TOTAL */}
-        <div className="grid grid-cols-4 gap-1.5">
-          {/* Peças */}
-          <div className="p-1.5 rounded-lg bg-[#091632] border border-slate-800">
-            <span className="text-[9px] font-bold uppercase text-slate-400 block">
+        {/* Row 2: Financial Cards & TOTAL (Proportional, balanced grid) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {/* 1. Peças */}
+          <div className="p-2 rounded-xl bg-[#091632] border border-slate-800 flex flex-col justify-between h-[62px]">
+            <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+              <Package className="w-3 h-3 text-cyan-400" />
               Peças
             </span>
-            <span className="text-xs font-bold text-cyan-300 block mt-0.5">
+            <span className="text-sm font-bold text-cyan-300 font-mono">
               {formatCurrency(partsTotal)}
             </span>
           </div>
 
-          {/* Mão de Obra / Serviço */}
-          <div className="p-1.5 rounded-lg bg-[#091632] border border-slate-800 relative">
+          {/* 2. Mão de Obra / Serviço */}
+          <div className="p-2 rounded-xl bg-[#091632] border border-slate-800 relative flex flex-col justify-between h-[62px]">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-bold uppercase text-slate-400">
+              <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-amber-400" />
                 Mão de Obra
               </span>
               {!isPriceUnlocked && (
@@ -612,10 +649,10 @@ export const OrderPartsFinancialSection: React.FC<
                     setManagerPassInput('');
                     setShowManagerAuthModal(true);
                   }}
-                  className="text-amber-400 hover:text-amber-300 cursor-pointer"
-                  title="Liberar edição manual"
+                  className="text-amber-400 hover:text-amber-300 cursor-pointer p-0.5 rounded hover:bg-amber-950/40"
+                  title="Liberar edição manual com senha do gerente"
                 >
-                  <Lock className="w-2.5 h-2.5" />
+                  <Lock className="w-3 h-3" />
                 </button>
               )}
             </div>
@@ -631,7 +668,7 @@ export const OrderPartsFinancialSection: React.FC<
                 onChange={(e) =>
                   setCustomTotalPrice(parseFloat(e.target.value) || 0)
                 }
-                className="w-full px-1 py-0.5 bg-[#07132c] border border-amber-500/50 rounded text-xs font-bold text-amber-300"
+                className="w-full px-1.5 py-0.5 bg-[#07132c] border border-amber-500/50 rounded-lg text-xs font-bold text-amber-300 font-mono"
               />
             ) : (
               <span
@@ -640,35 +677,41 @@ export const OrderPartsFinancialSection: React.FC<
                   setManagerPassInput('');
                   setShowManagerAuthModal(true);
                 }}
-                className="text-xs font-bold text-white block mt-0.5 cursor-pointer hover:text-amber-300 transition-colors"
+                className="text-sm font-bold text-white block cursor-pointer hover:text-amber-300 transition-colors font-mono"
+                title="Clique para editar valor da mão de obra"
               >
                 {formatCurrency(effectiveBasePrice)}
               </span>
             )}
           </div>
 
-          {/* Desconto */}
-          <div className="p-1.5 rounded-lg bg-[#091632] border border-slate-800">
-            <span className="text-[9px] font-bold uppercase text-rose-400 block">
+          {/* 3. Desconto */}
+          <div className="p-2 rounded-xl bg-[#091632] border border-slate-800 flex flex-col justify-between h-[62px]">
+            <span className="text-[10px] font-bold uppercase text-rose-400 flex items-center gap-1">
+              <Tag className="w-3 h-3 text-rose-400" />
               Desconto
             </span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={discount || ''}
-              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-              placeholder="0,00"
-              className="w-full px-1 py-0.5 bg-[#07132c] border border-slate-700 rounded text-xs font-bold text-rose-400 mt-0.5"
-            />
+            <div className="relative">
+              <span className="absolute left-1.5 top-0.5 text-[10px] text-rose-400 font-bold font-mono">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={discount || ''}
+                onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                placeholder="0,00"
+                className="w-full pl-6 pr-1 py-0.5 bg-[#07132c] border border-rose-500/30 rounded-lg text-xs font-bold text-rose-400 font-mono focus:border-rose-400 focus:outline-none"
+              />
+            </div>
           </div>
 
-          {/* TOTAL DA OS */}
-          <div className="p-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/50 shadow-xs flex flex-col justify-center">
-            <span className="text-[9px] font-black uppercase text-emerald-400 block">
+          {/* 4. TOTAL DA OS */}
+          <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-950/70 to-emerald-900/40 border border-emerald-500/60 shadow-lg shadow-emerald-950/30 flex flex-col justify-between h-[62px]">
+            <span className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
               TOTAL DA OS
             </span>
-            <span className="text-sm font-black text-emerald-300 block leading-tight">
+            <span className="text-base font-black text-emerald-300 leading-none font-mono">
               {formatCurrency(finalOrderTotal)}
             </span>
           </div>

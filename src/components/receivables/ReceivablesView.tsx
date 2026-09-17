@@ -42,6 +42,7 @@ import {
   openWhatsAppLink,
 } from '../../services/formatters';
 import { ReceivablePayModal } from './ReceivablePayModal';
+import { ManualReceivableModal } from './ManualReceivableModal';
 
 interface ReceivablesViewProps {
   onOpenOrder?: (orderId: string) => void;
@@ -56,6 +57,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PARTIAL' | 'OVERDUE' | 'PAID'>('ALL');
   const [selectedReceivableForPay, setSelectedReceivableForPay] = useState<AccountReceivable | null>(null);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   // Exclusão segura de card de fiado (sem window.confirm)
@@ -94,7 +96,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
     const device =
       rec.deviceInfo ||
       (linkedOrder ? `${linkedOrder.brand || ''} ${linkedOrder.model || ''}`.trim() : '') ||
-      (rec.originType === 'VENDA' ? 'Produtos no Balcão' : 'Aparelho em OS');
+      (rec.originType === 'VENDA' ? 'Produtos no Balcão' : rec.originType === 'MANUAL' ? 'Lançamento Manual' : 'Aparelho em OS');
 
     // Descrição do que compõe a dívida (serviço feito, peças, defeito ou itens da venda)
     let description = rec.serviceDescription || '';
@@ -128,7 +130,9 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
       description =
         rec.originType === 'ORDEM_SERVICO'
           ? 'Serviço técnico / manutenção em Ordem de Serviço'
-          : 'Venda de produtos/acessórios no balcão';
+          : rec.originType === 'VENDA'
+          ? 'Venda de produtos/acessórios no balcão'
+          : 'Lançamento manual de fiado / débito';
     }
 
     const defect = linkedOrder?.clientDefect;
@@ -299,6 +303,15 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setIsManualModalOpen(true)}
+          className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
+        >
+          <Plus size={16} className="stroke-[3]" />
+          <span>+ Adicionar Cliente Devendo (Manual)</span>
+        </button>
       </div>
 
       {/* Metrics Row */}
@@ -396,12 +409,20 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
 
       {/* Receivables List / Cards */}
       {filteredReceivables.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 space-y-4">
           <Clock size={40} className="mx-auto text-slate-600" />
           <h3 className="text-base font-bold text-white">Nenhum débito a prazo encontrado</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Ao entregar uma Ordem de Serviço selecionando a opção <strong>"A Prazo / Fiado"</strong>, o cliente e seu débito aparecerão automaticamente aqui.
+            Ao entregar uma Ordem de Serviço selecionando a opção <strong>"A Prazo / Fiado"</strong> ou adicionando um cliente devendo manualmente, o registro aparecerá aqui.
           </p>
+          <button
+            type="button"
+            onClick={() => setIsManualModalOpen(true)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+          >
+            <Plus size={14} className="stroke-[3]" />
+            <span>Adicionar Cliente Devendo (Manual)</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -897,6 +918,20 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
           </div>
         </div>
       )}
+
+      {/* Manual Receivable Creation Modal */}
+      <ManualReceivableModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        onSuccess={() => {
+          setReceivables(StorageService.getReceivables());
+          setFeedbackToast({
+            message: 'Cliente devedor e fiado lançados com sucesso!',
+            type: 'success',
+          });
+          setTimeout(() => setFeedbackToast(null), 4000);
+        }}
+      />
 
       {/* Feedback Toast */}
       {feedbackToast && (

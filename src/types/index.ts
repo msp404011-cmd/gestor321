@@ -601,7 +601,7 @@ export interface AccountReceivable {
   customerId: string;
   customerName: string;
   customerPhone?: string;
-  originType: 'ORDEM_SERVICO' | 'VENDA';
+  originType: 'ORDEM_SERVICO' | 'VENDA' | 'MANUAL' | 'OUTRO' | string;
   referenceNumber: string; // Ex: OS #1002 ou Venda #54
   referenceId: string;
   amount: number; // Saldo devedor atual

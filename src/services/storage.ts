@@ -2000,6 +2000,102 @@ export const StorageService = {
     return getItem<AccountReceivable[]>(STORAGE_KEYS.RECEIVABLES, []);
   },
 
+  addManualReceivable(params: {
+    customerId?: string;
+    customerName: string;
+    customerPhone?: string;
+    deviceInfo?: string;
+    serviceDescription: string;
+    amount: number;
+    downPayment?: number;
+    downPaymentMethod?: PaymentMethod;
+    dueDate?: string;
+    notes?: string;
+    userName?: string;
+  }): { success: boolean; receivable: AccountReceivable } {
+    const user = this.getCurrentUser();
+    const userName = params.userName || user?.name || 'Operador';
+    const totalAmount = Math.max(0, Number(params.amount) || 0);
+    const downPayment = Math.max(0, Math.min(totalAmount, Number(params.downPayment) || 0));
+    const remainingAmount = Math.max(0, totalAmount - downPayment);
+    const dueDate = params.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const refNum = `Fiado #${Date.now().toString().slice(-4)}`;
+
+    // 1. If there's an immediate down payment, record cash movement
+    if (downPayment > 0 && params.downPaymentMethod) {
+      this.addCashMovement({
+        type: 'ENTRADA_AVULSA',
+        description: `Entrada de ${refNum} (A Prazo / Manual) - ${params.customerName}`,
+        amount: downPayment,
+        paymentMethod: params.downPaymentMethod,
+        userName,
+      });
+    }
+
+    // 2. Create the Receivable record
+    const receivables = this.getReceivables();
+    const receivable: AccountReceivable = {
+      id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      customerId: params.customerId || 'cust-' + Date.now(),
+      customerName: params.customerName.trim(),
+      customerPhone: params.customerPhone?.trim() || '',
+      originType: 'MANUAL',
+      referenceNumber: refNum,
+      referenceId: 'manual-' + Date.now(),
+      amount: remainingAmount,
+      originalAmount: totalAmount,
+      paidAmount: downPayment,
+      remainingAmount: remainingAmount,
+      downPayment: downPayment > 0 ? downPayment : undefined,
+      downPaymentMethod: downPayment > 0 ? params.downPaymentMethod : undefined,
+      deviceInfo: params.deviceInfo?.trim() || 'Lançamento Manual',
+      serviceDescription: params.serviceDescription?.trim() || 'Débito / Fiado avulso',
+      dueDate,
+      status: remainingAmount === 0 ? 'PAGO' : 'PENDENTE',
+      payments:
+        downPayment > 0
+          ? [
+              {
+                id: 'pay-' + Date.now(),
+                amount: downPayment,
+                paymentMethod: params.downPaymentMethod || 'DINHEIRO',
+                date: new Date().toISOString(),
+                userName,
+                notes: 'Entrada inicial no ato do lançamento do fiado',
+              },
+            ]
+          : [],
+      paidAt: remainingAmount === 0 ? new Date().toISOString() : undefined,
+      notes: params.notes?.trim() || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    receivables.unshift(receivable);
+    setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    FirestoreSyncService.saveReceivable(receivable);
+
+    // Update customer debt if customer exists
+    if (params.customerId) {
+      const customers = this.getCustomers();
+      const cust = customers.find((c) => c.id === params.customerId);
+      if (cust) {
+        cust.currentDebt = (Number(cust.currentDebt) || 0) + remainingAmount;
+        setItem(STORAGE_KEYS.CUSTOMERS, customers);
+        FirestoreSyncService.saveCustomer(cust);
+      }
+    }
+
+    this.logAction(
+      `Lançamento manual de fiado para ${params.customerName}`,
+      `Total: R$ ${totalAmount.toFixed(2)}, Entrada: R$ ${downPayment.toFixed(2)}, Saldo A Prazo: R$ ${remainingAmount.toFixed(2)}`
+    );
+
+    notifyListeners();
+    return { success: true, receivable };
+  },
+
   deliverOrderOnCredit(params: {
     orderId: string;
     downPayment?: number;
