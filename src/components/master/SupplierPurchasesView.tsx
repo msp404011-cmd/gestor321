@@ -190,7 +190,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     typeName: 'Tela',
     marca: '',
     modelo: '',
-    estrutura: '',
+    estrutura: 'Com Aro',
     qualidade: 'Premium',
     cor: 'Preto',
     quantity: 1,
@@ -198,6 +198,108 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     supplierName: '',
     paymentStatus: 'Pendente' as 'Pendente' | 'Pago'
   });
+
+  // Configurable options for manual purchase form
+  const [estruturaOpts, setEstruturaOpts] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('msp_purch_est_opts');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch(e){}
+    return ['Com Aro', 'Sem Aro'];
+  });
+
+  const [qualidadeOpts, setQualidadeOpts] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('msp_purch_qual_opts');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch(e){}
+    return ['DIAMONDS', 'CHINA GOLD PRO', 'Original', 'Premium', 'OLED', 'INCELL'];
+  });
+
+  const [corOpts, setCorOpts] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('msp_purch_cor_opts');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch(e){}
+    return ['Preto', 'Branco', 'Azul', 'Dourado', 'Grafite', 'Prata'];
+  });
+
+  const [marcaOpts, setMarcaOpts] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('msp_purch_marca_opts');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch(e){}
+    return ['Apple', 'Samsung', 'Xiaomi', 'Motorola', 'Realme'];
+  });
+
+  const [quickAddPurchase, setQuickAddPurchase] = useState<Record<string, string>>({});
+
+  const handleAddPurchOption = (category: 'estrutura'|'qualidade'|'cor'|'marca', valToAdd?: string) => {
+    const val = (valToAdd || quickAddPurchase[category] || '').trim();
+    if (!val) return;
+    if (category === 'estrutura') {
+      if (!estruturaOpts.includes(val)) {
+        const next = [...estruturaOpts, val];
+        setEstruturaOpts(next);
+        try { localStorage.setItem('msp_purch_est_opts', JSON.stringify(next)); } catch(e){}
+      }
+      setNewItemForm(prev => ({ ...prev, estrutura: val }));
+    } else if (category === 'qualidade') {
+      if (!qualidadeOpts.includes(val)) {
+        const next = [...qualidadeOpts, val];
+        setQualidadeOpts(next);
+        try { localStorage.setItem('msp_purch_qual_opts', JSON.stringify(next)); } catch(e){}
+      }
+      setNewItemForm(prev => ({ ...prev, qualidade: val }));
+    } else if (category === 'cor') {
+      if (!corOpts.includes(val)) {
+        const next = [...corOpts, val];
+        setCorOpts(next);
+        try { localStorage.setItem('msp_purch_cor_opts', JSON.stringify(next)); } catch(e){}
+      }
+      setNewItemForm(prev => ({ ...prev, cor: val }));
+    } else if (category === 'marca') {
+      if (!marcaOpts.includes(val)) {
+        const next = [...marcaOpts, val];
+        setMarcaOpts(next);
+        try { localStorage.setItem('msp_purch_marca_opts', JSON.stringify(next)); } catch(e){}
+      }
+      setNewItemForm(prev => ({ ...prev, marca: val }));
+    }
+    setQuickAddPurchase(prev => ({ ...prev, [category]: '' }));
+  };
+
+  const handleRemovePurchOption = (category: 'estrutura'|'qualidade'|'cor'|'marca', val: string) => {
+    if (category === 'estrutura') {
+      const next = estruturaOpts.filter(o => o !== val);
+      setEstruturaOpts(next);
+      try { localStorage.setItem('msp_purch_est_opts', JSON.stringify(next)); } catch(e){}
+    } else if (category === 'qualidade') {
+      const next = qualidadeOpts.filter(o => o !== val);
+      setQualidadeOpts(next);
+      try { localStorage.setItem('msp_purch_qual_opts', JSON.stringify(next)); } catch(e){}
+    } else if (category === 'cor') {
+      const next = corOpts.filter(o => o !== val);
+      setCorOpts(next);
+      try { localStorage.setItem('msp_purch_cor_opts', JSON.stringify(next)); } catch(e){}
+    } else if (category === 'marca') {
+      const next = marcaOpts.filter(o => o !== val);
+      setMarcaOpts(next);
+      try { localStorage.setItem('msp_purch_marca_opts', JSON.stringify(next)); } catch(e){}
+    }
+  };
 
   // Filter items based on subTab
   const currentTabItems = useMemo(() => {
@@ -1727,76 +1829,240 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Marca</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: Apple, Samsung, Xiaomi..."
-                    value={newItemForm.marca}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, marca: e.target.value })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Marca & Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400 uppercase">Marca</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {marcaOpts.map(m => {
+                      const isSelected = newItemForm.marca === m;
+                      return (
+                        <div key={m} className="inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setNewItemForm(prev => ({ ...prev, marca: m }))}
+                            className={`px-2 py-0.5 rounded-l text-[10px] font-bold cursor-pointer transition-all ${
+                              isSelected ? 'bg-indigo-600 text-white font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePurchOption('marca', m)}
+                            className={`px-1 py-0.5 rounded-r text-[10px] cursor-pointer transition-colors border-l border-slate-700/50 ${
+                              isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-500 hover:bg-red-600 hover:text-white'
+                            }`}
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      placeholder="Ex: Apple, Samsung..."
+                      value={newItemForm.marca}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, marca: e.target.value })}
+                      className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddPurchOption('marca', newItemForm.marca)}
+                      className="px-2 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                      title="Salvar como botão fixo"
+                    >
+                      + Botão
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Modelo</label>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400 uppercase">Modelo</label>
                   <input 
                     type="text"
                     placeholder="Ex: iPhone 11, A32, Redmi Note 11..."
                     value={newItemForm.modelo}
                     onChange={(e) => setNewItemForm({ ...newItemForm, modelo: e.target.value })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Qualidade</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: OLED, Incell, Original, Premium..."
-                    value={newItemForm.qualidade}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, qualidade: e.target.value })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Qualidade & Estrutura */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-xs font-bold text-amber-400 uppercase">Qualidade</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {qualidadeOpts.map(q => {
+                      const isSelected = newItemForm.qualidade === q;
+                      return (
+                        <div key={q} className="inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setNewItemForm(prev => ({ ...prev, qualidade: q }))}
+                            className={`px-2 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
+                              isSelected ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            {q}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePurchOption('qualidade', q)}
+                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                              isSelected ? 'bg-amber-600 text-slate-950 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="text"
+                      placeholder="Outra qualidade..."
+                      value={newItemForm.qualidade}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, qualidade: e.target.value })}
+                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddPurchOption('qualidade', newItemForm.qualidade)}
+                      className="px-2 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500 hover:text-slate-950 rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                      title="Salvar como botão"
+                    >
+                      + Botão
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cor</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: Preto, Branco, Azul..."
-                    value={newItemForm.cor}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, cor: e.target.value })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura (Com Aro, Sem Aro...)</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {estruturaOpts.map(eOpt => {
+                      const isSelected = newItemForm.estrutura === eOpt;
+                      return (
+                        <div key={eOpt} className="inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setNewItemForm(prev => ({ ...prev, estrutura: eOpt }))}
+                            className={`px-2.5 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
+                              isSelected ? 'bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400' : 'bg-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            {eOpt}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePurchOption('estrutura', eOpt)}
+                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                              isSelected ? 'bg-purple-700 text-purple-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="text"
+                      placeholder="Outra estrutura..."
+                      value={newItemForm.estrutura}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, estrutura: e.target.value })}
+                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddPurchOption('estrutura', newItemForm.estrutura)}
+                      className="px-2 py-1 bg-purple-600/30 border border-purple-500/40 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                      title="Salvar como botão"
+                    >
+                      + Botão
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantidade</label>
-                  <input 
-                    type="number"
-                    min="1"
-                    value={newItemForm.quantity}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Cor & Quantidade/Preço */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400 uppercase">Cor</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {corOpts.map(c => {
+                      const isSelected = newItemForm.cor === c;
+                      return (
+                        <div key={c} className="inline-flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => setNewItemForm(prev => ({ ...prev, cor: c }))}
+                            className={`px-2 py-1 rounded-l text-xs font-bold cursor-pointer transition-all ${
+                              isSelected ? 'bg-indigo-600 text-white font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            {c}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePurchOption('cor', c)}
+                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                              isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                            }`}
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="text"
+                      placeholder="Ex: Preto, Branco..."
+                      value={newItemForm.cor}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, cor: e.target.value })}
+                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddPurchOption('cor', newItemForm.cor)}
+                      className="px-2 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                      title="Salvar como botão"
+                    >
+                      + Botão
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Preço Unitário (R$)</label>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newItemForm.price}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, price: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantidade</label>
+                    <input 
+                      type="number"
+                      min="1"
+                      value={newItemForm.quantity}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Preço Unitário (R$)</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newItemForm.price}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
 

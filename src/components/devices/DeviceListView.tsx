@@ -115,6 +115,7 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
   const [activeCardMenu, setActiveCardMenu] = useState<string | null>(null);
 
   const [devices, setDevices] = useState<Device[]>(() => StorageService.getDevices());
+  const [customers, setCustomers] = useState<Customer[]>(() => StorageService.getCustomers());
   const orders = StorageService.getOrders();
   const currentUser = StorageService.getCurrentUser();
 
@@ -180,6 +181,7 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
     }
     return StorageService.subscribe(() => {
       setDevices(StorageService.getDevices());
+      setCustomers(StorageService.getCustomers());
     });
   }, [isSuperAdmin]);
 
@@ -247,11 +249,21 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
     return { total, emAssistencia, concluidos, semMovimento };
   }, [devices]);
 
-  // CRM Memo and Functions
+  // CRM Memo and Functions: Entra SOMENTE se tiver OS ENTREGUE/CONCLUIDO, for cadastro manual no CRM, ou tiver aparelhos vinculados
   const crmCustomers = useMemo(() => {
-    const allCustomers = StorageService.getCustomers();
+    const allCustomers = customers;
     const allDevices = devices;
+    const allOrders = orders;
     
+    // Set of customer IDs that have delivered or completed orders
+    const deliveredCustomerIds = new Set<string>();
+    allOrders.forEach((o) => {
+      const s = (o.status || '').toUpperCase();
+      if (s === 'ENTREGUE' || s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO') {
+        if (o.customerId) deliveredCustomerIds.add(o.customerId);
+      }
+    });
+
     const customerGroups: Record<string, Device[]> = {};
     allDevices.forEach((d) => {
       if (!customerGroups[d.customerId]) {
@@ -260,14 +272,21 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
       customerGroups[d.customerId].push(d);
     });
     
-    return allCustomers.map((c) => {
-      const clientDevices = customerGroups[c.id] || [];
-      return {
-        customer: c,
-        devices: clientDevices,
-      };
-    }).filter((item) => item.devices.length > 0 || search === '');
-  }, [devices, search]);
+    return allCustomers
+      .filter((c) => {
+        const hasDeliveredOrder = deliveredCustomerIds.has(c.id);
+        const isManual = Boolean(c.isManualEntry || c.manualCrm);
+        const hasLinkedDevices = (customerGroups[c.id] || []).length > 0;
+        return hasDeliveredOrder || isManual || hasLinkedDevices;
+      })
+      .map((c) => {
+        const clientDevices = customerGroups[c.id] || [];
+        return {
+          customer: c,
+          devices: clientDevices,
+        };
+      });
+  }, [customers, devices, orders]);
 
   const filteredCrmCustomers = useMemo(() => {
     const searchLower = search.toLowerCase().trim();
@@ -712,16 +731,21 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                                     setDropdownActiveCustomerId(null);
                                     setDeleteDialog({
                                       isOpen: true,
-                                      title: 'Excluir de CRM',
+                                      title: 'Excluir Cliente do CRM',
                                       message: `Deseja realmente excluir o cliente "${customer.name}" e TODOS os seus aparelhos do CRM?`,
                                       onConfirm: () => {
+                                        StorageService.deleteCustomer(customer.id);
                                         const updatedDevices = devices.filter((d) => d.customerId !== customer.id);
                                         StorageService.saveDevices(updatedDevices);
+                                        setDevices(updatedDevices);
+                                        setCustomers(StorageService.getCustomers());
                                         setDeleteDialog((prev) => ({ ...prev, isOpen: false }));
+                                        setCopiedField('Cliente removido do CRM!');
+                                        setTimeout(() => setCopiedField(null), 2000);
                                       },
                                     });
                                   }}
-                                  className="w-full text-left px-4 py-2 text-xs hover:bg-blue-950 text-red-400 font-bold transition-colors flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2 text-xs hover:bg-rose-950/60 text-rose-400 font-bold transition-colors flex items-center gap-2 cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                   <span>Excluir de CRM</span>
@@ -729,7 +753,7 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                               </div>
                             )}
                           </div>
- 
+
                           {/* Loyal Client Box */}
                           {clientOrders.length > 0 && (
                             <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-2 flex flex-col items-center justify-center text-center max-w-[130px] shadow-[0_0_15px_rgba(245,158,11,0.08)]">
@@ -1257,7 +1281,7 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                     </div>
 
                     {/* Footer Actions Box */}
-                    <div className="grid grid-cols-3 gap-2 border-t border-blue-950/40 pt-3 mt-4 shrink-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-blue-950/40 pt-3 mt-4 shrink-0">
                       {/* WhatsApp Trigger */}
                       <a
                         href={`https://wa.me/55${(customer.phone || '').replace(/\D/g, '')}?text=Olá%20${encodeURIComponent(customer.name || '')}!%20Gostaríamos%20de%20conversar%20sobre%20suas%20ordens%20de%20serviço.`}
@@ -1276,7 +1300,7 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                         className="bg-blue-950/40 hover:bg-blue-950 border border-blue-900 rounded-lg text-[10px] sm:text-xs font-bold py-2 transition-all text-sky-400 flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <Clock className="w-3.5 h-3.5" />
-                        <span className="truncate">Ver Histórico</span>
+                        <span className="truncate">Histórico</span>
                       </button>
 
                       {/* Editar Cadastro Trigger */}
@@ -1286,7 +1310,33 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                         className="bg-blue-950/40 hover:bg-blue-950 border border-blue-900 rounded-lg text-[10px] sm:text-xs font-bold py-2 transition-all text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <User className="w-3.5 h-3.5" />
-                        <span className="truncate">Editar Cliente</span>
+                        <span className="truncate">Editar</span>
+                      </button>
+
+                      {/* Excluir do CRM Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteDialog({
+                            isOpen: true,
+                            title: 'Excluir Cliente do CRM',
+                            message: `Deseja realmente excluir o cliente "${customer.name}" e todos os seus aparelhos do CRM?`,
+                            onConfirm: () => {
+                              StorageService.deleteCustomer(customer.id);
+                              const updatedDevices = devices.filter((d) => d.customerId !== customer.id);
+                              StorageService.saveDevices(updatedDevices);
+                              setDevices(updatedDevices);
+                              setCustomers(StorageService.getCustomers());
+                              setDeleteDialog((prev) => ({ ...prev, isOpen: false }));
+                              setCopiedField('Cliente removido do CRM!');
+                              setTimeout(() => setCopiedField(null), 2000);
+                            },
+                          });
+                        }}
+                        className="bg-rose-950/30 hover:bg-rose-900/60 border border-rose-900/60 rounded-lg text-[10px] sm:text-xs font-bold py-2 transition-all text-rose-300 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="truncate">Excluir</span>
                       </button>
                     </div>
                   </div>
@@ -1427,8 +1477,11 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                       notes: newCrmCustomerForm.notes.trim(),
                       createdAt: new Date().toISOString(),
                       status: 'Ativo',
+                      isManualEntry: true,
+                      manualCrm: true,
                     };
                     StorageService.saveCustomer(newCust);
+                    setCustomers(StorageService.getCustomers());
                     setIsCreatingCrmCustomer(false);
                     setNewCrmCustomerForm({
                       name: '',
@@ -1555,9 +1608,24 @@ export const DeviceListView: React.FC<DeviceListViewProps> = ({
                   type="button"
                   disabled={!editingCrmCustomer.name?.trim() || !editingCrmCustomer.phone?.trim()}
                   onClick={() => {
-                    StorageService.saveCustomer(editingCrmCustomer);
+                    const updatedCustomer: Customer = {
+                      ...editingCrmCustomer,
+                      name: editingCrmCustomer.name.trim(),
+                      phone: editingCrmCustomer.phone.trim(),
+                      whatsapp: editingCrmCustomer.whatsapp?.trim() || editingCrmCustomer.phone.trim(),
+                      email: editingCrmCustomer.email?.trim() || '',
+                      document: editingCrmCustomer.document?.trim() || '',
+                      city: editingCrmCustomer.city?.trim() || '',
+                      address: editingCrmCustomer.address?.trim() || '',
+                      notes: editingCrmCustomer.notes?.trim() || '',
+                    };
+                    StorageService.saveCustomer(updatedCustomer);
+                    const updatedDevs = devices.map(d => d.customerId === updatedCustomer.id ? { ...d, customerName: updatedCustomer.name } : d);
+                    StorageService.saveDevices(updatedDevs);
+                    setDevices(updatedDevs);
+                    setCustomers(StorageService.getCustomers());
                     setEditingCrmCustomer(null);
-                    setCopiedField('Cadastro atualizado');
+                    setCopiedField('Cadastro atualizado com sucesso!');
                     setTimeout(() => setCopiedField(null), 1500);
                   }}
                   className="px-5 py-2 rounded-xl bg-[#00bbf9] hover:bg-sky-400 text-white text-xs font-bold cursor-pointer transition-all shadow-[0_0_15px_rgba(0,187,249,0.3)] disabled:opacity-50"

@@ -18,7 +18,32 @@ export type NavigationTab =
   | 'CASH'
   | 'REPORTS'
   | 'EMPLOYEES'
+  | 'COMPATIBILITY'
   | 'SETTINGS';
+
+export interface CompatibilitySector {
+  id: string;
+  name: string;
+  icon?: string;
+  color: string;
+  description?: string;
+  isDefault?: boolean;
+}
+
+export interface CompatibilityCard {
+  id: string;
+  sectorId: string;
+  sectorName: string;
+  title: string;
+  mainModel: string;
+  brand: string;
+  compatibleModels: string[];
+  partCode?: string;
+  type: 'EXACT' | 'PARTIAL' | 'ADAPTATION';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface UserPermissions {
   canAccessAdminSettings: boolean;
@@ -90,6 +115,8 @@ export interface Customer {
   plano?: string;
   planPrice?: number;
   valorPlano?: number;
+  isManualEntry?: boolean;
+  manualCrm?: boolean;
 }
 
 export type DeviceType =

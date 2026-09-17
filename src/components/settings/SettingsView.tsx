@@ -22,6 +22,9 @@ import {
   Palette,
   X,
   AlertTriangle,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
   Smartphone,
   Headphones,
   CreditCard,
@@ -60,6 +63,7 @@ import {
   defaultCustomDeviceTypes,
   defaultCustomAccessories,
   defaultCustomPaymentMethods,
+  defaultCustomOSStatuses,
   isAccessoryForDeviceType,
   SystemFormatOptions,
   defaultSystemFormatOptions,
@@ -213,6 +217,8 @@ export const SettingsView: React.FC = () => {
   const [newOsColor, setNewOsColor] = useState('BLUE');
   const [editingOsId, setEditingOsId] = useState<string | null>(null);
   const [editingOsLabel, setEditingOsLabel] = useState('');
+  const [editingOsColor, setEditingOsColor] = useState('BLUE');
+  const [draggedOsIndex, setDraggedOsIndex] = useState<number | null>(null);
 
   const users = StorageService.getUsers();
   const auditLogs = StorageService.getAuditLogs();
@@ -567,15 +573,31 @@ export const SettingsView: React.FC = () => {
     TEAL: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/40', dot: 'bg-teal-400', label: 'Ciano/Teal' },
   };
 
+  const findColorKeyByBg = (bg?: string) => {
+    if (!bg) return 'BLUE';
+    for (const [key, val] of Object.entries(colorPresets)) {
+      if (val.bg === bg) return key;
+    }
+    return 'BLUE';
+  };
+
   const handleAddOSStatus = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOsLabel.trim()) return;
 
     const preset = colorPresets[newOsColor] || colorPresets.BLUE;
 
+    const cleanCode = newOsLabel
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[\s_\-]+/g, '_')
+      .replace(/[^A-Z0-9_]/g, '');
+
     const newStatus: CustomOSStatusItem = {
       id: 'os-' + Date.now(),
-      code: 'STATUS_' + Date.now(),
+      code: cleanCode || ('STATUS_' + Date.now()),
       label: newOsLabel.trim(),
       colorBg: preset.bg,
       colorText: preset.text,
@@ -592,14 +614,68 @@ export const SettingsView: React.FC = () => {
 
   const handleSaveEditOSStatus = (id: string) => {
     if (!editingOsLabel.trim()) return;
+    const preset = colorPresets[editingOsColor] || colorPresets.BLUE;
     const updated = osStatuses.map((s) =>
-      s.id === id ? { ...s, label: editingOsLabel.trim() } : s
+      s.id === id ? {
+        ...s,
+        label: editingOsLabel.trim(),
+        colorBg: preset.bg,
+        colorText: preset.text,
+        colorBorder: preset.border,
+        colorDot: preset.dot,
+      } : s
     );
     setOsStatuses(updated);
     StorageService.saveCustomOSStatuses(updated);
     setEditingOsId(null);
     setEditingOsLabel('');
     showSuccessFeedback();
+  };
+
+  const handleMoveOSStatus = (index: number, direction: 'UP' | 'DOWN') => {
+    const targetIndex = direction === 'UP' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= osStatuses.length) return;
+
+    const updated = [...osStatuses];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+
+    setOsStatuses(updated);
+    StorageService.saveCustomOSStatuses(updated);
+    showSuccessFeedback();
+  };
+
+  const handleDragStartOSStatus = (e: React.DragEvent, index: number) => {
+    setDraggedOsIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOverOSStatus = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropOSStatus = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedOsIndex === null || draggedOsIndex === targetIndex) return;
+
+    const updated = [...osStatuses];
+    const [movedItem] = updated.splice(draggedOsIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setOsStatuses(updated);
+    StorageService.saveCustomOSStatuses(updated);
+    setDraggedOsIndex(null);
+    showSuccessFeedback();
+  };
+
+  const handleResetOSStatuses = () => {
+    if (confirm('Deseja restaurar a ordem e lista de status padrão das Ordens de Serviço?')) {
+      setOsStatuses(defaultCustomOSStatuses);
+      StorageService.saveCustomOSStatuses(defaultCustomOSStatuses);
+      showSuccessFeedback();
+    }
   };
 
   const handleDeleteOSStatus = (id: string) => {
@@ -1926,14 +2002,29 @@ export const SettingsView: React.FC = () => {
           {/* SUB-TAB 4: STATUS DE OS & KANBAN */}
           {osSubTab === 'STATUSES' && (
             <div className="space-y-4 animate-in fade-in">
-              <div>
-                <h4 className="text-sm font-bold text-cyan-400 flex items-center gap-1.5">
-                  <Palette className="w-4 h-4" />
-                  <span>Gerenciar Status de Ordens de Serviço (OS)</span>
-                </h4>
-                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Adicione novos status personalizados, edite nomes e altere as cores dos emblemas para acompanhar o fluxo da sua assistência.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border bg-cyan-950/20 border-cyan-800/40">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                    <Sliders className="w-4 h-4" />
+                    <span>Ordenação & Configuração do Fluxo de OS</span>
+                  </h4>
+                  <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Defina a ordem exata das etapas das suas Ordens de Serviço. A sequência aqui configurada altera a ordem das colunas do <strong>Kanban de OS</strong>, das abas de filtros e dos seletores de status. Use os botões <strong>⬆️ Subir</strong> / <strong>⬇️ Descer</strong> ou arraste o ícone de arrasto.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetOSStatuses}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-xs'
+                  }`}
+                  title="Restaurar lista e ordem padrão original"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Restaurar Padrão</span>
+                </button>
               </div>
 
               {/* Form to add new status */}
@@ -1979,63 +2070,137 @@ export const SettingsView: React.FC = () => {
                 </div>
               </form>
 
-              {/* Statuses List */}
+              {/* Statuses List with Order Controls */}
               <div className="space-y-2">
-                {osStatuses.map((st) => {
+                {osStatuses.map((st, index) => {
                   const isEditing = editingOsId === st.id;
 
                   return (
                     <div
                       key={st.id}
-                      className={`border rounded-xl p-3 flex items-center justify-between gap-3 ${
-                        isDark ? 'bg-[#040a17] border-blue-900/60' : 'bg-slate-50 border-slate-200'
+                      draggable={!isEditing}
+                      onDragStart={(e) => handleDragStartOSStatus(e, index)}
+                      onDragOver={handleDragOverOSStatus}
+                      onDrop={(e) => handleDropOSStatus(e, index)}
+                      className={`border rounded-xl p-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 transition-all ${
+                        draggedOsIndex === index ? 'opacity-40 border-dashed border-cyan-400' : ''
+                      } ${
+                        isDark ? 'bg-[#040a17] border-blue-900/60 hover:border-cyan-500/50' : 'bg-slate-50 border-slate-200 hover:border-blue-300'
                       }`}
                     >
                       {isEditing ? (
-                        <div className="flex items-center gap-2 flex-1">
+                        <div className="flex flex-col sm:flex-row items-center gap-2 flex-1 w-full">
                           <input
                             type="text"
                             value={editingOsLabel}
                             onChange={(e) => setEditingOsLabel(e.target.value)}
-                            className={`flex-1 px-3 py-1 border border-cyan-400 rounded-lg text-xs focus:outline-hidden ${
+                            className={`flex-1 w-full px-3 py-1.5 border border-cyan-400 rounded-lg text-xs focus:outline-hidden ${
                               isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'
                             }`}
+                            placeholder="Nome do status..."
                           />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEditOSStatus(st.id)}
-                            className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold cursor-pointer"
+                          <select
+                            value={editingOsColor}
+                            onChange={(e) => setEditingOsColor(e.target.value)}
+                            className={`px-3 py-1.5 border border-cyan-400/80 rounded-lg text-xs focus:outline-hidden cursor-pointer ${
+                              isDark ? 'bg-[#081226] text-white' : 'bg-white text-slate-900'
+                            }`}
                           >
-                            Salvar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingOsId(null)}
-                            className="p-1 text-slate-400 hover:text-white cursor-pointer"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                            {Object.entries(colorPresets).map(([key, val]) => (
+                              <option key={key} value={key} className={isDark ? 'bg-[#081226]' : 'bg-white'}>
+                                Cor: {val.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditOSStatus(st.id)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Salvar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingOsId(null)}
+                              className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                            {/* Drag handle */}
+                            <div
+                              className="p-1 text-slate-500 hover:text-cyan-400 cursor-grab active:cursor-grabbing shrink-0"
+                              title="Arraste para reordenar esta etapa"
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+
+                            {/* Order Step Badge */}
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider border shrink-0 ${
+                              isDark ? 'bg-cyan-950/80 text-cyan-300 border-cyan-800/60' : 'bg-cyan-100 text-cyan-800 border-cyan-200'
+                            }`}>
+                              #{index + 1}
+                            </span>
+
+                            {/* Up / Down Move Buttons */}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveOSStatus(index, 'UP')}
+                                disabled={index === 0}
+                                className={`p-1 rounded-lg border transition-all ${
+                                  index === 0
+                                    ? 'opacity-25 cursor-not-allowed border-transparent text-slate-600'
+                                    : isDark
+                                    ? 'bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-400 hover:border-cyan-500/50 text-slate-300 border-slate-700'
+                                    : 'bg-white hover:bg-slate-100 hover:text-cyan-600 text-slate-700 border-slate-200 shadow-2xs'
+                                }`}
+                                title="Mover para cima (etapa anterior)"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveOSStatus(index, 'DOWN')}
+                                disabled={index === osStatuses.length - 1}
+                                className={`p-1 rounded-lg border transition-all ${
+                                  index === osStatuses.length - 1
+                                    ? 'opacity-25 cursor-not-allowed border-transparent text-slate-600'
+                                    : isDark
+                                    ? 'bg-slate-800/80 hover:bg-cyan-950 hover:text-cyan-400 hover:border-cyan-500/50 text-slate-300 border-slate-700'
+                                    : 'bg-white hover:bg-slate-100 hover:text-cyan-600 text-slate-700 border-slate-200 shadow-2xs'
+                                }`}
+                                title="Mover para baixo (próxima etapa)"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Color Pill */}
                             <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${st.colorBg} ${st.colorText} ${st.colorBorder}`}
+                              className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 truncate ${st.colorBg} ${st.colorText} ${st.colorBorder}`}
                             >
                               <span className={`w-2 h-2 rounded-full ${st.colorDot}`} />
-                              <span>{st.label}</span>
+                              <span className="truncate">{st.label}</span>
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => {
                                 setEditingOsId(st.id);
                                 setEditingOsLabel(st.label);
+                                setEditingOsColor(findColorKeyByBg(st.colorBg));
                               }}
                               className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-blue-950/60 rounded-lg transition-colors cursor-pointer"
-                              title="Editar Status"
+                              title="Editar Nome e Cor do Status"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>

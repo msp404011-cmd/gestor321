@@ -88,32 +88,40 @@ export type CanonicalStatus =
   | 'CANCELADA'
   | string;
 
+function normalizeStatusForMatch(str?: string): string {
+  if (!str) return '';
+  return String(str)
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[\s_\-]+/g, '');
+}
+
 export function findCustomStatus(status?: string): CustomOSStatusItem | undefined {
   if (!status) return undefined;
-  const s = String(status).trim();
-  const sUpper = s.toUpperCase();
+  const targetNorm = normalizeStatusForMatch(status);
+  if (!targetNorm) return undefined;
+
+  const matches = (item: CustomOSStatusItem) => {
+    return (
+      normalizeStatusForMatch(item.code) === targetNorm ||
+      normalizeStatusForMatch(item.id) === targetNorm ||
+      normalizeStatusForMatch(item.label) === targetNorm
+    );
+  };
 
   try {
     const list = StorageService.getCustomOSStatuses();
     if (Array.isArray(list) && list.length > 0) {
-      const match = list.find(
-        (item) =>
-          item.code?.toUpperCase() === sUpper ||
-          item.id?.toUpperCase() === sUpper ||
-          item.label?.toUpperCase() === sUpper
-      );
+      const match = list.find(matches);
       if (match) return match;
     }
   } catch {
     // fallback if storage isn't accessible
   }
 
-  return defaultCustomOSStatuses.find(
-    (item) =>
-      item.code?.toUpperCase() === sUpper ||
-      item.id?.toUpperCase() === sUpper ||
-      item.label?.toUpperCase() === sUpper
-  );
+  return defaultCustomOSStatuses.find(matches);
 }
 
 export function getCanonicalStatus(status?: string): string {

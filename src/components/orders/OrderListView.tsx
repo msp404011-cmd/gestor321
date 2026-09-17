@@ -541,8 +541,8 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         </div>
       </div>
 
-      {/* 2. TOP STATUS CARDS (Dynamically mapped for all active OS statuses) */}
-      <div className="flex flex-wrap sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 xl:grid-cols-8 gap-2 sm:gap-2.5 overflow-x-auto pb-1">
+      {/* 2. TOP STATUS CARDS (Dynamically mapped for all active OS statuses, proportional auto-shrinking single-line layout) */}
+      <div className="mt-2.5 mb-2.5 flex flex-nowrap items-stretch overflow-x-auto custom-scrollbar gap-2 sm:gap-2.5 pt-1 pb-1.5 w-full">
         {statusCardsConfig.map((card) => {
           const isActive = filterPreset === card.id;
           const badge = card.badgeClasses;
@@ -551,41 +551,41 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
               key={card.id}
               type="button"
               onClick={() => setFilterPreset(filterPreset === card.id ? 'TODAS' : card.id)}
-              className={`p-2.5 sm:p-3 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[92px] sm:min-h-[100px] flex-1 min-w-[130px] sm:min-w-0 ${
+              className={`p-2 sm:p-2.5 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[88px] sm:min-h-[96px] flex-1 min-w-[110px] sm:min-w-[125px] shrink-0 sm:shrink ${
                 badge.bg
               } ${badge.border} ${badge.text} ${
                 isActive ? 'ring-2 ring-current shadow-lg scale-[1.02]' : 'hover:scale-[1.01] opacity-90 hover:opacity-100'
               }`}
             >
               {/* Top: Title (in 2 lines if needed) + Status Icon Box */}
-              <div className="flex items-start justify-between gap-1.5 w-full">
-                <div className="min-w-0 flex-1">
-                  <span className="text-[11px] sm:text-xs font-extrabold block leading-tight">
+              <div className="flex items-start justify-between gap-1 w-full min-w-0">
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold block leading-tight truncate">
                     {card.line1}
                   </span>
                   {card.line2 && (
-                    <span className="text-[10px] sm:text-[11px] font-extrabold block leading-tight opacity-90">
+                    <span className="text-[9px] sm:text-[10px] font-extrabold block leading-tight opacity-90 truncate">
                       {card.line2}
                     </span>
                   )}
                 </div>
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 bg-black/20 border border-white/20">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center shrink-0 bg-black/20 border border-white/20">
                   {card.icon}
                 </div>
               </div>
 
-              {/* Bottom: Count ("X OS") + Total Value ("R$ X,XX") on ONE visible line with clean spacing */}
-              <div className="mt-2 pt-1.5 border-t border-current/20 flex items-center justify-between gap-1.5 flex-wrap">
-                <div className="flex items-baseline gap-1 shrink-0">
-                  <span className="text-sm sm:text-base font-black leading-none">
+              {/* Bottom: Count ("X OS") + Total Value ("R$ X,XX") on ONE visible line with proportional font sizing */}
+              <div className="mt-1.5 pt-1 border-t border-current/20 flex items-center justify-between gap-1 flex-nowrap w-full min-w-0">
+                <div className="flex items-baseline gap-0.5 shrink-0 min-w-0">
+                  <span className="text-xs sm:text-sm font-black leading-none">
                     {card.count}
                   </span>
-                  <span className="text-[10px] font-bold uppercase opacity-80">
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase opacity-80">
                     OS
                   </span>
                 </div>
-                <div className="flex items-center gap-0.5 shrink-0" title={`Valor Total: ${formatCurrency(card.totalAmount)}`}>
-                  <span className="text-[11px] sm:text-xs font-black font-mono tracking-tight leading-none whitespace-nowrap">
+                <div className="flex items-center gap-0.5 shrink min-w-0 overflow-hidden" title={`Valor Total: ${formatCurrency(card.totalAmount)}`}>
+                  <span className="text-[9.5px] sm:text-[11px] font-black font-mono tracking-tighter leading-none whitespace-nowrap truncate">
                     {formatCurrency(card.totalAmount)}
                   </span>
                 </div>

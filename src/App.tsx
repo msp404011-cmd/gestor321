@@ -28,6 +28,7 @@ const ResellerListView = lazy(() => import('./components/resellers/ResellerListV
 const FinanceView = lazy(() => import('./components/finance/FinanceView').then(m => ({ default: m.FinanceView })));
 const ReportsView = lazy(() => import('./components/reports/ReportsView').then(m => ({ default: m.ReportsView })));
 const SettingsView = lazy(() => import('./components/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const CompatibilityView = lazy(() => import('./components/compatibility/CompatibilityView').then(m => ({ default: m.CompatibilityView })));
 const EmployeesView = lazy(() => import('./components/employees/EmployeesView').then(m => ({ default: m.EmployeesView })));
 const ReceivablesView = lazy(() => import('./components/receivables/ReceivablesView').then(m => ({ default: m.ReceivablesView })));
 const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionModal').then(m => ({ default: m.SubscriptionModal })));
@@ -855,6 +856,8 @@ export default function App() {
             {activeTab === 'REPORTS' && <ReportsView onOpenPlans={() => setIsSubscriptionModalOpen(true)} />}
 
             {activeTab === 'EMPLOYEES' && <EmployeesView />}
+
+            {activeTab === 'COMPATIBILITY' && <CompatibilityView />}
 
             {activeTab === 'SETTINGS' && <SettingsView />}
           </Suspense>

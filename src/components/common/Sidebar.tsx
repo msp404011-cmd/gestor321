@@ -23,6 +23,7 @@ import {
   Clock,
   Tv,
   Video,
+  Layers,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -230,6 +231,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'EMPLOYEES',
       label: 'Funcionários',
       icon: UserCheck,
+    },
+    {
+      id: 'COMPATIBILITY',
+      label: 'Compatibilidades',
+      icon: Layers,
+      badge: 'GENIAL',
+      badgeColor: 'bg-gradient-to-r from-amber-500 to-indigo-500 text-slate-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.7)]',
     },
     {
       id: 'SETTINGS',

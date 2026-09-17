@@ -97,10 +97,10 @@ export const ExclusiveOrdersManagement: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const showToast = (message: string, type: 'success' | 'error') => {
+  function showToast(message: string, type: 'success' | 'error') {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }
 
   // Derived state
   const pendingGroups = useMemo(() => groups.filter(g => g.status === 'PENDING'), [groups]);

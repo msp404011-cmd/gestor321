@@ -25,8 +25,11 @@ import {
   Wrench,
   ShoppingBag,
   Package,
+  PackagePlus,
   Info,
   ArrowDownLeft,
+  Edit2,
+  Pencil,
 } from 'lucide-react';
 import { AccountReceivable, ServiceOrder, Sale } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -43,6 +46,8 @@ import {
 } from '../../services/formatters';
 import { ReceivablePayModal } from './ReceivablePayModal';
 import { ManualReceivableModal } from './ManualReceivableModal';
+import { EditReceivableModal } from './EditReceivableModal';
+import { AddProductsToReceivableModal } from './AddProductsToReceivableModal';
 
 interface ReceivablesViewProps {
   onOpenOrder?: (orderId: string) => void;
@@ -57,6 +62,8 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PARTIAL' | 'OVERDUE' | 'PAID'>('ALL');
   const [selectedReceivableForPay, setSelectedReceivableForPay] = useState<AccountReceivable | null>(null);
+  const [selectedReceivableForEdit, setSelectedReceivableForEdit] = useState<AccountReceivable | null>(null);
+  const [selectedReceivableForAddProducts, setSelectedReceivableForAddProducts] = useState<AccountReceivable | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
@@ -571,8 +578,19 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
                     )}
                   </div>
 
-                  {/* Lixeira rápida */}
+                  {/* Ações rápidas no cabeçalho */}
                   <div className="shrink-0 flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Editar Fiado / Devedor"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedReceivableForEdit(rec);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-500/15 rounded-lg border border-transparent hover:border-amber-500/30 transition-all cursor-pointer"
+                    >
+                      <Edit2 size={15} />
+                    </button>
                     <button
                       type="button"
                       title="Excluir Card de Fiado"
@@ -601,15 +619,17 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
                         O que é a Dívida:
                       </span>
 
-                      {debtInfo.device && (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 truncate max-w-[180px]"
-                          title={debtInfo.device}
-                        >
-                          <Smartphone size={11} className="shrink-0 text-cyan-400" />
-                          <span className="truncate">{debtInfo.device}</span>
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {debtInfo.device && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 truncate max-w-[180px]"
+                            title={debtInfo.device}
+                          >
+                            <Smartphone size={11} className="shrink-0 text-cyan-400" />
+                            <span className="truncate">{debtInfo.device}</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Descrição do serviço / itens */}
@@ -633,6 +653,16 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
                         </p>
                       )}
                     </div>
+
+                    {/* Botão rápido para adicionar mais produtos no card */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReceivableForAddProducts(rec)}
+                      className="w-full py-2 px-3 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/30 hover:border-cyan-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                    >
+                      <PackagePlus size={13} className="text-cyan-400" />
+                      <span>+ Adicionar Mais Produtos a este Fiado</span>
+                    </button>
                   </div>
 
                   {/* Progress bar */}
@@ -771,32 +801,52 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
                 </div>
 
                 {/* Card Footer Actions: Tudo em uma linha, proporcional e com espaçamento entre eles */}
-                <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center gap-2">
+                <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
                   {!isPaid ? (
                     <button
                       type="button"
                       onClick={() => setSelectedReceivableForPay(rec)}
-                      className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/40 transition-all hover:scale-[1.01] cursor-pointer whitespace-nowrap min-w-0"
+                      className="flex-1 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1 shadow-md shadow-emerald-950/40 transition-all hover:scale-[1.01] cursor-pointer whitespace-nowrap min-w-0"
                     >
-                      <DollarSign size={14} className="shrink-0" />
+                      <DollarSign size={13} className="shrink-0" />
                       <span className="truncate">Dar Baixa</span>
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => setSelectedReceivableForPay(rec)}
-                      className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 border border-slate-700 transition-all cursor-pointer whitespace-nowrap min-w-0"
+                      className="flex-1 py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 border border-slate-700 transition-all cursor-pointer whitespace-nowrap min-w-0"
                     >
-                      <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                      <span className="truncate">Ver Recibo</span>
+                      <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                      <span className="truncate">Recibo</span>
                     </button>
                   )}
 
                   <button
                     type="button"
+                    title="Adicionar mais produtos ou peças ao débito"
+                    onClick={() => setSelectedReceivableForAddProducts(rec)}
+                    className="py-2 px-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <PackagePlus size={13} className="shrink-0 text-cyan-400" />
+                    <span>+ Produtos</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    title="Editar dados e valores do fiado"
+                    onClick={() => setSelectedReceivableForEdit(rec)}
+                    className="py-2 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Edit2 size={13} className="shrink-0 text-amber-400" />
+                    <span>Editar</span>
+                  </button>
+
+                  <button
+                    type="button"
                     title="Enviar Extrato no WhatsApp com Detalhamento"
                     onClick={() => handleSendWhatsApp(rec)}
-                    className="py-2.5 px-3 bg-emerald-700/20 hover:bg-emerald-700/40 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                    className="py-2 px-2.5 bg-emerald-700/20 hover:bg-emerald-700/40 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <Send size={13} className="shrink-0" />
                     <span>WhatsApp</span>
@@ -809,16 +859,49 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
                       e.stopPropagation();
                       setReceivableToDelete(rec);
                     }}
-                    className="py-2.5 px-3 bg-rose-500/10 hover:bg-rose-600 hover:text-white border border-rose-500/30 text-rose-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0"
+                    className="py-2 px-2 bg-rose-500/10 hover:bg-rose-600 hover:text-white border border-rose-500/30 text-rose-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <Trash2 size={13} className="shrink-0" />
-                    <span>Excluir</span>
                   </button>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Edit Receivable Modal */}
+      {selectedReceivableForEdit && (
+        <EditReceivableModal
+          isOpen={!!selectedReceivableForEdit}
+          receivable={selectedReceivableForEdit}
+          onClose={() => setSelectedReceivableForEdit(null)}
+          onSuccess={() => {
+            setReceivables(StorageService.getReceivables());
+            setFeedbackToast({
+              message: 'Conta a receber atualizada com sucesso!',
+              type: 'success',
+            });
+            setTimeout(() => setFeedbackToast(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Add Products to Receivable Modal */}
+      {selectedReceivableForAddProducts && (
+        <AddProductsToReceivableModal
+          isOpen={!!selectedReceivableForAddProducts}
+          receivable={selectedReceivableForAddProducts}
+          onClose={() => setSelectedReceivableForAddProducts(null)}
+          onSuccess={() => {
+            setReceivables(StorageService.getReceivables());
+            setFeedbackToast({
+              message: 'Novos produtos adicionados com sucesso ao fiado!',
+              type: 'success',
+            });
+            setTimeout(() => setFeedbackToast(null), 3000);
+          }}
+        />
       )}
 
       {/* Pay Modal */}

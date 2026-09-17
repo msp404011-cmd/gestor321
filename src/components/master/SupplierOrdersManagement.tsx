@@ -123,7 +123,21 @@ export const SupplierOrdersManagement: React.FC = () => {
 
   const [fieldSettings, setFieldSettings] = useState<SupplierFieldSettings>(() => {
     const cached = getRamItem<SupplierFieldSettings | null>('msp_supplier_field_settings_v4', null);
-    if (cached && cached.templates && cached.templates.length > 0) return cached;
+    if (cached && cached.templates && cached.templates.length > 0) {
+      return {
+        ...cached,
+        templates: cached.templates.map(t => ({
+          ...t,
+          fields: { ...t.fields, showEstrutura: true },
+          options: {
+            ...t.options,
+            estrutura: (t.options?.estrutura && t.options.estrutura.length > 0)
+              ? t.options.estrutura
+              : [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }]
+          }
+        }))
+      };
+    }
     return {
       templates: [
         {
@@ -141,24 +155,24 @@ export const SupplierOrdersManagement: React.FC = () => {
         {
           id: 'cat_bateria',
           name: 'Bateria',
-          fields: { showMarca: true, showModelo: true, showEstrutura: false, showQualidade: true, showTecnologia: false, showCor: false },
+          fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: false, showCor: false },
           options: {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Xiaomi' }, { id: '4', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original' }, { id: '2', value: 'Gold' }, { id: '3', value: 'Prime' }],
             tecnologia: [],
-            estrutura: [],
+            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
             cor: []
           }
         },
         {
           id: 'cat_doc',
           name: 'DOC',
-          fields: { showMarca: true, showModelo: true, showEstrutura: false, showQualidade: true, showTecnologia: false, showCor: true },
+          fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: false, showCor: true },
           options: {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original Carga Rápida' }, { id: '2', value: 'Prime' }],
             tecnologia: [],
-            estrutura: [],
+            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
             cor: [{ id: '1', value: 'Preto' }]
           }
         },
@@ -170,7 +184,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             marca: [{ id: '1', value: 'Geral' }],
             qualidade: [{ id: '1', value: 'Padrão' }],
             tecnologia: [],
-            estrutura: [],
+            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
             cor: []
           }
         }
@@ -234,6 +248,76 @@ export const SupplierOrdersManagement: React.FC = () => {
   const showToast = (message: string, type: 'success'|'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const [quickAddInput, setQuickAddInput] = useState<Record<string, string>>({});
+
+  const handleAddOptionInline = (
+    templateId: string,
+    field: 'qualidade' | 'tecnologia' | 'estrutura' | 'cor' | 'marca',
+    valueToAdd?: string
+  ) => {
+    const val = (valueToAdd || quickAddInput[field] || '').trim();
+    if (!val) return;
+
+    setFieldSettings(prev => {
+      const updated: SupplierFieldSettings = {
+        ...prev,
+        templates: prev.templates.map(t => {
+          if (t.id === templateId) {
+            const currentList = t.options[field] || [];
+            if (currentList.some(o => o.value.toLowerCase() === val.toLowerCase())) {
+              return t;
+            }
+            return {
+              ...t,
+              options: {
+                ...t.options,
+                [field]: [...currentList, { id: Date.now().toString(), value: val }]
+              }
+            };
+          }
+          return t;
+        })
+      };
+      try {
+        const userEmail = getUserAccountEmail();
+        setDoc(doc(db, `accounts/${userEmail}/settings`, 'supplierOrderFields'), updated, { merge: true });
+      } catch(e) {}
+      return updated;
+    });
+
+    setCurrentItem(prev => ({ ...prev, [field]: val }));
+    setQuickAddInput(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handleRemoveOptionInline = (
+    templateId: string,
+    field: 'qualidade' | 'tecnologia' | 'estrutura' | 'cor' | 'marca',
+    optionId: string
+  ) => {
+    setFieldSettings(prev => {
+      const updated: SupplierFieldSettings = {
+        ...prev,
+        templates: prev.templates.map(t => {
+          if (t.id === templateId) {
+            return {
+              ...t,
+              options: {
+                ...t.options,
+                [field]: (t.options[field] || []).filter(o => o.id !== optionId)
+              }
+            };
+          }
+          return t;
+        })
+      };
+      try {
+        const userEmail = getUserAccountEmail();
+        setDoc(doc(db, `accounts/${userEmail}/settings`, 'supplierOrderFields'), updated, { merge: true });
+      } catch(e) {}
+      return updated;
+    });
   };
 
   // Close dropdown on click outside
@@ -1819,22 +1903,43 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <span className="text-sm font-black text-emerald-400">R$ {groupTotal.toFixed(2).replace('.', ',')}</span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-1.5 mt-1">
                         <button
+                          type="button"
                           onClick={() => handleOpenModal(group)}
-                          className="py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1"
+                          className="py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          title="Adicionar ou Colocar Produto/Peça neste Pedido"
                         >
-                          <Edit2 className="w-3 h-3" /> Editar
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Produto</span>
                         </button>
+
                         <button
+                          type="button"
+                          onClick={() => {
+                            if (groupItems.length === 0) return showToast('Nenhuma peça para apontar.', 'error');
+                            handleOpenSendToSupplier(groupItems.map(i => ({ item: i, groupTitle: group.title, groupCreatedAt: group.createdAt })));
+                          }}
+                          disabled={groupItems.length === 0}
+                          className="py-2 bg-purple-600/20 hover:bg-purple-600/30 disabled:bg-slate-800 disabled:text-slate-600 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          title="Apontar / Mandar estas peças para o Card do Fornecedor"
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          <span>Apontar</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => {
                             if (groupItems.length === 0) return showToast('Nenhuma peça para enviar.', 'error');
                             setSendModal({ isOpen: true, group, itemsToSend: groupItems, selectedItemIds: groupItems.map(i => i.id) });
                           }}
                           disabled={groupItems.length === 0}
-                          className="py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          className="py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          title="Enviar Mensagem de Pedido via WhatsApp"
                         >
-                          <Send className="w-3 h-3" /> WhatsApp
+                          <Send className="w-3.5 h-3.5" />
+                          <span>WhatsApp</span>
                         </button>
                       </div>
                     </div>
@@ -2087,22 +2192,62 @@ export const SupplierOrdersManagement: React.FC = () => {
                               {/* Marca Clickable Pills */}
                               {options.marca && options.marca.length > 0 && (
                                 <div className="flex items-center gap-1 flex-wrap mt-1">
-                                  {options.marca.map(m => (
-                                    <button
-                                      key={m.id}
-                                      type="button"
-                                      onClick={() => setCurrentItem(prev => ({ ...prev, marca: m.value }))}
-                                      className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                                        currentItem.marca === m.value
-                                          ? 'bg-indigo-600 text-white'
-                                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                                      }`}
-                                    >
-                                      {m.value}
-                                    </button>
-                                  ))}
+                                  {options.marca.map(m => {
+                                    const isSelected = currentItem.marca === m.value;
+                                    return (
+                                      <div key={m.id} className="inline-flex items-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => setCurrentItem(prev => ({ ...prev, marca: m.value }))}
+                                          className={`px-2 py-0.5 rounded-l text-[9px] font-bold cursor-pointer transition-all ${
+                                            isSelected
+                                              ? 'bg-indigo-600 text-white font-black'
+                                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                                          }`}
+                                        >
+                                          {m.value}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title={`Excluir "${m.value}"`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveOptionInline(activeTmpl.id, 'marca', m.id);
+                                          }}
+                                          className={`px-1 py-0.5 rounded-r text-[9px] font-bold cursor-pointer transition-colors border-l border-slate-700/50 ${
+                                            isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-500 hover:bg-red-600 hover:text-white'
+                                          }`}
+                                        >
+                                          <X className="w-2.5 h-2.5" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
+                              {/* Quick add marca */}
+                              <div className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="text"
+                                  placeholder="+ Nova marca..."
+                                  value={quickAddInput.marca || ''}
+                                  onChange={e => setQuickAddInput(prev => ({ ...prev, marca: e.target.value }))}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddOptionInline(activeTmpl.id, 'marca');
+                                    }
+                                  }}
+                                  className="w-full bg-[#0F1420] border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-300 focus:border-indigo-500 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddOptionInline(activeTmpl.id, 'marca')}
+                                  className="px-2 py-0.5 bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white rounded text-[9px] font-bold shrink-0 transition-colors cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
                             </div>
                           )}
 
@@ -2124,30 +2269,69 @@ export const SupplierOrdersManagement: React.FC = () => {
                         {fields.showQualidade && (
                           <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
                             <label className="text-[9px] font-black text-amber-400 uppercase tracking-wider block">
-                              Qualidade (Selecione um botão ou digite)
+                              Qualidade (Selecione um botão, edite/remova ou adicione)
                             </label>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {options.qualidade?.map(q => (
-                                <button
-                                  key={q.id}
-                                  type="button"
-                                  onClick={() => setCurrentItem(prev => ({ ...prev, qualidade: q.value }))}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                                    currentItem.qualidade === q.value
-                                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black scale-105'
-                                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                                  }`}
-                                >
-                                  {q.value}
-                                </button>
-                              ))}
+                              {options.qualidade?.map(q => {
+                                const isSelected = currentItem.qualidade === q.value;
+                                return (
+                                  <div key={q.id} className="inline-flex items-center shadow-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => setCurrentItem(prev => ({ ...prev, qualidade: q.value }))}
+                                      className={`px-2.5 py-1 rounded-l-lg text-xs font-black transition-all cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 scale-105 ring-2 ring-amber-400'
+                                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                                      }`}
+                                    >
+                                      {q.value}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title={`Apagar "${q.value}"`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveOptionInline(activeTmpl.id, 'qualidade', q.id);
+                                      }}
+                                      className={`px-1.5 py-1 rounded-r-lg text-xs font-bold transition-colors cursor-pointer border-l border-slate-700/50 ${
+                                        isSelected ? 'bg-amber-600 text-slate-950 hover:bg-red-600 hover:text-white' : 'bg-slate-800/90 text-slate-400 hover:bg-red-600 hover:text-white'
+                                      }`}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <input
+                                type="text"
+                                placeholder="+ Criar nova qualidade..."
+                                value={quickAddInput.qualidade || ''}
+                                onChange={e => setQuickAddInput(prev => ({ ...prev, qualidade: e.target.value }))}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddOptionInline(activeTmpl.id, 'qualidade');
+                                  }
+                                }}
+                                className="flex-1 bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-amber-500 outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddOptionInline(activeTmpl.id, 'qualidade')}
+                                className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-slate-950 font-black text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                              >
+                                + Adicionar
+                              </button>
                             </div>
                             <input
                               type="text"
-                              placeholder="Outra qualidade..."
+                              placeholder="Ou digite outra qualidade manualmente..."
                               value={currentItem.qualidade || ''}
                               onChange={e => setCurrentItem({ ...currentItem, qualidade: e.target.value })}
-                              className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-amber-500 outline-none mt-1"
+                              className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 focus:border-amber-500 outline-none"
                             />
                           </div>
                         )}
@@ -2159,27 +2343,66 @@ export const SupplierOrdersManagement: React.FC = () => {
                               Tecnologia (INCELL, OLED, AMOLED...)
                             </label>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {options.tecnologia?.map(t => (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => setCurrentItem(prev => ({ ...prev, tecnologia: t.value }))}
-                                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                                    currentItem.tecnologia === t.value
-                                      ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105'
-                                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                                  }`}
-                                >
-                                  {t.value}
-                                </button>
-                              ))}
+                              {options.tecnologia?.map(t => {
+                                const isSelected = currentItem.tecnologia === t.value;
+                                return (
+                                  <div key={t.id} className="inline-flex items-center shadow-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => setCurrentItem(prev => ({ ...prev, tecnologia: t.value }))}
+                                      className={`px-2.5 py-1 rounded-l-lg text-xs font-black transition-all cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105 ring-2 ring-cyan-400'
+                                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                                      }`}
+                                    >
+                                      {t.value}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title={`Apagar "${t.value}"`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveOptionInline(activeTmpl.id, 'tecnologia', t.id);
+                                      }}
+                                      className={`px-1.5 py-1 rounded-r-lg text-xs font-bold transition-colors cursor-pointer border-l border-slate-700/50 ${
+                                        isSelected ? 'bg-cyan-600 text-slate-950 hover:bg-red-600 hover:text-white' : 'bg-slate-800/90 text-slate-400 hover:bg-red-600 hover:text-white'
+                                      }`}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <input
+                                type="text"
+                                placeholder="+ Criar nova tecnologia..."
+                                value={quickAddInput.tecnologia || ''}
+                                onChange={e => setQuickAddInput(prev => ({ ...prev, tecnologia: e.target.value }))}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddOptionInline(activeTmpl.id, 'tecnologia');
+                                  }
+                                }}
+                                className="flex-1 bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-cyan-500 outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleAddOptionInline(activeTmpl.id, 'tecnologia')}
+                                className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500 border border-cyan-500/40 text-cyan-300 hover:text-slate-950 font-black text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                              >
+                                + Adicionar
+                              </button>
                             </div>
                             <input
                               type="text"
-                              placeholder="Outra tecnologia..."
+                              placeholder="Ou digite outra tecnologia manualmente..."
                               value={currentItem.tecnologia || ''}
                               onChange={e => setCurrentItem({ ...currentItem, tecnologia: e.target.value })}
-                              className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-cyan-500 outline-none mt-1"
+                              className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 focus:border-cyan-500 outline-none"
                             />
                           </div>
                         )}
@@ -2187,59 +2410,139 @@ export const SupplierOrdersManagement: React.FC = () => {
                         {/* Estrutura & Cor Row */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {fields.showEstrutura && (
-                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1">
-                              <label className="text-[9px] font-black text-purple-400 uppercase tracking-wider block">Estrutura (Com Aro, Sem Aro...)</label>
+                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                              <label className="text-[9px] font-black text-purple-400 uppercase tracking-wider block">
+                                Estrutura (Com Aro, Sem Aro...)
+                              </label>
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                {options.estrutura?.map(eOpt => (
-                                  <button
-                                    key={eOpt.id}
-                                    type="button"
-                                    onClick={() => setCurrentItem(prev => ({ ...prev, estrutura: eOpt.value }))}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                                      currentItem.estrutura === eOpt.value
-                                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 scale-105 ring-2 ring-purple-400'
-                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                                    }`}
-                                  >
-                                    {eOpt.value}
-                                  </button>
-                                ))}
+                                {options.estrutura?.map(eOpt => {
+                                  const isSelected = currentItem.estrutura === eOpt.value;
+                                  return (
+                                    <div key={eOpt.id} className="inline-flex items-center shadow-sm">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCurrentItem(prev => ({ ...prev, estrutura: eOpt.value }))}
+                                        className={`px-2.5 py-1 rounded-l-lg text-xs font-black transition-all cursor-pointer ${
+                                          isSelected
+                                            ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 scale-105 ring-2 ring-purple-400 font-black'
+                                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                                        }`}
+                                      >
+                                        {eOpt.value}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title={`Apagar "${eOpt.value}"`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveOptionInline(activeTmpl.id, 'estrutura', eOpt.id);
+                                        }}
+                                        className={`px-1.5 py-1 rounded-r-lg text-xs font-bold transition-colors cursor-pointer border-l border-slate-700/50 ${
+                                          isSelected ? 'bg-purple-700 text-purple-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800/90 text-slate-400 hover:bg-red-600 hover:text-white'
+                                        }`}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="text"
+                                  placeholder="+ Nova estrutura..."
+                                  value={quickAddInput.estrutura || ''}
+                                  onChange={e => setQuickAddInput(prev => ({ ...prev, estrutura: e.target.value }))}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddOptionInline(activeTmpl.id, 'estrutura');
+                                    }
+                                  }}
+                                  className="flex-1 bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-purple-500 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddOptionInline(activeTmpl.id, 'estrutura')}
+                                  className="px-2.5 py-1 bg-purple-600/30 hover:bg-purple-600 border border-purple-500/40 text-purple-300 hover:text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                                >
+                                  +
+                                </button>
                               </div>
                               <input
                                 type="text"
                                 placeholder="Digite outra estrutura..."
                                 value={currentItem.estrutura || ''}
                                 onChange={e => setCurrentItem({ ...currentItem, estrutura: e.target.value })}
-                                className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:border-purple-500 outline-none mt-1"
+                                className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:border-purple-500 outline-none"
                               />
                             </div>
                           )}
 
                           {fields.showCor && (
-                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1">
+                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
                               <label className="text-[9px] font-black text-slate-400 uppercase block">Cor</label>
                               <div className="flex items-center gap-1 flex-wrap">
-                                {options.cor?.map(c => (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => setCurrentItem(prev => ({ ...prev, cor: c.value }))}
-                                    className={`px-2 py-1 rounded text-xs font-bold cursor-pointer transition-all ${
-                                      currentItem.cor === c.value
-                                        ? 'bg-indigo-600 text-white font-black'
-                                        : 'bg-slate-800 text-slate-300 hover:text-white'
-                                    }`}
-                                  >
-                                    {c.value}
-                                  </button>
-                                ))}
+                                {options.cor?.map(c => {
+                                  const isSelected = currentItem.cor === c.value;
+                                  return (
+                                    <div key={c.id} className="inline-flex items-center shadow-sm">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCurrentItem(prev => ({ ...prev, cor: c.value }))}
+                                        className={`px-2 py-1 rounded-l text-xs font-bold cursor-pointer transition-all ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white font-black scale-105 ring-2 ring-indigo-400'
+                                            : 'bg-slate-800 text-slate-300 hover:text-white'
+                                        }`}
+                                      >
+                                        {c.value}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title={`Apagar "${c.value}"`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleRemoveOptionInline(activeTmpl.id, 'cor', c.id);
+                                        }}
+                                        className={`px-1 py-1 rounded-r text-xs font-bold cursor-pointer transition-colors border-l border-slate-700/50 ${
+                                          isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                                        }`}
+                                      >
+                                        <X className="w-2.5 h-2.5" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="text"
+                                  placeholder="+ Nova cor..."
+                                  value={quickAddInput.cor || ''}
+                                  onChange={e => setQuickAddInput(prev => ({ ...prev, cor: e.target.value }))}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddOptionInline(activeTmpl.id, 'cor');
+                                    }
+                                  }}
+                                  className="flex-1 bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-indigo-500 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddOptionInline(activeTmpl.id, 'cor')}
+                                  className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+                                >
+                                  +
+                                </button>
                               </div>
                               <input
                                 type="text"
                                 placeholder="Preto, Branco, Azul..."
                                 value={currentItem.cor || ''}
                                 onChange={e => setCurrentItem({ ...currentItem, cor: e.target.value })}
-                                className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-indigo-500 outline-none mt-1"
+                                className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:border-indigo-500 outline-none"
                               />
                             </div>
                           )}

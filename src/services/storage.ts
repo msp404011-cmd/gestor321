@@ -23,7 +23,10 @@ import {
   AuthSession,
   GoogleUserProfile,
   UserAccount,
+  CompatibilitySector,
+  CompatibilityCard,
 } from '../types';
+import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
 import { FirestoreSyncService } from './firestoreService';
 import { normalizePlanType } from './subscriptionService';
 import {
@@ -75,6 +78,8 @@ export const STORAGE_KEYS = {
   AUTH_SESSION: 'msp_auth_session_v1',
   SAVED_ACCOUNTS: 'msp_saved_accounts_v1',
   USER_ACCOUNTS: 'msp_user_accounts_v1',
+  COMPATIBILITY_SECTORS: 'msp_compatibility_sectors_v1',
+  COMPATIBILITY_CARDS: 'msp_compatibility_cards_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -1212,7 +1217,10 @@ export const StorageService = {
   syncDevicesFromDeliveredOrders(): void {
     const devices = this.getDevices();
     const orders = this.getOrders();
-    const deliveredOrders = orders.filter((o) => o.status === 'ENTREGUE');
+    const deliveredOrders = orders.filter((o) => {
+      const s = (o.status || '').toUpperCase();
+      return s === 'ENTREGUE' || s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO';
+    });
     
     let modified = false;
     const updatedDevices = [...devices];
@@ -2350,6 +2358,72 @@ export const StorageService = {
 
     setItem(STORAGE_KEYS.RECEIVABLES, list);
     this.logAction(`Conta a receber ${rec.referenceNumber} atualizada para ${status}`);
+  },
+
+  updateReceivable(updated: AccountReceivable): void {
+    const list = this.getReceivables();
+    const index = list.findIndex((r) => r.id === updated.id);
+    if (index === -1) return;
+
+    const old = list[index];
+    const diff = (updated.remainingAmount ?? updated.amount) - (old.remainingAmount ?? old.amount);
+    list[index] = { ...updated };
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+
+    // Update customer debt balance if needed
+    if (updated.customerId && diff !== 0) {
+      const customers = this.getCustomers();
+      const cIdx = customers.findIndex((c) => c.id === updated.customerId);
+      if (cIdx !== -1) {
+        customers[cIdx].debtBalance = Math.max(0, (customers[cIdx].debtBalance || 0) + diff);
+        this.saveCustomer(customers[cIdx]);
+      }
+    }
+
+    try {
+      FirestoreSyncService.saveReceivable(list[index]);
+    } catch {
+      // Ignored
+    }
+
+    this.logAction(`Conta a receber ${updated.referenceNumber} editada com sucesso`);
+  },
+
+  addProductsToReceivable(id: string, newItems: any[], additionalAmount: number): void {
+    const list = this.getReceivables();
+    const rec = list.find((r) => r.id === id);
+    if (!rec) return;
+
+    const existingItems = rec.items || [];
+    rec.items = [...existingItems, ...newItems];
+    rec.originalAmount = (rec.originalAmount || rec.amount) + additionalAmount;
+    rec.amount = (rec.amount || 0) + additionalAmount;
+    rec.remainingAmount = (rec.remainingAmount !== undefined ? rec.remainingAmount : rec.amount) + additionalAmount;
+
+    // Recalculate status if it was paid previously
+    if (rec.status === 'PAGO' && rec.remainingAmount > 0) {
+      rec.status = 'PENDENTE';
+    }
+
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+
+    // Update customer debt balance
+    if (rec.customerId) {
+      const customers = this.getCustomers();
+      const cIdx = customers.findIndex((c) => c.id === rec.customerId);
+      if (cIdx !== -1) {
+        customers[cIdx].debtBalance = (customers[cIdx].debtBalance || 0) + additionalAmount;
+        this.saveCustomer(customers[cIdx]);
+      }
+    }
+
+    try {
+      FirestoreSyncService.saveReceivable(rec);
+    } catch {
+      // Ignored
+    }
+
+    this.logAction(`Adicionados ${newItems.length} novos produtos à conta ${rec.referenceNumber} (+R$ ${additionalAmount.toFixed(2)})`);
   },
 
   // Audit Logs
@@ -4001,6 +4075,35 @@ export const StorageService = {
         console.warn('Sync custom payment methods error:', e);
       }
     }
+  },
+
+  // Compatibility Database Methods
+  getCompatibilitySectors(): CompatibilitySector[] {
+    const list = getItem<CompatibilitySector[] | null>(STORAGE_KEYS.COMPATIBILITY_SECTORS, null);
+    if (!list) {
+      this.saveCompatibilitySectors(defaultCompatibilitySectors);
+      return defaultCompatibilitySectors;
+    }
+    return list;
+  },
+
+  saveCompatibilitySectors(sectors: CompatibilitySector[]): void {
+    setItem(STORAGE_KEYS.COMPATIBILITY_SECTORS, sectors);
+    notifyListeners();
+  },
+
+  getCompatibilityCards(): CompatibilityCard[] {
+    const list = getItem<CompatibilityCard[] | null>(STORAGE_KEYS.COMPATIBILITY_CARDS, null);
+    if (!list) {
+      this.saveCompatibilityCards(defaultCompatibilityCards);
+      return defaultCompatibilityCards;
+    }
+    return list;
+  },
+
+  saveCompatibilityCards(cards: CompatibilityCard[]): void {
+    setItem(STORAGE_KEYS.COMPATIBILITY_CARDS, cards);
+    notifyListeners();
   },
 
   // Suppliers & Purchases Config

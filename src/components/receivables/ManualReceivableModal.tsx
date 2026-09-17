@@ -52,11 +52,29 @@ export const ManualReceivableModal: React.FC<ManualReceivableModalProps> = ({
 
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const resetForm = () => {
+    setSelectedCustomer(null);
+    setCustomerSearch('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setDeviceInfo('');
+    setServiceDescription('');
+    setTotalAmount('');
+    setDownPayment('');
+    setDownPaymentMethod('DINHEIRO');
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    setDueDate(d.toISOString().split('T')[0]);
+    setNotes('');
+    setError(null);
+    setIsSaving(false);
+    setIsCustomerDropdownOpen(false);
+  };
+
   useEffect(() => {
     if (isOpen) {
       setCustomers(StorageService.getCustomers());
-      setError(null);
-      setIsSaving(false);
+      resetForm();
     }
   }, [isOpen]);
 
