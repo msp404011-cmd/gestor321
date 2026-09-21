@@ -1131,7 +1131,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                       <>
                         {filteredProducts.map((p) => {
                           const price = p.sellingPrice || (p as any).price || 0;
-                          const isUnmanaged = p.manageStock === false;
+                          const isUnmanaged = p.manageStock === false || (p as any).stockStatus === 'UNLIMITED';
                           const stock = p.stockQuantity !== undefined ? p.stockQuantity : (p as any).stock || 0;
                           return (
                             <div
@@ -1219,7 +1219,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                         {products.slice(0, 12).map((prod) => {
                           const pPrice = prod.sellingPrice || (prod as any).price || 0;
                           const pStock = prod.stockQuantity !== undefined ? prod.stockQuantity : (prod as any).stock || 0;
-                          const isUnmanaged = prod.manageStock === false;
+                          const isUnmanaged = prod.manageStock === false || (prod as any).stockStatus === 'UNLIMITED';
                           return (
                             <button
                               key={prod.id}

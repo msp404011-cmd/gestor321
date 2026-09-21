@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const lowStockCount =
     propLowStockCount !== undefined
       ? propLowStockCount
-      : products.filter((p) => p.stockQuantity <= (p.minStockQuantity || p.minStock || 0)).length;
+      : products.filter((p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && p.stockQuantity <= (p.minStockQuantity || p.minStock || 0)).length;
   const openReceivablesCount = receivables.filter(
     (r) => (Number(r.remainingAmount ?? r.amount) || 0) > 0
   ).length;

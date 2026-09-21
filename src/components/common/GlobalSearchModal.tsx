@@ -261,7 +261,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                           <div>
                             <span className={`text-sm font-semibold line-clamp-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>{prod.name}</span>
                             <p className="text-xs text-slate-400 whitespace-nowrap">
-                              SKU: {prod.sku} • Estoque: {prod.stockQuantity} un
+                              SKU: {prod.sku} • Estoque: {prod.manageStock === false || prod.stockStatus === 'UNLIMITED' ? 'Ilimitado' : `${prod.stockQuantity} un`}
                             </p>
                           </div>
                         </div>

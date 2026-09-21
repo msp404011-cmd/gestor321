@@ -219,11 +219,12 @@ export const PosView: React.FC<PosViewProps> = ({
   const addToCart = (prod: Product, qty = 1) => {
     setIsSaleActive(true);
     const existingIndex = cart.findIndex((i) => i.productId === prod.id);
+    const isUnmanaged = prod.manageStock === false || prod.stockStatus === 'UNLIMITED';
 
     if (existingIndex >= 0) {
       const updated = [...cart];
       const newQty = updated[existingIndex].quantity + qty;
-      if (prod.stockQuantity && newQty > prod.stockQuantity) {
+      if (!isUnmanaged && prod.stockQuantity !== undefined && newQty > prod.stockQuantity) {
         alert(`Estoque máximo atingido para ${prod.name} (${prod.stockQuantity} un disponíveis).`);
         return;
       }
@@ -232,7 +233,7 @@ export const PosView: React.FC<PosViewProps> = ({
       setCart(updated);
       setSelectedItemIndex(existingIndex);
     } else {
-      if (prod.stockQuantity !== undefined && prod.stockQuantity <= 0) {
+      if (!isUnmanaged && prod.stockQuantity !== undefined && prod.stockQuantity <= 0) {
         alert(`O produto ${prod.name} está esgotado no estoque!`);
         return;
       }
@@ -264,7 +265,8 @@ export const PosView: React.FC<PosViewProps> = ({
     const item = cart[index];
     if (!item) return;
     const prod = products.find((p) => p.id === item.productId);
-    if (prod && prod.stockQuantity && newQty > prod.stockQuantity) {
+    const isUnmanaged = prod?.manageStock === false || prod?.stockStatus === 'UNLIMITED';
+    if (!isUnmanaged && prod && prod.stockQuantity !== undefined && newQty > prod.stockQuantity) {
       alert(`Quantidade solicitada excede o estoque disponível (${prod.stockQuantity} un).`);
       return;
     }
@@ -1055,9 +1057,15 @@ export const PosView: React.FC<PosViewProps> = ({
                               <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
                                 <span>Cód: {p.barcode || p.sku}</span>
                                 <span>•</span>
-                                <span className={p.stockQuantity > 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                                  Estoque: {p.stockQuantity} un
-                                </span>
+                                {p.manageStock === false || p.stockStatus === 'UNLIMITED' ? (
+                                  <span className="text-cyan-400 font-bold">
+                                    Ilimitado (Sem controle)
+                                  </span>
+                                ) : (
+                                  <span className={p.stockQuantity > 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                    Estoque: {p.stockQuantity} un
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1107,7 +1115,13 @@ export const PosView: React.FC<PosViewProps> = ({
                   Cód: <span className="text-white font-bold">{activeCartItem?.barcode || activeProduct?.barcode || '---'}</span>
                 </p>
                 <p className="text-slate-400 mt-0.5">
-                  Est: <span className="text-cyan-300 font-black">{activeProduct?.stockQuantity !== undefined ? `${activeProduct.stockQuantity} un` : '---'}</span>
+                  Est: <span className="text-cyan-300 font-black">
+                    {activeProduct?.manageStock === false || activeProduct?.stockStatus === 'UNLIMITED'
+                      ? 'Ilimitado'
+                      : activeProduct?.stockQuantity !== undefined
+                      ? `${activeProduct.stockQuantity} un`
+                      : '---'}
+                  </span>
                 </p>
               </div>
             </div>
@@ -1223,7 +1237,11 @@ export const PosView: React.FC<PosViewProps> = ({
                 <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
                   <span className="font-extrabold text-slate-400">Estoque Atual:</span>
                   <span className="font-semibold text-cyan-300 font-extrabold">
-                    {activeProduct?.stockQuantity !== undefined ? `${activeProduct.stockQuantity} un` : '---'}
+                    {activeProduct?.manageStock === false || activeProduct?.stockStatus === 'UNLIMITED'
+                      ? 'Ilimitado (Sem controle)'
+                      : activeProduct?.stockQuantity !== undefined
+                      ? `${activeProduct.stockQuantity} un`
+                      : '---'}
                   </span>
                 </div>
 
@@ -1902,7 +1920,9 @@ export const PosView: React.FC<PosViewProps> = ({
                       <div>
                         <p className="font-bold text-white text-xs sm:text-sm">{prod.name}</p>
                         <p className="text-[10px] text-slate-400 font-mono">
-                          Cód: {prod.barcode} | Estoque: <strong className="text-cyan-300">{prod.stockQuantity} un</strong>
+                          Cód: {prod.barcode} | Estoque: <strong className="text-cyan-300">
+                            {prod.manageStock === false || prod.stockStatus === 'UNLIMITED' ? 'Ilimitado' : `${prod.stockQuantity} un`}
+                          </strong>
                         </p>
                       </div>
                     </div>

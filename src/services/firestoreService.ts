@@ -45,14 +45,18 @@ export function getTenantId(): string {
       if (rawSession1) {
         const session = JSON.parse(rawSession1);
         if (session && session.email && session.email.includes('@')) {
-          return session.email.trim().toLowerCase();
+          let email = session.email.trim().toLowerCase();
+          if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
+          return email;
         }
       }
       const rawSession2 = sessionStorage.getItem('msp_auth_session') || localStorage.getItem('msp_auth_session');
       if (rawSession2) {
         const session = JSON.parse(rawSession2);
         if (session && session.email && session.email.includes('@')) {
-          return session.email.trim().toLowerCase();
+          let email = session.email.trim().toLowerCase();
+          if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
+          return email;
         }
       }
       for (let i = 0; i < localStorage.length; i++) {
@@ -63,7 +67,9 @@ export function getTenantId(): string {
             if (raw) {
               const u = JSON.parse(raw);
               if (u && u.email && u.email.includes('@')) {
-                return u.email.trim().toLowerCase();
+                let email = u.email.trim().toLowerCase();
+                if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
+                return email;
               }
             }
           } catch (_) {}
@@ -73,7 +79,7 @@ export function getTenantId(): string {
   } catch (e) {
     // fallback
   }
-  return 'msp404011@gmail.com';
+  return 'mmspmartins62@gmail.com';
 }
 
 function getTenantStorageScope(): string {

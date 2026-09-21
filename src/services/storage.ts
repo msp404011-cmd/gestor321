@@ -579,6 +579,12 @@ export function setRamItem<T>(key: string, value: T, notify: boolean = true): vo
     const scopedKey = getScopedKey(key);
     RAM_STORE.set(scopedKey, value);
     RAM_STORE.set(key, value);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem(scopedKey, JSON.stringify(value));
+        window.localStorage.setItem(key, JSON.stringify(value));
+      } catch (_) {}
+    }
     if (notify) {
       notifyListeners();
     }
@@ -592,6 +598,17 @@ export function getRamItem<T>(key: string, fallback: T): T {
     const scopedKey = getScopedKey(key);
     if (RAM_STORE.has(scopedKey)) return RAM_STORE.get(scopedKey);
     if (RAM_STORE.has(key)) return RAM_STORE.get(key);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(scopedKey) || window.localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          RAM_STORE.set(scopedKey, parsed);
+          RAM_STORE.set(key, parsed);
+          return parsed;
+        } catch (_) {}
+      }
+    }
     return fallback;
   } catch (e) {
     return fallback;
@@ -1294,8 +1311,12 @@ export const StorageService = {
     const gross = sell - cost;
     const margin = cost > 0 ? (gross / cost) * 100 : 0;
     
+    const isUnmanaged = product.manageStock === false || product.stockStatus === 'UNLIMITED';
     const computed: Product = {
       ...product,
+      manageStock: !isUnmanaged,
+      hasStock: isUnmanaged ? true : (product.hasStock ?? ((product.stockQuantity ?? 0) > 0)),
+      stockStatus: isUnmanaged ? 'UNLIMITED' : ((product.stockQuantity ?? 0) <= 0 ? 'OUT_OF_STOCK' : (product.stockQuantity ?? 0) <= (product.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK'),
       costPrice: cost,
       sellingPrice: sell,
       resellerPrice: reseller,
@@ -1332,10 +1353,17 @@ export const StorageService = {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return false;
 
+    // Se o produto for Sem Controle / Ilimitado, não decrementa nem bloqueia saldo
+    if (prod.manageStock === false || prod.stockStatus === 'UNLIMITED') {
+      return true;
+    }
+
     const prevStock = prod.stockQuantity;
     const newStock = Math.max(0, prevStock + qtyDelta);
     prod.stockQuantity = newStock;
     prod.stock = newStock;
+    prod.hasStock = newStock > 0;
+    prod.stockStatus = newStock <= 0 ? 'OUT_OF_STOCK' : newStock <= (prod.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK';
     setItem(STORAGE_KEYS.PRODUCTS, products);
 
     try {
@@ -1449,11 +1477,15 @@ export const StorageService = {
 
     if (newStatus === 'ENTREGUE') {
       order.deliveredAt = new Date().toISOString();
+      if (Number(order.totalPrice) === 0) {
+        order.paymentStatus = 'PAGO';
+        if (!order.paymentMethod) order.paymentMethod = 'OUTRO';
+      }
       // If paid on delivery and cash is open, record cash inflow if not already recorded
       const existingCashMovements = this.getCashMovements();
       const alreadyHasMovement = existingCashMovements.some((m) => m.referenceId === order.id);
-      if (order.paymentStatus === 'PAGO' && order.paymentMethod && !alreadyHasMovement) {
-        const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      if (order.paymentStatus === 'PAGO' && order.paymentMethod && !alreadyHasMovement && grossValue > 0) {
         this.addCashMovement({
           type: 'SERVICO_OS',
           description: `Recebimento da OS #${order.orderNumber} - ${order.customerName}`,
@@ -3784,14 +3816,16 @@ export const StorageService = {
       const proportion = grossValue / totalNet;
 
       for (const p of activeSplits) {
-        this.addCashMovement({
-          type: 'SERVICO_OS',
-          description: `Recebimento OS #${order.orderNumber} (${p.paymentMethod}) - ${order.customerName}`,
-          amount: Number(p.amount) * proportion,
-          paymentMethod: p.paymentMethod as PaymentMethod,
-          referenceId: order.id,
-          userName,
-        });
+        if (Number(p.amount) > 0) {
+          this.addCashMovement({
+            type: 'SERVICO_OS',
+            description: `Recebimento OS #${order.orderNumber} (${p.paymentMethod}) - ${order.customerName}`,
+            amount: Number(p.amount) * proportion,
+            paymentMethod: p.paymentMethod as PaymentMethod,
+            referenceId: order.id,
+            userName,
+          });
+        }
       }
 
       return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido com múltiplos pagamentos.');
@@ -3816,16 +3850,18 @@ export const StorageService = {
       setItem(STORAGE_KEYS.ORDERS, orders);
       FirestoreSyncService.saveOrder(order);
 
-      this.addCashMovement({
-        type: 'SERVICO_OS',
-        description: `Recebimento OS #${order.orderNumber} - ${order.customerName}`,
-        amount: finalAmount * proportion,
-        paymentMethod: finalMethod,
-        referenceId: order.id,
-        userName,
-      });
+      if (finalAmount > 0) {
+        this.addCashMovement({
+          type: 'SERVICO_OS',
+          description: `Recebimento OS #${order.orderNumber} - ${order.customerName}`,
+          amount: finalAmount * proportion,
+          paymentMethod: finalMethod,
+          referenceId: order.id,
+          userName,
+        });
+      }
 
-      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido pelo cliente.');
+      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || (finalAmount === 0 ? 'Aparelho entregue e concluído sem cobrança (Serviço zerado).' : 'Aparelho entregue e recebido pelo cliente.'));
     }
   },
 
@@ -4288,12 +4324,17 @@ export const StorageService = {
     params.items.forEach((item) => {
       const prod = allProducts.find((p) => p.id === item.productId);
       if (prod) {
+        if (prod.manageStock === false || prod.stockStatus === 'UNLIMITED') {
+          return;
+        }
         const oldStock = prod.stockQuantity ?? prod.stock ?? 0;
         const newStock = Math.max(0, oldStock - item.quantity);
         this.saveProduct({
           ...prod,
           stockQuantity: newStock,
           stock: newStock,
+          hasStock: newStock > 0,
+          stockStatus: newStock <= 0 ? 'OUT_OF_STOCK' : newStock <= (prod.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK',
         });
 
         // Add stock movement log

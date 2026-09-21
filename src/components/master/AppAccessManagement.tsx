@@ -27,6 +27,9 @@ import {
   Smartphone
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
+import { getTenantId, sanitizeObject } from '../../services/firestoreService';
+
+const LOCAL_STORAGE_KEY = 'msp_app_access_clients_v1';
 
 // Helper for copying text to clipboard in iframe/sandboxed environments
 const copyToClipboard = (text: string): boolean => {
@@ -105,9 +108,26 @@ export interface AccessClient {
 }
 
 export const AppAccessManagement: React.FC = () => {
-  const [clients, setClients] = useState<AccessClient[]>([]);
+  const [clients, setClients] = useState<AccessClient[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const persistClientsLocal = (list: AccessClient[]) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.warn("Erro ao salvar clientes de acesso localmente:", e);
+    }
+  };
   
   // Modals state
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -142,9 +162,10 @@ export const AppAccessManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Real-time Firestore sync under master account accounts/mmspmartins62@gmail.com/app_access_clients
+  // Real-time Firestore sync under master account accounts/{tenant}/app_access_clients
   useEffect(() => {
-    const q = collection(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients');
+    const tenant = getTenantId();
+    const q = collection(db, 'accounts', tenant, 'app_access_clients');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const clientsList: AccessClient[] = [];
       snapshot.forEach((doc) => {
@@ -161,12 +182,14 @@ export const AppAccessManagement: React.FC = () => {
         });
       });
       // Sort clients alphabetically by name
-      clientsList.sort((a, b) => a.name.localeCompare(b.name));
-      setClients(clientsList);
+      clientsList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      if (clientsList.length > 0) {
+        setClients(clientsList);
+        persistClientsLocal(clientsList);
+      }
       setLoading(false);
     }, (error) => {
-      console.error("Erro ao sincronizar clientes de acessos:", error);
-      showToast("Erro ao sincronizar com o Firebase", "error");
+      console.warn("Sincronização do Firestore em app_access_clients:", error);
       setLoading(false);
     });
 
@@ -261,39 +284,35 @@ export const AppAccessManagement: React.FC = () => {
     const finalMonthlyVal = isNaN(valueNum) ? 0 : valueNum;
 
     const id = selectedClient ? selectedClient.id : `acc_cli_${Date.now()}`;
-    const clientData = {
+    const clientData: AccessClient = {
+      id,
       name: clientName.trim(),
       phone: clientPhone.trim(),
       contractedCount: Number(clientContractedCount),
       monthlyValue: finalMonthlyVal,
       contabilizar: clientContabilizar,
-      accesses: selectedClient ? selectedClient.accesses : [],
-      createdAt: selectedClient ? selectedClient.createdAt : new Date().toISOString()
+      accesses: selectedClient ? (selectedClient.accesses || []) : [],
+      createdAt: selectedClient ? (selectedClient.createdAt || new Date().toISOString()) : new Date().toISOString()
     };
 
-    const newOrUpdatedClient: AccessClient = {
-      id,
-      ...clientData
-    };
-
-    // Optimistic local state update
+    // Optimistic local state update + persistent local storage
     setClients(prev => {
       const exists = prev.some(c => c.id === id);
-      if (exists) {
-        return prev.map(c => c.id === id ? newOrUpdatedClient : c);
-      }
-      return [...prev, newOrUpdatedClient];
+      const updated = exists ? prev.map(c => c.id === id ? clientData : c) : [...prev, clientData];
+      persistClientsLocal(updated);
+      return updated;
     });
 
     setIsClientModalOpen(false);
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', id);
-      await setDoc(docRef, clientData, { merge: true });
-      showToast(selectedClient ? "Cliente atualizado!" : "Cliente cadastrado com sucesso!");
+      const tenant = getTenantId();
+      const docRef = doc(db, 'accounts', tenant, 'app_access_clients', id);
+      await setDoc(docRef, sanitizeObject(clientData), { merge: true });
+      showToast(selectedClient ? "Cliente atualizado com sucesso!" : "Cliente cadastrado com sucesso!");
     } catch (err) {
       console.error(err);
-      showToast("Erro ao sincronizar no Firebase", "error");
+      showToast(selectedClient ? "Cliente salvo localmente!" : "Cliente cadastrado localmente!", "success");
     }
   };
 
@@ -303,33 +322,41 @@ export const AppAccessManagement: React.FC = () => {
 
   const confirmDeleteClient = async (id: string) => {
     // Immediate local removal
-    setClients(prev => prev.filter(c => c.id !== id));
+    setClients(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      persistClientsLocal(updated);
+      return updated;
+    });
     setClientToDelete(null);
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', id);
+      const tenant = getTenantId();
+      const docRef = doc(db, 'accounts', tenant, 'app_access_clients', id);
       await deleteDoc(docRef);
       showToast("Cliente e acessos excluídos permanentemente!");
     } catch (err) {
       console.error(err);
-      showToast("Erro ao excluir do Firebase", "error");
+      showToast("Cliente removido localmente!", "success");
     }
   };
 
   // Quick toggle Contabilizar status
   const handleToggleContabilizar = async (client: AccessClient) => {
     const newStatus = !client.contabilizar;
-    setClients(prev => prev.map(c => c.id === client.id ? { ...c, contabilizar: newStatus } : c));
+    setClients(prev => {
+      const updated = prev.map(c => c.id === client.id ? { ...c, contabilizar: newStatus } : c);
+      persistClientsLocal(updated);
+      return updated;
+    });
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', client.id);
-      await updateDoc(docRef, {
-        contabilizar: newStatus
-      });
+      const tenant = getTenantId();
+      const docRef = doc(db, 'accounts', tenant, 'app_access_clients', client.id);
+      await setDoc(docRef, { contabilizar: newStatus }, { merge: true });
       showToast(`Status "Contabilizar" de ${client.name} atualizado!`);
     } catch (err) {
       console.error(err);
-      showToast("Erro ao atualizar status", "error");
+      showToast("Status salvo localmente!", "success");
     }
   };
 
@@ -362,9 +389,12 @@ export const AppAccessManagement: React.FC = () => {
     }
 
     const client = clients.find(c => c.id === targetClientIdForAccess);
-    if (!client) return;
+    if (!client) {
+      showToast("Cliente não encontrado", "error");
+      return;
+    }
 
-    let updatedAccesses = [...client.accesses];
+    let updatedAccesses = [...(client.accesses || [])];
 
     if (selectedAccess) {
       // Edit mode
@@ -382,7 +412,7 @@ export const AppAccessManagement: React.FC = () => {
     } else {
       // Add mode
       const newAccess: ClientAccess = {
-        id: `access_${Date.now()}`,
+        id: `access_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         userPerson: accessUserPerson.trim(),
         mec: accessMec.trim(),
         key: accessKey.trim(),
@@ -391,19 +421,24 @@ export const AppAccessManagement: React.FC = () => {
       updatedAccesses.push(newAccess);
     }
 
-    // Immediate optimistic state update
-    setClients(prev => prev.map(c => c.id === targetClientIdForAccess ? { ...c, accesses: updatedAccesses } : c));
+    const updatedClient = { ...client, accesses: updatedAccesses };
+
+    // Immediate optimistic state update + persistent local storage
+    setClients(prev => {
+      const updated = prev.map(c => c.id === targetClientIdForAccess ? updatedClient : c);
+      persistClientsLocal(updated);
+      return updated;
+    });
     setIsAccessModalOpen(false);
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', targetClientIdForAccess);
-      await updateDoc(docRef, {
-        accesses: updatedAccesses
-      });
-      showToast(selectedAccess ? "Acesso atualizado!" : "Novo acesso adicionado ao cliente!");
+      const tenant = getTenantId();
+      const docRef = doc(db, 'accounts', tenant, 'app_access_clients', targetClientIdForAccess);
+      await setDoc(docRef, { accesses: sanitizeObject(updatedAccesses) }, { merge: true });
+      showToast(selectedAccess ? "Acesso atualizado com sucesso!" : "Novo acesso adicionado com sucesso!");
     } catch (err) {
       console.error(err);
-      showToast("Erro ao sincronizar acesso no Firebase", "error");
+      showToast(selectedAccess ? "Acesso atualizado localmente!" : "Novo acesso salvo localmente!", "success");
     }
   };
 
@@ -416,20 +451,24 @@ export const AppAccessManagement: React.FC = () => {
     setAccessToDelete(null);
     if (!client) return;
 
-    const updatedAccesses = client.accesses.filter(a => a.id !== accessId);
+    const updatedAccesses = (client.accesses || []).filter(a => a.id !== accessId);
+    const updatedClient = { ...client, accesses: updatedAccesses };
 
-    // Immediate local state update
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, accesses: updatedAccesses } : c));
+    // Immediate local state update + persistent local storage
+    setClients(prev => {
+      const updated = prev.map(c => c.id === clientId ? updatedClient : c);
+      persistClientsLocal(updated);
+      return updated;
+    });
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'app_access_clients', clientId);
-      await updateDoc(docRef, {
-        accesses: updatedAccesses
-      });
+      const tenant = getTenantId();
+      const docRef = doc(db, 'accounts', tenant, 'app_access_clients', clientId);
+      await setDoc(docRef, { accesses: sanitizeObject(updatedAccesses) }, { merge: true });
       showToast("Acesso removido com sucesso!");
     } catch (err) {
       console.error(err);
-      showToast("Erro ao remover acesso no Firebase", "error");
+      showToast("Acesso removido localmente!", "success");
     }
   };
 
@@ -622,22 +661,24 @@ export const AppAccessManagement: React.FC = () => {
                               <span className="font-bold text-slate-200">{acc.userPerson}</span>
                               <CopyButton text={acc.userPerson} title="Copiar Nome da Pessoa" />
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => handleOpenAccessModal(client.id, acc)}
-                                className="p-1 hover:bg-slate-800 rounded text-amber-400/90 hover:text-amber-400 transition-all cursor-pointer"
+                                className="px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
                                 title="Editar Acesso"
                               >
-                                <Edit2 className="w-2.5 h-2.5" />
+                                <Edit2 className="w-3 h-3 text-amber-400" />
+                                <span>Editar</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteAccess(client.id, acc.id, acc.userPerson)}
-                                className="p-1 hover:bg-rose-950/40 rounded text-rose-400/90 hover:text-rose-400 transition-all cursor-pointer"
+                                className="px-2 py-0.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
                                 title="Remover Acesso"
                               >
-                                <Trash2 className="w-2.5 h-2.5" />
+                                <Trash2 className="w-3 h-3 text-rose-400" />
+                                <span>Excluir</span>
                               </button>
                             </div>
                           </div>

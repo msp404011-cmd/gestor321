@@ -179,7 +179,18 @@ export function getCanonicalStatus(status?: string): string {
     return 'PRONTO';
   }
 
-  if (sUpper === 'ENTREGUE' || sUpper === 'ENTREGUES' || sUpper === 'FINALIZADA') {
+  if (
+    sUpper === 'ENTREGUE' ||
+    sUpper === 'ENTREGUES' ||
+    sUpper === 'FINALIZADA' ||
+    sUpper === 'FINALIZADO' ||
+    sUpper === 'CONCLUIDO' ||
+    sUpper === 'CONCLUIDA' ||
+    sUpper === 'CONCLUIDOS' ||
+    sUpper === 'CONCLUIDAS' ||
+    sUpper === 'ENTREGUE_CONCLUIDO' ||
+    sUpper === 'ENTREGUE / CONCLUIDO'
+  ) {
     return 'ENTREGUE';
   }
 

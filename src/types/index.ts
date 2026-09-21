@@ -438,7 +438,8 @@ export type PaymentMethod =
   | 'A_PRAZO'
   | 'A PRAZO'
   | 'MULTIPLO'
-  | 'BOLETO';
+  | 'BOLETO'
+  | 'OUTRO';
 
 export interface CartItem {
   product: Product;

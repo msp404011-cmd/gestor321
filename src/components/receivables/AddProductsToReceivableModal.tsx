@@ -98,6 +98,7 @@ export const AddProductsToReceivableModal: React.FC<AddProductsToReceivableModal
         };
         return updated;
       }
+      const isUnmanaged = product.manageStock === false || product.stockStatus === 'UNLIMITED';
       return [
         ...prev,
         {
@@ -105,7 +106,7 @@ export const AddProductsToReceivableModal: React.FC<AddProductsToReceivableModal
           name: product.name,
           quantity: 1,
           unitPrice: product.sellingPrice || 0,
-          maxStock: product.stockQuantity,
+          maxStock: isUnmanaged ? undefined : product.stockQuantity,
         },
       ];
     });
@@ -335,7 +336,11 @@ export const AddProductsToReceivableModal: React.FC<AddProductsToReceivableModal
                         {prod.name}
                       </p>
                       <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                        <span>Estoque: <strong className={prod.stockQuantity > 0 ? 'text-emerald-400' : 'text-rose-400'}>{prod.stockQuantity}</strong></span>
+                        {prod.manageStock === false || prod.stockStatus === 'UNLIMITED' ? (
+                          <span>Estoque: <strong className="text-cyan-400">Ilimitado</strong></span>
+                        ) : (
+                          <span>Estoque: <strong className={prod.stockQuantity > 0 ? 'text-emerald-400' : 'text-rose-400'}>{prod.stockQuantity}</strong></span>
+                        )}
                         {prod.category && <span>• {prod.category}</span>}
                       </div>
                     </div>

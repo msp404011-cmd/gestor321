@@ -100,20 +100,21 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
       }
 
       // Status Filter
+      const isUnmanaged = p.manageStock === false || p.stockStatus === 'UNLIMITED';
       if (selectedStatus === 'EM_ESTOQUE') {
-        if (p.manageStock === false) return true;
+        if (isUnmanaged) return true;
         if (p.stockQuantity <= p.minStockQuantity || p.stockQuantity <= 0) return false;
       }
       if (selectedStatus === 'ESTOQUE_BAIXO') {
-        if (p.manageStock === false) return false;
+        if (isUnmanaged) return false;
         if (p.stockQuantity > p.minStockQuantity || p.stockQuantity <= 0) return false;
       }
       if (selectedStatus === 'ESGOTADO') {
-        if (p.manageStock === false) return false;
+        if (isUnmanaged) return false;
         if (p.stockQuantity > 0) return false;
       }
       if (selectedStatus === 'SEM_CONTROLE') {
-        if (p.manageStock !== false) return false;
+        if (!isUnmanaged) return false;
       }
 
       // Search Query
@@ -162,10 +163,11 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
   };
 
   // Metrics calculation
+  const isProdUnmanaged = (p: Product) => p.manageStock === false || p.stockStatus === 'UNLIMITED';
   const totalProductsCount = products.length;
-  const inStockCount = products.filter((p) => p.stockQuantity > p.minStockQuantity).length;
-  const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity).length;
-  const outOfStockCount = products.filter((p) => p.stockQuantity <= 0).length;
+  const inStockCount = products.filter((p) => isProdUnmanaged(p) || p.stockQuantity > p.minStockQuantity).length;
+  const lowStockCount = products.filter((p) => !isProdUnmanaged(p) && p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity).length;
+  const outOfStockCount = products.filter((p) => !isProdUnmanaged(p) && p.stockQuantity <= 0).length;
 
   // Inventory Values calculations
   const totalCostValue = products.reduce(
@@ -610,8 +612,9 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
               ) : (
                 paginatedProducts.map((p) => {
                   const isChecked = selectedProductIds.includes(p.id);
-                  const isOutOfStock = p.stockQuantity <= 0;
-                  const isLowStock = p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity;
+                  const isUnmanaged = p.manageStock === false || p.stockStatus === 'UNLIMITED';
+                  const isOutOfStock = !isUnmanaged && p.stockQuantity <= 0;
+                  const isLowStock = !isUnmanaged && p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity;
 
                   return (
                     <tr
@@ -692,7 +695,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
 
                       {/* Estoque Badge */}
                       <td className="py-3 px-2 text-center whitespace-nowrap">
-                        {p.manageStock === false ? (
+                        {isUnmanaged ? (
                           <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] sm:text-[11px] font-black rounded-md border whitespace-nowrap bg-blue-500/15 border-blue-500/40 text-cyan-400">
                             Ilimitado
                           </span>
@@ -713,7 +716,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
 
                       {/* Status Badge */}
                       <td className="py-3 px-2 text-center whitespace-nowrap">
-                        {p.manageStock === false ? (
+                        {isUnmanaged ? (
                           <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black whitespace-nowrap bg-blue-500/15 border border-blue-500/30 text-cyan-400">
                             Sem Controle
                           </span>

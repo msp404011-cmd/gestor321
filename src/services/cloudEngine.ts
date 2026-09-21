@@ -138,8 +138,9 @@ class MegaCloudEngine {
             snap.forEach((d) => {
               const data = d.data();
               if (data) {
-                if (!filterFn || filterFn(data)) {
-                  list.push(data);
+                const item = { id: d.id, ...data };
+                if (!filterFn || filterFn(item)) {
+                  list.push(item);
                 }
               }
             });

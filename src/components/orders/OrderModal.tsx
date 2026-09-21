@@ -870,9 +870,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         discount: Number(discount) || 0,
         totalPrice: finalOrderTotal,
         paymentMethod:
-          paymentMethod !== 'Não informado' ? (paymentMethod as PaymentMethod) : undefined,
-        paymentStatus: orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE',
+          (paymentMethod && paymentMethod !== 'Não informado')
+            ? (paymentMethod as PaymentMethod)
+            : (finalOrderTotal === 0 ? 'OUTRO' : undefined),
+        paymentStatus: finalOrderTotal === 0
+          ? 'PAGO'
+          : (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE'),
         status: initialStatus,
+        deliveredAt: (initialStatus === 'ENTREGUE' || initialStatus === 'CONCLUIDO')
+          ? (orderToEdit?.deliveredAt || new Date().toISOString())
+          : orderToEdit?.deliveredAt,
         technicianName: currentUser.name,
         attendantName: currentUser.name,
         warrantyDays: 90,

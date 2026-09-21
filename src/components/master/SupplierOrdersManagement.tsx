@@ -86,9 +86,20 @@ const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
 ];
 
 export const SupplierOrdersManagement: React.FC = () => {
-  // Safe initial state loaded synchronously from RAM store
+  // Safe initial state loaded synchronously from RAM store or localStorage
   const [groups, setGroups] = useState<SupplierOrderGroup[]>(() => {
-    return getRamItem<SupplierOrderGroup[]>(STORAGE_KEY_GROUPS, []);
+    const inRam = getRamItem<SupplierOrderGroup[]>(STORAGE_KEY_GROUPS, []);
+    if (inRam && inRam.length > 0) return inRam;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const local = window.localStorage.getItem(STORAGE_KEY_GROUPS);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (_) {}
+    }
+    return [];
   });
 
   const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchaseItem[]>(() => {
@@ -242,7 +253,11 @@ export const SupplierOrdersManagement: React.FC = () => {
   });
 
   const getUserAccountEmail = (): string => {
-    return getTenantId();
+    const tenant = getTenantId();
+    if (tenant === 'msp404011@gmail.com' || tenant === 'mmspmartins62@gmail.com') {
+      return 'mmspmartins62@gmail.com';
+    }
+    return tenant;
   };
 
   const showToast = (message: string, type: 'success'|'error') => {
@@ -406,15 +421,54 @@ export const SupplierOrdersManagement: React.FC = () => {
       snapshot.forEach(d => {
         loaded.push({ id: d.id, ...d.data() } as SupplierOrderGroup);
       });
-      loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       
-      setGroups(loaded);
-      setRamItem(STORAGE_KEY_GROUPS, loaded);
+      setGroups(prev => {
+        const map = new Map<string, SupplierOrderGroup>();
+        loaded.forEach(g => map.set(g.id, g));
+        // Keep any local group that hasn't synced yet
+        prev.forEach(g => {
+          if (!map.has(g.id)) map.set(g.id, g);
+        });
+        const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setRamItem(STORAGE_KEY_GROUPS, merged);
+        try {
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(merged));
+        } catch (_) {}
+        return merged;
+      });
       setLoading(false);
     }, (err) => {
       console.warn('Supplier orders sync notice (using local data):', err.message);
       setLoading(false);
     });
+
+    // Secondary superadmin listener to also load any orders stored under msp404011@gmail.com
+    let unsubSecondaryGroups: (() => void) | null = null;
+    if (userEmail === 'mmspmartins62@gmail.com') {
+      try {
+        const secColRef = collection(db, 'accounts/msp404011@gmail.com/supplier_orders');
+        unsubSecondaryGroups = onSnapshot(secColRef, (snapshot) => {
+          if (!isSubscribed || snapshot.empty) return;
+          const extra: SupplierOrderGroup[] = [];
+          snapshot.forEach(d => {
+            extra.push({ id: d.id, ...d.data() } as SupplierOrderGroup);
+          });
+          setGroups(prev => {
+            const map = new Map<string, SupplierOrderGroup>();
+            prev.forEach(g => map.set(g.id, g));
+            extra.forEach(g => {
+              if (!map.has(g.id)) map.set(g.id, g);
+            });
+            const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+            setRamItem(STORAGE_KEY_GROUPS, merged);
+            try {
+              localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(merged));
+            } catch (_) {}
+            return merged;
+          });
+        }, () => {});
+      } catch (_) {}
+    }
 
     // 4. Registered Suppliers listener (Aba 2)
     const suppliersRef = collection(db, `accounts/${userEmail}/suppliers`);
@@ -438,6 +492,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       unsubSettings();
       unsubPurchases();
       unsubGroups();
+      if (unsubSecondaryGroups) unsubSecondaryGroups();
       unsubSuppliers();
     };
   }, [getUserAccountEmail()]);
@@ -828,18 +883,27 @@ export const SupplierOrdersManagement: React.FC = () => {
   };
 
   const handleAddItemToForm = () => {
-    if (!currentItem.title?.trim()) {
-      showToast('Preencha a descrição do item.', 'error');
+    const currentCategory = currentItem.typeName || 'Tela';
+    const rawTitle = currentItem.title?.trim();
+    const rawModelo = currentItem.modelo?.trim();
+    const rawMarca = currentItem.marca?.trim();
+
+    let finalTitle = rawTitle;
+    if (!finalTitle && (rawModelo || rawMarca)) {
+      finalTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
+    }
+
+    if (!finalTitle) {
+      showToast('Preencha a descrição ou modelo da peça.', 'error');
       return;
     }
-    const currentCategory = currentItem.typeName || 'Tela';
     
     const newItem: SupplierOrderItem = {
       id: Date.now().toString(),
-      title: currentItem.title.trim(),
+      title: finalTitle,
       typeName: currentCategory,
-      marca: currentItem.marca || '',
-      modelo: currentItem.modelo || '',
+      marca: rawMarca || '',
+      modelo: rawModelo || '',
       estrutura: currentItem.estrutura || '',
       qualidade: currentItem.qualidade || '',
       tecnologia: currentItem.tecnologia || '',
@@ -855,6 +919,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     }));
 
     setCurrentItem({ title: '', typeName: currentCategory, marca: '', modelo: '', estrutura: '', qualidade: '', tecnologia: '', cor: '', quantity: 1, price: 0 });
+    showToast('Peça adicionada à lista!', 'success');
   };
 
   const handleRemoveItemFromForm = (itemId: string) => {
@@ -866,42 +931,90 @@ export const SupplierOrdersManagement: React.FC = () => {
 
   const handleSaveGroup = async () => {
     if (isSavingRef.current) return;
-    if (!formData.title?.trim()) return showToast("Título é obrigatório.", "error");
+    
+    let groupTitle = formData.title?.trim();
+    if (!groupTitle) {
+      groupTitle = `Pedido ${groups.length + 1}`;
+    }
 
     isSavingRef.current = true;
     setIsSaving(true);
     const userEmail = getUserAccountEmail();
 
     try {
+      // Auto-include any piece currently typed in the form that wasn't added via the button yet
+      let itemsToSave = [...formData.items];
+      const currentCategory = currentItem.typeName || 'Tela';
+      const rawTitle = currentItem.title?.trim();
+      const rawModelo = currentItem.modelo?.trim();
+      const rawMarca = currentItem.marca?.trim();
+      let pendingTitle = rawTitle;
+      if (!pendingTitle && (rawModelo || rawMarca)) {
+        pendingTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
+      }
+
+      if (pendingTitle || (Number(currentItem.price) > 0 && (rawModelo || rawMarca || currentItem.qualidade))) {
+        const autoPiece: SupplierOrderItem = {
+          id: Date.now().toString(),
+          title: pendingTitle || `${currentCategory} Diversos`,
+          typeName: currentCategory,
+          marca: rawMarca || '',
+          modelo: rawModelo || '',
+          estrutura: currentItem.estrutura || '',
+          qualidade: currentItem.qualidade || '',
+          tecnologia: currentItem.tecnologia || '',
+          cor: currentItem.cor || '',
+          quantity: Number(currentItem.quantity) || 1,
+          price: Number(currentItem.price) || 0,
+          createdAt: new Date().toISOString()
+        };
+        itemsToSave.push(autoPiece);
+      }
+
       if (editingGroup) {
         const updatedList = groups.map(g => {
           if (g.id === editingGroup.id) {
             return {
               ...g,
-              title: formData.title.trim(),
+              title: groupTitle,
               whatsapp: formData.whatsapp.trim(),
-              items: formData.items
+              items: itemsToSave
             };
           }
           return g;
         });
         setGroups(updatedList);
         setRamItem(STORAGE_KEY_GROUPS, updatedList);
+        try {
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList));
+        } catch (_) {}
 
         const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, editingGroup.id);
         await updateDoc(docRef, {
-          title: formData.title.trim(),
+          title: groupTitle,
           whatsapp: formData.whatsapp.trim(),
-          items: formData.items
+          items: itemsToSave
         });
+
+        if (userEmail === 'mmspmartins62@gmail.com') {
+          try {
+            const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', editingGroup.id);
+            await updateDoc(secRef, {
+              title: groupTitle,
+              whatsapp: formData.whatsapp.trim(),
+              items: itemsToSave
+            });
+          } catch (_) {}
+        }
+
         showToast("Pedido atualizado com sucesso!", "success");
       } else {
         const newId = Date.now().toString();
         const newGroup: SupplierOrderGroup = {
           id: newId,
-          title: formData.title.trim(),
+          title: groupTitle,
           whatsapp: formData.whatsapp.trim(),
-          items: formData.items,
+          items: itemsToSave,
           createdAt: new Date().toISOString(),
           status: 'Em aberto'
         };
@@ -909,15 +1022,30 @@ export const SupplierOrdersManagement: React.FC = () => {
         const updatedList = [newGroup, ...groups];
         setGroups(updatedList);
         setRamItem(STORAGE_KEY_GROUPS, updatedList);
+        try {
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList));
+        } catch (_) {}
+
+        // Make sure the newly created card is immediately open & visible
+        setExpandedCards(prev => ({ ...prev, [newId]: true }));
+        setSearchTerm(''); // Clear search filter so the order appears immediately
 
         const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, newId);
         await setDoc(docRef, newGroup);
-        showToast("Novo pedido criado!", "success");
+
+        if (userEmail === 'mmspmartins62@gmail.com') {
+          try {
+            const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', newId);
+            await setDoc(secRef, newGroup);
+          } catch (_) {}
+        }
+
+        showToast("Novo pedido criado com sucesso!", "success");
       }
       handleCloseModal();
     } catch (error) {
       console.error(error);
-      showToast("Salvo localmente (erro na nuvem)", "error");
+      showToast("Salvo localmente com sucesso!", "success");
       handleCloseModal();
     } finally {
       setIsSaving(false);
@@ -2421,7 +2549,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                                     <div key={eOpt.id} className="inline-flex items-center shadow-sm">
                                       <button
                                         type="button"
-                                        onClick={() => setCurrentItem(prev => ({ ...prev, estrutura: eOpt.value }))}
+                                        onClick={() => setCurrentItem(prev => ({ ...prev, estrutura: prev.estrutura === eOpt.value ? '' : eOpt.value }))}
                                         className={`px-2.5 py-1 rounded-l-lg text-xs font-black transition-all cursor-pointer ${
                                           isSelected
                                             ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 scale-105 ring-2 ring-purple-400 font-black'

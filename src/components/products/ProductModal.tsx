@@ -126,7 +126,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setSellingPrice(productToEdit.sellingPrice ?? 0);
       setResellerPrice(productToEdit.resellerPrice ?? productToEdit.sellingPrice ?? 0);
       
-      const isStockManaged = productToEdit.manageStock !== false;
+      const isStockManaged = productToEdit.manageStock !== false && productToEdit.stockStatus !== 'UNLIMITED';
       setManageStock(isStockManaged);
       const currentQty = productToEdit.stockQuantity ?? 0;
       setStockQuantity(currentQty);

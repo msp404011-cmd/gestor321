@@ -1950,7 +1950,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                         <div key={eOpt} className="inline-flex items-center">
                           <button
                             type="button"
-                            onClick={() => setNewItemForm(prev => ({ ...prev, estrutura: eOpt }))}
+                            onClick={() => setNewItemForm(prev => ({ ...prev, estrutura: prev.estrutura === eOpt ? '' : eOpt }))}
                             className={`px-2.5 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
                               isSelected ? 'bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400' : 'bg-slate-800 text-slate-300 hover:text-white'
                             }`}

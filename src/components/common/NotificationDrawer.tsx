@@ -69,9 +69,9 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         });
       });
 
-    // 3. Produtos sem estoque
+    // 3. Produtos sem estoque (somente com controle de estoque ativo)
     products
-      .filter((p) => p.stockQuantity <= 0 && p.isActive)
+      .filter((p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && p.stockQuantity <= 0 && p.isActive)
       .forEach((p) => {
         items.push({
           id: `prod-zero-${p.id}`,
@@ -83,9 +83,9 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({
         });
       });
 
-    // 4. Produtos com estoque baixo
+    // 4. Produtos com estoque baixo (somente com controle de estoque ativo)
     products
-      .filter((p) => p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity && p.isActive)
+      .filter((p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity && p.isActive)
       .forEach((p) => {
         items.push({
           id: `prod-low-${p.id}`,

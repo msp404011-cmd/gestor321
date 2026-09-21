@@ -258,7 +258,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                   <>
                     {filteredProducts.map((p) => {
                       const price = p.sellingPrice || (p as any).price || 0;
-                      const isUnmanaged = p.manageStock === false;
+                      const isUnmanaged = p.manageStock === false || (p as any).stockStatus === 'UNLIMITED';
                       const stock =
                         p.stockQuantity !== undefined
                           ? p.stockQuantity

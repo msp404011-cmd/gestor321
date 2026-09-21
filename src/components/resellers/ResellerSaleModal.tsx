@@ -75,12 +75,13 @@ export const ResellerSaleModal: React.FC<ResellerSaleModalProps> = ({
     const discountFactor = reseller.discountPercent ? 1 - (reseller.discountPercent / 100) : 1;
     const finalUnitPrice = Number((resellerPrice * discountFactor).toFixed(2));
 
+    const isUnmanaged = prod.manageStock === false || prod.stockStatus === 'UNLIMITED';
     const stock = prod.stockQuantity ?? prod.stock ?? 0;
     if (existingIndex >= 0) {
       const updated = [...selectedItems];
       const item = updated[existingIndex];
       const nextQty = item.quantity + 1;
-      if (stock > 0 && nextQty > stock) {
+      if (!isUnmanaged && stock > 0 && nextQty > stock) {
         setErrorMsg(`Estoque insuficiente de ${prod.name}. Disponível: ${stock}`);
         return;
       }
@@ -88,7 +89,7 @@ export const ResellerSaleModal: React.FC<ResellerSaleModalProps> = ({
       item.total = Number((item.quantity * item.unitPrice).toFixed(2));
       setSelectedItems(updated);
     } else {
-      if (stock <= 0) {
+      if (!isUnmanaged && stock <= 0) {
         setErrorMsg(`Atenção: Produto ${prod.name} com estoque zerado.`);
       }
       setSelectedItems([
@@ -99,7 +100,7 @@ export const ResellerSaleModal: React.FC<ResellerSaleModalProps> = ({
           quantity: 1,
           unitPrice: finalUnitPrice,
           costPrice: Number(prod.costPrice) || 0,
-          availableStock: stock,
+          availableStock: isUnmanaged ? undefined : stock,
           total: finalUnitPrice,
         },
       ]);
@@ -251,6 +252,7 @@ export const ResellerSaleModal: React.FC<ResellerSaleModalProps> = ({
                   </p>
                 ) : (
                   availableProducts.map((prod) => {
+                    const isUnmanaged = prod.manageStock === false || prod.stockStatus === 'UNLIMITED';
                     const rPrice = Number(prod.resellerPrice) > 0 ? Number(prod.resellerPrice) : Number(prod.sellingPrice);
                     const prodStock = prod.stockQuantity ?? prod.stock ?? 0;
                     return (
@@ -265,7 +267,11 @@ export const ResellerSaleModal: React.FC<ResellerSaleModalProps> = ({
                             {prod.name}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5 text-[10px]">
-                            <span className="text-slate-400">Estoque: <b className={prodStock <= 2 ? 'text-rose-400' : 'text-slate-200'}>{prodStock}</b></span>
+                            <span className="text-slate-400">
+                              Estoque: <b className={isUnmanaged ? 'text-cyan-400' : prodStock <= 2 ? 'text-rose-400' : 'text-slate-200'}>
+                                {isUnmanaged ? 'Ilimitado' : prodStock}
+                              </b>
+                            </span>
                             <span className="text-slate-500">•</span>
                             <span className="text-slate-400">Varejo: R$ {prod.sellingPrice.toFixed(2)}</span>
                           </div>

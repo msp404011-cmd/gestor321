@@ -69,10 +69,10 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
     0
   );
 
-  const rawTotal = Number(order.totalPrice);
-  const totalAmount = (rawTotal && rawTotal > 0)
-    ? rawTotal
-    : Math.max(0, (itemsTotal > 0 ? itemsTotal + laborPrice : partsPrice + laborPrice) - discountAmount);
+  const rawTotal = order.totalPrice !== undefined && order.totalPrice !== null ? Number(order.totalPrice) : NaN;
+  const computedTotal = Math.max(0, (itemsTotal > 0 ? itemsTotal + laborPrice : partsPrice + laborPrice) - discountAmount);
+  const totalAmount = !isNaN(rawTotal) ? Math.max(0, rawTotal) : computedTotal;
+  const isZeroCostOrder = totalAmount <= 0;
 
   // Mode: 'FULL' (À Vista / Múltiplo) or 'CREDIT' (A Prazo)
   const [deliveryMode, setDeliveryMode] = useState<'FULL' | 'CREDIT'>('FULL');
@@ -84,7 +84,11 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
 
   // Reset rows when order or total amount changes
   useEffect(() => {
-    if (order?.payments && order.payments.length > 0) {
+    if (isZeroCostOrder) {
+      setPaymentRows([
+        { id: 'drow-1', method: (order?.paymentMethod as any) || 'OUTRO', amount: '0' },
+      ]);
+    } else if (order?.payments && order.payments.length > 0) {
       setPaymentRows(
         order.payments.map((p, idx) => ({
           id: `drow-${idx + 1}`,
@@ -104,7 +108,7 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
     setIsCompleted(false);
     setCreatedReceivable(null);
     setError('');
-  }, [order?.id, totalAmount]);
+  }, [order?.id, totalAmount, isZeroCostOrder]);
 
   // Credit / A Prazo state
   const [downPayment, setDownPayment] = useState<number | string>('');
@@ -175,6 +179,29 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
     setLoading(true);
 
     try {
+      if (isZeroCostOrder) {
+        // Serviço zerado / Cortesia / Garantia / Sem cobrança
+        const primaryMethod = (order.paymentMethod && order.paymentMethod !== 'A_PRAZO') ? order.paymentMethod : 'OUTRO';
+        StorageService.deliverAndPayOrder(
+          order.id,
+          primaryMethod as PaymentMethod,
+          currentUser?.name,
+          'Aparelho entregue e concluído sem cobrança (Serviço zerado / Cortesia).',
+          [{ paymentMethod: primaryMethod, amount: 0 }]
+        );
+        setLastPaymentsRecorded([{ amount: 0, method: primaryMethod }]);
+        const updated = StorageService.getOrders().find((o) => o.id === order.id) || {
+          ...order,
+          status: 'ENTREGUE',
+          paymentStatus: 'PAGO',
+          totalPrice: 0,
+          deliveredAt: new Date().toISOString(),
+        };
+        setIsCompleted(true);
+        onSuccess(updated as ServiceOrder);
+        return;
+      }
+
       if (deliveryMode === 'FULL') {
         const activeSplits = paymentRows
           .filter((r) => Number(r.amount) > 0)
@@ -371,7 +398,9 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
               <div>
                 <h3 className="text-base font-bold text-white">OS Entregue com Sucesso!</h3>
                 <p className="text-slate-300 text-xs mt-0.5">
-                  {deliveryMode === 'FULL' ? (
+                  {isZeroCostOrder ? (
+                    <>Serviço entregue e concluído sem cobrança (<strong className="text-emerald-400 font-mono">R$ 0,00</strong>).</>
+                  ) : deliveryMode === 'FULL' ? (
                     <>Valor de <strong className="text-emerald-400 font-mono">{formatCurrency(totalAmount)}</strong> baixado no caixa.</>
                   ) : (
                     <>Lançado no setor A Prazo de <strong className="text-white">{order.customerName}</strong>.</>
@@ -583,7 +612,12 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                         <span className="font-mono text-emerald-400">{formatCurrency(sumPaid)}</span>
                       </div>
 
-                      {Math.abs(diffPaid) < 0.01 && sumPaid > 0 ? (
+                      {isZeroCostOrder ? (
+                        <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-between">
+                          <span>🎉 SERVIÇO ZERADO / SEM COBRANÇA</span>
+                          <span className="font-mono">Total: R$ 0,00</span>
+                        </div>
+                      ) : Math.abs(diffPaid) < 0.01 && sumPaid > 0 ? (
                         <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-bold flex items-center justify-between">
                           <span>🎉 PAGO TOTALMENTE! (OS 100% Quitada)</span>
                           <span className="font-mono">Falta: R$ 0,00</span>
@@ -720,6 +754,11 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                 >
                   {loading ? (
                     'Processando...'
+                  ) : isZeroCostOrder ? (
+                    <>
+                      <CheckCircle2 size={15} />
+                      Concluir e Entregar OS Zerada (R$ 0,00)
+                    </>
                   ) : deliveryMode === 'FULL' ? (
                     <>
                       <CheckCircle2 size={15} />

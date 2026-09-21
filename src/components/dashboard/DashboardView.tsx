@@ -331,7 +331,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 3. Stock metrics
   const lowStockCount = useMemo(() => {
     return products.filter(
-      (p) => (p.stockQuantity ?? 0) <= (p.minStockQuantity || p.minStock || 0)
+      (p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && (p.stockQuantity ?? 0) <= (p.minStockQuantity || p.minStock || 0)
     ).length;
   }, [products]);
 
@@ -509,8 +509,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       tab: string;
     }[] = [];
 
-    // 1. Zero stock
-    const zeroStock = products.filter((p) => (p.stockQuantity ?? 0) <= 0);
+    // 1. Zero stock (somente produtos com controle de estoque ativo)
+    const zeroStock = products.filter((p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && (p.stockQuantity ?? 0) <= 0);
     if (zeroStock.length > 0) {
       list.push({
         id: 'alert-zero-stock',
@@ -526,9 +526,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       });
     }
 
-    // 2. Low stock (above 0 and <= minStock)
+    // 2. Low stock (above 0 and <= minStock, somente com controle de estoque)
     const lowStock = products.filter(
-      (p) => (p.stockQuantity ?? 0) > 0 && (p.stockQuantity ?? 0) <= (p.minStockQuantity || p.minStock || 0)
+      (p) => p.manageStock !== false && p.stockStatus !== 'UNLIMITED' && (p.stockQuantity ?? 0) > 0 && (p.stockQuantity ?? 0) <= (p.minStockQuantity || p.minStock || 0)
     );
     if (lowStock.length > 0) {
       list.push({
