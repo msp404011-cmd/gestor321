@@ -49,12 +49,13 @@ service cloud.firestore {
 
     // ACCOUNTS COLLECTION
     match /accounts/{accountId} {
-      // Regular users can only read their own document. Blanket collection queries are restricted.
+      // Regular users can only read their own document. SuperAdmins can list and view all accounts.
       allow get: if isOwner(accountId);
-      allow list: if false; // Only server backend with Admin SDK can list all accounts
+      allow list: if isSuperAdmin();
 
-      // Self-registration (if allowed from client): must not create as unlocked with custom plan
+      // Account creation
       allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
         request.auth.uid == accountId || 
         request.auth.token.email == accountId
       );
@@ -62,7 +63,7 @@ service cloud.firestore {
       // Updates by regular user: can update profile/settings, but CANNOT modify plan, status, or due date
       allow update: if isOwner(accountId) && (isSuperAdmin() || (isDocNotBlocked() && doesNotModifyAdminFields()));
 
-      // Deletions: forbidden from client-side SDK. Managed strictly via secure Admin backend
+      // Deletions: allowed for SuperAdmins
       allow delete: if isSuperAdmin();
 
       // SUBCOLLECTIONS (orders, receivables, expenses, products, customers, suppliers, purchases, employees, settings, etc.)
