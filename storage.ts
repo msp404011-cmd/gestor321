@@ -1,0 +1,4756 @@
+import {
+  Customer,
+  Device,
+  ServiceOrder,
+  Product,
+  Sale,
+  CashSession,
+  CashMovement,
+  Expense,
+  Employee,
+  Purchase,
+  StockMovement,
+  AccountReceivable,
+  AuditLog,
+  CompanySettings,
+  OrderStatus,
+  PaymentMethod,
+  Supplier,
+  Reseller,
+  ResellerTransaction,
+  SubscriptionPlanInfo,
+  PlanType,
+  AuthSession,
+  GoogleUserProfile,
+  UserAccount,
+  CompatibilitySector,
+  CompatibilityCard,
+} from '../types';
+import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
+import { FirestoreSyncService } from './firestoreService';
+import { normalizePlanType } from './subscriptionService';
+import {
+  initialCustomers,
+  initialDevices,
+  initialEmployees,
+  initialOrders,
+  initialProducts,
+  initialSales,
+  initialCashSession,
+  initialExpenses,
+  initialPurchases,
+  initialStockMovements,
+  initialReceivables,
+  initialAuditLogs,
+  initialCompanySettings,
+  initialResellers,
+  initialResellerTransactions,
+} from './mockData';
+
+export const STORAGE_KEYS = {
+  CUSTOMERS: 'msp_customers_v1',
+  DEVICES: 'msp_devices_v1',
+  PRODUCTS: 'msp_products_v1',
+  ORDERS: 'msp_orders_v2',
+  SALES: 'msp_sales_v1',
+  CASH_SESSION: 'msp_cash_session_v1',
+  CASH_MOVEMENTS: 'msp_cash_movements_v1',
+  EXPENSES: 'msp_expenses_v1',
+  EMPLOYEES: 'msp_employees_v1',
+  PURCHASES: 'msp_purchases_v1',
+  STOCK_MOVEMENTS: 'msp_stock_movements_v1',
+  RECEIVABLES: 'msp_receivables_v1',
+  AUDIT_LOGS: 'msp_audit_logs_v1',
+  SETTINGS: 'msp_settings_v1',
+  CURRENT_USER: 'msp_current_user_v1',
+  CUSTOM_CATEGORIES: 'msp_custom_categories_v1',
+  CUSTOM_BRANDS: 'msp_custom_brands_v1',
+  CUSTOM_OS_STATUSES: 'msp_custom_os_statuses_v1',
+  CUSTOM_DEVICE_TYPES: 'msp_custom_device_types_v1',
+  CUSTOM_ACCESSORIES: 'msp_custom_accessories_v4',
+  CUSTOM_PAYMENT_METHODS: 'msp_custom_payment_methods_v1',
+  SUPPLIERS: 'msp_suppliers_v1',
+  PURCHASES_CONFIG: 'msp_purchases_config_v1',
+  RESELLERS: 'msp_resellers_v1',
+  RESELLER_TRANSACTIONS: 'msp_reseller_transactions_v1',
+  SUBSCRIPTION_PLAN: 'msp_subscription_plan_v1',
+  USER_SUBSCRIPTIONS: 'msp_user_subscriptions_v1',
+  AUTH_SESSION: 'msp_auth_session_v1',
+  SAVED_ACCOUNTS: 'msp_saved_accounts_v1',
+  USER_ACCOUNTS: 'msp_user_accounts_v1',
+  COMPATIBILITY_SECTORS: 'msp_compatibility_sectors_v1',
+  COMPATIBILITY_CARDS: 'msp_compatibility_cards_v1',
+  INITIALIZED: 'msp_system_initialized_v2',
+};
+
+export const initialSubscriptionPlan: SubscriptionPlanInfo = {
+  planType: 'LOJA',
+  planName: 'Plano Loja',
+  planPrice: 69.90,
+  billingCycle: 'monthly',
+  billingPeriod: 'MENSAL',
+  expiryDate: '2026-10-15',
+  status: 'active',
+  clientName: 'TechNova Informática & Celulares',
+  autoRenew: true,
+  contractNumber: 'MSP-7842-LOJA',
+  paymentMethod: 'PIX / Cartão Mensal',
+  notes: 'Ordens de Serviço ilimitadas, PDV, Gestão de Estoque e Múltiplos Usuários.',
+  startDate: '2026-01-15',
+};
+
+export interface CustomDeviceType {
+  id: string;
+  name: string;
+  iconName?: string;
+  isDefault?: boolean;
+}
+
+export const defaultCustomDeviceTypes: CustomDeviceType[] = [
+  { id: 'dev-1', name: 'Smartphone / Celular', iconName: 'Smartphone', isDefault: true },
+  { id: 'dev-2', name: 'Notebook / Laptop', iconName: 'Laptop', isDefault: true },
+  { id: 'dev-3', name: 'Desktop / PC', iconName: 'Monitor', isDefault: true },
+  { id: 'dev-4', name: 'Tablet / iPad', iconName: 'Tablet', isDefault: true },
+  { id: 'dev-5', name: 'Console / Game', iconName: 'Gamepad', isDefault: true },
+  { id: 'dev-6', name: 'Smartwatch / Relógio', iconName: 'Watch', isDefault: true },
+  { id: 'dev-7', name: 'TV / Monitor', iconName: 'Tv', isDefault: true },
+  { id: 'dev-8', name: 'Impressora / Multifuncional', iconName: 'Printer', isDefault: true },
+  { id: 'dev-9', name: 'Caixa de Som / Áudio', iconName: 'Speaker', isDefault: true },
+  { id: 'dev-10', name: 'Outro Equipamento', iconName: 'Cpu', isDefault: true },
+];
+
+export interface CustomAccessoryItem {
+  id: string;
+  name: string;
+  category?: string;
+  defaultPresent?: boolean;
+  hasDetails?: boolean;
+  iconName?: string;
+  placeholder?: string;
+  deviceTypes?: string[]; // Array of device type names or 'ALL'
+}
+
+export const defaultCustomAccessories: CustomAccessoryItem[] = [
+  // --- PADRÃO ESSENCIAL: SMARTPHONE / TABLET / GERAL ---
+  { id: 'acc-case', name: 'C/ Capa', defaultPresent: false, hasDetails: true, iconName: 'Shield', placeholder: 'Descreva a cor da capa (Ex: Preta, Transparente, Vermelha)', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
+  { id: 'acc-sp-8', name: 'Gaveta de Chip', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Presente / Avaria', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
+  { id: 'acc-sp-1', name: 'Chip 1', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Operadora / Detalhes', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
+  { id: 'acc-sp-2', name: 'Chip 2', defaultPresent: false, hasDetails: true, iconName: 'SimCard', placeholder: 'Operadora / Detalhes', deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'] },
+  { id: 'acc-sp-3', name: 'Cartão de Memória', defaultPresent: false, hasDetails: true, iconName: 'HardDrive', placeholder: 'Capacidade / Marca', deviceTypes: ['Smartphone / Celular', 'Tablet / iPad', 'Smartphone', 'Tablet', 'ALL'] },
+  { id: 'acc-sp-5', name: 'Carregador', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Marca / Potência (W)', deviceTypes: ['Smartphone / Celular', 'Tablet / iPad', 'Notebook / Laptop', 'Smartphone', 'Tablet', 'Notebook', 'ALL'] },
+
+  // --- NOTEBOOK / LAPTOP ---
+  { id: 'acc-nb-1', name: 'Carregador / Fonte de Alimentação', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Marca / Voltagem / Potência', deviceTypes: ['Notebook / Laptop', 'Notebook'] },
+  { id: 'acc-nb-2', name: 'Cabo de Força da Fonte', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'Tripolar / Bipolar', deviceTypes: ['Notebook / Laptop', 'Desktop / PC', 'Notebook', 'Desktop'] },
+  { id: 'acc-nb-3', name: 'Bateria', defaultPresent: false, hasDetails: true, iconName: 'BatteryCharging', placeholder: 'Interna / Removível / Estado', deviceTypes: ['Notebook / Laptop', 'Notebook'] },
+  { id: 'acc-nb-4', name: 'Mouse / Dongle USB', defaultPresent: false, hasDetails: true, iconName: 'Mouse', placeholder: 'Sem fio / Com fio / Marca', deviceTypes: ['Notebook / Laptop', 'Desktop / PC', 'Notebook', 'Desktop'] },
+  { id: 'acc-nb-5', name: 'Mochila / Capa de Transporte', defaultPresent: false, hasDetails: true, iconName: 'Package', placeholder: 'Cor / Modelo da capa', deviceTypes: ['Notebook / Laptop', 'Notebook'] },
+  { id: 'acc-nb-6', name: 'Adaptador de Vídeo / Dongle Type-C', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'HDMI / VGA / Type-C', deviceTypes: ['Notebook / Laptop', 'Notebook'] },
+  { id: 'acc-nb-7', name: 'Pendrive / HD Externo', defaultPresent: false, hasDetails: true, iconName: 'HardDrive', placeholder: 'Capacidade / Marca', deviceTypes: ['Notebook / Laptop', 'Desktop / PC', 'Notebook', 'Desktop'] },
+
+  // --- DESKTOP / PC ---
+  { id: 'acc-pc-1', name: 'Cabo de Força', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'Padrão novo / antigo', deviceTypes: ['Desktop / PC', 'Desktop'] },
+  { id: 'acc-pc-2', name: 'Cabo de Vídeo (HDMI / VGA / DP)', defaultPresent: false, hasDetails: true, iconName: 'Monitor', placeholder: 'Tipo e tamanho do cabo', deviceTypes: ['Desktop / PC', 'TV / Monitor', 'Desktop', 'TV', 'Monitor'] },
+  { id: 'acc-pc-3', name: 'Teclado', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Marca / USB ou Sem fio', deviceTypes: ['Desktop / PC', 'Desktop'] },
+  { id: 'acc-pc-4', name: 'Adaptador / Antena Wi-Fi / Bluetooth', defaultPresent: false, hasDetails: true, iconName: 'Cpu', placeholder: 'USB / Antena rosqueável', deviceTypes: ['Desktop / PC', 'Desktop'] },
+  { id: 'acc-pc-5', name: 'Estabilizador / No-Break / Filtro', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Marca / Potência (VA)', deviceTypes: ['Desktop / PC', 'Desktop'] },
+
+  // --- TABLET / IPAD ---
+  { id: 'acc-tb-1', name: 'Caneta Touch / Apple Pencil / Stylus', defaultPresent: false, hasDetails: true, iconName: 'Edit2', placeholder: 'Modelo da caneta / Ponta', deviceTypes: ['Tablet / iPad', 'Tablet'] },
+  { id: 'acc-tb-2', name: 'Smart Cover / Teclado Cover', defaultPresent: false, hasDetails: true, iconName: 'Shield', placeholder: 'Com teclado magnético / Normal', deviceTypes: ['Tablet / iPad', 'Tablet'] },
+
+  // --- CONSOLE / GAME ---
+  { id: 'acc-cs-1', name: 'Fonte de Alimentação / Cabo de Força', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Interna / Externa / 110V-220V', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-2', name: 'Cabo HDMI', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'Original / 4K / Alta velocidade', deviceTypes: ['Console / Game', 'TV / Monitor', 'Console', 'TV', 'Monitor'] },
+  { id: 'acc-cs-3', name: 'Controle / Joystick 1', defaultPresent: false, hasDetails: true, iconName: 'Gamepad', placeholder: 'Cor / Original / Paralelo', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-4', name: 'Controle / Joystick 2', defaultPresent: false, hasDetails: true, iconName: 'Gamepad', placeholder: 'Cor / Original / Paralelo', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-5', name: 'Cabo de Carregamento dos Controles', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'USB-C / Micro-USB', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-6', name: 'Jogo em Mídia Física no Leitor', defaultPresent: false, hasDetails: true, iconName: 'Package', placeholder: 'Nome do jogo inserido', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-7', name: 'Base Vertical / Suporte com Cooler', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Original / Paralelo', deviceTypes: ['Console / Game', 'Console'] },
+  { id: 'acc-cs-8', name: 'Headset Gamer', defaultPresent: false, hasDetails: true, iconName: 'Headphones', placeholder: 'Marca / Conexão P2 ou USB', deviceTypes: ['Console / Game', 'Console'] },
+
+  // --- SMARTWATCH / RELÓGIO ---
+  { id: 'acc-sw-1', name: 'Pulseira Instalada', defaultPresent: false, hasDetails: true, iconName: 'Watch', placeholder: 'Silicone / Metal / Couro / Cor', deviceTypes: ['Smartwatch / Relógio', 'Smartwatch'] },
+  { id: 'acc-sw-2', name: 'Base / Cabo Carregador Magnético', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Original / Paralelo', deviceTypes: ['Smartwatch / Relógio', 'Smartwatch'] },
+  { id: 'acc-sw-3', name: 'Bumper / Case de Proteção', defaultPresent: false, hasDetails: true, iconName: 'Shield', placeholder: 'Presente / Avaria', deviceTypes: ['Smartwatch / Relógio', 'Smartwatch'] },
+  { id: 'acc-sw-4', name: 'Pulseira Extra', defaultPresent: false, hasDetails: true, iconName: 'Watch', placeholder: 'Cor / Material', deviceTypes: ['Smartwatch / Relógio', 'Smartwatch'] },
+
+  // --- TV / MONITOR ---
+  { id: 'acc-tv-1', name: 'Cabo de Força / Fonte Externa', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Fonte externa / Cabo bipolar', deviceTypes: ['TV / Monitor', 'TV', 'Monitor'] },
+  { id: 'acc-tv-2', name: 'Controle Remoto com Pilhas', defaultPresent: false, hasDetails: true, iconName: 'Tv', placeholder: 'Original / Paralelo / Com pilhas', deviceTypes: ['TV / Monitor', 'TV', 'Monitor'] },
+  { id: 'acc-tv-3', name: 'Base / Pés de Apoio', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Pés originais instalados / Sem pés', deviceTypes: ['TV / Monitor', 'TV', 'Monitor'] },
+  { id: 'acc-tv-4', name: 'Suporte de Parede / Articulado', defaultPresent: false, hasDetails: true, iconName: 'Shield', placeholder: 'Instalado atrás da TV', deviceTypes: ['TV / Monitor', 'TV', 'Monitor'] },
+
+  // --- IMPRESSORA / MULTIFUNCIONAL ---
+  { id: 'acc-pr-1', name: 'Cabo de Força / Fonte', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: '110V / 220V / Bivolt', deviceTypes: ['Impressora / Multifuncional', 'Impressora'] },
+  { id: 'acc-pr-2', name: 'Cabo USB da Impressora', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'Cabo USB A-B', deviceTypes: ['Impressora / Multifuncional', 'Impressora'] },
+  { id: 'acc-pr-3', name: 'Cartuchos / Toner Instalados', defaultPresent: false, hasDetails: true, iconName: 'Package', placeholder: 'Preto / Colorido / Modelo', deviceTypes: ['Impressora / Multifuncional', 'Impressora'] },
+  { id: 'acc-pr-4', name: 'Bandeja de Papel / Tampa Frontal', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Presente / Avaria', deviceTypes: ['Impressora / Multifuncional', 'Impressora'] },
+  { id: 'acc-pr-5', name: 'Bulk Ink / Tanque Externo', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Nível das tintas / Travas', deviceTypes: ['Impressora / Multifuncional', 'Impressora'] },
+
+  // --- CAIXA DE SOM / ÁUDIO ---
+  { id: 'acc-au-1', name: 'Cabo de Carga / Carregador', defaultPresent: false, hasDetails: true, iconName: 'Zap', placeholder: 'Type-C / V8 / Fonte', deviceTypes: ['Caixa de Som / Áudio', 'Áudio'] },
+  { id: 'acc-au-2', name: 'Cabo Auxiliar P2 / RCA', defaultPresent: false, hasDetails: true, iconName: 'Cable', placeholder: 'Cabo de áudio', deviceTypes: ['Caixa de Som / Áudio', 'Áudio'] },
+  { id: 'acc-au-3', name: 'Microfone com Fio / Sem Fio', defaultPresent: false, hasDetails: true, iconName: 'Speaker', placeholder: 'Quantidade / Marca', deviceTypes: ['Caixa de Som / Áudio', 'Áudio'] },
+  { id: 'acc-au-4', name: 'Alça de Transporte / Suporte', defaultPresent: false, hasDetails: true, iconName: 'Layers', placeholder: 'Alça de ombro / Fixação', deviceTypes: ['Caixa de Som / Áudio', 'Áudio'] },
+
+  // --- ITENS GERAIS / OUTROS APARELHOS ---
+  { id: 'acc-all-2', name: 'Outros Acessórios Deixados', defaultPresent: false, hasDetails: true, iconName: 'PlusCircle', placeholder: 'Descreva outros itens e detalhes...', deviceTypes: ['ALL'] },
+];
+
+export function isAccessoryForDeviceType(
+  acc: CustomAccessoryItem,
+  targetDeviceType: string
+): boolean {
+  if (!acc.deviceTypes || acc.deviceTypes.length === 0) return true;
+  if (acc.deviceTypes.includes('ALL') || acc.deviceTypes.includes('Todos') || acc.deviceTypes.includes('Geral')) return true;
+  if (!targetDeviceType) return true;
+
+  const normTarget = targetDeviceType.toLowerCase().trim();
+  const targetPrefix = normTarget.split('/')[0].trim();
+
+  return acc.deviceTypes.some((dt) => {
+    const normDt = dt.toLowerCase().trim();
+    if (normDt === 'all' || normDt === 'todos' || normDt === 'geral') return true;
+    const dtPrefix = normDt.split('/')[0].trim();
+    return (
+      normTarget === normDt ||
+      normTarget.includes(normDt) ||
+      normDt.includes(normTarget) ||
+      targetPrefix === dtPrefix ||
+      (targetPrefix && dtPrefix && (targetPrefix.includes(dtPrefix) || dtPrefix.includes(targetPrefix)))
+    );
+  });
+}
+
+export interface CustomPaymentMethodItem {
+  id: string;
+  code: string;
+  name: string;
+  isSystem?: boolean;
+  isActive?: boolean;
+}
+
+export const defaultCustomPaymentMethods: CustomPaymentMethodItem[] = [
+  { id: 'pay-1', code: 'PIX', name: 'PIX', isSystem: true, isActive: true },
+  { id: 'pay-2', code: 'DINHEIRO', name: 'Dinheiro à Vista', isSystem: true, isActive: true },
+  { id: 'pay-3', code: 'CARTAO_DEBITO', name: 'Cartão de Débito', isSystem: true, isActive: true },
+  { id: 'pay-4', code: 'CARTAO_CREDITO', name: 'Cartão de Crédito', isSystem: true, isActive: true },
+  { id: 'pay-5', code: 'TRANSFERENCIA', name: 'Transferência Bancária / TED', isSystem: false, isActive: true },
+  { id: 'pay-6', code: 'BOLETO', name: 'Boleto Bancário', isSystem: false, isActive: true },
+  { id: 'pay-7', code: 'FIADO', name: 'Fiado / A Prazo (Conta a Receber)', isSystem: false, isActive: true },
+  { id: 'pay-8', code: 'LINK_PAGTO', name: 'Link de Pagamento / Online', isSystem: false, isActive: true },
+  { id: 'pay-9', code: 'NAO_INFORMADO', name: 'A Combinar / Não informado', isSystem: true, isActive: true },
+];
+
+export interface FormattedPaymentOption {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export function getDeduplicatedPaymentOptions(customMethods?: CustomPaymentMethodItem[]): FormattedPaymentOption[] {
+  const baseOptions: FormattedPaymentOption[] = [
+    { id: 'PIX', label: 'PIX', icon: '⚡' },
+    { id: 'DINHEIRO', label: 'Dinheiro', icon: '💵' },
+    { id: 'CARTAO_CREDITO', label: 'Cartão Crédito', icon: '💳' },
+    { id: 'CARTAO_DEBITO', label: 'Cartão Débito', icon: '💳' },
+    { id: 'TRANSFERENCIA', label: 'Transferência', icon: '🏦' },
+    { id: 'A_PRAZO', label: 'A Prazo / Fiado', icon: '📜' },
+  ];
+
+  const seenKeys = new Set<string>();
+
+  const normalizeKey = (val?: string): string => {
+    if (!val) return '';
+    const clean = val
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+
+    if (clean.includes('PIX')) return 'PIX';
+    if (clean.includes('DINHEIRO') || clean.includes('ESPECIE')) return 'DINHEIRO';
+    if (clean.includes('DEBITO') || clean.includes('DEB')) return 'CARTAO_DEBITO';
+    if (clean.includes('CREDITO') || clean.includes('CRED')) return 'CARTAO_CREDITO';
+    if (clean.includes('TRANSFERENCIA') || clean.includes('TED') || clean.includes('DOC') || clean.includes('BANK')) return 'TRANSFERENCIA';
+    if (clean.includes('PRAZO') || clean.includes('FIADO') || clean.includes('RECEBER')) return 'A_PRAZO';
+    if (clean.includes('BOLETO')) return 'BOLETO';
+    if (clean.includes('LINK')) return 'LINK_PAGTO';
+    if (clean.includes('COMBINAR') || clean.includes('NAOINFORMADO')) return 'NAO_INFORMADO';
+
+    return clean;
+  };
+
+  const result: FormattedPaymentOption[] = [];
+
+  for (const opt of baseOptions) {
+    const k1 = normalizeKey(opt.id);
+    const k2 = normalizeKey(opt.label);
+    if (k1) seenKeys.add(k1);
+    if (k2) seenKeys.add(k2);
+    result.push(opt);
+  }
+
+  const list = customMethods || [];
+  for (const cm of list) {
+    if (cm.isActive === false) continue;
+    const kId = normalizeKey(cm.id);
+    const kCode = normalizeKey(cm.code);
+    const kName = normalizeKey(cm.name);
+
+    if ((kId && seenKeys.has(kId)) || (kCode && seenKeys.has(kCode)) || (kName && seenKeys.has(kName))) {
+      continue;
+    }
+
+    if (kId) seenKeys.add(kId);
+    if (kCode) seenKeys.add(kCode);
+    if (kName) seenKeys.add(kName);
+
+    result.push({
+      id: cm.id || cm.code || kName,
+      label: cm.name || cm.code || cm.id,
+      icon: '🏷️',
+    });
+  }
+
+  return result;
+}
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  iconName?: string;
+  count?: number;
+}
+
+export const defaultCustomCategories: CustomCategory[] = [
+  { id: 'cat-1', name: 'Celulares', iconName: 'Smartphone' },
+  { id: 'cat-2', name: 'Acessórios', iconName: 'Headphones' },
+  { id: 'cat-3', name: 'Informática', iconName: 'Laptop' },
+  { id: 'cat-4', name: 'Peças', iconName: 'Layers' },
+  { id: 'cat-5', name: 'TV / Streaming', iconName: 'Tv' },
+  { id: 'cat-6', name: 'Câmeras', iconName: 'Camera' },
+  { id: 'cat-7', name: 'Cabos', iconName: 'Cable' },
+  { id: 'cat-8', name: 'Carregadores', iconName: 'Zap' },
+  { id: 'cat-9', name: 'Capinhas', iconName: 'Shield' },
+  { id: 'cat-10', name: 'Películas', iconName: 'Smartphone' },
+  { id: 'cat-11', name: 'Armazenamento', iconName: 'HardDrive' },
+  { id: 'cat-12', name: 'Áudio', iconName: 'Speaker' },
+];
+
+export const defaultCustomBrands: string[] = [
+  'Apple',
+  'Samsung',
+  'Motorola',
+  'Xiaomi',
+  'Asus',
+  'LG',
+  'Lenovo',
+  'Dell',
+  'HP',
+  'Positivo',
+  'JBL',
+  'SanDisk',
+  'Anker',
+  'Baseus',
+  'Hrebos',
+  'It-Blue',
+  'Gold',
+  'Inova',
+  'Kaidi',
+  'Realme',
+  'Nokia',
+  'Sony',
+  'Generico',
+];
+
+export interface CustomOSStatusItem {
+  id: string;
+  code: string;
+  label: string;
+  colorBg: string;
+  colorText: string;
+  colorBorder: string;
+  colorDot: string;
+  isSystem?: boolean;
+}
+
+export const defaultCustomOSStatuses: CustomOSStatusItem[] = [
+  { id: 'os-1', code: 'ORCAMENTO', label: 'Orçamento', colorBg: 'bg-amber-500/15', colorText: 'text-amber-400', colorBorder: 'border-amber-500/40', colorDot: 'bg-amber-400', isSystem: true },
+  { id: 'os-2', code: 'AGUARDANDO_AUTORIZACAO', label: 'Aguardando Autorização', colorBg: 'bg-purple-500/15', colorText: 'text-purple-400', colorBorder: 'border-purple-500/40', colorDot: 'bg-purple-400', isSystem: true },
+  { id: 'os-3', code: 'AUTORIZADO', label: 'Autorizado (Em Manutenção)', colorBg: 'bg-cyan-500/15', colorText: 'text-cyan-400', colorBorder: 'border-cyan-500/40', colorDot: 'bg-cyan-400', isSystem: true },
+  { id: 'os-eulis', code: 'C_EULIS', label: 'C/ Euklis', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
+  { id: 'os-4', code: 'AGUARDANDO_PECA', label: 'Aguardando Peça', colorBg: 'bg-orange-500/15', colorText: 'text-orange-400', colorBorder: 'border-orange-500/40', colorDot: 'bg-orange-400', isSystem: true },
+  { id: 'os-5', code: 'ATRASADO', label: 'Atrasado', colorBg: 'bg-rose-500/15', colorText: 'text-rose-400', colorBorder: 'border-rose-500/40', colorDot: 'bg-rose-400', isSystem: true },
+  { id: 'os-6', code: 'PRONTO', label: 'Pronto para Retirada', colorBg: 'bg-emerald-500/15', colorText: 'text-emerald-400', colorBorder: 'border-emerald-500/40', colorDot: 'bg-emerald-400', isSystem: true },
+  { id: 'os-7', code: 'ENTREGUE', label: 'Entregue / Concluído', colorBg: 'bg-teal-500/15', colorText: 'text-teal-400', colorBorder: 'border-teal-500/40', colorDot: 'bg-teal-400', isSystem: true },
+  { id: 'os-8', code: 'GARANTIA', label: 'Retorno em Garantia', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
+  { id: 'os-9', code: 'CANCELADA', label: 'Cancelado pelo Cliente', colorBg: 'bg-slate-500/15', colorText: 'text-slate-400', colorBorder: 'border-slate-500/40', colorDot: 'bg-slate-400' },
+  { id: 'os-10', code: 'ARQUIVADO', label: 'Arquivado', colorBg: 'bg-zinc-700/30', colorText: 'text-zinc-200', colorBorder: 'border-zinc-500/50', colorDot: 'bg-zinc-400' },
+];
+
+export interface SystemFormatOptions {
+  orders: boolean;
+  sales: boolean;
+  cash: boolean;
+  expenses: boolean;
+  receivables: boolean;
+  purchases: boolean;
+  stockMovements: boolean;
+  products: boolean;
+  customers: boolean;
+  devices: boolean;
+  suppliers: boolean;
+  resellers: boolean;
+  auditLogs: boolean;
+  resetCompanySettings: boolean;
+  resetCustomConfigs: boolean;
+  resetEmployeesToAdminOnly: boolean;
+}
+
+export const defaultSystemFormatOptions: SystemFormatOptions = {
+  orders: true,
+  sales: true,
+  cash: true,
+  expenses: true,
+  receivables: true,
+  purchases: true,
+  stockMovements: true,
+  products: false,
+  customers: false,
+  devices: false,
+  suppliers: false,
+  resellers: false,
+  auditLogs: true,
+  resetCompanySettings: false,
+  resetCustomConfigs: false,
+  resetEmployeesToAdminOnly: false,
+};
+
+export const completeFactoryResetOptions: SystemFormatOptions = {
+  orders: true,
+  sales: true,
+  cash: true,
+  expenses: true,
+  receivables: true,
+  purchases: true,
+  stockMovements: true,
+  products: true,
+  customers: true,
+  devices: true,
+  suppliers: true,
+  resellers: true,
+  auditLogs: true,
+  resetCompanySettings: true,
+  resetCustomConfigs: true,
+  resetEmployeesToAdminOnly: true,
+};
+
+export interface SystemStatsSummary {
+  ordersCount: number;
+  salesCount: number;
+  customersCount: number;
+  devicesCount: number;
+  productsCount: number;
+  expensesCount: number;
+  receivablesCount: number;
+  purchasesCount: number;
+  stockMovementsCount: number;
+  cashMovementsCount: number;
+  auditLogsCount: number;
+  suppliersCount: number;
+  resellersCount: number;
+  hasOpenCashSession: boolean;
+}
+
+// Simple event emitter for React subscriptions
+type Listener = () => void;
+const listeners: Set<Listener> = new Set();
+let notifyScheduled = false;
+
+function notifyListeners() {
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  Promise.resolve().then(() => {
+    notifyScheduled = false;
+    Array.from(listeners).forEach((fn) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error('Error notifying listener', e);
+      }
+    });
+  });
+}
+
+const GLOBAL_KEYS = new Set([
+  STORAGE_KEYS.USER_ACCOUNTS,
+  STORAGE_KEYS.AUTH_SESSION,
+  STORAGE_KEYS.SAVED_ACCOUNTS,
+  STORAGE_KEYS.USER_SUBSCRIPTIONS,
+  STORAGE_KEYS.INITIALIZED,
+]);
+
+function loadInitialAuthSession(): AuthSession | null {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || sessionStorage.getItem('msp_auth_session_v1');
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    }
+    // Clean legacy persistent local storage auth keys to ensure URL access requires login
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      localStorage.removeItem('msp_auth_session_v1');
+      localStorage.removeItem('msp_auth_session');
+    }
+  } catch (_) {}
+  return null;
+}
+
+export const DEMO_ORDER_IDS = new Set([
+  'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
+  'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
+]);
+
+export function isDemoOrder(o: { id?: string }): boolean {
+  if (!o || !o.id) return false;
+  return DEMO_ORDER_IDS.has(o.id);
+}
+
+const RAM_STORE = new Map<string, any>();
+
+export function purgeDemoOrdersFromStorage(): void {
+  // Pure cloud mode - RAM only
+}
+
+let activeAuthSession: AuthSession | null = loadInitialAuthSession();
+
+export function getAllLocalItemsForEntity<T extends { id: string }>(baseKey: string): T[] {
+  const itemsMap = new Map<string, T>();
+  try {
+    const scopedKey = getScopedKey(baseKey);
+    const list = RAM_STORE.get(scopedKey) || RAM_STORE.get(baseKey);
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (item && typeof item === 'object' && item.id) {
+          if (baseKey === STORAGE_KEYS.ORDERS && isDemoOrder(item)) {
+            continue;
+          }
+          itemsMap.set(String(item.id), item as T);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('getAllLocalItemsForEntity error:', e);
+  }
+  return Array.from(itemsMap.values());
+}
+
+export function getActiveTenantScope(): string {
+  try {
+    const session = activeAuthSession;
+    if (session && session.email) {
+      let cleanEmail = session.email.trim().toLowerCase();
+      if (cleanEmail === 'msp404011@gmail.com' || cleanEmail === 'mmspmartins62@gmail.com') {
+        cleanEmail = 'mmspmartins62@gmail.com';
+      }
+      const scoped = cleanEmail.replace(/[^a-z0-9_]/g, '_');
+      if (scoped) return `tenant_${scoped}`;
+    }
+  } catch (e) {
+    // fallback
+  }
+  return 'tenant_mmspmartins62_gmail_com';
+}
+
+function getScopedKey(key: string): string {
+  if (GLOBAL_KEYS.has(key)) {
+    return key;
+  }
+  const tenant = getActiveTenantScope();
+  return `${tenant}__${key}`;
+}
+
+export function setRamItem<T>(key: string, value: T, notify: boolean = true): void {
+  try {
+    const scopedKey = getScopedKey(key);
+    RAM_STORE.set(scopedKey, value);
+    RAM_STORE.set(key, value);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem(scopedKey, JSON.stringify(value));
+        window.localStorage.setItem(key, JSON.stringify(value));
+      } catch (_) {}
+    }
+    if (notify) {
+      notifyListeners();
+    }
+  } catch (e) {
+    console.error(`Error saving ${key} to RAM`, e);
+  }
+}
+
+export function getRamItem<T>(key: string, fallback: T): T {
+  try {
+    const scopedKey = getScopedKey(key);
+    if (RAM_STORE.has(scopedKey)) return RAM_STORE.get(scopedKey);
+    if (RAM_STORE.has(key)) return RAM_STORE.get(key);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(scopedKey) || window.localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          RAM_STORE.set(scopedKey, parsed);
+          RAM_STORE.set(key, parsed);
+          return parsed;
+        } catch (_) {}
+      }
+    }
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+export function notifyStorageListeners(): void {
+  notifyListeners();
+}
+
+export function getItem<T>(key: string, fallback: T): T {
+  return getRamItem<T>(key, fallback);
+}
+
+export function setItem<T>(key: string, value: T, notify: boolean = true): void {
+  setRamItem<T>(key, value, notify);
+}
+
+export const StorageService = {
+  subscribe(fn: Listener): () => void {
+    listeners.add(fn);
+    return () => {
+      listeners.delete(fn);
+    };
+  },
+
+  // Reset to default demo dataset for current active tenant
+  resetToDemoData(): void {
+    setItem(STORAGE_KEYS.CUSTOMERS, initialCustomers);
+    setItem(STORAGE_KEYS.DEVICES, initialDevices);
+    setItem(STORAGE_KEYS.PRODUCTS, initialProducts);
+    setItem(STORAGE_KEYS.ORDERS, initialOrders);
+    setItem(STORAGE_KEYS.SALES, initialSales);
+    setItem(STORAGE_KEYS.CASH_SESSION, initialCashSession);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, initialCashSession?.movements || []);
+    setItem(STORAGE_KEYS.EXPENSES, initialExpenses);
+    setItem(STORAGE_KEYS.EMPLOYEES, initialEmployees);
+    setItem(STORAGE_KEYS.PURCHASES, initialPurchases);
+    setItem(STORAGE_KEYS.STOCK_MOVEMENTS, initialStockMovements);
+    setItem(STORAGE_KEYS.RECEIVABLES, initialReceivables);
+    setItem(STORAGE_KEYS.AUDIT_LOGS, initialAuditLogs);
+    setItem(STORAGE_KEYS.SUPPLIERS, [
+      { id: 'sup-1', name: 'Distribuidora Tech Brasil' },
+      { id: 'sup-2', name: 'Mega Telas & Touch' },
+      { id: 'sup-3', name: 'Importadora Gold Parts' }
+    ]);
+    setItem(STORAGE_KEYS.RESELLERS, initialResellers);
+    setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, initialResellerTransactions);
+    setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings);
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, initialSubscriptionPlan);
+    setItem(STORAGE_KEYS.CURRENT_USER, initialEmployees[0]);
+    localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+    this.logAction('Dados de demonstração restaurados com sucesso.');
+    notifyListeners();
+  },
+
+  getSystemStatsSummary(): SystemStatsSummary {
+    return {
+      ordersCount: this.getOrders().length,
+      salesCount: this.getSales().length,
+      customersCount: this.getCustomers().length,
+      devicesCount: this.getDevices().length,
+      productsCount: this.getProducts().length,
+      expensesCount: this.getExpenses().length,
+      receivablesCount: this.getReceivables().length,
+      purchasesCount: this.getPurchases().length,
+      stockMovementsCount: this.getStockMovements().length,
+      cashMovementsCount: this.getCashMovements().length,
+      auditLogsCount: this.getAuditLogs().length,
+      suppliersCount: this.getSuppliers().length,
+      resellersCount: this.getResellers().length,
+      hasOpenCashSession: !!this.getCashSession()?.isOpen,
+    };
+  },
+
+  formatSystem(options: Partial<SystemFormatOptions>): void {
+    if (options.orders) {
+      setItem(STORAGE_KEYS.ORDERS, []);
+    }
+    if (options.sales) {
+      setItem(STORAGE_KEYS.SALES, []);
+    }
+    if (options.cash) {
+      setItem(STORAGE_KEYS.CASH_SESSION, null);
+      setItem(STORAGE_KEYS.CASH_MOVEMENTS, []);
+    }
+    if (options.expenses) {
+      setItem(STORAGE_KEYS.EXPENSES, []);
+    }
+    if (options.receivables) {
+      setItem(STORAGE_KEYS.RECEIVABLES, []);
+    }
+    if (options.purchases) {
+      setItem(STORAGE_KEYS.PURCHASES, []);
+    }
+    if (options.stockMovements) {
+      setItem(STORAGE_KEYS.STOCK_MOVEMENTS, []);
+    }
+    if (options.products) {
+      setItem(STORAGE_KEYS.PRODUCTS, []);
+    }
+    if (options.customers) {
+      setItem(STORAGE_KEYS.CUSTOMERS, []);
+    }
+    if (options.devices) {
+      setItem(STORAGE_KEYS.DEVICES, []);
+    }
+    if (options.suppliers) {
+      setItem(STORAGE_KEYS.SUPPLIERS, []);
+    }
+    if (options.resellers) {
+      setItem(STORAGE_KEYS.RESELLERS, []);
+      setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, []);
+    }
+    if (options.auditLogs) {
+      setItem(STORAGE_KEYS.AUDIT_LOGS, []);
+    }
+    if (options.resetCompanySettings) {
+      setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings);
+    }
+    if (options.resetCustomConfigs) {
+      setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, defaultCustomCategories);
+      setItem(STORAGE_KEYS.CUSTOM_BRANDS, defaultCustomBrands);
+      setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses);
+      setItem(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, defaultCustomDeviceTypes);
+      setItem(STORAGE_KEYS.CUSTOM_ACCESSORIES, defaultCustomAccessories);
+      setItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods);
+      setItem(STORAGE_KEYS.PURCHASES_CONFIG, { historyLimitMonths: 12, autoDeleteExpired: true });
+    }
+    if (options.resetEmployeesToAdminOnly) {
+      const authSession = this.getAuthSession();
+      if (authSession?.isAuthenticated && authSession?.email) {
+        const ownerEmp = this.getCurrentUser();
+        setItem(STORAGE_KEYS.EMPLOYEES, [ownerEmp]);
+        setItem(STORAGE_KEYS.CURRENT_USER, ownerEmp);
+      } else {
+        setItem(STORAGE_KEYS.EMPLOYEES, [initialEmployees[0]]);
+        setItem(STORAGE_KEYS.CURRENT_USER, initialEmployees[0]);
+      }
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+    } catch (_) {}
+
+    this.logAction('Formatação do sistema realizada com sucesso.');
+    notifyListeners();
+  },
+
+  clearAllData(): void {
+    this.formatSystem({
+      orders: true,
+      sales: true,
+      cash: true,
+      expenses: true,
+      receivables: true,
+      purchases: true,
+      stockMovements: true,
+      products: true,
+      customers: true,
+      devices: true,
+      suppliers: true,
+      resellers: true,
+      auditLogs: true,
+      resetCompanySettings: false,
+      resetCustomConfigs: false,
+      resetEmployeesToAdminOnly: true,
+    });
+  },
+
+  exportBackup(): string {
+    const data = {
+      customers: this.getCustomers(),
+      devices: this.getDevices(),
+      products: this.getProducts(),
+      orders: this.getOrders(),
+      sales: this.getSales(),
+      cashSession: this.getCashSession(),
+      cashMovements: this.getCashMovements(),
+      expenses: this.getExpenses(),
+      employees: this.getEmployees(),
+      purchases: this.getPurchases(),
+      stockMovements: this.getStockMovements(),
+      receivables: this.getReceivables(),
+      auditLogs: this.getAuditLogs(),
+      resellers: this.getResellers(),
+      resellerTransactions: this.getResellerTransactions(),
+      settings: this.getCompanySettings(),
+      exportedAt: new Date().toISOString(),
+      version: '1.0',
+    };
+    return JSON.stringify(data, null, 2);
+  },
+
+  importBackup(jsonString: string): boolean {
+    try {
+      const data = JSON.parse(jsonString);
+      if (data.customers) setItem(STORAGE_KEYS.CUSTOMERS, data.customers);
+      if (data.devices) setItem(STORAGE_KEYS.DEVICES, data.devices);
+      if (data.products) setItem(STORAGE_KEYS.PRODUCTS, data.products);
+      if (data.orders) setItem(STORAGE_KEYS.ORDERS, data.orders);
+      if (data.sales) setItem(STORAGE_KEYS.SALES, data.sales);
+      if (data.cashSession !== undefined) setItem(STORAGE_KEYS.CASH_SESSION, data.cashSession);
+      if (data.cashMovements) setItem(STORAGE_KEYS.CASH_MOVEMENTS, data.cashMovements);
+      if (data.expenses) setItem(STORAGE_KEYS.EXPENSES, data.expenses);
+      if (data.employees) setItem(STORAGE_KEYS.EMPLOYEES, data.employees);
+      if (data.purchases) setItem(STORAGE_KEYS.PURCHASES, data.purchases);
+      if (data.stockMovements) setItem(STORAGE_KEYS.STOCK_MOVEMENTS, data.stockMovements);
+      if (data.receivables) setItem(STORAGE_KEYS.RECEIVABLES, data.receivables);
+      if (data.resellers) setItem(STORAGE_KEYS.RESELLERS, data.resellers);
+      if (data.resellerTransactions) setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, data.resellerTransactions);
+      if (data.settings) setItem(STORAGE_KEYS.SETTINGS, data.settings);
+      this.logAction('Backup importado com sucesso.');
+      notifyListeners();
+      return true;
+    } catch (e) {
+      console.error('Falha ao importar backup', e);
+      return false;
+    }
+  },
+
+  // Current User & Employees
+  getEmployees(): Employee[] {
+    const authSession = this.getAuthSession();
+    const defaultList = authSession?.isAuthenticated ? [] : initialEmployees;
+    const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, defaultList);
+    
+    // Auto-inject Benny if missing by phone AND not authenticated (demo mode only)
+    if (!authSession?.isAuthenticated) {
+      if (!list.find((e) => e.phone === '88988323081')) {
+        const benny: Employee = {
+          id: 'emp-benny',
+          name: 'Benny',
+          phone: '88988323081',
+          email: 'benny@assistencia.com',
+          role: 'VENDEDOR',
+          status: 'ATIVO',
+          commissionRate: 5,
+          permissions: {
+            canAccessAdminSettings: false,
+            canViewFinancialReports: false,
+            canViewProductCost: false,
+            canManageEmployees: false,
+            canManageProducts: false,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: false,
+            canDeleteRecords: false,
+          },
+          createdAt: new Date().toISOString()
+        };
+        list.push(benny);
+        setItem(STORAGE_KEYS.EMPLOYEES, list, false);
+      }
+    }
+    
+    return list;
+  },
+
+  saveEmployee(employee: Employee, localOnly: boolean = false): void {
+    const list = this.getEmployees();
+    const idx = list.findIndex((e) => e.id === employee.id);
+    if (idx >= 0) {
+      list[idx] = employee;
+      this.logAction(`Funcionário atualizado: ${employee.name}`);
+    } else {
+      list.push(employee);
+      this.logAction(`Novo funcionário cadastrado: ${employee.name} (${employee.role})`);
+    }
+    setItem(STORAGE_KEYS.EMPLOYEES, list);
+    if (!localOnly) {
+      FirestoreSyncService.saveEmployee(employee);
+    }
+  },
+
+  deleteEmployee(id: string): void {
+    const list = this.getEmployees();
+    const target = list.find((e) => e.id === id);
+    const filtered = list.filter((e) => e.id !== id);
+    setItem(STORAGE_KEYS.EMPLOYEES, filtered);
+    FirestoreSyncService.deleteEmployee(id);
+    if (target) {
+      this.logAction(`Funcionário excluído: ${target.name}`);
+    }
+  },
+
+  getCurrentUser(): Employee {
+    const authSession = this.getAuthSession();
+    
+    if (authSession?.isAuthenticated && authSession?.email) {
+      const cleanEmail = authSession.email.toLowerCase().trim();
+
+      if (cleanEmail === 'mmspmartins62@gmail.com' || cleanEmail === 'msp404011@gmail.com') {
+        const superEmp: Employee = {
+          id: authSession.uid || 'emp-super-admin',
+          name: authSession.name || 'Administrador Master',
+          email: cleanEmail,
+          role: 'ADMINISTRADOR',
+          avatarUrl: authSession.avatarUrl || `https://ui-avatars.com/api/?name=Admin+Master&background=f59e0b&color=000000`,
+          status: 'ATIVO',
+          active: true,
+          permissions: {
+            canAccessAdminSettings: true,
+            canViewFinancialReports: true,
+            canViewProductCost: true,
+            canManageEmployees: true,
+            canManageProducts: true,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: true,
+            canDeleteRecords: true,
+            canAdjustStock: true,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        return superEmp;
+      }
+
+      const employees = this.getEmployees();
+      let emp = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+      
+      if (!emp) {
+        emp = {
+          id: `emp-adm-auto`,
+          name: authSession.name || 'Administrador',
+          email: cleanEmail,
+          role: 'ADMINISTRADOR',
+          avatarUrl: authSession.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(authSession.name || 'Admin')}&background=0284c7&color=ffffff`,
+          active: true,
+          permissions: {
+            canAccessAdminSettings: true,
+            canViewFinancialReports: true,
+            canViewProductCost: true,
+            canManageEmployees: true,
+            canManageProducts: true,
+            canManageCustomers: true,
+            canManageOrders: true,
+            canOperatePos: true,
+            canOperateCash: true,
+            canManageExpenses: true,
+            canDeleteRecords: true,
+          },
+          createdAt: new Date().toISOString(),
+        };
+        const list = getItem<Employee[]>(STORAGE_KEYS.EMPLOYEES, []);
+        if (!list.some(e => e.email?.toLowerCase() === cleanEmail)) {
+          list.push(emp);
+          setItem(STORAGE_KEYS.EMPLOYEES, list, false);
+          FirestoreSyncService.saveEmployee(emp);
+        }
+      }
+      
+      const current = getItem<Employee | null>(STORAGE_KEYS.CURRENT_USER, null);
+      if (current && (employees.some(e => e.id === current.id) || current.id === emp.id)) {
+        return current;
+      }
+      return emp;
+    }
+
+    const fallback = this.getEmployees()[0] || initialEmployees[0];
+    return getItem(STORAGE_KEYS.CURRENT_USER, fallback);
+  },
+
+  setCurrentUser(employee: Employee): void {
+    setItem(STORAGE_KEYS.CURRENT_USER, employee);
+    this.logAction(`Operador ativo alterado para ${employee.name}`);
+  },
+
+  // Customers
+  getCustomers(): Customer[] {
+    return getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+  },
+
+  saveCustomer(customer: Customer): Customer {
+    const list = this.getCustomers();
+    const idx = list.findIndex((c) => c.id === customer.id);
+    const oldCustomer = idx >= 0 ? { ...list[idx] } : null;
+
+    const normalizedCustomer: Customer = {
+      ...customer,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (idx >= 0) {
+      list[idx] = normalizedCustomer;
+      this.logAction(`Cliente atualizado: ${normalizedCustomer.name}`);
+    } else {
+      list.unshift(normalizedCustomer);
+      this.logAction(`Novo cliente cadastrado: ${normalizedCustomer.name}`);
+    }
+    setItem(STORAGE_KEYS.CUSTOMERS, list);
+    FirestoreSyncService.saveCustomer(normalizedCustomer);
+
+    // Cascade update to all sectors in the system (Orders, Receivables/A Prazo, Devices, Sales, Cash)
+    this.cascadeUpdateCustomerAcrossSystem(normalizedCustomer, oldCustomer);
+
+    return normalizedCustomer;
+  },
+
+  cascadeUpdateCustomerAcrossSystem(customer: Customer, oldCustomer: Customer | null): void {
+    const cleanDoc = (doc?: string) => (doc ? doc.replace(/\D/g, '') : '');
+    const cleanPhone = (ph?: string) => (ph ? ph.replace(/\D/g, '') : '');
+    const normalizeStr = (str?: string) => (str ? str.trim().toLowerCase() : '');
+
+    const oldNameNorm = oldCustomer ? normalizeStr(oldCustomer.name) : '';
+    const oldPhoneClean = oldCustomer ? cleanPhone(oldCustomer.phone) : '';
+    const oldDocClean = oldCustomer ? cleanDoc(oldCustomer.document) : '';
+    const targetId = customer.id;
+
+    // Helper to determine if a record matches the target customer using ID, Phone, CPF/CNPJ or Name
+    const isMatch = (entityCustId?: string, entityCustName?: string, entityCustPhone?: string, entityCustDoc?: string) => {
+      if (entityCustId && entityCustId === targetId) return true;
+
+      const cleanEntityPhone = cleanPhone(entityCustPhone);
+      const currentPhoneClean = cleanPhone(customer.phone);
+      if (cleanEntityPhone && (cleanEntityPhone === currentPhoneClean || (oldPhoneClean && cleanEntityPhone === oldPhoneClean))) {
+        return true;
+      }
+
+      const cleanEntityDoc = cleanDoc(entityCustDoc);
+      const currentDocClean = cleanDoc(customer.document);
+      if (cleanEntityDoc && (cleanEntityDoc === currentDocClean || (oldDocClean && cleanEntityDoc === oldDocClean))) {
+        return true;
+      }
+
+      if (entityCustName) {
+        const normEntityName = normalizeStr(entityCustName);
+        const normCurrentName = normalizeStr(customer.name);
+        
+        if (normEntityName === normCurrentName) return true;
+        if (oldNameNorm && normEntityName === oldNameNorm) return true;
+
+        if (normCurrentName.length > 5 && (normEntityName.includes(normCurrentName) || normCurrentName.includes(normEntityName))) {
+          return true;
+        }
+        if (oldNameNorm && oldNameNorm.length > 5 && (normEntityName.includes(oldNameNorm) || oldNameNorm.includes(normEntityName))) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // 1. ORDERS CASCADE
+    const orders = this.getOrders();
+    let ordersModified = false;
+    const updatedOrders = orders.map((o) => {
+      if (isMatch(o.customerId, o.customerName, o.customerPhone, o.customerDocument)) {
+        ordersModified = true;
+        return {
+          ...o,
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          customerWhatsapp: customer.whatsapp || customer.phone,
+          customerDocument: customer.document || o.customerDocument,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return o;
+    });
+
+    if (ordersModified) {
+      setItem(STORAGE_KEYS.ORDERS, updatedOrders);
+    }
+
+    // 2. RECEIVABLES CASCADE (A Prazo / Crediário)
+    const receivables = this.getReceivables();
+    let receivablesModified = false;
+    const updatedReceivables = receivables.map((r) => {
+      const entityDoc = (r as any).customerDocument || (r as any).cpfCnpj;
+      if (isMatch(r.customerId, r.customerName, r.customerPhone, entityDoc)) {
+        receivablesModified = true;
+        return {
+          ...r,
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          customerDocument: customer.document || (r as any).customerDocument,
+          cpfCnpj: customer.document || (r as any).cpfCnpj,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return r;
+    });
+
+    if (receivablesModified) {
+      setItem(STORAGE_KEYS.RECEIVABLES, updatedReceivables);
+    }
+
+    // 3. DEVICES CASCADE
+    const devices = this.getDevices();
+    let devicesModified = false;
+    const updatedDevices = devices.map((d) => {
+      if (isMatch(d.customerId, d.customerName, (d as any).customerPhone)) {
+        devicesModified = true;
+        return {
+          ...d,
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+        };
+      }
+      return d;
+    });
+
+    if (devicesModified) {
+      setItem(STORAGE_KEYS.DEVICES, updatedDevices);
+    }
+
+    // 4. SALES CASCADE (PDV / Vendas)
+    const sales = this.getSales();
+    let salesModified = false;
+    const updatedSales = sales.map((s) => {
+      if (isMatch(s.customerId, s.customerName, (s as any).customerPhone, (s as any).customerCpf)) {
+        salesModified = true;
+        return {
+          ...s,
+          customerId: customer.id,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          customerCpf: customer.document || (s as any).customerCpf,
+          customerEmail: customer.email || (s as any).customerEmail,
+        };
+      }
+      return s;
+    });
+
+    if (salesModified) {
+      setItem(STORAGE_KEYS.SALES, updatedSales);
+    }
+
+    // 5. CASH MOVEMENTS CASCADE
+    if (oldCustomer && oldCustomer.name && oldCustomer.name !== customer.name) {
+      const cashMovements = this.getCashMovements();
+      let movementsModified = false;
+      const updatedMovements = cashMovements.map((m) => {
+        if (m.description && m.description.includes(oldCustomer.name)) {
+          movementsModified = true;
+          return {
+            ...m,
+            description: m.description.replaceAll(oldCustomer.name, customer.name),
+          };
+        }
+        return m;
+      });
+      if (movementsModified) {
+        setItem(STORAGE_KEYS.CASH_MOVEMENTS, updatedMovements);
+      }
+
+      const activeSession = this.getCashSession();
+      if (activeSession && activeSession.movements) {
+        let sessionModified = false;
+        const sessionMovements = activeSession.movements.map((m) => {
+          if (m.description && m.description.includes(oldCustomer.name)) {
+            sessionModified = true;
+            return {
+              ...m,
+              description: m.description.replaceAll(oldCustomer.name, customer.name),
+            };
+          }
+          return m;
+        });
+        if (sessionModified) {
+          activeSession.movements = sessionMovements;
+          setItem(STORAGE_KEYS.CASH_SESSION, activeSession);
+        }
+      }
+    }
+
+    // Recalculate customer total debt balance from receivables
+    const activeDebt = (receivablesModified ? updatedReceivables : this.getReceivables())
+      .filter((r) => r.customerId === customer.id && r.status !== 'PAGO' && (Number(r.remainingAmount ?? r.amount) > 0))
+      .reduce((sum, r) => sum + Number(r.remainingAmount ?? r.amount), 0);
+
+    // Sync debt balance if changed
+    if (customer.debtBalance !== activeDebt) {
+      customer.debtBalance = activeDebt;
+      const currentCustomers = this.getCustomers();
+      const cIdx = currentCustomers.findIndex((c) => c.id === customer.id);
+      if (cIdx >= 0) {
+        currentCustomers[cIdx].debtBalance = activeDebt;
+        setItem(STORAGE_KEYS.CUSTOMERS, currentCustomers);
+      }
+    }
+  },
+
+  deleteCustomer(id: string): void {
+    const list = this.getCustomers();
+    const target = list.find((c) => c.id === id);
+    const filtered = list.filter((c) => c.id !== id);
+    setItem(STORAGE_KEYS.CUSTOMERS, filtered);
+    FirestoreSyncService.deleteCustomer(id);
+    if (target) {
+      this.logAction(`Cliente removido: ${target.name}`);
+    }
+  },
+
+  // Devices
+  getDevices(): Device[] {
+    return getItem<Device[]>(STORAGE_KEYS.DEVICES, []);
+  },
+
+  saveDevice(device: Device): Device {
+    const list = this.getDevices();
+    const idx = list.findIndex((d) => d.id === device.id);
+    if (idx >= 0) {
+      list[idx] = device;
+      this.logAction(`Aparelho atualizado: ${device.brand} ${device.model}`);
+    } else {
+      list.unshift(device);
+      this.logAction(`Novo aparelho vinculado: ${device.brand} ${device.model} (${device.customerName || 'Cliente'})`);
+    }
+    setItem(STORAGE_KEYS.DEVICES, list);
+    FirestoreSyncService.saveDevice(device);
+    return device;
+  },
+
+  syncDevicesFromDeliveredOrders(): void {
+    const devices = this.getDevices();
+    const orders = this.getOrders();
+    const deliveredOrders = orders.filter((o) => {
+      const s = (o.status || '').toUpperCase();
+      return s === 'ENTREGUE' || s === 'CONCLUIDO' || s === 'CONCLUÍDO' || s === 'FINALIZADO';
+    });
+    
+    let modified = false;
+    const updatedDevices = [...devices];
+    
+    for (const order of deliveredOrders) {
+      if (!order.customerId) continue;
+      
+      const brandNormalized = (order.brand || '').trim().toLowerCase();
+      const modelNormalized = (order.model || '').trim().toLowerCase();
+      
+      if (!brandNormalized && !modelNormalized) continue;
+
+      const exists = updatedDevices.some(
+        (d) =>
+          d.customerId === order.customerId &&
+          (d.brand || '').trim().toLowerCase() === brandNormalized &&
+          (d.model || '').trim().toLowerCase() === modelNormalized
+      );
+      
+      if (!exists) {
+        const newDevice: Device = {
+          id: 'dev-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          customerId: order.customerId,
+          customerName: order.customerName,
+          type: order.deviceType || 'Celular',
+          brand: order.brand,
+          model: order.model,
+          imei: order.imei,
+          serialNumber: order.serialNumber,
+          color: '',
+          physicalCondition: order.physicalCondition || '',
+          passwordPin: order.passwordPin,
+          passwordType: order.passwordType,
+          passwordPattern: order.passwordPattern,
+          notes: '',
+          createdAt: new Date().toISOString(),
+        };
+        updatedDevices.unshift(newDevice);
+        modified = true;
+      }
+    }
+    
+    if (modified) {
+      setItem(STORAGE_KEYS.DEVICES, updatedDevices);
+    }
+  },
+
+  deleteDevice(id: string): void {
+    const list = this.getDevices();
+    const target = list.find((d) => d.id === id);
+    const filtered = list.filter((d) => d.id !== id);
+    setItem(STORAGE_KEYS.DEVICES, filtered);
+    FirestoreSyncService.deleteDevice(id);
+    if (target) {
+      this.logAction(`Aparelho excluído: ${target.brand} ${target.model}`);
+    }
+  },
+
+  // Products & Inventory
+  getProducts(): Product[] {
+    const list = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, []);
+    return list;
+  },
+
+  saveProduct(product: Product): Product {
+    const list = this.getProducts();
+    // Auto recalculate margin & gross profit
+    const cost = Number(product.costPrice) || 0;
+    const sell = Number(product.sellingPrice) || 0;
+    const reseller = Number(product.resellerPrice) || 0;
+    const gross = sell - cost;
+    const margin = cost > 0 ? (gross / cost) * 100 : 0;
+    
+    const isUnmanaged = product.manageStock === false || product.stockStatus === 'UNLIMITED';
+    const computed: Product = {
+      ...product,
+      manageStock: !isUnmanaged,
+      hasStock: isUnmanaged ? true : (product.hasStock ?? ((product.stockQuantity ?? 0) > 0)),
+      stockStatus: isUnmanaged ? 'UNLIMITED' : ((product.stockQuantity ?? 0) <= 0 ? 'OUT_OF_STOCK' : (product.stockQuantity ?? 0) <= (product.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK'),
+      costPrice: cost,
+      sellingPrice: sell,
+      resellerPrice: reseller,
+      profitGrossAmount: Number(gross.toFixed(2)),
+      profitMarginPercent: Number(margin.toFixed(2)),
+    };
+
+    const idx = list.findIndex((p) => p.id === computed.id);
+    if (idx >= 0) {
+      list[idx] = computed;
+      this.logAction(`Produto atualizado: ${computed.name} (Varejo: R$ ${computed.sellingPrice}, Revenda: R$ ${computed.resellerPrice})`);
+    } else {
+      list.unshift(computed);
+      this.logAction(`Novo produto cadastrado: ${computed.name}`);
+    }
+    setItem(STORAGE_KEYS.PRODUCTS, list);
+    FirestoreSyncService.saveProduct(computed);
+    return computed;
+  },
+
+  deleteProduct(id: string): void {
+    const list = this.getProducts();
+    const target = list.find((p) => p.id === id);
+    const filtered = list.filter((p) => p.id !== id);
+    setItem(STORAGE_KEYS.PRODUCTS, filtered);
+    FirestoreSyncService.deleteProduct(id);
+    if (target) {
+      this.logAction(`Produto excluído: ${target.name}`);
+    }
+  },
+
+  updateProductStock(productId: string, qtyDelta: number, reason: string, type: StockMovement['type'], refId?: string): boolean {
+    const products = this.getProducts();
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return false;
+
+    // Se o produto for Sem Controle / Ilimitado, não decrementa nem bloqueia saldo
+    if (prod.manageStock === false || prod.stockStatus === 'UNLIMITED') {
+      return true;
+    }
+
+    const prevStock = prod.stockQuantity;
+    const newStock = Math.max(0, prevStock + qtyDelta);
+    prod.stockQuantity = newStock;
+    prod.stock = newStock;
+    prod.hasStock = newStock > 0;
+    prod.stockStatus = newStock <= 0 ? 'OUT_OF_STOCK' : newStock <= (prod.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK';
+    setItem(STORAGE_KEYS.PRODUCTS, products);
+
+    try {
+      FirestoreSyncService.saveProduct(prod);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveProduct error inside updateProductStock:', e);
+    }
+
+    // Register Stock Movement
+    const user = this.getCurrentUser();
+    this.addStockMovement({
+      productId: prod.id,
+      productName: prod.name,
+      type,
+      quantity: qtyDelta,
+      previousStock: prevStock,
+      newStock,
+      unitCost: prod.costPrice,
+      userName: user.name,
+      reason,
+      referenceId: refId,
+    });
+
+    this.logAction(`Estoque alterado: ${prod.name} (${qtyDelta > 0 ? '+' : ''}${qtyDelta}) -> Novo: ${newStock}`);
+    return true;
+  },
+
+  getStockMovements(): StockMovement[] {
+    return getItem<StockMovement[]>(STORAGE_KEYS.STOCK_MOVEMENTS, []);
+  },
+
+  addStockMovement(movement: Omit<StockMovement, 'id' | 'date'>): StockMovement {
+    const sm: StockMovement = {
+      ...movement,
+      id: 'sm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      date: new Date().toISOString(),
+    };
+    const movements = this.getStockMovements();
+    movements.unshift(sm);
+    setItem(STORAGE_KEYS.STOCK_MOVEMENTS, movements);
+    try {
+      FirestoreSyncService.saveStockMovement(sm);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveStockMovement error:', e);
+    }
+    return sm;
+  },
+
+  // Service Orders
+  getOrders(): ServiceOrder[] {
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, initialOrders);
+    if (!orders || orders.length === 0) {
+      setItem(STORAGE_KEYS.ORDERS, initialOrders);
+      return initialOrders;
+    }
+    return orders.filter((o) => !isDemoOrder(o));
+  },
+
+  getOrderById(id: string): ServiceOrder | undefined {
+    return this.getOrders().find((o) => o.id === id);
+  },
+
+  getNextOrderNumber(): number {
+    const orders = this.getOrders();
+    if (orders.length === 0) return 1001;
+    const max = Math.max(...orders.map((o) => o.orderNumber || 1000));
+    return max + 1;
+  },
+
+  saveOrder(order: ServiceOrder): ServiceOrder {
+    const orders = this.getOrders();
+    const user = this.getCurrentUser();
+    const idx = orders.findIndex((o) => o.id === order.id);
+
+    if (idx >= 0) {
+      const prev = orders[idx];
+      orders[idx] = order;
+      this.logAction(`OS #${order.orderNumber} atualizada (${order.status})`, `Cliente: ${order.customerName}`);
+
+      // If status changed to PRONTA or ENTREGUE, handle cash / receivables
+      if (prev.status !== order.status) {
+        order.statusHistory.push({
+          status: order.status,
+          changedAt: new Date().toISOString(),
+          changedBy: user.name,
+          notes: `Status alterado de ${prev.status} para ${order.status}`,
+        });
+      }
+    } else {
+      orders.unshift(order);
+      this.logAction(`Nova OS criada: #${order.orderNumber}`, `Cliente: ${order.customerName}, Aparelho: ${order.brand} ${order.model}`);
+    }
+
+    setItem(STORAGE_KEYS.ORDERS, orders);
+    FirestoreSyncService.saveOrder(order);
+    return order;
+  },
+
+  updateOrderStatus(orderId: string, newStatus: OrderStatus, notes?: string): boolean {
+    const orders = this.getOrders();
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return false;
+
+    const user = this.getCurrentUser();
+    const prevStatus = order.status;
+    order.status = newStatus;
+
+    if (!order.statusHistory) order.statusHistory = [];
+    order.statusHistory.push({
+      status: newStatus,
+      changedAt: new Date().toISOString(),
+      changedBy: user.name,
+      notes: notes || `Status alterado de ${prevStatus} para ${newStatus}`,
+    });
+
+    if (newStatus === 'ENTREGUE') {
+      order.deliveredAt = new Date().toISOString();
+      if (Number(order.totalPrice) === 0) {
+        order.paymentStatus = 'PAGO';
+        if (!order.paymentMethod) order.paymentMethod = 'OUTRO';
+      }
+      // If paid on delivery and cash is open, record cash inflow if not already recorded
+      const existingCashMovements = this.getCashMovements();
+      const alreadyHasMovement = existingCashMovements.some((m) => m.referenceId === order.id);
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      if (order.paymentStatus === 'PAGO' && order.paymentMethod && !alreadyHasMovement && grossValue > 0) {
+        this.addCashMovement({
+          type: 'SERVICO_OS',
+          description: `Recebimento da OS #${order.orderNumber} - ${order.customerName}`,
+          amount: grossValue,
+          paymentMethod: order.paymentMethod,
+          referenceId: order.id,
+        });
+      }
+    }
+
+    setItem(STORAGE_KEYS.ORDERS, orders);
+    FirestoreSyncService.saveOrder(order);
+    this.logAction(`OS #${order.orderNumber}: Status alterado para ${newStatus}`, notes);
+    return true;
+  },
+
+  deleteOrder(id: string): void {
+    const orders = this.getOrders();
+    const target = orders.find((o) => o.id === id);
+    const filtered = orders.filter((o) => o.id !== id);
+    setItem(STORAGE_KEYS.ORDERS, filtered);
+    FirestoreSyncService.deleteOrder(id);
+    if (target) {
+      this.logAction(`OS #${target.orderNumber} excluída.`);
+    }
+  },
+
+  // Sales (PDV)
+  getSales(): Sale[] {
+    return getItem<Sale[]>(STORAGE_KEYS.SALES, []);
+  },
+
+  getNextSaleNumber(): number {
+    const sales = this.getSales();
+    if (sales.length === 0) return 501;
+    const max = Math.max(...sales.map((s) => s.saleNumber || 500));
+    return max + 1;
+  },
+
+  finalizeSale(saleData: Omit<Sale, 'id' | 'saleNumber' | 'date'>): Sale {
+    const sales = this.getSales();
+    const nextNumber = this.getNextSaleNumber();
+    const now = new Date().toISOString();
+
+    const sale: Sale = {
+      ...saleData,
+      id: 'sale-' + Date.now(),
+      saleNumber: nextNumber,
+      date: now,
+    };
+
+    // 1. Deduct product stock automatically
+    sale.items.forEach((item) => {
+      this.updateProductStock(item.productId, -item.quantity, `Venda PDV #${nextNumber}`, 'VENDA', sale.id);
+    });
+
+    // 2. Register in active cash session if open
+    const activeCash = this.getCashSession();
+    if (activeCash && activeCash.status === 'ABERTO') {
+      sale.cashSessionId = activeCash.id;
+      this.addCashMovement({
+        type: 'VENDA',
+        description: `Venda #${nextNumber} - ${sale.customerName}`,
+        amount: sale.total,
+        paymentMethod: sale.paymentMethod,
+        referenceId: sale.id,
+      });
+    }
+
+    // 3. If FIADO (on credit), add to Accounts Receivable
+    if (sale.paymentMethod === 'FIADO') {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      const productDesc = sale.items && sale.items.length > 0
+        ? sale.items.map((it: any) => `${it.productName || 'Item'} (${it.quantity || 1}x)`).join(', ')
+        : 'Venda de produtos no balcão';
+
+      const rec: AccountReceivable = {
+        id: 'rec-' + Date.now(),
+        customerId: sale.customerId || 'anon',
+        customerName: sale.customerName,
+        customerPhone: (sale as any).customerPhone,
+        originType: 'VENDA',
+        referenceNumber: `Venda #${nextNumber}`,
+        referenceId: sale.id,
+        amount: sale.total,
+        originalAmount: sale.total,
+        paidAmount: 0,
+        remainingAmount: sale.total,
+        serviceDescription: productDesc,
+        deviceInfo: 'Produtos no Balcão',
+        dueDate: dueDate.toISOString().slice(0, 10),
+        status: 'PENDENTE',
+        paymentMethod: 'FIADO',
+        createdAt: now,
+      };
+      const recs = this.getReceivables();
+      recs.unshift(rec);
+      setItem(STORAGE_KEYS.RECEIVABLES, recs);
+
+      // If priceTable === 'ATACADO' or resellerId specified, register in Revenda
+      if (sale.priceTable === 'ATACADO' || sale.resellerId) {
+        const resellers = this.getResellers();
+        let reseller = resellers.find((r) => 
+          (sale.resellerId && r.id === sale.resellerId) ||
+          (sale.customerId && r.id === sale.customerId) ||
+          (r.name.toLowerCase() === sale.customerName.toLowerCase())
+        );
+
+        if (!reseller) {
+          reseller = resellers.find((r) => r.name.includes('Revenda PDV') || r.id === 'res-pdv-default');
+        }
+
+        if (!reseller) {
+          reseller = {
+            id: sale.resellerId || (sale.customerId && sale.customerId !== 'anon' ? sale.customerId : 'res-pdv-' + Date.now()),
+            name: sale.customerName && sale.customerName !== 'CLIENTE PADRÃO' ? sale.customerName : 'Cliente Revenda PDV',
+            document: '00.000.000/0001-00',
+            phone: '(00) 00000-0000',
+            email: 'revenda@loja.com',
+            address: 'Venda PDV Revenda',
+            status: 'Ativo',
+            creditLimit: 5000,
+            balance: 0,
+            totalPurchased: 0,
+            totalPaid: 0,
+            createdAt: now,
+          };
+          this.saveReseller(reseller);
+        }
+
+        const invoiceNum = `REV-${sale.saleNumber || Math.floor(1000 + Math.random() * 9000)}`;
+        const rTransaction: ResellerTransaction = {
+          id: `rtx-pdv-${sale.id}`,
+          resellerId: reseller.id,
+          resellerName: reseller.name,
+          type: 'SALE',
+          date: now,
+          items: sale.items.map((item) => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.total,
+          })),
+          totalAmount: sale.total,
+          paidAmount: 0,
+          paymentMethod: 'FIADO',
+          discount: sale.discount,
+          notes: sale.notes ? `Venda PDV #${sale.saleNumber}: ${sale.notes}` : `Venda PDV #${sale.saleNumber} (Atacado / Fiado)`,
+          invoiceNumber: invoiceNum,
+          status: 'CONCLUIDO',
+          userName: sale.sellerName || 'Sistema',
+        };
+
+        this.saveResellerTransaction(rTransaction);
+
+        // Update reseller balance & total purchased
+        reseller.balance = (Number(reseller.balance) || 0) + sale.total;
+        reseller.totalPurchased = (Number(reseller.totalPurchased) || 0) + sale.total;
+        reseller.updatedAt = now;
+        this.saveReseller(reseller);
+      }
+    }
+
+    // 4. Save sale
+    sales.unshift(sale);
+    setItem(STORAGE_KEYS.SALES, sales);
+    FirestoreSyncService.saveSale(sale);
+
+    // 5. Audit Log
+    this.logAction(
+      `Venda #${nextNumber} finalizada com sucesso`,
+      `Total: R$ ${sale.total.toFixed(2)} (${sale.paymentMethod}) - Vendedor: ${sale.sellerName}`
+    );
+
+    // 6. Automatic 12-Month Retention Policy Check:
+    // Keeps sales for 12 months. When reaching 12 months, drops the oldest expired month (never all months).
+    try {
+      this.cleanExpiredSales();
+    } catch (e) {
+      console.warn('Erro na verificação automática de retenção de 12 meses:', e);
+    }
+
+    return sale;
+  },
+
+  /**
+   * Política de Retenção de 12 Meses:
+   * Mantém as vendas armazenadas por até 12 meses (1 ano móvel).
+   * Ao atingir mais de 12 meses, remove estritamente o mês mais antigo expirado,
+   * garantindo que os últimos 12 meses de vendas permaneçam sempre íntegros e intactos.
+   */
+  cleanExpiredSales(): { deletedMonth: string | null; deletedCount: number; remainingCount: number } {
+    const sales = this.getSales();
+    if (sales.length === 0) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: 0 };
+    }
+
+    const now = new Date();
+    // Vendas com mais de 12 meses completos em relação à data atual
+    const expiredSales = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      if (isNaN(d.getTime())) return false;
+      const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+      return diffMonths > 12;
+    });
+
+    if (expiredSales.length === 0) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: sales.length };
+    }
+
+    // Identifica estritamente o mês mais antigo entre as vendas expiradas (ex: '2025-01')
+    let oldestMonthKey: string | null = null;
+    expiredSales.forEach((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!oldestMonthKey || mKey < oldestMonthKey) {
+        oldestMonthKey = mKey;
+      }
+    });
+
+    if (!oldestMonthKey) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: sales.length };
+    }
+
+    // Apaga SOMENTE as vendas correspondentes a esse mês mais antigo
+    const salesToDelete = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return mKey === oldestMonthKey;
+    });
+
+    const remainingSales = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return mKey !== oldestMonthKey;
+    });
+
+    if (salesToDelete.length > 0) {
+      setItem(STORAGE_KEYS.SALES, remainingSales);
+      notifyListeners();
+
+      // Sincroniza exclusão no Firestore para cada venda do mês expurgado
+      salesToDelete.forEach((s) => {
+        try {
+          FirestoreSyncService.deleteSale(s.id);
+        } catch (e) {
+          console.warn('Erro ao deletar venda expirada no Firestore:', e);
+        }
+      });
+
+      this.logAction(
+        `Retenção 12 Meses: Mês mais antigo (${oldestMonthKey}) expurgado`,
+        `${salesToDelete.length} vendas do mês ${oldestMonthKey} foram removidas. Restam ${remainingSales.length} vendas nos últimos 12 meses.`
+      );
+    }
+
+    return {
+      deletedMonth: oldestMonthKey,
+      deletedCount: salesToDelete.length,
+      remainingCount: remainingSales.length,
+    };
+  },
+
+  getSalesRetentionStats(): {
+    totalSales: number;
+    oldestDate: string | null;
+    newestDate: string | null;
+    distinctMonthsCount: number;
+    hasExpiredMonths: boolean;
+    oldestExpiredMonth: string | null;
+  } {
+    const sales = this.getSales();
+    if (sales.length === 0) {
+      return {
+        totalSales: 0,
+        oldestDate: null,
+        newestDate: null,
+        distinctMonthsCount: 0,
+        hasExpiredMonths: false,
+        oldestExpiredMonth: null,
+      };
+    }
+
+    const now = new Date();
+    const monthsSet = new Set<string>();
+    let oldestTimestamp = Infinity;
+    let newestTimestamp = -Infinity;
+    let oldestExpiredMonth: string | null = null;
+
+    sales.forEach((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      if (!isNaN(d.getTime())) {
+        const ts = d.getTime();
+        if (ts < oldestTimestamp) oldestTimestamp = ts;
+        if (ts > newestTimestamp) newestTimestamp = ts;
+
+        const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthsSet.add(mKey);
+
+        const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (diffMonths > 12) {
+          if (!oldestExpiredMonth || mKey < oldestExpiredMonth) {
+            oldestExpiredMonth = mKey;
+          }
+        }
+      }
+    });
+
+    return {
+      totalSales: sales.length,
+      oldestDate: oldestTimestamp !== Infinity ? new Date(oldestTimestamp).toISOString() : null,
+      newestDate: newestTimestamp !== -Infinity ? new Date(newestTimestamp).toISOString() : null,
+      distinctMonthsCount: monthsSet.size,
+      hasExpiredMonths: !!oldestExpiredMonth,
+      oldestExpiredMonth,
+    };
+  },
+
+  deleteSale(id: string): boolean {
+    const sales = this.getSales();
+    const target = sales.find((s) => s.id === id);
+    if (!target) return false;
+
+    const filtered = sales.filter((s) => s.id !== id);
+    setItem(STORAGE_KEYS.SALES, filtered);
+    notifyListeners();
+
+    try {
+      FirestoreSyncService.deleteSale(id);
+    } catch (e) {
+      console.warn('Firestore deleteSale error:', e);
+    }
+
+    this.logAction(`Venda #${target.saleNumber} excluída.`);
+    return true;
+  },
+
+  // Cash Register
+  getCashMovements(): CashMovement[] {
+    const list = getItem<CashMovement[]>(STORAGE_KEYS.CASH_MOVEMENTS, []);
+    return list || [];
+  },
+
+  getCashSession(): CashSession | null {
+    const session = getItem<CashSession | null>(STORAGE_KEYS.CASH_SESSION, null);
+    if (!session) return null;
+    const allMovements = this.getCashMovements();
+    const sessionMovements = allMovements.filter(
+      (m) => m.cashSessionId === session.id || !m.cashSessionId || session.id === 'cash-sess-active'
+    );
+    session.movements = sessionMovements;
+
+    if (session.initialBalance === undefined) session.initialBalance = session.openingBalance || 0;
+
+    if (session.status === 'ABERTO') {
+      const opening = session.openingBalance || session.initialBalance || 0;
+      let cashInflows = 0;
+      let cashOutflows = 0;
+
+      sessionMovements.forEach((m) => {
+        const isCash = !m.paymentMethod || m.paymentMethod === 'DINHEIRO';
+        if (m.type === 'SUPRIMENTO' || m.type === 'ENTRADA_AVULSA') {
+          cashInflows += m.amount;
+        } else if ((m.type === 'VENDA' || m.type === 'SERVICO_OS' || m.type === 'ORDEM_SERVICO' || m.type === 'ORDEM SERVIÇO') && isCash) {
+          cashInflows += m.amount;
+        } else if (m.type === 'SANGRIA' || m.type === 'DESPESA') {
+          cashOutflows += m.amount;
+        }
+      });
+
+      session.currentBalance = opening + cashInflows - cashOutflows;
+    }
+    return session;
+  },
+
+  openCashSession(openingBalance: number, notes?: string): CashSession {
+    const user = this.getCurrentUser();
+    const sessionId = 'cash-sess-' + Date.now();
+    const session: CashSession = {
+      id: sessionId,
+      openedAt: new Date().toISOString(),
+      openedBy: user.name,
+      openingBalance,
+      initialBalance: openingBalance,
+      currentBalance: openingBalance,
+      status: 'ABERTO',
+      notes: notes || 'Abertura de caixa realizada.',
+      movements: [],
+    };
+    setItem(STORAGE_KEYS.CASH_SESSION, session);
+
+    const aberturaMov: CashMovement = {
+      id: 'cm-' + Date.now(),
+      cashSessionId: sessionId,
+      type: 'ABERTURA',
+      description: 'Abertura de caixa - Troco inicial',
+      amount: openingBalance,
+      paymentMethod: 'DINHEIRO',
+      date: new Date().toISOString(),
+      userName: user.name,
+    };
+    const list = this.getCashMovements();
+    list.unshift(aberturaMov);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, list);
+    session.movements = [aberturaMov];
+    setItem(STORAGE_KEYS.CASH_SESSION, session);
+
+    try {
+      FirestoreSyncService.saveCashSession(session);
+      FirestoreSyncService.saveCashMovement(aberturaMov);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside openCashSession:', e);
+    }
+
+    this.logAction(`Caixa aberto por ${user.name}`, `Saldo inicial: R$ ${openingBalance.toFixed(2)}`);
+    return session;
+  },
+
+  openCash(openingBalance: number, notes?: string, userName?: string): CashSession {
+    return this.openCashSession(openingBalance, notes);
+  },
+
+  closeCash(reportedBalance: number, notes?: string, userName?: string): CashSession {
+    return this.closeCashSession(reportedBalance, notes);
+  },
+
+  closeCashSession(reportedBalance: number, notes?: string): CashSession {
+    const current = this.getCashSession();
+    const user = this.getCurrentUser();
+    const now = new Date().toISOString();
+
+    const movements = this.getCashMovements().filter((m) => m.cashSessionId === (current?.id || ''));
+    const opening = current ? current.openingBalance : 0;
+
+    let totalSales = 0;
+    let totalCash = 0;
+    let totalPix = 0;
+    let totalDebit = 0;
+    let totalCredit = 0;
+    let totalOther = 0;
+    let totalInflows = 0;
+    let totalOutflows = 0;
+
+    movements.forEach((m) => {
+      if (m.type === 'VENDA' || m.type === 'SERVICO_OS' || m.type === 'ORDEM_SERVICO' || m.type === 'ORDEM SERVIÇO' || m.type === 'SUPRIMENTO' || m.type === 'ENTRADA_AVULSA') {
+        totalInflows += m.amount;
+        if (m.type === 'VENDA' || m.type === 'SERVICO_OS' || m.type === 'ORDEM_SERVICO' || m.type === 'ORDEM SERVIÇO') totalSales += m.amount;
+        if (!m.paymentMethod || m.paymentMethod === 'DINHEIRO') totalCash += m.amount;
+        else if (m.paymentMethod === 'PIX') totalPix += m.amount;
+        else if (m.paymentMethod === 'CARTAO_DEBITO') totalDebit += m.amount;
+        else if (m.paymentMethod === 'CARTAO_CREDITO') totalCredit += m.amount;
+        else totalOther += m.amount;
+      } else if (m.type === 'SANGRIA' || m.type === 'DESPESA') {
+        totalOutflows += m.amount;
+      }
+    });
+
+    // In cash register, only physical cash matters for drawer balance
+    const expectedDrawerCash = opening + totalCash - totalOutflows;
+    const difference = reportedBalance - expectedDrawerCash;
+
+    const closed: CashSession = {
+      id: current?.id || 'cash-sess-closed',
+      openedAt: current?.openedAt || now,
+      openedBy: current?.openedBy || user.name,
+      openingBalance: opening,
+      closedAt: now,
+      closedBy: user.name,
+      closingBalanceExpected: Number(expectedDrawerCash.toFixed(2)),
+      closingBalanceReported: Number(reportedBalance.toFixed(2)),
+      difference: Number(difference.toFixed(2)),
+      status: 'FECHADO',
+      notes,
+      totalSales: Number(totalSales.toFixed(2)),
+      totalCash: Number(totalCash.toFixed(2)),
+      totalPix: Number(totalPix.toFixed(2)),
+      totalDebit: Number(totalDebit.toFixed(2)),
+      totalCredit: Number(totalCredit.toFixed(2)),
+      totalOther: Number(totalOther.toFixed(2)),
+      totalInflows: Number(totalInflows.toFixed(2)),
+      totalOutflows: Number(totalOutflows.toFixed(2)),
+    };
+
+    setItem(STORAGE_KEYS.CASH_SESSION, closed);
+    try {
+      FirestoreSyncService.saveCashSession(closed);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside closeCashSession:', e);
+    }
+
+    this.logAction(
+      `Caixa fechado por ${user.name}`,
+      `Esperado: R$ ${expectedDrawerCash.toFixed(2)}, Informado: R$ ${reportedBalance.toFixed(2)}, Diferença: R$ ${difference.toFixed(2)}`
+    );
+    return closed;
+  },
+
+  addCashMovement(data: Omit<CashMovement, 'id' | 'cashSessionId' | 'date' | 'userName'>): CashMovement {
+    const session = getItem<CashSession | null>(STORAGE_KEYS.CASH_SESSION, initialCashSession);
+    const user = this.getCurrentUser();
+    const mov: CashMovement = {
+      ...data,
+      id: 'cm-' + Date.now(),
+      cashSessionId: session ? session.id : 'cash-sess-active',
+      date: new Date().toISOString(),
+      userName: user.name,
+    };
+    const list = this.getCashMovements();
+    list.unshift(mov);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, list);
+
+    if (session) {
+      if (!session.movements) session.movements = [];
+      session.movements.unshift(mov);
+
+      if (session.status === 'ABERTO') {
+        const isCash = !mov.paymentMethod || mov.paymentMethod === 'DINHEIRO';
+        if (mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA') {
+          session.currentBalance = (session.currentBalance ?? session.openingBalance ?? 0) + mov.amount;
+        } else if ((mov.type === 'VENDA' || mov.type === 'SERVICO_OS' || (mov.type as string) === 'ORDEM_SERVICO' || (mov.type as string) === 'ORDEM SERVIÇO') && isCash) {
+          session.currentBalance = (session.currentBalance ?? session.openingBalance ?? 0) + mov.amount;
+        } else if (mov.type === 'SANGRIA' || mov.type === 'DESPESA') {
+          session.currentBalance = Math.max(0, (session.currentBalance ?? session.openingBalance ?? 0) - mov.amount);
+        }
+      }
+      setItem(STORAGE_KEYS.CASH_SESSION, session);
+    }
+
+    try {
+      FirestoreSyncService.saveCashMovement(mov);
+      if (session) {
+        FirestoreSyncService.saveCashSession(session);
+      }
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside addCashMovement:', e);
+    }
+
+    this.logAction(`Movimentação de caixa: ${mov.type} de R$ ${mov.amount.toFixed(2)} (${mov.description})`);
+    return mov;
+  },
+
+  zeroCashAndFinancialData(): void {
+    const zeroSession: CashSession = {
+      id: 'cash-sess-active',
+      openedAt: new Date().toISOString(),
+      openedBy: this.getCurrentUser()?.name || 'Juliana Costa',
+      openingBalance: 0,
+      initialBalance: 0,
+      currentBalance: 0,
+      status: 'ABERTO',
+      notes: 'Caixa aberto com saldo inicial zerado.',
+      movements: [],
+    };
+    setItem(STORAGE_KEYS.CASH_SESSION, zeroSession);
+    setItem(STORAGE_KEYS.CASH_MOVEMENTS, []);
+    setItem(STORAGE_KEYS.SALES, []);
+
+    try {
+      FirestoreSyncService.saveCashSession(zeroSession);
+    } catch (e) {
+      console.warn('FirestoreSyncService error inside zeroCashAndFinancialData:', e);
+    }
+
+    // Set any delivered order to not generate inflows
+    const orders = this.getOrders();
+    let modifiedOrders = false;
+    const updatedOrders = orders.map((o) => {
+      if (o.status === 'ENTREGUE') {
+        modifiedOrders = true;
+        return {
+          ...o,
+          status: 'PRONTA' as OrderStatus,
+          paymentStatus: 'PENDENTE' as any,
+          deliveredAt: '',
+        };
+      }
+      return o;
+    });
+    if (modifiedOrders) {
+      setItem(STORAGE_KEYS.ORDERS, updatedOrders);
+    }
+
+    // Set any paid expenses to pending so totalPaidExpenses = 0
+    const expenses = this.getExpenses();
+    let modifiedExpenses = false;
+    const updatedExpenses = expenses.map((e) => {
+      if (e.status === 'PAGO') {
+        modifiedExpenses = true;
+        return {
+          ...e,
+          status: 'PENDENTE' as const,
+          paidFromCash: false,
+          paymentDate: undefined,
+        };
+      }
+      return e;
+    });
+    if (modifiedExpenses) {
+      setItem(STORAGE_KEYS.EXPENSES, updatedExpenses);
+    }
+
+    this.logAction('Financeiro e Caixa zerados com sucesso.', 'Saldo atual, entradas do período e resultado líquido zerados.');
+    notifyListeners();
+  },
+
+  // Purchases / Compras
+  getPurchases(): Purchase[] {
+    const raw = getItem<Purchase[]>(STORAGE_KEYS.PURCHASES, []);
+    const config = this.getPurchasesConfig();
+    if (config.autoDeleteExpired) {
+      const limitMonths = config.historyLimitMonths || 12;
+      const limitDate = new Date();
+      limitDate.setMonth(limitDate.getMonth() - limitMonths);
+      const limitTime = limitDate.getTime();
+      
+      const filtered = raw.filter((p) => new Date(p.date).getTime() >= limitTime);
+      if (filtered.length !== raw.length) {
+        setItem(STORAGE_KEYS.PURCHASES, filtered);
+        this.logAction('Histórico de compras rotativo', `Registros com mais de ${limitMonths} meses apagados automaticamente.`);
+        return filtered;
+      }
+    }
+    return raw;
+  },
+
+  addPurchase(purchaseData: Omit<Purchase, 'id' | 'userName'>): Purchase {
+    const user = this.getCurrentUser();
+    const purchase: Purchase = {
+      ...purchaseData,
+      id: 'pur-' + Date.now(),
+      userName: user.name,
+    };
+
+    // Update stock and cost for each purchased item
+    purchase.items.forEach((item) => {
+      this.updateProductStock(item.productId, item.quantity, `Entrada NF #${purchase.invoiceNumber} (${purchase.supplier})`, 'COMPRA', purchase.id);
+      // Update product cost
+      const products = this.getProducts();
+      const p = products.find((prod) => prod.id === item.productId);
+      if (p) {
+        p.costPrice = item.unitCost;
+        const gross = p.sellingPrice - p.costPrice;
+        p.profitGrossAmount = Number(gross.toFixed(2));
+        p.profitMarginPercent = p.costPrice > 0 ? Number(((gross / p.costPrice) * 100).toFixed(2)) : 0;
+        setItem(STORAGE_KEYS.PRODUCTS, products);
+      }
+    });
+
+    const list = this.getPurchases();
+    list.unshift(purchase);
+    setItem(STORAGE_KEYS.PURCHASES, list);
+    this.logAction(`Compra registrada: NF ${purchase.invoiceNumber} de ${purchase.supplier}`, `Total: R$ ${purchase.totalAmount.toFixed(2)}`);
+    return purchase;
+  },
+
+  deletePurchase(id: string): void {
+    const list = this.getPurchases();
+    const purchase = list.find((p) => p.id === id);
+    const filtered = list.filter((p) => p.id !== id);
+    setItem(STORAGE_KEYS.PURCHASES, filtered);
+    if (purchase) {
+      this.logAction(`Entrada/Compra removida: NF ${purchase.invoiceNumber}`, `Fornecedor: ${purchase.supplier}`);
+    }
+  },
+
+  // Expenses / Despesas
+  getExpenses(): Expense[] {
+    return getItem<Expense[]>(STORAGE_KEYS.EXPENSES, []);
+  },
+
+  addExpense(expenseData: Omit<Expense, 'id' | 'createdAt'>): Expense {
+    const expense: Expense = {
+      ...expenseData,
+      id: 'exp-' + Date.now(),
+      createdAt: new Date().toISOString(),
+    };
+    const list = this.getExpenses();
+    list.unshift(expense);
+    setItem(STORAGE_KEYS.EXPENSES, list);
+    FirestoreSyncService.saveExpense(expense);
+
+    // If paid from cash drawer, record cash movement
+    if (expense.paidFromCash) {
+      this.addCashMovement({
+        type: 'DESPESA',
+        description: `Despesa: ${expense.description} (${expense.category})`,
+        amount: expense.amount,
+        paymentMethod: expense.paymentMethod,
+        referenceId: expense.id,
+      });
+    }
+
+    this.logAction(`Despesa registrada: ${expense.description}`, `R$ ${expense.amount.toFixed(2)} (${expense.category})`);
+    return expense;
+  },
+
+  deleteExpense(id: string): void {
+    const list = this.getExpenses();
+    const target = list.find((e) => e.id === id);
+    const filtered = list.filter((e) => e.id !== id);
+    setItem(STORAGE_KEYS.EXPENSES, filtered);
+    FirestoreSyncService.deleteExpense(id);
+    if (target) {
+      this.logAction(`Despesa excluída: ${target.description}`);
+    }
+  },
+
+  // Receivables / Contas a Receber (Setor A Prazo)
+  getReceivables(): AccountReceivable[] {
+    return getItem<AccountReceivable[]>(STORAGE_KEYS.RECEIVABLES, []);
+  },
+
+  addManualReceivable(params: {
+    customerId?: string;
+    customerName: string;
+    customerPhone?: string;
+    deviceInfo?: string;
+    serviceDescription: string;
+    amount: number;
+    downPayment?: number;
+    downPaymentMethod?: PaymentMethod;
+    dueDate?: string;
+    notes?: string;
+    userName?: string;
+  }): { success: boolean; receivable: AccountReceivable } {
+    const user = this.getCurrentUser();
+    const userName = params.userName || user?.name || 'Operador';
+    const totalAmount = Math.max(0, Number(params.amount) || 0);
+    const downPayment = Math.max(0, Math.min(totalAmount, Number(params.downPayment) || 0));
+    const remainingAmount = Math.max(0, totalAmount - downPayment);
+    const dueDate = params.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const refNum = `Fiado #${Date.now().toString().slice(-4)}`;
+
+    // 1. If there's an immediate down payment, record cash movement
+    if (downPayment > 0 && params.downPaymentMethod) {
+      this.addCashMovement({
+        type: 'ENTRADA_AVULSA',
+        description: `Entrada de ${refNum} (A Prazo / Manual) - ${params.customerName}`,
+        amount: downPayment,
+        paymentMethod: params.downPaymentMethod,
+        userName,
+      });
+    }
+
+    // 2. Create the Receivable record
+    const receivables = this.getReceivables();
+    const receivable: AccountReceivable = {
+      id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      customerId: params.customerId || 'cust-' + Date.now(),
+      customerName: params.customerName.trim(),
+      customerPhone: params.customerPhone?.trim() || '',
+      originType: 'MANUAL',
+      referenceNumber: refNum,
+      referenceId: 'manual-' + Date.now(),
+      amount: remainingAmount,
+      originalAmount: totalAmount,
+      paidAmount: downPayment,
+      remainingAmount: remainingAmount,
+      downPayment: downPayment > 0 ? downPayment : undefined,
+      downPaymentMethod: downPayment > 0 ? params.downPaymentMethod : undefined,
+      deviceInfo: params.deviceInfo?.trim() || 'Lançamento Manual',
+      serviceDescription: params.serviceDescription?.trim() || 'Débito / Fiado avulso',
+      dueDate,
+      status: remainingAmount === 0 ? 'PAGO' : 'PENDENTE',
+      payments:
+        downPayment > 0
+          ? [
+              {
+                id: 'pay-' + Date.now(),
+                amount: downPayment,
+                paymentMethod: params.downPaymentMethod || 'DINHEIRO',
+                date: new Date().toISOString(),
+                userName,
+                notes: 'Entrada inicial no ato do lançamento do fiado',
+              },
+            ]
+          : [],
+      paidAt: remainingAmount === 0 ? new Date().toISOString() : undefined,
+      notes: params.notes?.trim() || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    receivables.unshift(receivable);
+    setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    FirestoreSyncService.saveReceivable(receivable);
+
+    // Update customer debt if customer exists
+    if (params.customerId) {
+      const customers = this.getCustomers();
+      const cust = customers.find((c) => c.id === params.customerId);
+      if (cust) {
+        cust.currentDebt = (Number(cust.currentDebt) || 0) + remainingAmount;
+        setItem(STORAGE_KEYS.CUSTOMERS, customers);
+        FirestoreSyncService.saveCustomer(cust);
+      }
+    }
+
+    this.logAction(
+      `Lançamento manual de fiado para ${params.customerName}`,
+      `Total: R$ ${totalAmount.toFixed(2)}, Entrada: R$ ${downPayment.toFixed(2)}, Saldo A Prazo: R$ ${remainingAmount.toFixed(2)}`
+    );
+
+    notifyListeners();
+    return { success: true, receivable };
+  },
+
+  deliverOrderOnCredit(params: {
+    orderId: string;
+    downPayment?: number;
+    downPaymentMethod?: PaymentMethod;
+    dueDate?: string;
+    notes?: string;
+    userName?: string;
+  }): { success: boolean; receivable: AccountReceivable } {
+    const orders = this.getOrders();
+    const order = orders.find((o) => o.id === params.orderId);
+    if (!order) throw new Error('Ordem de serviço não encontrada.');
+
+    const user = this.getCurrentUser();
+    const userName = params.userName || user?.name || 'Operador';
+    const totalPrice = Number(order.totalPrice) || 0;
+    const downPayment = Math.max(0, Math.min(totalPrice, Number(params.downPayment) || 0));
+    const remainingAmount = Math.max(0, totalPrice - downPayment);
+    const dueDate = params.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // 1. If there's an immediate down payment, record cash movement
+    if (downPayment > 0 && params.downPaymentMethod) {
+      this.addCashMovement({
+        type: 'SERVICO_OS',
+        description: `Entrada da OS #${order.orderNumber} (A Prazo) - ${order.customerName}`,
+        amount: downPayment,
+        paymentMethod: params.downPaymentMethod,
+        referenceId: order.id,
+        userName,
+      });
+    }
+
+    // 2. Create the Receivable record
+    const receivables = this.getReceivables();
+    const receivable: AccountReceivable = {
+      id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      customerId: order.customerId,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      originType: 'ORDEM_SERVICO',
+      referenceNumber: `OS #${order.orderNumber}`,
+      referenceId: order.id,
+      amount: remainingAmount,
+      originalAmount: totalPrice,
+      paidAmount: downPayment,
+      remainingAmount: remainingAmount,
+      downPayment: downPayment > 0 ? downPayment : undefined,
+      downPaymentMethod: downPayment > 0 ? params.downPaymentMethod : undefined,
+      deviceInfo: `${order.brand || ''} ${order.model || ''}`.trim() || 'Aparelho',
+      serviceDescription: order.performedService || order.requestedService || order.clientDefect || 'Serviço técnico',
+      dueDate,
+      status: remainingAmount === 0 ? 'PAGO' : 'PENDENTE',
+      payments:
+        downPayment > 0
+          ? [
+              {
+                id: 'pay-' + Date.now(),
+                amount: downPayment,
+                paymentMethod: params.downPaymentMethod || 'DINHEIRO',
+                date: new Date().toISOString(),
+                userName,
+                notes: 'Entrada inicial no ato da entrega',
+              },
+            ]
+          : [],
+      paidAt: remainingAmount === 0 ? new Date().toISOString() : undefined,
+      notes: params.notes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    receivables.unshift(receivable);
+    setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    FirestoreSyncService.saveReceivable(receivable);
+
+    // 3. Update Order status to ENTREGUE
+    order.status = 'ENTREGUE';
+    order.deliveredAt = new Date().toISOString();
+    order.paymentMethod = downPayment > 0 ? params.downPaymentMethod : 'A_PRAZO';
+    order.paymentStatus = remainingAmount === 0 ? 'PAGO' : downPayment > 0 ? 'PARCIAL' : 'PENDENTE';
+
+    if (!order.statusHistory) order.statusHistory = [];
+    order.statusHistory.push({
+      status: 'ENTREGUE',
+      changedAt: new Date().toISOString(),
+      changedBy: userName,
+      notes: `Aparelho entregue A PRAZO. Total: R$ ${totalPrice.toFixed(2)} | Entrada: R$ ${downPayment.toFixed(2)} | Restante: R$ ${remainingAmount.toFixed(2)} (Venc: ${dueDate})`,
+    });
+
+    setItem(STORAGE_KEYS.ORDERS, orders);
+    this.logAction(
+      `OS #${order.orderNumber} entregue A PRAZO para ${order.customerName}`,
+      `Total: R$ ${totalPrice.toFixed(2)}, Entrada: R$ ${downPayment.toFixed(2)}, Saldo A Prazo: R$ ${remainingAmount.toFixed(2)}`
+    );
+
+    return { success: true, receivable };
+  },
+
+  payReceivable(params: {
+    receivableId: string;
+    amount: number;
+    paymentMethod: PaymentMethod | string;
+    notes?: string;
+    userName?: string;
+    splitPayments?: { paymentMethod: PaymentMethod | string; amount: number }[];
+  }): { success: boolean; receivable: AccountReceivable } {
+    const list = this.getReceivables();
+    const rec = list.find((r) => r.id === params.receivableId);
+    if (!rec) throw new Error('Título de cobrança não encontrado.');
+
+    const user = this.getCurrentUser();
+    const userName = params.userName || user?.name || 'Operador';
+
+    const activeSplits = (params.splitPayments || []).filter((p) => Number(p.amount) > 0);
+    const payAmount =
+      activeSplits.length > 0
+        ? activeSplits.reduce((acc, p) => acc + Number(p.amount), 0)
+        : Math.max(0, Math.min(Number(rec.amount) || Number(rec.remainingAmount) || 0, Number(params.amount) || 0));
+
+    if (payAmount <= 0) throw new Error('Informe um valor de pagamento válido.');
+
+    const currentPaid = (Number(rec.paidAmount) || 0) + payAmount;
+    const original = Number(rec.originalAmount) || Number(rec.amount) + (Number(rec.paidAmount) || 0);
+    const newRemaining = Math.max(0, original - currentPaid);
+
+    rec.paidAmount = currentPaid;
+    rec.remainingAmount = newRemaining;
+    rec.amount = newRemaining;
+    rec.updatedAt = new Date().toISOString();
+    rec.status = newRemaining <= 0 ? 'PAGO' : 'PENDENTE';
+    if (newRemaining <= 0) {
+      rec.paidAt = new Date().toISOString();
+    }
+
+    if (!rec.payments) rec.payments = [];
+
+    if (activeSplits.length > 0) {
+      for (const p of activeSplits) {
+        const amt = Number(p.amount);
+        const method = p.paymentMethod as PaymentMethod;
+        const newPayment = {
+          id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          amount: amt,
+          paymentMethod: method,
+          date: new Date().toISOString(),
+          userName,
+          notes: params.notes || 'Baixa de conta a prazo',
+        };
+        rec.payments.unshift(newPayment);
+
+        // Record cash inflow for each split
+        this.addCashMovement({
+          type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
+          description: `Baixa A Prazo (${method}): ${rec.referenceNumber} - ${rec.customerName}`,
+          amount: amt,
+          paymentMethod: method,
+          referenceId: rec.id,
+          userName,
+        });
+      }
+    } else {
+      const method = params.paymentMethod as PaymentMethod;
+      const newPayment = {
+        id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        amount: payAmount,
+        paymentMethod: method,
+        date: new Date().toISOString(),
+        userName,
+        notes: params.notes || 'Baixa de conta a prazo',
+      };
+      rec.payments.unshift(newPayment);
+
+      // Record cash inflow
+      this.addCashMovement({
+        type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
+        description: `Baixa A Prazo: ${rec.referenceNumber} - ${rec.customerName}`,
+        amount: payAmount,
+        paymentMethod: method,
+        referenceId: rec.id,
+        userName,
+      });
+    }
+
+    // If originating from OS and now fully paid, update OS payment status
+    if (rec.originType === 'ORDEM_SERVICO' && rec.referenceId) {
+      const orders = this.getOrders();
+      const order = orders.find((o) => o.id === rec.referenceId);
+      if (order) {
+        order.paymentStatus = newRemaining <= 0 ? 'PAGO' : 'PARCIAL';
+        if (newRemaining <= 0) {
+          order.paymentMethod = (activeSplits.length > 0 ? activeSplits[0].paymentMethod : params.paymentMethod) as PaymentMethod;
+        }
+        setItem(STORAGE_KEYS.ORDERS, orders);
+      }
+    }
+
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+    this.logAction(
+      `Baixa de R$ ${payAmount.toFixed(2)} em ${rec.referenceNumber} (${rec.customerName})`,
+      `Saldo restante: R$ ${newRemaining.toFixed(2)}`
+    );
+
+    return { success: true, receivable: rec };
+  },
+
+  deleteReceivable(id: string): void {
+    const list = this.getReceivables();
+    const target = list.find((r) => r.id === id);
+    const filtered = list.filter((r) => r.id !== id);
+    setItem(STORAGE_KEYS.RECEIVABLES, filtered);
+    FirestoreSyncService.deleteReceivable(id);
+    if (target) {
+      this.logAction(`Conta a receber ${target.referenceNumber} (${target.customerName}) excluída.`);
+      if (target.customerId) {
+        const customers = this.getCustomers();
+        const cIdx = customers.findIndex((c) => c.id === target.customerId);
+        if (cIdx >= 0) {
+          const newDebt = filtered
+            .filter((r) => r.customerId === target.customerId && r.status !== 'PAGO' && (Number(r.remainingAmount ?? r.amount) > 0))
+            .reduce((sum, r) => sum + Number(r.remainingAmount ?? r.amount), 0);
+          customers[cIdx].debtBalance = newDebt;
+          setItem(STORAGE_KEYS.CUSTOMERS, customers);
+          FirestoreSyncService.saveCustomer(customers[cIdx]);
+        }
+      }
+    }
+  },
+
+  updateReceivableStatus(id: string, status: AccountReceivable['status'], paymentMethod?: PaymentMethod): void {
+    const list = this.getReceivables();
+    const rec = list.find((r) => r.id === id);
+    if (!rec) return;
+
+    rec.status = status;
+    if (status === 'PAGO') {
+      rec.paidAt = new Date().toISOString();
+      if (paymentMethod) rec.paymentMethod = paymentMethod;
+      rec.amount = 0;
+      rec.remainingAmount = 0;
+      rec.paidAmount = rec.originalAmount || rec.amount;
+
+      // Register in cash
+      if (paymentMethod) {
+        this.addCashMovement({
+          type: rec.originType === 'ORDEM_SERVICO' ? 'SERVICO_OS' : 'VENDA',
+          description: `Quitação A Prazo ${rec.referenceNumber} - ${rec.customerName}`,
+          amount: rec.originalAmount || rec.amount,
+          paymentMethod,
+          referenceId: rec.id,
+        });
+      }
+    }
+
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+    this.logAction(`Conta a receber ${rec.referenceNumber} atualizada para ${status}`);
+  },
+
+  updateReceivable(updated: AccountReceivable): void {
+    const list = this.getReceivables();
+    const index = list.findIndex((r) => r.id === updated.id);
+    if (index === -1) return;
+
+    const old = list[index];
+    const diff = (updated.remainingAmount ?? updated.amount) - (old.remainingAmount ?? old.amount);
+    list[index] = { ...updated };
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+
+    // Update customer debt balance if needed
+    if (updated.customerId && diff !== 0) {
+      const customers = this.getCustomers();
+      const cIdx = customers.findIndex((c) => c.id === updated.customerId);
+      if (cIdx !== -1) {
+        customers[cIdx].debtBalance = Math.max(0, (customers[cIdx].debtBalance || 0) + diff);
+        this.saveCustomer(customers[cIdx]);
+      }
+    }
+
+    try {
+      FirestoreSyncService.saveReceivable(list[index]);
+    } catch {
+      // Ignored
+    }
+
+    this.logAction(`Conta a receber ${updated.referenceNumber} editada com sucesso`);
+  },
+
+  addProductsToReceivable(id: string, newItems: any[], additionalAmount: number): void {
+    const list = this.getReceivables();
+    const rec = list.find((r) => r.id === id);
+    if (!rec) return;
+
+    const existingItems = rec.items || [];
+    rec.items = [...existingItems, ...newItems];
+    rec.originalAmount = (rec.originalAmount || rec.amount) + additionalAmount;
+    rec.amount = (rec.amount || 0) + additionalAmount;
+    rec.remainingAmount = (rec.remainingAmount !== undefined ? rec.remainingAmount : rec.amount) + additionalAmount;
+
+    // Recalculate status if it was paid previously
+    if (rec.status === 'PAGO' && rec.remainingAmount > 0) {
+      rec.status = 'PENDENTE';
+    }
+
+    setItem(STORAGE_KEYS.RECEIVABLES, list);
+
+    // Update customer debt balance
+    if (rec.customerId) {
+      const customers = this.getCustomers();
+      const cIdx = customers.findIndex((c) => c.id === rec.customerId);
+      if (cIdx !== -1) {
+        customers[cIdx].debtBalance = (customers[cIdx].debtBalance || 0) + additionalAmount;
+        this.saveCustomer(customers[cIdx]);
+      }
+    }
+
+    try {
+      FirestoreSyncService.saveReceivable(rec);
+    } catch {
+      // Ignored
+    }
+
+    this.logAction(`Adicionados ${newItems.length} novos produtos à conta ${rec.referenceNumber} (+R$ ${additionalAmount.toFixed(2)})`);
+  },
+
+  // Audit Logs
+  getAuditLogs(): AuditLog[] {
+    return getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+  },
+
+  logAction(action: string, details?: string, entityType?: string, entityId?: string): void {
+    const user = this.getCurrentUser();
+    const log: AuditLog = {
+      id: 'log-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      userName: user ? user.name : 'Sistema',
+      userRole: user ? user.role : 'ADMINISTRADOR',
+      action,
+      details,
+      entityType,
+      entityId,
+      timestamp: new Date().toISOString(),
+    };
+    const logs = this.getAuditLogs();
+    logs.unshift(log);
+    // Keep max 200 logs
+    if (logs.length > 200) logs.length = 200;
+    setItem(STORAGE_KEYS.AUDIT_LOGS, logs);
+  },
+
+  // Settings
+  getCompanySettings(): CompanySettings {
+    const saved = getItem<CompanySettings | null>(STORAGE_KEYS.SETTINGS, null);
+    if (!saved) {
+      setItem(STORAGE_KEYS.SETTINGS, initialCompanySettings, false);
+      return initialCompanySettings;
+    }
+    const merged = { ...initialCompanySettings, ...saved };
+    // User requested signatures removed from thermal print
+    if (saved.osShowSignatures === undefined) {
+      merged.osShowSignatures = false;
+    }
+    if (!merged.managerPassword) {
+      merged.managerPassword = '1507';
+    }
+    return merged;
+  },
+
+  getManagerPassword(): string {
+    return this.getCompanySettings().managerPassword || '1507';
+  },
+
+  verifyManagerPassword(passwordInput: string): boolean {
+    const current = (this.getCompanySettings().managerPassword || '1507').trim();
+    return current === (passwordInput || '').trim();
+  },
+
+  getSettings(): CompanySettings {
+    return this.getCompanySettings();
+  },
+
+  saveCompanySettings(settings: CompanySettings, localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.SETTINGS, settings);
+    this.logAction('Configurações da empresa atualizadas.');
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCompanySettings(settings);
+      } catch (e) {
+        console.warn('FirestoreSyncService saveCompanySettings error:', e);
+      }
+    }
+  },
+
+  // Subscription & Plan info (Painel Ativo)
+  getSubscriptionPlan(): SubscriptionPlanInfo {
+    const session = this.getAuthSession();
+    const currentUser = getItem<Employee | null>(STORAGE_KEYS.CURRENT_USER, null);
+    const email = (session?.email || currentUser?.email || '').trim().toLowerCase();
+    const isSuperAdminEmail = 
+      email === 'mmspmartins62@gmail.com' || 
+      email === 'msp404011@gmail.com' ||
+      currentUser?.role === 'ADMINISTRADOR' && (email.includes('msp404011') || email.includes('mmspmartins62'));
+
+    if (isSuperAdminEmail) {
+      return {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem vencimento, sem data!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: email || 'msp404011@gmail.com',
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+    }
+
+    const saved = getItem<SubscriptionPlanInfo | null>(STORAGE_KEYS.SUBSCRIPTION_PLAN, null);
+    if (!saved) {
+      setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, initialSubscriptionPlan, false);
+      return initialSubscriptionPlan;
+    }
+    return { ...initialSubscriptionPlan, ...saved };
+  },
+
+  saveSubscriptionPlan(plan: SubscriptionPlanInfo): void {
+    const session = this.getAuthSession();
+    const targetEmail = plan.accountEmail || session?.email || '';
+    const fullPlan: SubscriptionPlanInfo = {
+      ...plan,
+      accountEmail: targetEmail || plan.accountEmail,
+    };
+
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, fullPlan);
+    if (targetEmail) {
+      this.saveSubscriptionForEmail(targetEmail, fullPlan);
+    }
+    this.logAction(`Plano de assinatura atualizado: ${fullPlan.planName} (${fullPlan.planPrice})`);
+    try {
+      FirestoreSyncService.saveSubscriptionPlan(fullPlan);
+    } catch (e) {
+      console.warn('Sync subscription error:', e);
+    }
+    notifyListeners();
+  },
+
+  saveSubscriptionPlanOnlyLocal(plan: SubscriptionPlanInfo): void {
+    const session = this.getAuthSession();
+    const targetEmail = plan.accountEmail || session?.email || '';
+    const fullPlan: SubscriptionPlanInfo = {
+      ...plan,
+      accountEmail: targetEmail || plan.accountEmail,
+    };
+
+    setItem(STORAGE_KEYS.SUBSCRIPTION_PLAN, fullPlan);
+    if (targetEmail) {
+      const cleanEmail = targetEmail.trim().toLowerCase();
+      const subs = this.getUserSubscriptions();
+      subs[cleanEmail] = {
+        ...fullPlan,
+        accountEmail: cleanEmail,
+      };
+      setItem(STORAGE_KEYS.USER_SUBSCRIPTIONS, subs);
+    }
+    notifyListeners();
+  },
+
+  // Per-Email Subscriptions Database
+  getUserSubscriptions(): Record<string, SubscriptionPlanInfo> {
+    return getItem<Record<string, SubscriptionPlanInfo>>(STORAGE_KEYS.USER_SUBSCRIPTIONS, {});
+  },
+
+  getSubscriptionForEmail(email: string): SubscriptionPlanInfo | null {
+    if (!email) return null;
+    const cleanEmail = email.trim().toLowerCase();
+    const subs = this.getUserSubscriptions();
+    return subs[cleanEmail] || null;
+  },
+
+  saveSubscriptionForEmail(email: string, plan: SubscriptionPlanInfo): void {
+    if (!email) return;
+    const cleanEmail = email.trim().toLowerCase();
+    const subs = this.getUserSubscriptions();
+    subs[cleanEmail] = {
+      ...plan,
+      accountEmail: cleanEmail,
+    };
+    setItem(STORAGE_KEYS.USER_SUBSCRIPTIONS, subs);
+  },
+
+  // Auth Session
+  getAuthSession(): AuthSession | null {
+    return activeAuthSession;
+  },
+
+  setAuthSession(session: AuthSession | null): void {
+    if (!session) {
+      this.clearAuthSession();
+      return;
+    }
+    const isDifferentUser = !activeAuthSession || activeAuthSession.email !== session.email;
+    activeAuthSession = session;
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+        sessionStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
+        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        localStorage.removeItem('msp_auth_session_v1');
+        localStorage.removeItem('msp_auth_session');
+      }
+    } catch (_) {}
+    notifyListeners();
+    if (isDifferentUser) {
+      try {
+        this.syncTwoWayWithCloud().then(() => {
+          notifyListeners();
+        }).catch((e) => console.warn('Auto sync on setAuthSession failed:', e));
+      } catch (e) {
+        console.warn('RealTimeListener setup failed:', e);
+      }
+    }
+  },
+
+  async syncTwoWayWithCloud(): Promise<boolean> {
+    try {
+      // Sincronização segura: baixa dados da nuvem para o cache local sem sobrecarregar escritas do Firestore
+      const success = await FirestoreSyncService.syncAllFromFirestore();
+      notifyListeners();
+      return success;
+    } catch (err) {
+      console.warn('syncTwoWayWithCloud error:', err);
+      return false;
+    }
+  },
+
+  clearAuthSession(): void {
+    activeAuthSession = null;
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        sessionStorage.removeItem('msp_auth_session_v1');
+        sessionStorage.removeItem('msp_auth_session');
+        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        localStorage.removeItem('msp_auth_session_v1');
+        localStorage.removeItem('msp_auth_session');
+      }
+    } catch (_) {}
+    notifyListeners();
+  },
+
+  loginWithGoogle(profile: GoogleUserProfile): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = (profile.email || '').trim().toLowerCase();
+    const cleanName = profile.name || cleanEmail.split('@')[0] || 'Usuário Google';
+    const avatar =
+      profile.picture ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0284c7&color=ffffff`;
+
+    // 1. Locate or create Employee in local directory
+    const employees = this.getEmployees();
+    let employee = employees.find(
+      (e) => (e.email && e.email.toLowerCase() === cleanEmail) || e.name.toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (!employee) {
+      // Create new Admin employee for this shop owner
+      employee = {
+        id: `emp-google-${Date.now()}`,
+        name: cleanName,
+        email: cleanEmail,
+        role: 'ADMINISTRADOR',
+        avatarUrl: avatar,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(employee);
+    } else {
+      // Update avatar if newer
+      if (profile.picture && employee.avatarUrl !== profile.picture) {
+        employee.avatarUrl = profile.picture;
+        this.saveEmployee(employee);
+      }
+    }
+
+    // Set current active employee
+    this.setCurrentUser(employee);
+
+    // 2. Check subscription for this email
+    let userPlan = this.getSubscriptionForEmail(cleanEmail);
+    let isFirstAccess = false;
+
+    if (!userPlan) {
+      // First access for this Google account: automatically start 7-day Free Trial!
+      isFirstAccess = true;
+      const trialExpiry = new Date();
+      trialExpiry.setDate(trialExpiry.getDate() + 7);
+      const expiryStr = trialExpiry.toISOString().split('T')[0];
+
+      userPlan = {
+        planType: 'TRIAL',
+        planName: 'Teste Grátis (7 Dias)',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'MENSAL',
+        expiryDate: expiryStr,
+        status: 'active',
+        clientName: cleanName,
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        contractNumber: `MSP-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
+        paymentMethod: 'Teste Grátis de Boas-Vindas (7 Dias)',
+        notes: 'Período de avaliação de 7 dias com todos os recursos liberados.',
+        startDate: new Date().toISOString().split('T')[0],
+        isTrial: true,
+        trialDaysRemaining: 7,
+      };
+
+      this.saveSubscriptionForEmail(cleanEmail, userPlan);
+    }
+
+    // Apply this plan to active workspace
+    this.saveSubscriptionPlan(userPlan);
+
+    // 3. Determine if subscription is expired or canceled
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let isExpiredOrCanceled = userPlan.status === 'expired' || userPlan.status === 'canceled' || userPlan.status === 'VENCIDO';
+
+    if (userPlan.expiryDate) {
+      const [y, m, d] = userPlan.expiryDate.split('-').map(Number);
+      const expDate = new Date(y, (m || 1) - 1, d || 1);
+      if (expDate.getTime() < now.getTime()) {
+        isExpiredOrCanceled = true;
+        userPlan.status = 'expired';
+        this.saveSubscriptionPlan(userPlan);
+      }
+    }
+
+    // 4. Save active auth session
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'google',
+      email: cleanEmail,
+      name: cleanName,
+      avatarUrl: avatar,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction(
+      `Login com Google efetuado (${cleanEmail})`,
+      isFirstAccess
+        ? 'Primeiro acesso: Teste Grátis de 7 Dias ativado automaticamente.'
+        : `Plano atual: ${userPlan.planName} (${userPlan.status})`
+    );
+
+    // Also save in remembered accounts list
+    this.saveAccountProfile(profile);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess,
+      isExpiredOrCanceled,
+    };
+  },
+
+  getSavedAccounts(): GoogleUserProfile[] {
+    return getItem<GoogleUserProfile[]>(STORAGE_KEYS.SAVED_ACCOUNTS, []);
+  },
+
+  saveAccountProfile(profile: GoogleUserProfile): void {
+    if (!profile.email) return;
+    const cleanEmail = profile.email.trim().toLowerCase();
+    const accounts = this.getSavedAccounts();
+    const existingIndex = accounts.findIndex((a) => a.email.toLowerCase() === cleanEmail);
+    const updated: GoogleUserProfile = {
+      ...profile,
+      email: cleanEmail,
+      name: profile.name || cleanEmail.split('@')[0],
+      picture:
+        profile.picture ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || cleanEmail)}&background=0284c7&color=ffffff`,
+    };
+
+    if (existingIndex >= 0) {
+      accounts[existingIndex] = updated;
+    } else {
+      accounts.unshift(updated);
+    }
+    setItem(STORAGE_KEYS.SAVED_ACCOUNTS, accounts.slice(0, 10)); // Keep up to 10 accounts
+  },
+
+  removeSavedAccount(email: string): void {
+    const cleanEmail = email.trim().toLowerCase();
+    const accounts = this.getSavedAccounts().filter((a) => a.email.toLowerCase() !== cleanEmail);
+    setItem(STORAGE_KEYS.SAVED_ACCOUNTS, accounts);
+    notifyListeners();
+  },
+
+  getUserAccounts(): UserAccount[] {
+    const list = getItem<UserAccount[]>(STORAGE_KEYS.USER_ACCOUNTS, []);
+    const masterEmails = ['mmspmartins62@gmail.com', 'msp404011@gmail.com'];
+    let changed = false;
+    for (const masterEmail of masterEmails) {
+      if (!list.some((a) => a.email.toLowerCase() === masterEmail)) {
+        const masterAcc: UserAccount = {
+          id: masterEmail,
+          shopName: 'Painel Master Gestor',
+          ownerName: 'Administrador Master',
+          email: masterEmail,
+          phone: '00000000000',
+          passwordHash: '16150705@Mm###',
+          createdAt: '2025-01-01T00:00:00.000Z',
+          lastLoginAt: new Date().toISOString(),
+        };
+        list.unshift(masterAcc);
+        changed = true;
+      }
+    }
+    if (changed) {
+      setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
+    }
+    return list;
+  },
+
+  saveUserAccount(account: UserAccount): void {
+    const list = this.getUserAccounts();
+    const idx = list.findIndex((a) => a.email.toLowerCase() === account.email.toLowerCase());
+    if (idx >= 0) {
+      list[idx] = account;
+    } else {
+      list.unshift(account);
+    }
+    setItem(STORAGE_KEYS.USER_ACCOUNTS, list);
+    notifyListeners();
+    FirestoreSyncService.saveUserAccount(account);
+  },
+
+  registerUserAccount(params: {
+    shopName: string;
+    ownerName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    securityQuestion?: string;
+    securityAnswer?: string;
+    uid?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    account: UserAccount;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanShop = params.shopName.trim() || 'Minha Assistência Técnica';
+    const cleanOwner = params.ownerName.trim() || cleanShop;
+
+    // Check if email is already registered
+    const accounts = this.getUserAccounts();
+    if (accounts.some((a) => a.email.toLowerCase() === cleanEmail)) {
+      throw new Error('Este e-mail já está cadastrado. Faça login ou recupere sua senha.');
+    }
+
+    // 1. Create UserAccount object
+    const newAccount: UserAccount = {
+      id: params.uid || cleanEmail,
+      shopName: cleanShop,
+      ownerName: cleanOwner,
+      email: cleanEmail,
+      phone: params.phone?.trim() || '',
+      passwordHash: params.password, // In-browser client storage
+      securityQuestion: params.securityQuestion?.trim() || 'Qual o telefone de cadastro da loja?',
+      securityAnswer: params.securityAnswer?.trim().toLowerCase() || (params.phone ? params.phone.replace(/\D/g, '') : ''),
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    this.saveUserAccount(newAccount);
+
+    // 2. Set active auth session immediately so subsequent saves are scoped to this new tenant
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: cleanOwner,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanOwner)}&background=0284c7&color=ffffff`,
+      loggedAt: new Date().toISOString(),
+      uid: params.uid,
+    };
+    this.setAuthSession(session);
+
+    // 3. Configure company settings with shop name
+    const currentSettings = this.getCompanySettings();
+    this.saveCompanySettings({
+      ...currentSettings,
+      name: cleanShop,
+      tradeName: cleanShop,
+      responsibleName: cleanOwner,
+      email: cleanEmail,
+      phone: params.phone || currentSettings.phone,
+      whatsapp: params.phone || currentSettings.whatsapp,
+    });
+
+    // 3. Create administrator employee
+    const employees = this.getEmployees();
+    let adminEmp = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+    if (!adminEmp) {
+      adminEmp = {
+        id: `emp-adm-${Date.now()}`,
+        name: cleanOwner,
+        email: cleanEmail,
+        phone: params.phone,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanOwner)}&background=0284c7&color=ffffff`,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(adminEmp);
+    }
+    this.setCurrentUser(adminEmp);
+
+    // 4. Activate 7-day Free Trial
+    const trialExpiry = new Date();
+    trialExpiry.setDate(trialExpiry.getDate() + 7);
+    const expiryStr = trialExpiry.toISOString().split('T')[0];
+
+    const trialPlan: SubscriptionPlanInfo = {
+      planType: 'TRIAL',
+      planName: 'Teste Grátis (7 Dias)',
+      planPrice: 0,
+      billingCycle: 'monthly',
+      billingPeriod: 'MENSAL',
+      expiryDate: expiryStr,
+      status: 'active',
+      clientName: cleanShop,
+      accountEmail: cleanEmail,
+      autoRenew: false,
+      contractNumber: `MSP-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
+      paymentMethod: 'Teste Grátis de Boas-Vindas (7 Dias)',
+      notes: 'Período de avaliação de 7 dias com todos os módulos liberados.',
+      startDate: new Date().toISOString().split('T')[0],
+      isTrial: true,
+      trialDaysRemaining: 7,
+    };
+    this.saveSubscriptionPlan(trialPlan);
+    this.saveSubscriptionForEmail(cleanEmail, trialPlan);
+
+    // FLAT JSON COMPATIBILITY WITH ADMIN PANEL
+    const nowStr = new Date().toISOString();
+    const dateStr = nowStr.split('T')[0];
+    const expiryStrPanel = trialExpiry.toISOString().split('T')[0];
+    
+    FirestoreSyncService.saveFullTenantProfile({
+      active: true,
+      amount: 0,
+      ativo: true,
+      blocked: false,
+      bloqueado: false,
+      celular: params.phone?.trim() || "00000000000",
+      cidadeUf: "",
+      cnpj: "",
+      companyName: cleanShop,
+      createdAt: nowStr,
+      dataCadastro: dateStr,
+      dataVencimento: expiryStrPanel,
+      diasGratis: 7,
+      dueDate: expiryStrPanel,
+      email: cleanEmail,
+      empresa: cleanShop,
+      id: cleanEmail,
+      inadimplente: false,
+      isTrial: true,
+      login: cleanEmail,
+      loginUsuario: cleanEmail,
+      mensalidade: 0,
+      metodoPagamento: "Teste Grátis (7 Dias)",
+      monthlyFee: 0,
+      name: cleanOwner,
+      nome: cleanOwner,
+      nomeEmpresa: cleanShop,
+      nomeFantasia: cleanShop,
+      observacoes: "Conta criada com 7 dias de Teste Grátis liberados.",
+      pass: params.password,
+      password: params.password,
+      phone: params.phone?.trim() || "00000000000",
+      pin: params.password,
+      plan: "TRIAL",
+      planName: "Teste Grátis (7 Dias)",
+      planType: "TRIAL",
+      plano: "TRIAL",
+      planoId: "TRIAL",
+      planoNome: "Teste Grátis (7 Dias)",
+      planoObjeto: { 
+        id: "TRIAL", 
+        nome: "Teste Grátis (7 Dias)", 
+        status: "ativo", 
+        valor: 0 
+      },
+      preco: 0,
+      price: 0,
+      razaoSocial: cleanShop,
+      responsavel: cleanOwner,
+      role: "gestor",
+      senha: params.password,
+      situacao: "active",
+      status: "ativo",
+      storeName: cleanShop,
+      telefone: params.phone?.trim() || "00000000000",
+      tipo: "gestor",
+      tipoPlano: "Plano Completo",
+      trial: true,
+      trialDays: 7,
+      trialEndsAt: expiryStrPanel,
+      uid: cleanEmail,
+      ultimoPagamento: dateStr,
+      updatedAt: nowStr,
+      user: cleanEmail,
+      userEmail: cleanEmail,
+      userId: cleanEmail,
+      userStatus: "active",
+      username: cleanEmail,
+      usuario: cleanEmail,
+      valor: 79.9,
+      valorMensalidade: 79.9,
+      valorPlano: 79.9,
+      valor_mensalidade: 79.9,
+      vencimento: expiryStrPanel,
+      whatsapp: params.phone?.trim() || "00000000000",
+    });
+
+    // 5. Save active auth session
+    session.avatarUrl = adminEmp.avatarUrl;
+    this.setAuthSession(session);
+
+    // Also register in saved accounts
+    this.saveAccountProfile({
+      email: cleanEmail,
+      name: `${cleanOwner} (${cleanShop})`,
+      picture: adminEmp.avatarUrl,
+    });
+
+    this.logAction(`Nova conta criada: ${cleanShop} (${cleanEmail})`, 'Teste Grátis de 7 dias ativado');
+
+    return {
+      user: adminEmp,
+      plan: trialPlan,
+      account: newAccount,
+    };
+  },
+
+  loginWithEmailPassword(params: {
+    email: string;
+    password: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const isSuperAdminEmail = 
+      cleanEmail === 'mmspmartins62@gmail.com' || 
+      cleanEmail === 'msp404011@gmail.com' ||
+      cleanEmail.includes('mmspmartins62') ||
+      cleanEmail.includes('msp404011');
+
+    if (isSuperAdminEmail) {
+      const trimmed = params.password.trim();
+      const valid = 
+        trimmed === '16150705@Mm###' || 
+        trimmed === '16150705' || 
+        trimmed === 'admin123' ||
+        params.password === '16150705@Mm###' || 
+        params.password === '16150705' || 
+        params.password === 'admin123' ||
+        trimmed.toLowerCase() === '16150705@mm###' ||
+        trimmed.startsWith('16150705');
+      if (!valid) {
+        throw new Error('Senha incorreta para o Super Administrador.');
+      }
+
+      const superEmp: Employee = {
+        id: 'emp-super-admin',
+        name: 'Administrador Master',
+        email: cleanEmail,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=Super+Admin&background=f59e0b&color=000000`,
+        status: 'ATIVO',
+        active: true,
+        permissions: {
+          canAccessAdminSettings: true,
+          canViewFinancialReports: true,
+          canViewProductCost: true,
+          canManageEmployees: true,
+          canManageProducts: true,
+          canManageCustomers: true,
+          canManageOrders: true,
+          canOperatePos: true,
+          canOperateCash: true,
+          canManageExpenses: true,
+          canDeleteRecords: true,
+          canAdjustStock: true,
+        },
+        createdAt: new Date().toISOString(),
+      };
+
+      const superPlan: SubscriptionPlanInfo = {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem data e sem vencimento!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+
+      this.saveEmployee(superEmp);
+      this.setCurrentUser(superEmp);
+      this.saveSubscriptionPlanOnlyLocal(superPlan);
+
+      const session: AuthSession = {
+        isAuthenticated: true,
+        provider: 'email',
+        email: cleanEmail,
+        name: 'Administrador Master',
+        avatarUrl: superEmp.avatarUrl,
+        loggedAt: new Date().toISOString(),
+      };
+      this.setAuthSession(session);
+
+      // Auto-save/sync Super Admin account to Firestore
+      FirestoreSyncService.saveFullTenantProfile({
+        id: cleanEmail,
+        uid: cleanEmail,
+        email: cleanEmail,
+        nome: 'Administrador Master',
+        responsavel: 'Administrador Master',
+        empresa: 'Painel Master Gestor',
+        role: 'superadmin',
+        tipo: 'superadmin',
+        planoId: 'SUPER_ADMIN',
+        planoNome: 'Plano Super Admin Vitalício',
+        status: 'ativo',
+        active: true,
+        bloqueado: false,
+        blocked: false,
+        valorPlano: 0,
+        mensalidade: 0,
+        vencimento: '',
+        dataVencimento: '',
+        isTrial: false,
+      });
+
+      this.logAction('Login Super Admin efetuado com sucesso (Plano Exclusivo Vitalício)');
+
+      return {
+        user: superEmp,
+        plan: superPlan,
+        isFirstAccess: false,
+        isExpiredOrCanceled: false,
+      };
+    }
+
+    const accounts = this.getUserAccounts();
+    const account = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    if (!account) {
+      // If not yet in user accounts, check if there's an employee or existing google sub
+      const existingEmployee = this.getEmployees().find((e) => e.email?.toLowerCase() === cleanEmail);
+      if (existingEmployee) {
+        // Allow fallback access for registered employee
+        this.setCurrentUser(existingEmployee);
+        const plan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
+        const session: AuthSession = {
+          isAuthenticated: true,
+          provider: 'email',
+          email: cleanEmail,
+          name: existingEmployee.name,
+          avatarUrl: existingEmployee.avatarUrl,
+          loggedAt: new Date().toISOString(),
+        };
+        this.setAuthSession(session);
+        return {
+          user: existingEmployee,
+          plan,
+          isFirstAccess: false,
+          isExpiredOrCanceled: plan.status === 'expired' || plan.status === 'canceled',
+        };
+      }
+      throw new Error('Conta não encontrada com este e-mail. Crie sua conta grátis.');
+    }
+
+    if (account.passwordHash && account.passwordHash !== params.password) {
+      throw new Error('Senha incorreta. Verifique sua senha ou use a recuperação de acesso.');
+    }
+
+    // Set active auth session immediately so subsequent operations use this tenant scope
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      email: cleanEmail,
+      name: account.ownerName || account.shopName,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    // Update last login
+    account.lastLoginAt = new Date().toISOString();
+    this.saveUserAccount(account);
+
+    // Get or create employee
+    const employees = this.getEmployees();
+    let employee = employees.find((e) => e.email?.toLowerCase() === cleanEmail);
+    if (!employee) {
+      employee = {
+        id: `emp-adm-${Date.now()}`,
+        name: account.ownerName || account.shopName,
+        email: cleanEmail,
+        phone: account.phone,
+        role: 'ADMINISTRADOR',
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(account.ownerName)}&background=0284c7&color=ffffff`,
+        active: true,
+        permissions: {
+          canManageOrders: true,
+          canOperatePos: true,
+          canManageProducts: true,
+          canViewFinancialReports: true,
+          canManageCustomers: true,
+          canAccessAdminSettings: true,
+          canOperateCash: true,
+          canAdjustStock: true,
+          canManageEmployees: true,
+        },
+      };
+      this.saveEmployee(employee);
+    }
+    this.setCurrentUser(employee);
+
+    // Check subscription (save locally only on login to prevent overwriting correct Firestore values)
+    let userPlan = this.getSubscriptionForEmail(cleanEmail) || this.getSubscriptionPlan();
+    this.saveSubscriptionPlanOnlyLocal(userPlan);
+
+    // Check expiration
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    let isExpiredOrCanceled = userPlan.status === 'expired' || userPlan.status === 'canceled' || userPlan.status === 'VENCIDO';
+    if (userPlan.expiryDate) {
+      const [y, m, d] = userPlan.expiryDate.split('-').map(Number);
+      const expDate = new Date(y, (m || 1) - 1, d || 1);
+      if (expDate.getTime() < now.getTime()) {
+        isExpiredOrCanceled = true;
+        userPlan.status = 'expired';
+        this.saveSubscriptionPlanOnlyLocal(userPlan);
+      }
+    }
+
+    // Set active auth session
+    session.name = employee.name;
+    session.avatarUrl = employee.avatarUrl;
+    this.setAuthSession(session);
+
+    this.saveAccountProfile({
+      email: cleanEmail,
+      name: `${account.ownerName} (${account.shopName})`,
+      picture: employee.avatarUrl,
+    });
+
+    this.logAction(`Login efetuado com sucesso: ${cleanEmail}`);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess: false,
+      isExpiredOrCanceled,
+    };
+  },
+
+  loginFromFirebaseAuth(params: {
+    uid: string;
+    email: string;
+    accountData: any;
+    password?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const data = params.accountData || {};
+    
+    const isSuperAdminEmail = 
+      cleanEmail === 'mmspmartins62@gmail.com' || 
+      cleanEmail === 'msp404011@gmail.com' ||
+      cleanEmail.includes('mmspmartins62') ||
+      cleanEmail.includes('msp404011') ||
+      data.role === 'superadmin' ||
+      data.role === 'super_admin' ||
+      data.tipo === 'superadmin' ||
+      data.tipo === 'master' ||
+      data.planoId === 'SUPER_ADMIN';
+
+    // Se for o Super Admin Master, autenticação instantânea com plano vitalício ilimitado
+    if (isSuperAdminEmail) {
+      const superEmp: Employee = {
+        id: params.uid || 'emp-super-admin',
+        email: cleanEmail,
+        name: data.nome || data.name || 'Administrador Master',
+        role: 'ADMINISTRADOR',
+        status: 'ATIVO',
+        permissions: {
+          canAccessAdminSettings: true,
+          canViewFinancialReports: true,
+          canViewProductCost: true,
+          canManageEmployees: true,
+          canManageProducts: true,
+          canManageCustomers: true,
+          canManageOrders: true,
+          canOperatePos: true,
+          canOperateCash: true,
+          canManageExpenses: true,
+          canDeleteRecords: true,
+          canAdjustStock: true,
+        },
+        createdAt: new Date().toISOString(),
+      };
+      this.saveEmployee(superEmp);
+      this.setCurrentUser(superEmp);
+
+      const superPlan: SubscriptionPlanInfo = {
+        planType: 'SUPER_ADMIN',
+        planName: 'Plano Super Admin Vitalício',
+        planPrice: 0,
+        billingCycle: 'monthly',
+        billingPeriod: 'VITALÍCIO',
+        expiryDate: '', // Sem vencimento, sem data!
+        status: 'active',
+        clientName: 'Painel Master Gestor',
+        accountEmail: cleanEmail,
+        autoRenew: false,
+        paymentMethod: 'Acesso Exclusivo Super Admin',
+        notes: 'Acesso Vitalício Ilimitado Exclusivo do Super Administrador sem vencimento, sem dias e sem valor.',
+        startDate: '2025-01-01',
+        isTrial: false,
+      };
+      this.saveSubscriptionPlanOnlyLocal(superPlan);
+
+      const session: AuthSession = {
+        isAuthenticated: true,
+        provider: 'email',
+        uid: params.uid,
+        email: cleanEmail,
+        name: superEmp.name,
+        avatarUrl: `https://ui-avatars.com/api/?name=Super+Admin&background=f59e0b&color=000000`,
+        loggedAt: new Date().toISOString(),
+      };
+      this.setAuthSession(session);
+
+      // Restore company settings and OS configs from Firestore if present
+      if (params.accountData) {
+        const ad = params.accountData;
+        if (ad.companySettings) {
+          this.saveCompanySettings(ad.companySettings);
+        } else if (ad.logoUrl || ad.empresa || ad.nomeFantasia) {
+          const cur = this.getCompanySettings();
+          this.saveCompanySettings({
+            ...cur,
+            logoUrl: ad.logoUrl || cur.logoUrl,
+            commercialName: ad.nomeFantasia || ad.empresa || cur.commercialName,
+            name: ad.nomeEmpresa || ad.empresa || cur.name,
+            phone: ad.telefone || ad.whatsapp || cur.phone,
+            whatsapp: ad.whatsapp || ad.telefone || cur.whatsapp,
+            cnpj: ad.cnpj || cur.cnpj,
+            address: ad.endereco || cur.address,
+            ownerName: ad.responsavel || ad.nome || cur.ownerName,
+          });
+        }
+        if (ad.customOsConfigs) {
+          if (Array.isArray(ad.customOsConfigs.customOSStatuses)) {
+            this.saveCustomOSStatuses(ad.customOsConfigs.customOSStatuses);
+          }
+          if (Array.isArray(ad.customOsConfigs.customDeviceTypes)) {
+            this.saveCustomDeviceTypes(ad.customOsConfigs.customDeviceTypes);
+          }
+          if (Array.isArray(ad.customOsConfigs.customAccessories)) {
+            this.saveCustomAccessories(ad.customOsConfigs.customAccessories);
+          }
+          if (Array.isArray(ad.customOsConfigs.customPaymentMethods)) {
+            this.saveCustomPaymentMethods(ad.customOsConfigs.customPaymentMethods);
+          }
+          if (Array.isArray(ad.customOsConfigs.customCategories)) {
+            this.saveCustomCategories(ad.customOsConfigs.customCategories);
+          }
+        }
+      }
+
+      const currentComp = this.getCompanySettings();
+
+      // Auto-save/sync Super Admin account to Firestore
+      FirestoreSyncService.saveFullTenantProfile({
+        id: cleanEmail,
+        uid: params.uid || cleanEmail,
+        email: cleanEmail,
+        nome: 'Administrador Master',
+        responsavel: 'Administrador Master',
+        empresa: currentComp.commercialName || currentComp.name || 'Painel Master Gestor',
+        role: 'superadmin',
+        tipo: 'superadmin',
+        planoId: 'SUPER_ADMIN',
+        planoNome: 'Plano Super Admin Vitalício',
+        status: 'ativo',
+        active: true,
+        bloqueado: false,
+        blocked: false,
+        valorPlano: 0,
+        mensalidade: 0,
+        vencimento: '',
+        dataVencimento: '',
+        isTrial: false,
+      });
+
+      return {
+        user: superEmp,
+        plan: superPlan,
+        isFirstAccess: false,
+        isExpiredOrCanceled: false,
+      };
+    }
+
+    // Se não houver dados de conta no Firestore, o login é rejeitado
+    if (!params.accountData) {
+        throw new Error('Usuário não encontrado na base de dados autorizada.');
+    }
+
+    const ownerName = data.nome || data.name || data.responsavel || 'Administrador';
+    const shopName = data.empresa || data.nomeEmpresa || data.nomeFantasia || ownerName;
+
+    // Atualiza configurações da empresa e customizações da OS vindas do Firestore
+    try {
+      if (data.companySettings) {
+        this.saveCompanySettings(data.companySettings);
+      } else {
+        const currentCompany = this.getCompanySettings();
+        this.saveCompanySettings({
+          ...currentCompany,
+          commercialName: shopName && shopName !== 'Administrador' ? shopName : currentCompany.commercialName,
+          name: shopName && shopName !== 'Administrador' ? shopName : currentCompany.name,
+          ownerName: ownerName !== 'Administrador' ? ownerName : currentCompany.ownerName,
+          logoUrl: data.logoUrl || currentCompany.logoUrl,
+          phone: data.telefone || data.whatsapp || currentCompany.phone,
+          whatsapp: data.whatsapp || data.telefone || currentCompany.whatsapp,
+          cnpj: data.cnpj || currentCompany.cnpj,
+          address: data.endereco || currentCompany.address,
+        });
+      }
+
+      if (data.customOsConfigs) {
+        if (Array.isArray(data.customOsConfigs.customOSStatuses)) {
+          this.saveCustomOSStatuses(data.customOsConfigs.customOSStatuses);
+        }
+        if (Array.isArray(data.customOsConfigs.customDeviceTypes)) {
+          this.saveCustomDeviceTypes(data.customOsConfigs.customDeviceTypes);
+        }
+        if (Array.isArray(data.customOsConfigs.customAccessories)) {
+          this.saveCustomAccessories(data.customOsConfigs.customAccessories);
+        }
+        if (Array.isArray(data.customOsConfigs.customPaymentMethods)) {
+          this.saveCustomPaymentMethods(data.customOsConfigs.customPaymentMethods);
+        }
+        if (Array.isArray(data.customOsConfigs.customCategories)) {
+          this.saveCustomCategories(data.customOsConfigs.customCategories);
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao restaurar configurações e OS do Firestore:', e);
+    }
+
+    // Cria o Employee apenas em memória para a sessão atual
+    const employee: Employee = {
+      id: params.uid,
+      email: cleanEmail,
+      name: ownerName,
+      role: 'ADMIN',
+      status: 'ATIVO',
+      permissions: {
+        canAccessAdminSettings: true,
+        canViewFinancialReports: true,
+        canViewProductCost: true,
+        canManageEmployees: true,
+        canManageProducts: true,
+        canManageCustomers: true,
+        canManageOrders: true,
+        canOperatePos: true,
+        canOperateCash: true,
+        canManageExpenses: true,
+        canDeleteRecords: true,
+      },
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Define o usuário na sessão atual (in-memory)
+    this.setCurrentUser(employee);
+
+    // Calcula o plano baseado nos dados frescos do Firestore
+    const rawPlanId = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA');
+    const planType: PlanType = normalizePlanType(rawPlanId);
+    
+    const isTrial = planType === 'TRIAL';
+    const defaultDays = isTrial ? 7 : 30;
+    
+    const expiryDate = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || new Date(Date.now() + defaultDays * 86400000).toISOString().split('T')[0];
+    const planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? 69.90);
+    const planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
+    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const expDate = new Date(expiryDate);
+    const isExpired = expDate.getTime() < now.getTime();
+
+    const userPlan: SubscriptionPlanInfo = {
+      planType,
+      planName,
+      planPrice,
+      billingCycle: 'monthly',
+      billingPeriod: 'MENSAL',
+      expiryDate,
+      status: (data.status === 'bloqueado' || data.bloqueado || data.blocked) ? 'canceled' : (isExpired ? 'expired' : 'active'),
+      clientName: shopName,
+      accountEmail: cleanEmail,
+      autoRenew: !isTrial,
+      startDate: (data.dataCriacao || new Date().toISOString()).split('T')[0],
+      isTrial,
+    };
+
+    // Cria a sessão de autenticação (in-memory)
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'email',
+      uid: params.uid,
+      email: cleanEmail,
+      name: ownerName,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction(`Login via Firebase Auth efetuado com sucesso (Direto Firestore): ${cleanEmail}`);
+
+    return {
+      user: employee,
+      plan: userPlan,
+      isFirstAccess: false,
+      isExpiredOrCanceled: userPlan.status === 'expired' || userPlan.status === 'canceled',
+    };
+  },
+
+  deleteAccountPermanently(emailOrUid: string): boolean {
+    if (!emailOrUid) return false;
+    const cleanId = String(emailOrUid).trim().toLowerCase();
+
+    try {
+      // 1. Remove da lista de contas locais
+      const accounts = this.getUserAccounts();
+      const filteredAccounts = accounts.filter(
+        (a) => a.email.toLowerCase() !== cleanId && a.id?.toLowerCase() !== cleanId
+      );
+      localStorage.setItem('user_accounts', JSON.stringify(filteredAccounts));
+
+      // 2. Remove assinaturas vinculadas
+      localStorage.removeItem(`subscription_plan_${cleanId}`);
+
+      // 3. Remove funcionários vinculados ao e-mail
+      const employees = this.getEmployees();
+      const filteredEmployees = employees.filter((e) => e.email?.toLowerCase() !== cleanId);
+      localStorage.setItem('employees', JSON.stringify(filteredEmployees));
+
+      // 4. Se a sessão ativa pertencer a esta conta, faz logout
+      const currentSession = this.getAuthSession();
+      if (
+        currentSession?.email?.toLowerCase() === cleanId ||
+        currentSession?.uid?.toLowerCase() === cleanId
+      ) {
+        this.clearAuthSession();
+      }
+
+      this.logAction(`Conta ${cleanId} excluída permanentemente do sistema.`);
+      return true;
+    } catch (err) {
+      console.error('Erro ao excluir conta permanentemente do storage local:', err);
+      return false;
+    }
+  },
+
+  resetPasswordDirect(params: {
+    email: string;
+    newPassword: string;
+    securityAnswer?: string;
+  }): boolean {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const accounts = this.getUserAccounts();
+    const account = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    if (!account) {
+      // Create new account entry if none existed
+      const newAcc: UserAccount = {
+        id: `acc-${Date.now()}`,
+        shopName: 'Minha Loja',
+        ownerName: cleanEmail.split('@')[0],
+        email: cleanEmail,
+        passwordHash: params.newPassword,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      };
+      this.saveUserAccount(newAcc);
+      return true;
+    }
+
+    account.passwordHash = params.newPassword;
+    account.lastLoginAt = new Date().toISOString();
+    this.saveUserAccount(account);
+    this.logAction(`Senha redefinida com sucesso para o e-mail ${cleanEmail}`);
+    return true;
+  },
+
+  recoverAccount(params: {
+    identifier: string; // Email or phone or master code
+    method: 'email' | 'phone' | 'code';
+    name?: string;
+  }): {
+    user: Employee;
+    plan: SubscriptionPlanInfo;
+    isFirstAccess: boolean;
+    isExpiredOrCanceled: boolean;
+  } {
+    const cleanIdentifier = params.identifier.trim();
+    let email = '';
+    let displayName = params.name || 'Operador Recuperado';
+
+    if (params.method === 'email') {
+      email = cleanIdentifier.toLowerCase();
+      displayName = params.name || email.split('@')[0] || 'Usuário Recuperado';
+    } else if (params.method === 'phone') {
+      // Find employee with this phone or generate alias
+      const employees = this.getEmployees();
+      const matched = employees.find(
+        (e) => (e.phone && e.phone.replace(/\D/g, '') === cleanIdentifier.replace(/\D/g, ''))
+      );
+      if (matched && matched.email) {
+        email = matched.email.toLowerCase();
+        displayName = matched.name;
+      } else {
+        email = `recuperado-${cleanIdentifier.replace(/\D/g, '')}@mspinformatica.com.br`;
+        displayName = params.name || `Celular ${cleanIdentifier}`;
+      }
+    } else {
+      // Master code recovery
+      email = 'admin-recuperado@mspinformatica.com.br';
+      displayName = 'Administrador (Chave Mestra)';
+    }
+
+    const profile: GoogleUserProfile = {
+      email,
+      name: displayName,
+      picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10b981&color=ffffff&size=128`,
+    };
+
+    const loginResult = this.loginWithGoogle(profile);
+
+    // Override session provider to 'recovery'
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'recovery',
+      email,
+      name: displayName,
+      avatarUrl: profile.picture,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction(
+      `Conta recuperada com sucesso via ${params.method.toUpperCase()}`,
+      `Identificador: ${cleanIdentifier} | Operador: ${displayName}`
+    );
+
+    return loginResult;
+  },
+
+  loginAsDemo(): { user: Employee; plan: SubscriptionPlanInfo } {
+    const employees = this.getEmployees();
+    const demoUser = employees[0] || initialEmployees[0];
+    this.setCurrentUser(demoUser);
+
+    const plan = this.getSubscriptionPlan();
+    const session: AuthSession = {
+      isAuthenticated: true,
+      provider: 'demo',
+      email: demoUser.email || 'demo@mspinformatica.com.br',
+      name: `${demoUser.name} (Demonstração)`,
+      avatarUrl: demoUser.avatarUrl,
+      loggedAt: new Date().toISOString(),
+    };
+    this.setAuthSession(session);
+
+    this.logAction('Acesso em Modo Demonstração', `Operador ativo: ${demoUser.name}`);
+    return { user: demoUser, plan };
+  },
+
+
+  // Helper & Alias methods for component interoperability
+  getUsers(): Employee[] {
+    return this.getEmployees();
+  },
+
+  adjustStock(productId: string, quantity: number, type: 'IN' | 'OUT', reason: string, userName?: string): boolean {
+    const delta = type === 'IN' ? quantity : -quantity;
+    return this.updateProductStock(productId, delta, reason, type === 'IN' ? 'ENTRADA' : 'SAIDA');
+  },
+
+  deliverAndPayOrder(
+    orderId: string,
+    paymentMethod: PaymentMethod | string,
+    userName?: string,
+    notes?: string,
+    splitPayments?: { paymentMethod: PaymentMethod | string; amount: number }[]
+  ): boolean {
+    const orders = this.getOrders();
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return false;
+
+    const activeSplits = (splitPayments || []).filter((p) => Number(p.amount) > 0);
+
+    if (activeSplits.length > 1) {
+      order.payments = activeSplits.map((p) => ({
+        paymentMethod: p.paymentMethod as PaymentMethod,
+        amount: Number(p.amount),
+        date: new Date().toISOString(),
+      }));
+      order.paymentMethod = 'MULTIPLO' as any;
+      order.paymentStatus = 'PAGO';
+      order.deliveredAt = new Date().toISOString();
+
+      setItem(STORAGE_KEYS.ORDERS, orders);
+      FirestoreSyncService.saveOrder(order);
+
+      const totalNet = Number(order.totalPrice) || 1;
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      const proportion = grossValue / totalNet;
+
+      for (const p of activeSplits) {
+        if (Number(p.amount) > 0) {
+          this.addCashMovement({
+            type: 'SERVICO_OS',
+            description: `Recebimento OS #${order.orderNumber} (${p.paymentMethod}) - ${order.customerName}`,
+            amount: Number(p.amount) * proportion,
+            paymentMethod: p.paymentMethod as PaymentMethod,
+            referenceId: order.id,
+            userName,
+          });
+        }
+      }
+
+      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || 'Aparelho entregue e recebido com múltiplos pagamentos.');
+    } else {
+      const finalMethod = (activeSplits.length === 1 ? activeSplits[0].paymentMethod : paymentMethod) as PaymentMethod;
+      const finalAmount = activeSplits.length === 1 ? Number(activeSplits[0].amount) : (Number(order.totalPrice) || 0);
+      const totalNet = Number(order.totalPrice) || 1;
+      const grossValue = (Number(order.laborPrice) || 0) + (Number(order.partsPrice) || 0) || ((Number(order.totalPrice) || 0) + (Number(order.discount) || 0));
+      const proportion = grossValue / totalNet;
+
+      order.payments = [
+        {
+          paymentMethod: finalMethod,
+          amount: finalAmount,
+          date: new Date().toISOString(),
+        },
+      ];
+      order.paymentMethod = finalMethod;
+      order.paymentStatus = 'PAGO';
+      order.deliveredAt = new Date().toISOString();
+
+      setItem(STORAGE_KEYS.ORDERS, orders);
+      FirestoreSyncService.saveOrder(order);
+
+      if (finalAmount > 0) {
+        this.addCashMovement({
+          type: 'SERVICO_OS',
+          description: `Recebimento OS #${order.orderNumber} - ${order.customerName}`,
+          amount: finalAmount * proportion,
+          paymentMethod: finalMethod,
+          referenceId: order.id,
+          userName,
+        });
+      }
+
+      return this.updateOrderStatus(orderId, 'ENTREGUE', notes || (finalAmount === 0 ? 'Aparelho entregue e concluído sem cobrança (Serviço zerado).' : 'Aparelho entregue e recebido pelo cliente.'));
+    }
+  },
+
+  performCashMovement(type: 'SANGRIA' | 'SUPRIMENTO' | 'ENTRADA_AVULSA', amount: number, reason: string, userName?: string): CashMovement {
+    const movType = type === 'SANGRIA' ? 'SANGRIA' : 'SUPRIMENTO';
+    return this.addCashMovement({
+      type: movType,
+      description: reason,
+      amount,
+      paymentMethod: 'DINHEIRO',
+    });
+  },
+
+  createPurchase(purchase: any, userName?: string): Purchase {
+    return this.addPurchase({
+      supplier: purchase.supplier || purchase.supplierName || 'Fornecedor',
+      supplierName: purchase.supplier || purchase.supplierName || 'Fornecedor',
+      invoiceNumber: purchase.invoiceNumber || 'S/N',
+      date: purchase.date || new Date().toISOString(),
+      items: purchase.items || [],
+      totalAmount: purchase.totalAmount || 0,
+      notes: purchase.notes || '',
+    });
+  },
+
+  saveExpense(expense: any): Expense {
+    const list = this.getExpenses();
+    const existingIndex = expense.id ? list.findIndex((e: Expense) => e.id === expense.id) : -1;
+
+    const formattedExpense: Expense = {
+      id: expense.id || 'exp-' + Date.now(),
+      description: expense.description,
+      category: expense.category || 'OUTROS',
+      amount: Number(expense.amount) || 0,
+      date: expense.date || expense.dueDate || new Date().toISOString(),
+      dueDate: expense.dueDate || expense.date || new Date().toISOString(),
+      paymentDate: expense.paymentDate,
+      status: expense.status || 'PENDENTE',
+      paymentMethod: expense.paymentMethod || 'DINHEIRO',
+      paidFromCash: expense.paidFromCash ?? (expense.paymentMethod === 'DINHEIRO'),
+      responsibleName: expense.responsibleName || 'Operador',
+      notes: expense.notes,
+      createdAt: expense.createdAt || new Date().toISOString(),
+      expenseScope: expense.expenseScope || 'LOJA',
+      isInstallment: Boolean(expense.isInstallment || (expense.totalInstallments && Number(expense.totalInstallments) > 1)),
+      installmentNumber: expense.installmentNumber ? Number(expense.installmentNumber) : undefined,
+      totalInstallments: expense.totalInstallments ? Number(expense.totalInstallments) : undefined,
+      recurringMonths: expense.recurringMonths ? Number(expense.recurringMonths) : undefined,
+      currentMonthIndex: expense.currentMonthIndex ? Number(expense.currentMonthIndex) : undefined,
+    };
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = formattedExpense;
+    } else {
+      list.unshift(formattedExpense);
+    }
+    setItem(STORAGE_KEYS.EXPENSES, list);
+
+    if (formattedExpense.paidFromCash && formattedExpense.status === 'PAGO') {
+      this.addCashMovement({
+        type: 'DESPESA',
+        description: `Despesa: ${formattedExpense.description} (${formattedExpense.category})`,
+        amount: formattedExpense.amount,
+        paymentMethod: formattedExpense.paymentMethod,
+        referenceId: formattedExpense.id,
+      });
+    }
+
+    this.logAction(
+      existingIndex >= 0 ? `Despesa atualizada: ${formattedExpense.description}` : `Despesa registrada: ${formattedExpense.description}`,
+      `R$ ${formattedExpense.amount.toFixed(2)} (${formattedExpense.category})`
+    );
+
+    FirestoreSyncService.saveExpense(formattedExpense);
+
+    return formattedExpense;
+  },
+
+  exportFullBackup(): string {
+    return this.exportBackup();
+  },
+
+  importFullBackup(jsonString: string): boolean {
+    return this.importBackup(jsonString);
+  },
+
+  getCustomCategories(): CustomCategory[] {
+    const list = getItem<CustomCategory[]>(STORAGE_KEYS.CUSTOM_CATEGORIES, defaultCustomCategories);
+    if (!list || list.length === 0) {
+      return defaultCustomCategories;
+    }
+    return list;
+  },
+
+  saveCustomCategories(cats: CustomCategory[], localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, cats);
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customCategories: cats });
+      } catch (e) {
+        console.warn('Sync custom categories error:', e);
+      }
+    }
+  },
+
+  getCustomBrands(): string[] {
+    const list = getItem<string[]>(STORAGE_KEYS.CUSTOM_BRANDS, defaultCustomBrands);
+    if (!list || list.length === 0) {
+      return defaultCustomBrands;
+    }
+    return list;
+  },
+
+  saveCustomBrands(brands: string[]): void {
+    setItem(STORAGE_KEYS.CUSTOM_BRANDS, brands);
+    notifyListeners();
+  },
+
+  getCustomOSStatuses(): CustomOSStatusItem[] {
+    const list = getItem<CustomOSStatusItem[] | null>(STORAGE_KEYS.CUSTOM_OS_STATUSES, null);
+    if (Array.isArray(list) && list.length > 0) {
+      const merged = [...list];
+      defaultCustomOSStatuses.forEach((def) => {
+        const exists = merged.some(
+          (s) => s.code?.toUpperCase() === def.code?.toUpperCase() || s.id === def.id
+        );
+        if (!exists) {
+          merged.push(def);
+        }
+      });
+      return merged;
+    }
+    return defaultCustomOSStatuses;
+  },
+
+  saveCustomOSStatuses(statuses: CustomOSStatusItem[], localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, statuses);
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customOSStatuses: statuses });
+      } catch (e) {
+        console.warn('Sync custom OS statuses error:', e);
+      }
+    }
+  },
+
+  getCustomDeviceTypes(): CustomDeviceType[] {
+    const list = getItem<CustomDeviceType[]>(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, defaultCustomDeviceTypes);
+    if (!list || list.length === 0) {
+      return defaultCustomDeviceTypes;
+    }
+    return list;
+  },
+
+  saveCustomDeviceTypes(types: CustomDeviceType[], localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.CUSTOM_DEVICE_TYPES, types);
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customDeviceTypes: types });
+      } catch (e) {
+        console.warn('Sync custom device types error:', e);
+      }
+    }
+  },
+
+  getCustomAccessories(): CustomAccessoryItem[] {
+    const list = getItem<CustomAccessoryItem[]>(STORAGE_KEYS.CUSTOM_ACCESSORIES, defaultCustomAccessories);
+    if (!list || list.length === 0 || !list.some((item) => item.deviceTypes && item.deviceTypes.length > 0)) {
+      return defaultCustomAccessories;
+    }
+    // Filter out Caixa Original if still in cached list and ensure C/ Capa is present
+    const cleaned = list.filter((item) => item.id !== 'acc-all-1' && !item.name.toLowerCase().includes('caixa original'));
+    if (!cleaned.some((item) => item.id === 'acc-case' || item.name.toLowerCase() === 'c/ capa' || item.name.toLowerCase().includes('capa'))) {
+      cleaned.unshift({
+        id: 'acc-case',
+        name: 'C/ Capa',
+        defaultPresent: false,
+        hasDetails: true,
+        iconName: 'Shield',
+        placeholder: 'Descreva a cor da capa (Ex: Preta, Transparente, Vermelha)',
+        deviceTypes: ['Smartphone / Celular', 'Smartphone', 'Tablet / iPad', 'Tablet', 'ALL'],
+      });
+    }
+    return cleaned;
+  },
+
+  saveCustomAccessories(accessories: CustomAccessoryItem[], localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.CUSTOM_ACCESSORIES, accessories);
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customAccessories: accessories });
+      } catch (e) {
+        console.warn('Sync custom accessories error:', e);
+      }
+    }
+  },
+
+  getCustomPaymentMethods(): CustomPaymentMethodItem[] {
+    const list = getItem<CustomPaymentMethodItem[]>(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, defaultCustomPaymentMethods);
+    if (!list || list.length === 0) {
+      return defaultCustomPaymentMethods;
+    }
+    return list;
+  },
+
+  getDeduplicatedPaymentOptions(): FormattedPaymentOption[] {
+    const methods = this.getCustomPaymentMethods();
+    return getDeduplicatedPaymentOptions(methods);
+  },
+
+  saveCustomPaymentMethods(methods: CustomPaymentMethodItem[], localOnly: boolean = false): void {
+    setItem(STORAGE_KEYS.CUSTOM_PAYMENT_METHODS, methods);
+    notifyListeners();
+    if (!localOnly) {
+      try {
+        FirestoreSyncService.saveCustomOsConfigs({ customPaymentMethods: methods });
+      } catch (e) {
+        console.warn('Sync custom payment methods error:', e);
+      }
+    }
+  },
+
+  // Compatibility Database Methods
+  getCompatibilitySectors(): CompatibilitySector[] {
+    const list = getItem<CompatibilitySector[] | null>(STORAGE_KEYS.COMPATIBILITY_SECTORS, null);
+    if (!list) {
+      this.saveCompatibilitySectors(defaultCompatibilitySectors);
+      return defaultCompatibilitySectors;
+    }
+    return list;
+  },
+
+  saveCompatibilitySectors(sectors: CompatibilitySector[]): void {
+    setItem(STORAGE_KEYS.COMPATIBILITY_SECTORS, sectors);
+    notifyListeners();
+  },
+
+  getCompatibilityCards(): CompatibilityCard[] {
+    const list = getItem<CompatibilityCard[] | null>(STORAGE_KEYS.COMPATIBILITY_CARDS, null);
+    if (!list) {
+      this.saveCompatibilityCards(defaultCompatibilityCards);
+      return defaultCompatibilityCards;
+    }
+    return list;
+  },
+
+  saveCompatibilityCards(cards: CompatibilityCard[]): void {
+    setItem(STORAGE_KEYS.COMPATIBILITY_CARDS, cards);
+    notifyListeners();
+  },
+
+  // Suppliers & Purchases Config
+  getPurchasesConfig(): { historyLimitMonths: number; autoDeleteExpired: boolean } {
+    return getItem(STORAGE_KEYS.PURCHASES_CONFIG, { historyLimitMonths: 12, autoDeleteExpired: true });
+  },
+
+  savePurchasesConfig(config: { historyLimitMonths: number; autoDeleteExpired: boolean }): void {
+    setItem(STORAGE_KEYS.PURCHASES_CONFIG, config);
+  },
+
+  getSuppliers(): Supplier[] {
+    return getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
+  },
+
+  saveSupplier(supplier: Supplier): Supplier {
+    const stored = getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
+    const idx = stored.findIndex((s) => s.id === supplier.id || s.name.toLowerCase() === supplier.name.toLowerCase());
+    
+    const computed: Supplier = {
+      ...supplier,
+      id: supplier.id || 'sup-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+    };
+
+    if (idx >= 0) {
+      stored[idx] = computed;
+      this.logAction(`Fornecedor atualizado: ${computed.name}`);
+    } else {
+      stored.unshift(computed);
+      this.logAction(`Fornecedor cadastrado: ${computed.name}`);
+    }
+    
+    setItem(STORAGE_KEYS.SUPPLIERS, stored);
+    FirestoreSyncService.saveSupplier(computed);
+    return computed;
+  },
+
+  deleteSupplier(id: string): void {
+    const stored = getItem<Supplier[]>(STORAGE_KEYS.SUPPLIERS, []);
+    const filtered = stored.filter((s) => s.id !== id);
+    setItem(STORAGE_KEYS.SUPPLIERS, filtered);
+    FirestoreSyncService.deleteSupplier(id);
+    this.logAction('Fornecedor excluído');
+  },
+
+  getResellers(): Reseller[] {
+    return getItem<Reseller[]>(STORAGE_KEYS.RESELLERS, []);
+  },
+
+  saveReseller(reseller: Reseller): Reseller {
+    const list = this.getResellers();
+    const idx = list.findIndex((r) => r.id === reseller.id);
+    const now = new Date().toISOString();
+    const computed: Reseller = {
+      ...reseller,
+      balance: Number(reseller.balance) || 0,
+      creditLimit: Number(reseller.creditLimit) || 0,
+      discountPercent: Number(reseller.discountPercent) || 0,
+      totalPurchased: Number(reseller.totalPurchased) || 0,
+      totalPaid: Number(reseller.totalPaid) || 0,
+      status: reseller.status || 'Ativo',
+      updatedAt: now,
+      createdAt: reseller.createdAt || now,
+    };
+
+    if (idx >= 0) {
+      list[idx] = computed;
+      this.logAction(`Revendedor updated: ${computed.name}`);
+    } else {
+      list.unshift(computed);
+      this.logAction(`Novo revendedor cadastrado: ${computed.name}`);
+    }
+    setItem(STORAGE_KEYS.RESELLERS, list);
+    try {
+      FirestoreSyncService.saveReseller(computed);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveReseller error:', e);
+    }
+    return computed;
+  },
+
+  deleteReseller(id: string): void {
+    const list = this.getResellers();
+    const target = list.find((r) => r.id === id);
+    setItem(STORAGE_KEYS.RESELLERS, list.filter((r) => r.id !== id));
+    if (target) {
+      this.logAction(`Revendedor excluído: ${target.name}`);
+    }
+    try {
+      FirestoreSyncService.deleteReseller(id);
+    } catch (e) {
+      console.warn('FirestoreSyncService.deleteReseller error:', e);
+    }
+  },
+
+  getResellerTransactions(resellerId?: string): ResellerTransaction[] {
+    const list = getItem<ResellerTransaction[]>(STORAGE_KEYS.RESELLER_TRANSACTIONS, []);
+    if (resellerId) {
+      return list.filter((t) => t.resellerId === resellerId);
+    }
+    return list;
+  },
+
+  saveResellerTransaction(transaction: ResellerTransaction): ResellerTransaction {
+    const list = this.getResellerTransactions();
+    const idx = list.findIndex((t) => t.id === transaction.id);
+    if (idx >= 0) {
+      list[idx] = transaction;
+    } else {
+      list.unshift(transaction);
+    }
+    setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, list);
+    try {
+      FirestoreSyncService.saveResellerTransaction(transaction);
+    } catch (e) {
+      console.warn('FirestoreSyncService.saveResellerTransaction error:', e);
+    }
+    return transaction;
+  },
+
+  deleteResellerTransaction(id: string): void {
+    const list = this.getResellerTransactions();
+    setItem(STORAGE_KEYS.RESELLER_TRANSACTIONS, list.filter((t) => t.id !== id));
+    this.logAction('Transação de revenda excluída');
+    try {
+      FirestoreSyncService.deleteResellerTransaction(id);
+    } catch (e) {
+      console.warn('FirestoreSyncService.deleteResellerTransaction error:', e);
+    }
+  },
+
+  // Helper to record a new wholesale sale to a reseller with stock deduction and balance update
+  createResellerSale(params: {
+    resellerId: string;
+    items: {
+      productId: string;
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }[];
+    totalAmount: number;
+    paidAmount?: number;
+    paymentMethod?: string;
+    discount?: number;
+    notes?: string;
+    userName?: string;
+  }): { transaction: ResellerTransaction; reseller: Reseller } {
+    const resellers = this.getResellers();
+    const reseller = resellers.find((r) => r.id === params.resellerId);
+    if (!reseller) {
+      throw new Error('Revendedor não encontrado');
+    }
+
+    const invoiceNum = `REV-${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date().toISOString();
+    const paid = Number(params.paidAmount) || 0;
+    const remainingBalance = Math.max(0, params.totalAmount - paid);
+
+    // 1. Create transaction record
+    const newTransaction: ResellerTransaction = {
+      id: `rtx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      resellerId: reseller.id,
+      resellerName: reseller.name,
+      type: 'SALE',
+      date: now,
+      items: params.items,
+      totalAmount: params.totalAmount,
+      paidAmount: paid,
+      paymentMethod: params.paymentMethod || 'A_PRAZO',
+      discount: Number(params.discount) || 0,
+      notes: params.notes,
+      invoiceNumber: invoiceNum,
+      status: 'CONCLUIDO',
+      userName: params.userName || 'Sistema',
+    };
+
+    this.saveResellerTransaction(newTransaction);
+
+    // 2. Deduct inventory stocks
+    const allProducts = this.getProducts();
+    params.items.forEach((item) => {
+      const prod = allProducts.find((p) => p.id === item.productId);
+      if (prod) {
+        if (prod.manageStock === false || prod.stockStatus === 'UNLIMITED') {
+          return;
+        }
+        const oldStock = prod.stockQuantity ?? prod.stock ?? 0;
+        const newStock = Math.max(0, oldStock - item.quantity);
+        this.saveProduct({
+          ...prod,
+          stockQuantity: newStock,
+          stock: newStock,
+          hasStock: newStock > 0,
+          stockStatus: newStock <= 0 ? 'OUT_OF_STOCK' : newStock <= (prod.minStockQuantity || 0) ? 'LOW_STOCK' : 'IN_STOCK',
+        });
+
+        // Add stock movement log
+        this.addStockMovement({
+          productId: prod.id,
+          productName: prod.name,
+          type: 'SAIDA',
+          quantity: item.quantity,
+          previousStock: oldStock,
+          newStock: newStock,
+          unitCost: prod.costPrice,
+          reason: `Venda Revenda #${invoiceNum} - ${reseller.name}`,
+          referenceId: newTransaction.id,
+          userName: params.userName || 'Sistema',
+        });
+      }
+    });
+
+    // 3. Update reseller balance and totals
+    const updatedReseller: Reseller = {
+      ...reseller,
+      balance: (Number(reseller.balance) || 0) + remainingBalance,
+      totalPurchased: (Number(reseller.totalPurchased) || 0) + params.totalAmount,
+      totalPaid: (Number(reseller.totalPaid) || 0) + paid,
+      updatedAt: now,
+    };
+    this.saveReseller(updatedReseller);
+
+    this.logAction(`Venda para revendedor ${reseller.name} finalizada (#${invoiceNum} - R$ ${params.totalAmount.toFixed(2)})`);
+
+    return { transaction: newTransaction, reseller: updatedReseller };
+  },
+
+  // Helper to record payment/settlement from a reseller
+  createResellerPayment(params: {
+    resellerId: string;
+    amount: number;
+    paymentMethod: string;
+    notes?: string;
+    userName?: string;
+  }): { transaction: ResellerTransaction; reseller: Reseller } {
+    const resellers = this.getResellers();
+    const reseller = resellers.find((r) => r.id === params.resellerId);
+    if (!reseller) {
+      throw new Error('Revendedor não encontrado');
+    }
+
+    const invoiceNum = `REC-${Math.floor(100 + Math.random() * 900)}`;
+    const now = new Date().toISOString();
+    const paymentAmount = Number(params.amount) || 0;
+
+    // 1. Create transaction record
+    const newTransaction: ResellerTransaction = {
+      id: `rtx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      resellerId: reseller.id,
+      resellerName: reseller.name,
+      type: 'PAYMENT',
+      date: now,
+      totalAmount: paymentAmount,
+      paidAmount: paymentAmount,
+      paymentMethod: params.paymentMethod || 'DINHEIRO',
+      notes: params.notes || `Acerto de contas / Pagamento de revenda`,
+      invoiceNumber: invoiceNum,
+      status: 'CONCLUIDO',
+      userName: params.userName || 'Sistema',
+    };
+
+    this.saveResellerTransaction(newTransaction);
+
+    // 2. Deduct from reseller outstanding balance
+    const currentBalance = Number(reseller.balance) || 0;
+    const newBalance = Math.max(0, currentBalance - paymentAmount);
+    const updatedReseller: Reseller = {
+      ...reseller,
+      balance: newBalance,
+      totalPaid: (Number(reseller.totalPaid) || 0) + paymentAmount,
+      updatedAt: now,
+    };
+    this.saveReseller(updatedReseller);
+
+    this.logAction(`Pagamento recebido do revendedor ${reseller.name} (#${invoiceNum} - R$ ${paymentAmount.toFixed(2)})`);
+
+    return { transaction: newTransaction, reseller: updatedReseller };
+  },
+
+  // Bulk Save Methods for Backup & Migration
+  saveCustomers(customers: Customer[]): void {
+    setItem(STORAGE_KEYS.CUSTOMERS, customers);
+    notifyListeners();
+  },
+
+  saveDevices(devices: Device[]): void {
+    setItem(STORAGE_KEYS.DEVICES, devices);
+    notifyListeners();
+  },
+
+  saveProducts(products: Product[]): void {
+    setItem(STORAGE_KEYS.PRODUCTS, products);
+    notifyListeners();
+  },
+
+  saveOrders(orders: ServiceOrder[]): void {
+    setItem(STORAGE_KEYS.ORDERS, orders);
+    notifyListeners();
+  },
+
+  saveSales(sales: Sale[]): void {
+    setItem(STORAGE_KEYS.SALES, sales);
+    notifyListeners();
+  },
+
+  saveExpenses(expenses: Expense[]): void {
+    setItem(STORAGE_KEYS.EXPENSES, expenses);
+    notifyListeners();
+  },
+
+  saveEmployees(employees: Employee[]): void {
+    setItem(STORAGE_KEYS.EMPLOYEES, employees);
+    notifyListeners();
+  },
+
+  saveReceivables(receivables: AccountReceivable[]): void {
+    setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+    notifyListeners();
+  },
+
+  saveSettings(settings: CompanySettings): void {
+    this.saveCompanySettings(settings);
+  },
+
+  getCustomOsStatuses(): CustomOSStatusItem[] {
+    return this.getCustomOSStatuses();
+  },
+};
+
+function alignCustomersAcrossSectors(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const customers = getItem<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
+    if (!Array.isArray(customers) || customers.length === 0) return;
+
+    const customersMap = new Map<string, Customer>();
+    customers.forEach(c => customersMap.set(c.id, c));
+
+    // 1. Align Service Orders (OS)
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    if (Array.isArray(orders) && orders.length > 0) {
+      let modified = false;
+      const updatedOrders = orders.map(o => {
+        if (o.customerId && customersMap.has(o.customerId)) {
+          const c = customersMap.get(o.customerId)!;
+          if (
+            o.customerName !== c.name ||
+            o.customerPhone !== (c.phone || c.whatsapp) ||
+            o.customerWhatsapp !== (c.whatsapp || c.phone) ||
+            o.customerDocument !== c.document
+          ) {
+            modified = true;
+            return {
+              ...o,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+              customerWhatsapp: c.whatsapp || c.phone || '',
+              customerDocument: c.document,
+            };
+          }
+        } else {
+          // Fuzzy search by name match
+          const cleanName = o.customerName ? o.customerName.trim().toLowerCase() : '';
+          if (cleanName) {
+            const matchedCust = customers.find(c => {
+              const cn = c.name.trim().toLowerCase();
+              return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
+            });
+            if (matchedCust) {
+              modified = true;
+              return {
+                ...o,
+                customerId: matchedCust.id,
+                customerName: matchedCust.name,
+                customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
+                customerWhatsapp: matchedCust.whatsapp || matchedCust.phone || '',
+                customerDocument: matchedCust.document,
+              };
+            }
+          }
+        }
+        return o;
+      });
+
+      if (modified) {
+        setItem(STORAGE_KEYS.ORDERS, updatedOrders);
+      }
+    }
+
+    // 2. Align Receivables / A Prazo / Fiado
+    const receivables = getItem<AccountReceivable[]>(STORAGE_KEYS.RECEIVABLES, []);
+    if (Array.isArray(receivables) && receivables.length > 0) {
+      let modified = false;
+      const updatedReceivables = receivables.map(r => {
+        if (r.customerId && customersMap.has(r.customerId)) {
+          const c = customersMap.get(r.customerId)!;
+          if (
+            r.customerName !== c.name ||
+            r.customerPhone !== (c.phone || c.whatsapp) ||
+            (r as any).customerDocument !== c.document ||
+            (r as any).cpfCnpj !== c.document
+          ) {
+            modified = true;
+            return {
+              ...r,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+              customerDocument: c.document,
+              cpfCnpj: c.document,
+            };
+          }
+        } else {
+          // Fuzzy search by name match
+          const cleanName = r.customerName ? r.customerName.trim().toLowerCase() : '';
+          if (cleanName) {
+            const matchedCust = customers.find(c => {
+              const cn = c.name.trim().toLowerCase();
+              return cn === cleanName || cn.includes(cleanName) || cleanName.includes(cn);
+            });
+            if (matchedCust) {
+              modified = true;
+              return {
+                ...r,
+                customerId: matchedCust.id,
+                customerName: matchedCust.name,
+                customerPhone: matchedCust.phone || matchedCust.whatsapp || '',
+                customerDocument: matchedCust.document,
+                cpfCnpj: matchedCust.document,
+              };
+            }
+          }
+        }
+        return r;
+      });
+
+      if (modified) {
+        setItem(STORAGE_KEYS.RECEIVABLES, updatedReceivables);
+      }
+    }
+
+    // 3. Align Devices
+    const devices = getItem<Device[]>(STORAGE_KEYS.DEVICES, []);
+    if (Array.isArray(devices) && devices.length > 0) {
+      let modified = false;
+      const updatedDevices = devices.map(d => {
+        if (d.customerId && customersMap.has(d.customerId)) {
+          const c = customersMap.get(d.customerId)!;
+          if (d.customerName !== c.name || (d as any).customerPhone !== (c.phone || c.whatsapp)) {
+            modified = true;
+            return {
+              ...d,
+              customerName: c.name,
+              customerPhone: c.phone || c.whatsapp || '',
+            };
+          }
+        }
+        return d;
+      });
+      if (modified) {
+        setItem(STORAGE_KEYS.DEVICES, updatedDevices);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to align customers across sectors', e);
+  }
+}
+
+function ensureInitialized(): void {
+  // Pure Cloud-Only Mode initialization - no local storage side effects or resets
+}
+
+ensureInitialized();
+
