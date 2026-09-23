@@ -511,7 +511,7 @@ function loadInitialAuthSession(): AuthSession | null {
 }
 
 export const DEMO_ORDER_IDS = new Set([
-  'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
   'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
   'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
 ]);
