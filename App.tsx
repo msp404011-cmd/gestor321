@@ -66,7 +66,23 @@ import { GoogleDriveBackupService } from './services/googleDriveBackupService';
 
 export default function App() {
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<NavigationTab>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<NavigationTab>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const h = window.location.hash.replace('#', '').toUpperCase();
+      if (h === 'POS') return 'POS';
+    }
+    return 'DASHBOARD';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const h = window.location.hash.replace('#', '').toUpperCase();
+      if (h === 'POS') setActiveTab('POS');
+      else if (h === 'DASHBOARD') setActiveTab('DASHBOARD');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
