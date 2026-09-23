@@ -512,23 +512,27 @@ app.get('/api/admin/users', requireAdminAuth, async (req: express.Request, res: 
   try {
     const usersMap = new Map<string, any>();
 
-    // 1. Add any in-memory accounts first
+    // 1. Add any in-memory accounts first (deduplicated by normalized email / primaryKey)
     accountsMemoryStore.forEach((acc, id) => {
-      usersMap.set(id, { id, ...acc });
+      const email = (acc.email || acc.userEmail || acc.login || '').trim().toLowerCase();
+      const primaryKey = email || acc.uid || id;
+      usersMap.set(primaryKey, { id: acc.uid || acc.id || primaryKey, ...acc });
     });
 
-    // 2. Query Firestore if available
+    // 2. Query Firestore if available (deduplicated by normalized email / primaryKey)
     try {
       const app = getFirebaseAdmin();
       const db = getFirestore(app);
       const snap = await db.collection('accounts').get();
       snap.forEach((docSnap) => {
         const data = docSnap.data();
-        usersMap.set(docSnap.id, {
+        const email = (data.email || data.userEmail || data.login || '').trim().toLowerCase();
+        const primaryKey = email || data.uid || docSnap.id;
+        usersMap.set(primaryKey, {
           id: docSnap.id,
           ...data,
         });
-        accountsMemoryStore.set(docSnap.id, data);
+        accountsMemoryStore.set(primaryKey, data);
       });
     } catch (fsErr: any) {
       console.warn('Firestore listing fallback to memory store:', fsErr?.message);
@@ -918,11 +922,41 @@ app.post('/api/admin/change-plan', requireAdminAuth, async (req: express.Request
 });
 
 /**
- * 7. Update User Allowed Fields (Firestore Document)
+ * Helper to update user password in Firebase Auth
+ */
+async function updateFirebaseUserPasswordSafe(uid?: string, email?: string, newPassword?: string): Promise<boolean> {
+  if (!newPassword || String(newPassword).trim().length < 6) return false;
+  const cleanPassword = String(newPassword).trim();
+  const cleanEmail = email ? String(email).trim().toLowerCase() : '';
+  const targetUid = uid ? String(uid).trim() : '';
+
+  try {
+    const adminApp = getFirebaseAdmin();
+    const adminAuth = getAuth(adminApp);
+    let resolvedUid = targetUid;
+    if (!resolvedUid && cleanEmail) {
+      try {
+        const u = await adminAuth.getUserByEmail(cleanEmail);
+        resolvedUid = u?.uid;
+      } catch {}
+    }
+    if (resolvedUid) {
+      await adminAuth.updateUser(resolvedUid, { password: cleanPassword });
+      console.log(`✅ [ADMIN AUTH] Senha do usuário ${resolvedUid} (${cleanEmail}) atualizada no Firebase Auth.`);
+      return true;
+    }
+  } catch (err: any) {
+    console.warn('⚠️ [ADMIN AUTH] Aviso ao atualizar senha no Firebase Auth:', err?.message);
+  }
+  return false;
+}
+
+/**
+ * 7. Update User Allowed Fields (Firestore Document + Firebase Auth)
  */
 app.post('/api/admin/update-user', requireAdminAuth, async (req: express.Request, res: express.Response) => {
   try {
-    const { docId, uid, email, nome, empresa, telefone, dataVencimento, valorPlano, status, planoId, planoNome } = req.body || {};
+    const { docId, uid, email, password, nome, empresa, telefone, dataVencimento, valorPlano, status, planoId, planoNome } = req.body || {};
     const targetDocId = String(docId || uid || email || '').trim();
 
     if (!targetDocId) {
@@ -936,6 +970,7 @@ app.post('/api/admin/update-user', requireAdminAuth, async (req: express.Request
     const updatePayload: Record<string, any> = {
       statusUpdatedAt: nowIso,
       statusUpdatedBy: 'Master Admin',
+      updatedAt: nowIso,
     };
 
     if (nome !== undefined) {
@@ -979,6 +1014,13 @@ app.post('/api/admin/update-user', requireAdminAuth, async (req: express.Request
       updatePayload.planName = planoNome;
     }
 
+    // Se senha foi fornecida, atualiza no Firebase Auth
+    let passwordUpdated = false;
+    if (password && String(password).trim().length >= 6) {
+      passwordUpdated = await updateFirebaseUserPasswordSafe(uid, email || targetDocId, String(password).trim());
+      updatePayload.passwordUpdatedAt = nowIso;
+    }
+
     // Update Memory
     for (const [key, item] of accountsMemoryStore.entries()) {
       if (
@@ -1007,12 +1049,13 @@ app.post('/api/admin/update-user', requireAdminAuth, async (req: express.Request
     }
 
     // Audit log
-    await logAuditAction('UPDATE_USER', targetDocId, updatePayload);
+    await logAuditAction('UPDATE_USER', targetDocId, { ...updatePayload, passwordUpdated });
 
     return res.json({
       success: true,
       message: 'Dados do usuário atualizados com sucesso.',
       updated: updatePayload,
+      passwordUpdated,
     });
   } catch (error: any) {
     console.error('Erro ao atualizar usuário:', error);
@@ -1038,7 +1081,24 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
     const targetUid = uid ? String(uid).trim() : '';
     const targetDocId = docId ? String(docId).trim() : (targetUid || cleanEmail);
 
-    console.log(`🔥 [ADMIN API] Iniciando exclusão do usuário: UID=${targetUid}, Email=${cleanEmail}, DocID=${targetDocId}`);
+    // Proteção absoluta para as contas Super Admin
+    const superAdminEmails = [
+      MASTER_ADMIN_EMAIL.toLowerCase(),
+      'msp404011@gmail.com',
+    ];
+    if (
+      superAdminEmails.includes(cleanEmail) ||
+      superAdminEmails.includes(targetDocId.toLowerCase()) ||
+      cleanEmail.includes('mmspmartins62') ||
+      cleanEmail.includes('msp404011')
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: 'A conta do Super Administrador não pode ser excluída.',
+      });
+    }
+
+    console.log(`🔥 [ADMIN API] Iniciando exclusão definitiva do usuário: UID=${targetUid}, Email=${cleanEmail}, DocID=${targetDocId}`);
 
     // 1. Delete from Firebase Auth safely
     const authDeleted = await deleteFirebaseUserSafe(targetUid, cleanEmail);
@@ -1048,7 +1108,7 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
     if (targetUid) accountsMemoryStore.delete(targetUid);
     if (cleanEmail) accountsMemoryStore.delete(cleanEmail);
 
-    // 3. Remove from Firestore
+    // 3. Remove from Firestore (inclusive subcoleções se houver)
     let firestoreDeleted = false;
     try {
       const adminApp = getFirebaseAdmin();
@@ -1058,7 +1118,16 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
         matchedDocIds.push(targetDocId);
       }
       for (const id of matchedDocIds) {
-        await dbAdmin.collection('accounts').doc(id).delete();
+        const docRef = dbAdmin.collection('accounts').doc(id);
+        try {
+          if (typeof (dbAdmin as any).recursiveDelete === 'function') {
+            await (dbAdmin as any).recursiveDelete(docRef);
+          } else {
+            await docRef.delete();
+          }
+        } catch {
+          await docRef.delete();
+        }
         firestoreDeleted = true;
       }
     } catch (fsErr: any) {
@@ -1076,7 +1145,7 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
 
     return res.json({
       success: true,
-      message: 'Usuário excluído com sucesso.',
+      message: 'Usuário excluído definitivamente do banco de dados e da autenticação.',
       authDeleted,
       firestoreDeleted,
       deletedUid: targetUid,
@@ -1089,6 +1158,92 @@ app.post('/api/admin/delete-user', requireAdminAuth, async (req: express.Request
       success: false,
       error: error.message || 'Erro ao processar exclusão do usuário.',
     });
+  }
+});
+
+/**
+ * 8.1. Purge all non-super-admin users (Reset database to pristine Super-Admin-only state)
+ */
+app.post('/api/admin/purge-non-admins', requireAdminAuth, async (req: express.Request, res: express.Response) => {
+  try {
+    const superAdminEmails = [
+      MASTER_ADMIN_EMAIL.toLowerCase(),
+      'msp404011@gmail.com',
+    ];
+    const isSuperAdminEmail = (em?: string) => {
+      if (!em) return false;
+      const clean = em.toLowerCase().trim();
+      return superAdminEmails.includes(clean) || clean.includes('mmspmartins62') || clean.includes('msp404011');
+    };
+
+    const deletedDocs: string[] = [];
+    const deletedAuth: string[] = [];
+    const kept: string[] = [];
+
+    // 1. Limpa o store de memória
+    for (const [key, item] of accountsMemoryStore.entries()) {
+      const itemEmail = (item.email || item.userEmail || key).toLowerCase().trim();
+      if (!isSuperAdminEmail(itemEmail)) {
+        accountsMemoryStore.delete(key);
+        deletedDocs.push(key);
+      } else {
+        if (!kept.includes(itemEmail)) kept.push(itemEmail);
+      }
+    }
+
+    // 2. Limpa o Firestore
+    try {
+      const app = getFirebaseAdmin();
+      const db = getFirestore(app);
+      const snap = await db.collection('accounts').get();
+
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data();
+        const email = (data.email || data.userEmail || data.login || docSnap.id).toLowerCase().trim();
+        const uid = data.uid || docSnap.id;
+
+        if (!isSuperAdminEmail(email)) {
+          console.log(`[PURGE] Excluindo conta não-admin: DocID=${docSnap.id}, Email=${email}`);
+          
+          try {
+            if (typeof (db as any).recursiveDelete === 'function') {
+              await (db as any).recursiveDelete(docSnap.ref);
+            } else {
+              await docSnap.ref.delete();
+            }
+          } catch {
+            await docSnap.ref.delete();
+          }
+
+          deletedDocs.push(docSnap.id);
+
+          try {
+            await deleteFirebaseUserSafe(uid, email);
+            deletedAuth.push(email || uid);
+          } catch {}
+        } else {
+          if (!kept.includes(email)) kept.push(email);
+        }
+      }
+    } catch (fsErr: any) {
+      console.warn('Firestore purge notice:', fsErr?.message);
+    }
+
+    // 3. Garante conta Master com plano Super Admin Vitalício
+    await ensureMasterAdminAccount();
+
+    await logAuditAction('PURGE_NON_ADMINS', 'all', { deletedDocs, deletedAuth, kept });
+
+    return res.json({
+      success: true,
+      message: 'Todos os usuários não-super-admin foram excluídos. Apenas Super Admin preservado.',
+      deletedDocsCount: deletedDocs.length,
+      deletedAuthCount: deletedAuth.length,
+      kept,
+    });
+  } catch (error: any) {
+    console.error('❌ Erro no purge-non-admins:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Erro ao executar limpeza geral.' });
   }
 });
 
@@ -1174,82 +1329,93 @@ app.get('/api/admin/audit-logs', requireAdminAuth, async (req: express.Request, 
 });
 
 /**
- * 10. Bootstrap Master Admin Account (Ensures mmspmartins62@gmail.com exists)
+ * 10. Bootstrap Master Admin Accounts (Ensures mmspmartins62@gmail.com and msp404011@gmail.com exist)
  */
 async function ensureMasterAdminAccount() {
-  const adminEmail = MASTER_ADMIN_EMAIL.toLowerCase();
+  const superAdminList = [
+    { email: MASTER_ADMIN_EMAIL.toLowerCase(), name: 'Administrador Master MSP' },
+    { email: 'msp404011@gmail.com', name: 'Super Admin MSP' },
+  ];
   const adminPassword = MASTER_ADMIN_DEFAULT_PASSWORD;
+  const nowIso = new Date().toISOString();
 
   try {
-    const nowIso = new Date().toISOString();
-    const adminAccountDoc = {
-      id: adminEmail,
-      uid: adminEmail,
-      email: adminEmail,
-      login: adminEmail,
-      user: adminEmail,
-      userEmail: adminEmail,
-      nome: 'Administrador Master',
-      name: 'Administrador Master',
-      empresa: 'Painel Master Gestor',
-      nomeEmpresa: 'Painel Master Gestor',
-      telefone: '00000000000',
-      role: 'master_admin',
-      tipo: 'master_admin',
-      isAdmin: true,
-      status: 'ativo',
-      situacao: 'active',
-      userStatus: 'active',
-      ativo: true,
-      active: true,
-      bloqueado: false,
-      blocked: false,
-      inadimplente: false,
-      plano: 'ENTERPRISE',
-      planoId: 'super_admin',
-      planoNome: 'Plano Super Admin Vitalício',
-      planName: 'Plano Super Admin Vitalício',
-      tipoPlano: 'Super Admin Vitalício',
-      valorPlano: 0,
-      valorMensalidade: 0,
-      mensalidade: 0,
-      preco: 0,
-      price: 0,
-      dataVencimento: '',
-      vencimento: '',
-      dueDate: '',
-      semVencimento: true,
-      vitalicio: true,
-      ilimitado: true,
-      dataCriacao: nowIso,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    };
+    for (const adm of superAdminList) {
+      const adminEmail = adm.email;
+      const adminAccountDoc = {
+        id: adminEmail,
+        uid: adminEmail,
+        email: adminEmail,
+        login: adminEmail,
+        user: adminEmail,
+        userEmail: adminEmail,
+        nome: adm.name,
+        name: adm.name,
+        responsavel: adm.name,
+        empresa: 'Painel Master Gestor',
+        nomeEmpresa: 'Painel Master Gestor',
+        telefone: '00000000000',
+        role: 'master_admin',
+        tipo: 'master_admin',
+        isAdmin: true,
+        status: 'ativo',
+        situacao: 'active',
+        userStatus: 'active',
+        ativo: true,
+        active: true,
+        bloqueado: false,
+        blocked: false,
+        inadimplente: false,
+        plano: 'ENTERPRISE',
+        planoId: 'super_admin',
+        planoNome: 'Plano Super Admin Vitalício',
+        planName: 'Plano Super Admin Vitalício',
+        tipoPlano: 'Super Admin Vitalício',
+        valorPlano: 0,
+        valorMensalidade: 0,
+        mensalidade: 0,
+        preco: 0,
+        price: 0,
+        dataVencimento: '',
+        vencimento: '',
+        dueDate: '',
+        semVencimento: true,
+        vitalicio: true,
+        ilimitado: true,
+        dataCriacao: nowIso,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
 
-    // Store in memory
-    accountsMemoryStore.set(adminEmail, adminAccountDoc);
+      // Store in memory
+      accountsMemoryStore.set(adminEmail, adminAccountDoc);
 
-    // Try creating/syncing in Firebase Auth
-    try {
-      const authResult = await createFirebaseUserSafe(adminEmail, adminPassword, 'Administrador Master', false);
-      if (authResult.uid) {
-        adminAccountDoc.uid = authResult.uid;
-        adminAccountDoc.id = authResult.uid;
-        accountsMemoryStore.set(authResult.uid, adminAccountDoc);
-      }
-    } catch (e) {}
+      // Try creating/syncing in Firebase Auth
+      try {
+        const authResult = await createFirebaseUserSafe(adminEmail, adminPassword, adm.name, false);
+        if (authResult.uid) {
+          adminAccountDoc.uid = authResult.uid;
+          adminAccountDoc.id = authResult.uid;
+          accountsMemoryStore.set(authResult.uid, adminAccountDoc);
+        }
+      } catch (e) {}
 
-    // Try saving in Firestore
-    try {
-      const adminApp = getFirebaseAdmin();
-      const db = getFirestore(adminApp);
-      await db.collection('accounts').doc(adminAccountDoc.id).set(adminAccountDoc, { merge: true });
-    } catch (e) {}
+      // Try saving in Firestore
+      try {
+        const adminApp = getFirebaseAdmin();
+        const db = getFirestore(adminApp);
+        await db.collection('accounts').doc(adminAccountDoc.id).set(adminAccountDoc, { merge: true });
+        if (adminAccountDoc.uid !== adminEmail) {
+          await db.collection('accounts').doc(adminEmail).set(adminAccountDoc, { merge: true });
+        }
+      } catch (e) {}
 
-    console.log(`[Admin Bootstrap] Conta Master ${adminEmail} inicializada.`);
-    return { success: true, email: adminEmail };
+      console.log(`[Admin Bootstrap] Conta Master ${adminEmail} inicializada com sucesso.`);
+    }
+
+    return { success: true, count: superAdminList.length };
   } catch (e: any) {
-    console.warn('[Admin Bootstrap] Aviso durante inicialização da conta admin:', e.message);
+    console.warn('[Admin Bootstrap] Aviso durante inicialização das contas admin:', e.message);
     return { success: false, error: e.message };
   }
 }
