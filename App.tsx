@@ -441,28 +441,26 @@ export default function App() {
       
       const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
       
-      // REGRA RÍGIDA: Impede alteração automática de plano por rotinas de sync, login, refresh, vencimento ou renovação
+      // Sincronização em tempo real das alterações feitas no Painel Master (Plano, Vencimento, Status)
       const existingPlan = StorageService.getSubscriptionForEmail(emailKey) || StorageService.getSubscriptionPlan();
 
-      let normalizedPlanType: PlanType;
-      let planName: string;
-      let planPrice: number;
+      const isSuperAdmin = SubscriptionService.isSuperAdminUser(emailKey);
+      const rawPlanId = String(
+        data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
+      );
 
-      if (existingPlan && existingPlan.planType) {
-        normalizedPlanType = existingPlan.planType;
-        planName = existingPlan.planName;
-        planPrice = existingPlan.planPrice;
-      } else {
-        const rawPlanId = String(
-          data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA'
-        );
-        normalizedPlanType = normalizePlanType(rawPlanId);
-        const isTrial = normalizedPlanType === 'TRIAL';
-        planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 69.90);
-        planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
-      }
+      const normalizedPlanType: PlanType = isSuperAdmin
+        ? 'SUPER_ADMIN'
+        : (rawPlanId ? normalizePlanType(rawPlanId) : (existingPlan?.planType || 'ASSISTENCIA'));
 
       const isTrial = normalizedPlanType === 'TRIAL';
+      const planPrice = (isSuperAdmin || isTrial)
+        ? 0
+        : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? existingPlan?.planPrice ?? 69.90);
+
+      const planName = isSuperAdmin
+        ? 'Plano Super Admin Vitalício'
+        : (data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : (existingPlan?.planName || 'Plano Assistência Técnica')));
 
       const updatedPlan: SubscriptionPlanInfo = {
         ...StorageService.getSubscriptionPlan(),
@@ -470,14 +468,24 @@ export default function App() {
         planName: planName,
         planPrice: planPrice,
         status: mappedStatus,
-        expiryDate: mappedExpiry,
+        expiryDate: isSuperAdmin ? '' : mappedExpiry,
         isTrial: isTrial,
       };
 
       console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);
       
       // Update local cache and notify listeners so Gestor updates permissions and tabs immediately
+      StorageService.saveSubscriptionForEmail(emailKey, updatedPlan);
       StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
+
+      // Sincroniza dados cadastrais em tempo real se alterados
+      if (data.nome || data.name) {
+        const u = StorageService.getCurrentUser();
+        if (u) {
+          u.name = data.nome || data.name || u.name;
+          StorageService.setCurrentUser(u);
+        }
+      }
       
       // Re-trigger re-renders
       setTick((prev) => prev + 1);
@@ -502,9 +510,11 @@ export default function App() {
         const expDate = new Date(y, (m || 1) - 1, d || 1);
         expDate.setHours(0, 0, 0, 0);
 
-        const isExpired = updatedPlan.status === 'expired' || 
-                          updatedPlan.status === 'canceled' || 
-                          expDate < now;
+        const isExpired = !isSuperAdmin && (
+          updatedPlan.status === 'expired' || 
+          updatedPlan.status === 'canceled' || 
+          Boolean(updatedPlan.expiryDate && expDate < now)
+        );
 
         if (isExpired) {
            console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
