@@ -66,19 +66,40 @@ import { GoogleDriveBackupService } from './services/googleDriveBackupService';
 
 export default function App() {
   const { isDark } = useTheme();
+  const parseHashToTab = (hashStr: string): NavigationTab | null => {
+    const h = hashStr.replace('#', '').toUpperCase().trim();
+    if (!h) return null;
+    if (['POS', 'PDV', 'VENDAS', 'CAIXA_PDV'].includes(h)) return 'POS';
+    if (['ORDERS', 'OS', 'SERVICOS', 'ORDENS'].includes(h)) return 'ORDERS';
+    if (['CUSTOMERS', 'CLIENTES'].includes(h)) return 'CUSTOMERS';
+    if (['PRODUCTS', 'PRODUTOS', 'ESTOQUE'].includes(h)) return 'PRODUCTS';
+    if (['FINANCE', 'FINANCEIRO', 'CASH'].includes(h)) return 'FINANCE';
+    if (['RECEIVABLES', 'RECEBER', 'CONTASARECEBER'].includes(h)) return 'RECEIVABLES';
+    if (['REPORTS', 'RELATORIOS'].includes(h)) return 'REPORTS';
+    if (['SETTINGS', 'CONFIGURACOES', 'CONFIG'].includes(h)) return 'SETTINGS';
+    if (['EMPLOYEES', 'FUNCIONARIOS', 'EQUIPE'].includes(h)) return 'EMPLOYEES';
+    if (['PURCHASES', 'COMPRAS'].includes(h)) return 'PURCHASES';
+    if (['DEVICES', 'APARELHOS', 'EQUIPAMENTOS'].includes(h)) return 'DEVICES';
+    if (['COMPATIBILITY', 'COMPATIBILIDADE'].includes(h)) return 'COMPATIBILITY';
+    if (['RESELLERS', 'REVENDEDORES'].includes(h)) return 'RESELLERS';
+    if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
+    return null;
+  };
+
   const [activeTab, setActiveTab] = useState<NavigationTab>(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
-      const h = window.location.hash.replace('#', '').toUpperCase();
-      if (h === 'POS') return 'POS';
+      const parsed = parseHashToTab(window.location.hash);
+      if (parsed) return parsed;
     }
     return 'DASHBOARD';
   });
 
   useEffect(() => {
     const handleHashChange = () => {
-      const h = window.location.hash.replace('#', '').toUpperCase();
-      if (h === 'POS') setActiveTab('POS');
-      else if (h === 'DASHBOARD') setActiveTab('DASHBOARD');
+      if (window.location.hash) {
+        const parsed = parseHashToTab(window.location.hash);
+        if (parsed) setActiveTab(parsed);
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
