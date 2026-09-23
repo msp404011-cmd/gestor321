@@ -387,6 +387,7 @@ export const defaultCustomOSStatuses: CustomOSStatusItem[] = [
   { id: 'os-7', code: 'ENTREGUE', label: 'Entregue / Concluído', colorBg: 'bg-teal-500/15', colorText: 'text-teal-400', colorBorder: 'border-teal-500/40', colorDot: 'bg-teal-400', isSystem: true },
   { id: 'os-8', code: 'GARANTIA', label: 'Retorno em Garantia', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
   { id: 'os-9', code: 'CANCELADA', label: 'Cancelado pelo Cliente', colorBg: 'bg-slate-500/15', colorText: 'text-slate-400', colorBorder: 'border-slate-500/40', colorDot: 'bg-slate-400' },
+  { id: 'os-10', code: 'ARQUIVADO', label: 'Arquivado', colorBg: 'bg-zinc-700/30', colorText: 'text-zinc-200', colorBorder: 'border-zinc-500/50', colorDot: 'bg-zinc-400' },
 ];
 
 export interface SystemFormatOptions {
@@ -1414,7 +1415,11 @@ export const StorageService = {
 
   // Service Orders
   getOrders(): ServiceOrder[] {
-    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, initialOrders);
+    if (!orders || orders.length === 0) {
+      setItem(STORAGE_KEYS.ORDERS, initialOrders);
+      return initialOrders;
+    }
     return orders.filter((o) => !isDemoOrder(o));
   },
 
@@ -4142,43 +4147,18 @@ export const StorageService = {
   },
 
   getCustomOSStatuses(): CustomOSStatusItem[] {
-    const list = getItem<CustomOSStatusItem[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses);
+    const list = getItem<CustomOSStatusItem[] | null>(STORAGE_KEYS.CUSTOM_OS_STATUSES, null);
     if (Array.isArray(list) && list.length > 0) {
-      let modified = false;
-
-      // Auto-correct any legacy "Eulis" to "C/ Euklis"
-      list.forEach((s) => {
-        if (s.label && s.label !== 'C/ Euklis' && (s.label.toUpperCase() === 'C/ EULIS' || s.label.toUpperCase() === 'EULIS' || s.label.toUpperCase() === 'EUKLIS')) {
-          s.label = 'C/ Euklis';
-          modified = true;
+      const merged = [...list];
+      defaultCustomOSStatuses.forEach((def) => {
+        const exists = merged.some(
+          (s) => s.code?.toUpperCase() === def.code?.toUpperCase() || s.id === def.id
+        );
+        if (!exists) {
+          merged.push(def);
         }
       });
-
-      const hasEulis = list.some(
-        (s) => s.code?.toUpperCase().includes('EULIS') || s.code?.toUpperCase().includes('EUKLIS') || s.label?.toUpperCase().includes('EULIS') || s.label?.toUpperCase().includes('EUKLIS')
-      );
-      if (!hasEulis) {
-        list.splice(3, 0, {
-          id: 'os-eulis',
-          code: 'C_EULIS',
-          label: 'C/ Euklis',
-          colorBg: 'bg-indigo-500/15',
-          colorText: 'text-indigo-400',
-          colorBorder: 'border-indigo-500/40',
-          colorDot: 'bg-indigo-400',
-        });
-        modified = true;
-      }
-
-      if (modified) {
-        // Save quietly without triggering broadcast feedback loop during a get read
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, JSON.stringify(list));
-          }
-        } catch (_) {}
-      }
-      return list;
+      return merged;
     }
     return defaultCustomOSStatuses;
   },

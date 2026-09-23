@@ -110,6 +110,7 @@ export interface Customer {
   password?: string;
   isMobileDevice?: boolean;
   accountType?: 'Gmail' | 'iCloud' | 'Outro';
+  deviceAccounts?: { type: 'Gmail' | 'iCloud' | 'Outro' | string; email: string; password: string }[];
   planName?: string;
   planoNome?: string;
   plano?: string;
@@ -202,7 +203,8 @@ export type OrderStatus =
   | 'PRONTA'
   | 'CANCELADA'
   | 'GARANTIA'
-  | 'NAO_APROVADA';
+  | 'NAO_APROVADA'
+  | 'ARQUIVADO';
 
 export interface OrderItem {
   id: string;
@@ -306,6 +308,9 @@ export interface ServiceOrder {
   status: OrderStatus;
   statusHistory: OrderStatusHistory[];
   history?: OrderStatusHistory[];
+
+  // Localização física do aparelho quando arquivado ou guardado (Ex: Gaveta 2, Prateleira B)
+  archivedLocation?: string;
 
   // Envio exclusivo terceirizado C/ Eulis
   eulisDispatchInfo?: EulisDispatchInfo;

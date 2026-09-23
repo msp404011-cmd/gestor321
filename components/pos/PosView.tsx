@@ -547,6 +547,8 @@ export const PosView: React.FC<PosViewProps> = ({
               setCart(updated);
             }
           }
+        } else {
+          setIsCustomerModalOpen(true);
         }
       } else if (e.key === 'F6') {
         e.preventDefault();
@@ -710,89 +712,87 @@ export const PosView: React.FC<PosViewProps> = ({
       >
       
       {/* 1. TOP HEADER BAR */}
-      <header className="bg-[#071328] border border-blue-900/60 rounded-xl px-2.5 py-1.5 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 shrink-0">
+      <header className="bg-[#030917] border border-[#0d2246] rounded-2xl px-3 py-2 shadow-lg flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0">
         
         {/* Left: Brand Logo & Title */}
-        <div className="flex items-center justify-between sm:justify-start gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 via-cyan-600 to-blue-700 text-white flex items-center justify-center shadow-md shrink-0 border border-cyan-400/30">
-              <ShoppingCart className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between sm:justify-start gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#0084ff] text-white flex items-center justify-center shadow-[0_0_15px_rgba(0,132,255,0.45)] shrink-0">
+              <ShoppingCart className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-black italic tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-cyan-400 leading-none">
-                {company.commercialName || company.name || 'TECHNOVA Informática'}
+              <h1 className="text-sm sm:text-base font-black italic tracking-wide text-white leading-none uppercase">
+                {company.commercialName || company.name || 'MSP INFORMÁTICA'}
               </h1>
-              <p className="text-[8px] uppercase font-bold tracking-wider text-blue-300/80 leading-none mt-0.5">
+              <p className="text-[9px] uppercase font-bold tracking-widest text-cyan-400 leading-none mt-1">
                 PDV - PONTO DE VENDA
               </p>
             </div>
           </div>
 
           {/* Terminal ID Badge (visible on mobile next to brand) */}
-          <div className="flex md:hidden items-center gap-1 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 font-black text-[10px] text-cyan-300">
-            <Tv className="w-3 h-3 text-cyan-400" />
+          <div className="flex md:hidden items-center gap-1.5 bg-[#020713] border border-[#0d2246] rounded-xl px-2.5 py-1 font-black text-[10px] text-cyan-300">
+            <Tv className="w-3.5 h-3.5 text-cyan-400" />
             <span>PDV 01</span>
           </div>
         </div>
 
-        {/* Center: Search & Barcode Input Field with F4 button */}
-        <div className="w-full md:flex-1 md:max-w-lg md:mx-2">
+        {/* Center: Search & Barcode Input Field with glowing cyan border and F4 button */}
+        <div className="w-full md:flex-1 md:max-w-md lg:max-w-lg md:mx-2">
           <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
-            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400">
-              <Search className="w-3.5 h-3.5" />
+            <div className="w-full flex items-center bg-[#020713] border border-cyan-500/80 rounded-full px-3 py-1.5 shadow-[0_0_12px_rgba(6,182,212,0.18)] transition-all focus-within:border-cyan-400 focus-within:shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <Search className="w-4 h-4 text-cyan-400 mr-2 shrink-0" />
+              <input
+                type="text"
+                value={barcodeSearchInput}
+                onChange={(e) => {
+                  setBarcodeSearchInput(e.target.value);
+                  setIsSearchDropdownOpen(true);
+                  setHighlightedIndex(0);
+                }}
+                onFocus={() => {
+                  if (barcodeSearchInput.trim().length > 0) setIsSearchDropdownOpen(true);
+                }}
+                placeholder="Digite o código ou nome do produto..."
+                className="w-full bg-transparent text-xs text-white placeholder-slate-400 font-medium focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="ml-2 px-2.5 py-0.5 bg-[#0084ff] hover:bg-blue-600 text-white font-black text-[11px] rounded-md shadow-sm cursor-pointer transition-colors shrink-0"
+                title="Pressione F4 para buscar ou adicionar produto"
+              >
+                F4
+              </button>
             </div>
-            <input
-              type="text"
-              value={barcodeSearchInput}
-              onChange={(e) => {
-                setBarcodeSearchInput(e.target.value);
-                setIsSearchDropdownOpen(true);
-                setHighlightedIndex(0);
-              }}
-              onFocus={() => {
-                if (barcodeSearchInput.trim().length > 0) setIsSearchDropdownOpen(true);
-              }}
-              placeholder="Digite o código ou nome do produto..."
-              className="w-full pl-8 pr-12 py-1.5 md:py-1 bg-[#040b19] border border-blue-800/80 hover:border-cyan-400/80 focus:border-cyan-400 rounded-lg text-xs text-white placeholder-slate-400 font-medium focus:outline-none transition-all"
-            />
-            <button
-              type="submit"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-[#0a1b33] hover:bg-cyan-950 border border-blue-900/80 text-cyan-400 font-black text-[10px] rounded shadow-sm cursor-pointer transition-colors"
-              title="Pressione F4 para focar e buscar produto"
-            >
-              F4
-            </button>
           </form>
         </div>
 
-        {/* Right: Operator, Date/Time, Fullscreen, Terminal Badge */}
+        {/* Right: Operator, Date/Time, Histórico, Fullscreen, Terminal Badge */}
         <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px]">
           {/* Operator Pill */}
           <div
             onClick={() => setIsCustomerModalOpen(true)}
-            className="flex-1 sm:flex-none flex items-center gap-1.5 bg-[#040b19] border border-blue-900/80 rounded px-2 py-1 md:py-0.5 cursor-pointer hover:border-cyan-500/60 transition-all"
+            className="flex-1 sm:flex-none flex items-center gap-2 bg-[#020713] border border-[#0d2246] rounded-full px-3 py-1 cursor-pointer hover:border-cyan-500/60 transition-all"
+            title="Operador do Caixa"
           >
-            <div className="w-5 h-5 rounded-full bg-blue-600/80 text-cyan-200 flex items-center justify-center font-bold text-[10px] shrink-0">
-              <User className="w-3 h-3" />
+            <div className="w-6 h-6 rounded-full bg-[#0084ff] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+              <User className="w-3.5 h-3.5" />
             </div>
-            <div className="truncate">
-              <p className="text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">Operador</p>
-              <div className="flex items-center gap-0.5 font-bold text-white text-[10px] sm:text-[11px] leading-tight truncate">
-                <span className="truncate">{currentUser.name || 'Operador'}</span>
-                <ChevronDown className="w-2.5 h-2.5 text-slate-400 animate-pulse shrink-0" />
+            <div className="truncate pr-1">
+              <p className="text-[8px] uppercase tracking-wider text-cyan-300 font-bold leading-none">OPERADOR</p>
+              <div className="flex items-center gap-1 font-bold text-white text-[11px] leading-tight truncate">
+                <span className="truncate">{currentUser.name || 'Administrador Master'}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
               </div>
             </div>
           </div>
 
           {/* Live Date & Clock Card */}
-          <div className="bg-[#040b19] border border-blue-900/80 rounded px-2 py-1 md:py-0.5 text-right flex flex-col justify-center shrink-0">
-            <div className="flex items-center justify-end gap-1 text-[9px] font-bold text-cyan-300 leading-none">
-              <Calendar className="w-2.5 h-2.5 text-cyan-400" />
-              <span>{formattedDateTime.dateText}</span>
-            </div>
-            <div className="flex items-center justify-end gap-1 text-[10px] sm:text-[11px] font-black text-emerald-400 leading-none mt-0.5 tracking-wider font-mono">
-              <Clock className="w-3 h-3 text-emerald-400" />
-              <span>{formattedDateTime.timeText}</span>
+          <div className="bg-[#020713] border border-[#0d2246] rounded-xl px-3 py-1 text-right flex items-center gap-2 shrink-0">
+            <Clock className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex flex-col justify-center leading-tight">
+              <span className="text-[10px] font-bold text-cyan-300 leading-tight">{formattedDateTime.dateText}</span>
+              <span className="text-xs font-black text-emerald-400 font-mono tracking-wider leading-tight">{formattedDateTime.timeText}</span>
             </div>
           </div>
 
@@ -801,10 +801,10 @@ export const PosView: React.FC<PosViewProps> = ({
             type="button"
             id="btn-header-sales-history"
             onClick={() => setIsSalesHistoryModalOpen(true)}
-            className="flex items-center gap-1.5 bg-[#091836] hover:bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded px-2 py-1 text-cyan-300 font-extrabold text-[11px] cursor-pointer shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 bg-[#071a38] hover:bg-cyan-950/80 border border-cyan-500/50 hover:border-cyan-400 rounded-xl px-3 py-1.5 text-cyan-300 font-extrabold text-[11px] cursor-pointer shadow-sm transition-all hover:scale-105 active:scale-95 shrink-0"
             title="Histórico de Vendas do PDV & Reimprimir Comprovantes (Ctrl+H)"
           >
-            <History className="w-3.5 h-3.5 text-cyan-400" />
+            <History className="w-4 h-4 text-cyan-400" />
             <span className="hidden sm:inline">Histórico</span>
           </button>
 
@@ -818,31 +818,31 @@ export const PosView: React.FC<PosViewProps> = ({
                 document.exitFullscreen().catch(() => {});
               }
             }}
-            className="hidden sm:flex w-6 h-6 rounded bg-[#040b19] border border-blue-900/80 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 items-center justify-center cursor-pointer transition-all shrink-0"
+            className="hidden sm:flex w-8 h-8 rounded-xl bg-[#020713] border border-[#0d2246] hover:border-cyan-400 text-slate-300 hover:text-cyan-300 items-center justify-center cursor-pointer transition-all shrink-0"
             title="Alternar Tela Cheia"
           >
-            <Monitor className="w-3 h-3" />
+            <Monitor className="w-4 h-4" />
           </button>
 
           {/* Terminal ID Badge (desktop) */}
-          <div className="hidden md:flex items-center gap-1 bg-[#040b19] border border-blue-900/80 rounded px-2 py-0.5 font-black text-[11px] text-white shrink-0">
-            <Tv className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="hidden md:flex items-center gap-1.5 bg-[#020713] border border-[#0d2246] rounded-xl px-3 py-1.5 font-black text-xs text-white shrink-0">
+            <Tv className="w-4 h-4 text-cyan-400" />
             <span>PDV 01</span>
           </div>
         </div>
       </header>
 
       {/* 2. SECOND TOP BAR: 4 CONFIGURATION SELECTORS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 shrink-0">
         
         {/* Selector 1: Tipo de Venda */}
         <div className="col-span-1 lg:col-span-2 flex flex-col">
-          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
             Tipo de Venda
           </label>
-          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
+          <div className="flex items-center justify-between bg-[#020713] border border-[#0d2246] hover:border-cyan-500/60 rounded-xl px-3 py-2 text-xs text-white font-bold cursor-pointer transition-colors">
             <div className="flex items-center gap-2">
-              <ShoppingCart className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <ShoppingCart className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>Venda (PDV)</span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -851,32 +851,32 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Selector 2: Cliente */}
         <div className="col-span-1 lg:col-span-5 flex flex-col">
-          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
             Cliente
           </label>
           <div
             onClick={() => setIsCustomerModalOpen(true)}
-            className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors group truncate"
+            className="flex items-center justify-between bg-[#020713] border border-[#0d2246] hover:border-cyan-500/80 rounded-xl px-3 py-2 text-xs text-white font-bold cursor-pointer transition-colors group truncate shadow-sm"
           >
             <div className="flex items-center gap-2 truncate">
-              <User className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <User className="w-4 h-4 text-cyan-400 shrink-0" />
               <span className="truncate uppercase">{selectedCustomer ? selectedCustomer.name : 'CLIENTE PADRÃO'}</span>
             </div>
             <div className="text-cyan-400 group-hover:text-cyan-200 shrink-0">
-              <Search className="w-3.5 h-3.5" />
+              <Search className="w-4 h-4" />
             </div>
           </div>
         </div>
 
         {/* Selector 3: Vendedor */}
         <div className="col-span-1 lg:col-span-2 flex flex-col">
-          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
             Vendedor
           </label>
-          <div className="flex items-center justify-between bg-[#040b19]/90 border border-blue-900/60 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold cursor-pointer hover:border-cyan-400 transition-colors">
+          <div className="flex items-center justify-between bg-[#020713] border border-[#0d2246] hover:border-cyan-500/60 rounded-xl px-3 py-2 text-xs text-white font-bold cursor-pointer transition-colors">
             <div className="flex items-center gap-2 truncate">
-              <Store className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span className="truncate">{sellerName}</span>
+              <Store className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="truncate">{sellerName || 'Administrador Master'}</span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           </div>
@@ -884,10 +884,10 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Selector 4: Tabela de Preço (Venda Cliente Final vs Venda Revendedor) */}
         <div className="col-span-1 lg:col-span-3 flex flex-col">
-          <label className="text-[11px] font-semibold text-slate-300 block mb-0.5">
+          <label className="text-[11px] font-semibold text-slate-300 block mb-1">
             Tipo de Venda / Tabela
           </label>
-          <div className={`grid ${SubscriptionService.isResellerFeatureAllowed() ? 'grid-cols-2' : 'grid-cols-1'} gap-1 bg-[#040b19]/90 border border-blue-900/60 rounded-lg p-1`}>
+          <div className={`grid ${SubscriptionService.isResellerFeatureAllowed() ? 'grid-cols-2' : 'grid-cols-1'} gap-1 bg-[#020713] border border-[#0d2246] rounded-xl p-1`}>
             <button
               type="button"
               onClick={() => {
@@ -907,14 +907,14 @@ export const PosView: React.FC<PosViewProps> = ({
                 });
                 setCart(updatedCart);
               }}
-              className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-black transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-black transition-all cursor-pointer ${
                 priceTable === 'VAREJO'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                  : 'text-slate-400 hover:text-white hover:bg-blue-950/50'
+                  ? 'bg-[#00c975] text-slate-950 shadow-md font-black'
+                  : 'text-slate-400 hover:text-white hover:bg-blue-950/40'
               }`}
               title="Venda para Consumidor Final (Preço de Varejo)"
             >
-              <Tag className="w-3 h-3" />
+              <Tag className="w-3.5 h-3.5" />
               <span>Cliente Final</span>
             </button>
 
@@ -941,14 +941,14 @@ export const PosView: React.FC<PosViewProps> = ({
                   });
                   setCart(updatedCart);
                 }}
-                className={`flex items-center justify-center gap-1.5 py-1 px-2 rounded text-[11px] font-black transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-black transition-all cursor-pointer ${
                   priceTable === 'ATACADO'
-                    ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
-                    : 'text-slate-400 hover:text-white hover:bg-blue-950/50'
+                    ? 'bg-[#00c975] text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-blue-950/40'
                 }`}
                 title="Venda para Revendedor / Técnico (Preço de Revenda)"
               >
-                <Users className="w-3 h-3" />
+                <Users className="w-3.5 h-3.5" />
                 <span>Revendedor</span>
               </button>
             )}
@@ -959,24 +959,26 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* 3. MAIN SPLIT BODY: LEFT PRODUCT SCAN & SPECS (5 COLS), RIGHT SALES ITEMS & KPIS (7 COLS) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch flex-1 min-h-0">
         
-        {/* LEFT COLUMN: PRODUCT SCAN, ACTIVE PRODUCT DETAILS, METRICS & PHOTO (5 Cols) */}
-        <div className="lg:col-span-5 bg-[#071328] border border-blue-900/60 rounded-xl p-2 space-y-2 shadow-[0_4px_25px_rgba(0,0,0,0.5)] flex flex-col justify-between min-h-0 relative">
+        {/* LEFT COLUMN: PRODUCT SCAN, BANNER, METRICS & DISPLAY (5 Cols) */}
+        <div className="lg:col-span-5 bg-[#030917] border border-[#0d2246] rounded-2xl p-3 space-y-2.5 shadow-xl flex flex-col justify-between min-h-0 relative">
           
-          {/* Top Barcode / Name Input Section with Autocomplete Dropdown */}
-          <div ref={searchContainerRef} className="space-y-0.5 relative z-30">
+          {/* Box 1: Produto (Código ou Nome) with Autocomplete Dropdown */}
+          <div ref={searchContainerRef} className="bg-[#020713] border border-[#0d2246] rounded-xl p-2.5 space-y-1.5 relative z-30 shadow-sm">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-slate-300 block">
-                Produto (Código ou Nome)
-              </label>
-              <span className="text-[10px] text-cyan-400 font-medium">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#0084ff] text-white flex items-center justify-center shadow-sm shrink-0">
+                  <Barcode className="w-4 h-4" />
+                </div>
+                <label className="text-xs font-bold text-white block">
+                  Produto (Código ou Nome)
+                </label>
+              </div>
+              <span className="text-[11px] text-cyan-400 font-bold">
                 [F4] Buscar / Inserir
               </span>
             </div>
             
             <form onSubmit={handleBarcodeSubmit} className="relative flex items-center">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400 pointer-events-none z-10">
-                <Barcode className="w-4 h-4" />
-              </div>
               <input
                 ref={barcodeInputRef}
                 type="text"
@@ -1019,7 +1021,7 @@ export const PosView: React.FC<PosViewProps> = ({
                   }
                 }}
                 placeholder="Digite o código de barras ou nome do produto..."
-                className="w-full pl-9 pr-16 py-1.5 bg-[#040b19] border border-blue-900/80 hover:border-cyan-400/80 focus:border-cyan-400 rounded-lg text-xs text-white font-medium focus:outline-none shadow-inner transition-colors placeholder-slate-500"
+                className="w-full pl-3 pr-14 py-2 bg-[#01040a] border border-[#0d2246] hover:border-cyan-500/80 focus:border-cyan-400 rounded-lg text-xs text-white font-medium focus:outline-none shadow-inner transition-colors placeholder-slate-500"
               />
 
               {/* Clear button if text entered */}
@@ -1031,7 +1033,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     setIsSearchDropdownOpen(false);
                     barcodeInputRef.current?.focus();
                   }}
-                  className="absolute right-11 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 cursor-pointer z-10"
+                  className="absolute right-12 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 cursor-pointer z-10"
                   title="Limpar busca"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -1041,7 +1043,7 @@ export const PosView: React.FC<PosViewProps> = ({
               {/* F4 Button */}
               <button
                 type="submit"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] rounded-md border border-emerald-400/30 cursor-pointer shadow-sm transition-all z-10"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 bg-[#00c975] hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-md shadow-sm cursor-pointer transition-all z-10"
                 title="Pressione F4 para buscar ou adicionar produto"
               >
                 F4
@@ -1124,51 +1126,51 @@ export const PosView: React.FC<PosViewProps> = ({
             )}
           </div>
 
-          {/* Active Product details card with premium blue/cyan horizontal glow on top */}
-          <div className="relative bg-[#050f22] border border-blue-900/50 rounded-xl p-2.5 space-y-2 shadow-[0_0_20px_rgba(2,132,199,0.1)] overflow-hidden">
-            {/* Horizontal accent line matching the exact neon style */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-600 via-cyan-400 to-transparent" />
-
-            {/* Title, Subtitle, Code & Stock */}
-            <div className="flex items-start justify-between gap-2 pb-0.5">
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-white tracking-tight uppercase leading-tight drop-shadow-sm">
+          {/* Box 2: Banner CAIXA LIVRE / AGUARDANDO PRODUTO */}
+          <div className="border border-amber-500/60 bg-[#140f06] rounded-xl p-2.5 flex items-center justify-between gap-2.5 shadow-[0_0_15px_rgba(217,119,6,0.12)]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-[#f59e0b] text-slate-950 flex items-center justify-center font-black shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.4)]">
+                <Package className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xs sm:text-sm font-black text-[#fbbf24] tracking-tight uppercase leading-tight truncate">
                   {activeCartItem
                     ? activeCartItem.productName
                     : isSaleActive
                     ? 'VENDA EM ANDAMENTO - AGUARDANDO PRODUTO'
                     : 'CAIXA LIVRE / AGUARDANDO PRODUTO'}
                 </h2>
-                <p className="text-[10px] text-blue-200/80 font-medium leading-normal mt-0.5">
+                <p className="text-[10px] text-slate-300 font-medium leading-normal mt-0.5 truncate">
                   {activeCartItem
                     ? (activeProduct?.description || activeProduct?.model || 'Item selecionado no carrinho')
                     : isSaleActive
-                    ? 'Venda iniciada com sucesso. Passe o leitor de código de barras ou digite o código/nome do produto'
-                    : 'Pressione [F1] no teclado ou clique em "Iniciar Venda" para começar'}
-                </p>
-              </div>
-              <div className="text-right text-[10px] shrink-0 font-medium leading-tight">
-                <p className="text-slate-400 font-mono">
-                  Cód: <span className="text-white font-bold">{activeCartItem?.barcode || activeProduct?.barcode || '---'}</span>
-                </p>
-                <p className="text-slate-400 mt-0.5">
-                  Est: <span className="text-cyan-300 font-black">
-                    {activeProduct?.manageStock === false || activeProduct?.stockStatus === 'UNLIMITED'
-                      ? 'Ilimitado'
-                      : activeProduct?.stockQuantity !== undefined
-                      ? `${activeProduct.stockQuantity} un`
-                      : '---'}
-                  </span>
+                    ? 'Venda iniciada com sucesso. Passe o leitor ou digite o código do produto'
+                    : 'Pressione [F] no teclado ou clique em "Iniciar Venda" para começar'}
                 </p>
               </div>
             </div>
+
+            <div className="text-right text-[11px] shrink-0 font-medium leading-tight pl-2">
+              <p className="text-slate-400 font-mono">
+                Cód: <span className="text-white font-bold">{activeCartItem?.barcode || activeProduct?.barcode || '---'}</span>
+              </p>
+              <p className="text-slate-400 mt-0.5 font-mono">
+                Est: <span className="text-cyan-300 font-bold">
+                  {activeProduct?.manageStock === false || activeProduct?.stockStatus === 'UNLIMITED'
+                    ? 'Ilimitado'
+                    : activeProduct?.stockQuantity !== undefined
+                    ? `${activeProduct.stockQuantity} un`
+                    : '---'}
+                </span>
+              </p>
+            </div>
           </div>
 
-          {/* 4 Inputs / Badges: Quantidade, Unidade, Preço Unitário, Total do Item */}
+          {/* Box 3: 4 Metric Input Fields (Quantidade, Unidade, Preço Unitário, Total do Item) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {/* Quantidade */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
                 Quantidade
               </label>
               <input
@@ -1181,108 +1183,107 @@ export const PosView: React.FC<PosViewProps> = ({
                   }
                 }}
                 disabled={!activeCartItem}
-                className="w-full px-2 py-1.5 bg-[#040b19] border border-blue-900 rounded-lg text-center font-bold text-white text-xs sm:text-sm focus:outline-none focus:border-cyan-400 font-mono shadow-inner disabled:opacity-60"
+                className="w-full px-2 py-2 bg-[#01040a] border border-[#0d2246] rounded-xl text-center font-bold text-white text-xs sm:text-sm focus:outline-none focus:border-cyan-400 font-mono shadow-inner disabled:opacity-80"
               />
             </div>
 
             {/* Unidade */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
                 Unidade
               </label>
-              <div className="flex items-center justify-between px-2 py-1.5 bg-[#040b19] border border-blue-900 rounded-lg text-center font-bold text-white text-xs sm:text-sm">
+              <div className="flex items-center justify-between px-2.5 py-2 bg-[#01040a] border border-[#0d2246] rounded-xl text-center font-bold text-white text-xs sm:text-sm">
                 <span>{activeCartItem?.unit || 'UN'}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </div>
             </div>
 
             {/* Preço Unitário (R$) */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block truncate">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block truncate">
                 Preço Unitário (R$)
               </label>
-              <div className="px-2 py-1.5 bg-[#040b19] border border-blue-900 rounded-lg text-center font-bold text-white text-xs sm:text-sm font-mono truncate">
+              <div className="px-2 py-2 bg-[#01040a] border border-[#0d2246] rounded-xl text-center font-bold text-white text-xs sm:text-sm font-mono truncate">
                 {activeCartItem ? activeCartItem.unitPrice.toFixed(2).replace('.', ',') : '0,00'}
               </div>
             </div>
 
             {/* Total do Item (R$) */}
-            <div className="space-y-0.5">
-              <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block truncate">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider block truncate">
                 Total do Item (R$)
               </label>
-              <div className="px-2 py-1.5 bg-[#10b981] rounded-lg text-center font-black text-white text-xs sm:text-sm font-mono border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.35)] truncate">
+              <div className="px-2 py-2 bg-[#00c975] text-slate-950 rounded-xl text-center font-black text-xs sm:text-sm font-mono shadow-[0_0_12px_rgba(0,201,117,0.35)] truncate">
                 {activeCartItem ? activeCartItem.total.toFixed(2).replace('.', ',') : '0,00'}
               </div>
             </div>
           </div>
 
-          {/* Bottom Row: Product Image (Left) & Technical Specs List (Right) */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 sm:gap-3 items-stretch flex-1 min-h-0 py-0.5">
+          {/* Box 4: Bottom Row (Product Scanner / Photo + Technical Specs) */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-stretch flex-1 min-h-0 py-0.5">
             
-            {/* Product Image / Empty State Scanner */}
-            <div className="col-span-1 sm:col-span-6 bg-[#020712] border border-blue-900/40 rounded-xl p-2 flex items-center justify-center relative overflow-hidden group min-h-[140px] sm:min-h-[160px] lg:h-[180px] flex-1 shadow-inner">
+            {/* Display / Photo / Scanner */}
+            <div className="col-span-1 sm:col-span-6 bg-[#01040a] border border-[#0d2246] rounded-xl p-3 flex flex-col items-center justify-center relative overflow-hidden group min-h-[140px] sm:min-h-[160px] flex-1 shadow-inner">
               {activeProduct?.photoUrl ? (
                 <img
                   src={activeProduct.photoUrl}
                   alt={activeProduct?.name || "Produto"}
-                  className="max-h-[150px] w-full object-contain rounded drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)] group-hover:scale-103 transition-transform duration-300"
+                  className="max-h-[140px] w-full object-contain rounded drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)] group-hover:scale-103 transition-transform duration-300"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-center p-3 text-slate-400 space-y-2">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-950/80 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-                    <Barcode className="w-8 h-8 animate-pulse" />
+                <div className="flex flex-col items-center justify-center text-center p-2 text-slate-400 space-y-2">
+                  <div className="w-16 h-16 rounded-2xl bg-[#071a38] border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                    <Barcode className="w-9 h-9" />
                   </div>
                   <div>
                     <p className="text-xs font-black text-white">
                       {isSaleActive ? 'Venda em Aberto' : 'Caixa Livre & Pronto'}
                     </p>
-                    <p className="text-[10px] text-cyan-300/80">
+                    <p className="text-[11px] text-cyan-400 font-bold mt-0.5">
                       {isSaleActive ? 'Aguardando bipe ou código' : 'Pressione [F1] para Iniciar'}
                     </p>
                   </div>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
             </div>
 
-            {/* Technical Specs List & Stock Badge */}
-            <div className="col-span-1 sm:col-span-6 flex flex-col justify-between py-0.5 text-[11px]">
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
+            {/* Technical Specs List */}
+            <div className="col-span-1 sm:col-span-6 flex flex-col justify-between py-1 text-[11px]">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-slate-300 border-b border-[#0d2246] pb-1">
                   <span className="font-extrabold text-slate-400">Marca:</span>
                   <span className="font-semibold text-white truncate max-w-[130px]">
                     {activeProduct?.brand || '---'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
+                <div className="flex justify-between items-center text-slate-300 border-b border-[#0d2246] pb-1">
                   <span className="font-extrabold text-slate-400">Categoria:</span>
                   <span className="font-semibold text-white truncate max-w-[130px]">
                     {activeProduct?.category || '---'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
+                <div className="flex justify-between items-center text-slate-300 border-b border-[#0d2246] pb-1">
                   <span className="font-extrabold text-slate-400">Código:</span>
                   <span className="font-semibold text-white font-mono">
                     {activeCartItem?.barcode || activeProduct?.barcode || '---'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
+                <div className="flex justify-between items-center text-slate-300 border-b border-[#0d2246] pb-1">
                   <span className="font-extrabold text-slate-400">Estoque Atual:</span>
                   <span className="font-semibold text-cyan-300 font-extrabold">
                     {activeProduct?.manageStock === false || activeProduct?.stockStatus === 'UNLIMITED'
-                      ? 'Ilimitado (Sem controle)'
+                      ? 'Ilimitado'
                       : activeProduct?.stockQuantity !== undefined
                       ? `${activeProduct.stockQuantity} un`
                       : '---'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-300 border-b border-blue-900/40 pb-1">
+                <div className="flex justify-between items-center text-slate-300 border-b border-[#0d2246] pb-1">
                   <span className="font-extrabold text-slate-400">Localização:</span>
                   <span className="font-semibold text-white">
                     {activeProduct?.location || '---'}
@@ -1290,19 +1291,12 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
               </div>
 
-              {/* Stock Status Badge */}
-              <div className="pt-1">
-                {activeCartItem ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-[#064e3b]/80 border border-emerald-500/50 text-emerald-300 font-extrabold text-[11px] shadow-sm">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    <span>Item Selecionado</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-950/80 border border-cyan-500/40 text-cyan-300 font-extrabold text-[11px] shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                    <span>{isSaleActive ? 'Pronto para Bipe' : 'Caixa Disponível'}</span>
-                  </span>
-                )}
+              {/* Caixa Disponível Button */}
+              <div className="pt-2">
+                <div className="w-full py-1.5 px-3 rounded-xl border border-cyan-500/40 bg-[#071a38] text-cyan-300 text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm">
+                  <CreditCard className="w-4 h-4 text-cyan-400" />
+                  <span>Caixa Disponível</span>
+                </div>
               </div>
             </div>
 
@@ -1311,30 +1305,34 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
 
         {/* RIGHT COLUMN: ITENS DA VENDA TABLE & 4 KPI SUMMARY CARDS (7 Cols) */}
-        <div className="lg:col-span-7 bg-[#071328] border border-blue-900/60 rounded-xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 shadow-[0_4px_25px_rgba(0,0,0,0.5)] flex flex-col justify-between min-h-0 overflow-hidden">
+        <div className="lg:col-span-7 bg-[#030917] border border-[#0d2246] rounded-2xl p-3 sm:p-3.5 space-y-2.5 shadow-xl flex flex-col justify-between min-h-0 overflow-hidden">
           
-          {/* Table Header Row: Title & Total Items Count */}
-          <div className="flex items-center justify-between border-b border-blue-900/60 pb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow-[0_0_10px_rgba(37,99,235,0.5)]">
+          {/* Table Header Row: Purple icon Title & Total Items Count */}
+          <div className="flex items-center justify-between border-b border-[#0d2246] pb-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#8b5cf6] text-white flex items-center justify-center font-bold shadow-[0_0_12px_rgba(139,92,246,0.4)]">
                 <FileText className="w-4 h-4" />
               </div>
               <span className="font-black text-white text-base tracking-tight">Itens da Venda</span>
             </div>
 
-            <div className="flex items-center gap-1.5 font-bold text-cyan-300 text-xs">
-              <ShoppingCart className="w-4 h-4 text-cyan-400" />
+            <div className="flex items-center gap-1.5 font-bold text-violet-300 text-xs">
+              <ShoppingCart className="w-4 h-4 text-violet-400" />
               <span>Total de Itens: {cart.length}</span>
             </div>
           </div>
 
           {/* Table Container */}
-          <div className="flex-1 bg-[#040b19] border border-blue-900/70 rounded-xl overflow-hidden shadow-inner flex flex-col min-h-[160px] overflow-y-auto">
+          <div className="flex-1 bg-[#020713] border border-[#0d2246] rounded-xl overflow-hidden shadow-inner flex flex-col min-h-[160px] overflow-y-auto">
             {/* Mobile Cards View (< sm screens) */}
-            <div className="block sm:hidden divide-y divide-blue-950/80 p-2 space-y-2">
+            <div className="block sm:hidden divide-y divide-[#0d2246] p-2 space-y-2">
               {cart.length === 0 ? (
-                <div className="p-6 text-center text-slate-500 font-medium text-xs">
-                  Nenhum item adicionado à venda. Digite o código de barras ou use F3 para consultar.
+                <div className="py-10 px-4 text-center text-slate-400 font-medium text-xs flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-[#071329] border border-[#0d2246] text-slate-400 flex items-center justify-center mb-2">
+                    <FileText className="w-6 h-6 text-slate-500" />
+                  </div>
+                  <p className="font-bold text-slate-300">Nenhum item adicionado à venda.</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Digite o código de barras ou use F3 para consultar.</p>
                 </div>
               ) : (
                 cart.map((item, idx) => {
@@ -1346,7 +1344,7 @@ export const PosView: React.FC<PosViewProps> = ({
                       className={`p-2.5 rounded-lg border transition-all ${
                         isSelected
                           ? 'bg-blue-600/30 border-cyan-400 text-white shadow-md'
-                          : 'bg-[#061021] border-blue-900/60 text-slate-200'
+                          : 'bg-[#061021] border-[#0d2246] text-slate-200'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -1399,7 +1397,7 @@ export const PosView: React.FC<PosViewProps> = ({
             <div className="hidden sm:block overflow-x-auto flex-1">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-blue-900/60 bg-[#061021] text-slate-400 font-extrabold uppercase text-[10px] tracking-wider">
+                  <tr className="border-b border-[#0d2246] bg-[#01040a] text-slate-400 font-black uppercase text-[10px] tracking-wider">
                     <th className="p-2.5 text-center w-10">#</th>
                     <th className="p-2.5 w-32">Código</th>
                     <th className="p-2.5">Descrição</th>
@@ -1410,11 +1408,17 @@ export const PosView: React.FC<PosViewProps> = ({
                     <th className="p-2.5 text-center w-20">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-blue-950/80">
+                <tbody className="divide-y divide-[#0d2246]">
                   {cart.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center text-slate-500 font-medium">
-                        Nenhum item adicionado à venda. Digite o código de barras ou use F3 para consultar.
+                      <td colSpan={8} className="py-14 px-4 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="w-14 h-14 rounded-2xl bg-[#071329] border border-[#0d2246] text-slate-400 flex items-center justify-center mb-2 shadow-inner">
+                            <FileText className="w-7 h-7 text-slate-400" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-300">Nenhum item adicionado à venda.</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Digite o código de barras ou use F3 para consultar.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -1426,7 +1430,7 @@ export const PosView: React.FC<PosViewProps> = ({
                           onClick={() => setSelectedItemIndex(idx)}
                           className={`cursor-pointer transition-colors ${
                             isSelected
-                              ? 'bg-blue-600 text-white font-bold shadow-md'
+                              ? 'bg-[#0084ff] text-white font-bold shadow-md'
                               : 'hover:bg-blue-950/40 text-slate-200'
                           }`}
                         >
@@ -1478,15 +1482,15 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           {/* 4 KPI SUMMARY CARDS (SubTotal, Itens, Desconto, Total da Venda) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
             
             {/* Card 1: SubTotal (R$) */}
-            <div className="bg-[#051125] border border-blue-900/80 rounded-xl p-2.5 flex items-center gap-3 shadow-[0_0_15px_rgba(2,132,199,0.1)]">
-              <div className="w-10 h-10 rounded-lg bg-[#0d6efd] text-white flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(13,110,253,0.5)]">
+            <div className="bg-[#020713] border border-[#0d2246] rounded-xl p-2.5 flex items-center gap-3 shadow-md">
+              <div className="w-11 h-11 rounded-xl bg-[#0084ff] text-white flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(0,132,255,0.4)]">
                 <Calculator className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
                   SubTotal (R$)
                 </p>
                 <p className="text-base sm:text-xl font-black text-white font-mono truncate">
@@ -1496,12 +1500,12 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
 
             {/* Card 2: Itens */}
-            <div className="bg-[#051125] border border-blue-900/80 rounded-xl p-2.5 flex items-center gap-3 shadow-[0_0_15px_rgba(2,132,199,0.1)]">
-              <div className="w-10 h-10 rounded-lg bg-[#0c1a32] border border-blue-800 text-cyan-300 flex items-center justify-center shrink-0 shadow-sm">
+            <div className="bg-[#020713] border border-[#0d2246] rounded-xl p-2.5 flex items-center gap-3 shadow-md">
+              <div className="w-11 h-11 rounded-xl bg-[#b45309]/80 border border-amber-600/40 text-amber-300 flex items-center justify-center shrink-0 shadow-sm">
                 <Package className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
                   Itens
                 </p>
                 <p className="text-base sm:text-xl font-black text-white font-mono">
@@ -1513,14 +1517,14 @@ export const PosView: React.FC<PosViewProps> = ({
             {/* Card 3: Desconto (R$) */}
             <div
               onClick={() => setIsAlterSaleModalOpen(true)}
-              className="bg-[#051125] border border-blue-900/80 rounded-xl p-2.5 flex items-center gap-3 shadow-[0_0_15px_rgba(2,132,199,0.1)] cursor-pointer hover:border-cyan-400 transition-colors"
-              title="Clique para alterar desconto"
+              className="bg-[#020713] border border-[#0d2246] rounded-xl p-2.5 flex items-center gap-3 shadow-md cursor-pointer hover:border-cyan-400 transition-colors"
+              title="Clique para alterar desconto (F2)"
             >
-              <div className="w-10 h-10 rounded-lg bg-[#0c1a32] border border-blue-800 text-cyan-300 flex items-center justify-center shrink-0 shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-[#881337]/80 border border-rose-600/40 text-rose-300 flex items-center justify-center shrink-0 shadow-sm">
                 <Percent className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
                   Desconto (R$)
                 </p>
                 <p className="text-base sm:text-xl font-black text-white font-mono truncate">
@@ -1532,14 +1536,14 @@ export const PosView: React.FC<PosViewProps> = ({
             {/* Card 4: Total da Venda (R$) - Glowing Emerald outline & Solid Green Icon */}
             <div
               onClick={() => setIsCheckoutModalOpen(true)}
-              className="bg-[#051125] border-2 border-[#198754] rounded-xl p-2.5 flex items-center gap-3 shadow-[0_0_15px_rgba(25,135,84,0.2)] cursor-pointer hover:bg-[#071935] transition-all"
+              className="bg-[#020713] border-2 border-[#00c975] rounded-xl p-2.5 flex items-center gap-3 shadow-[0_0_15px_rgba(0,201,117,0.15)] cursor-pointer hover:bg-[#04101e] transition-all"
               title="Clique para finalizar venda (F1)"
             >
-              <div className="w-10 h-10 rounded-lg bg-[#198754] text-white flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(25,135,84,0.5)]">
+              <div className="w-11 h-11 rounded-xl bg-[#00c975] text-slate-950 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(0,201,117,0.5)]">
                 <Banknote className="w-6 h-6" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-extrabold uppercase text-[#198754] tracking-wider truncate">
+                <p className="text-[9px] font-black uppercase text-[#00c975] tracking-wider truncate">
                   Total da Venda (R$)
                 </p>
                 <p className="text-base sm:text-xl font-black text-white font-mono truncate leading-none">
@@ -1555,51 +1559,47 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* 4. BOTTOM FUNCTION KEY ACTION BAR (13 BUTTONS: F1 to ESC) */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-13 gap-1.5 sm:gap-2 shrink-0 pb-3 lg:pb-0">
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-13 gap-1.5 shrink-0 pb-3 lg:pb-0">
         
-        {/* F1: Iniciar ou Finalizar Venda */}
+        {/* F1: Iniciar Venda (Bright Neon Green) */}
         <button
           type="button"
           id="btn-f1"
           onClick={handleF1Action}
-          className={`col-span-3 sm:col-span-1 py-2.5 px-2 ${
-            cart.length === 0
-              ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400/50 shadow-emerald-900/30'
-              : 'bg-blue-600 hover:bg-blue-500 border-blue-400/40 shadow-blue-950/50'
-          } active:scale-95 text-white rounded-xl flex sm:flex-col items-center justify-center gap-1.5 sm:gap-1 transition-all cursor-pointer border shadow-lg`}
+          className="col-span-3 sm:col-span-1 py-2 px-1 bg-[#00c975] hover:bg-emerald-400 active:scale-95 text-slate-950 rounded-xl flex sm:flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,201,117,0.3)] font-black"
         >
-          <span className="text-xs sm:text-[10px] font-extrabold uppercase text-blue-100 leading-none">F1</span>
-          <ShoppingCart className="w-4 h-4 shrink-0" />
-          <span className="text-xs sm:text-[10px] font-black leading-none text-center truncate">
+          <span className="text-[10px] font-black uppercase text-slate-950 leading-none">F1</span>
+          <ShoppingCart className="w-4 h-4 shrink-0 text-slate-950" />
+          <span className="text-[10px] font-black leading-none text-center truncate">
             {cart.length === 0 ? 'Iniciar Venda' : isCheckoutModalOpen ? 'Concluir Venda' : 'Finalizar Venda'}
           </span>
         </button>
 
-        {/* F2: Dar Desconto (Vibrant Orange) */}
+        {/* F2: Dar Desconto (Bright Orange) */}
         <button
           type="button"
           id="btn-f2"
           onClick={() => setIsAlterSaleModalOpen(true)}
-          className="py-2.5 px-1 bg-amber-500 hover:bg-amber-400 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-amber-300/40 shadow-lg"
+          className="py-2 px-1 bg-[#f59e0b] hover:bg-amber-400 active:scale-95 text-slate-950 rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.3)] font-black"
         >
-          <span className="text-[10px] font-extrabold uppercase text-amber-100 leading-none">F2</span>
-          <Percent className="w-4 h-4 shrink-0" />
+          <span className="text-[10px] font-black uppercase text-slate-950 leading-none">F2</span>
+          <Percent className="w-4 h-4 shrink-0 text-slate-950" />
           <span className="text-[10px] font-black leading-none text-center truncate w-full">Dar Desconto</span>
         </button>
 
-        {/* F3: Consultar Produto (Emerald Green) */}
+        {/* F3: Consultar Produto (Bright Blue) */}
         <button
           type="button"
           id="btn-f3"
           onClick={() => setIsConsultModalOpen(true)}
-          className="py-2.5 px-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-emerald-400/40 shadow-lg"
+          className="py-2 px-1 bg-[#0084ff] hover:bg-blue-500 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,132,255,0.4)] font-black"
         >
-          <span className="text-[10px] font-extrabold uppercase text-emerald-100 leading-none">F3</span>
-          <Search className="w-4 h-4 shrink-0" />
+          <span className="text-[10px] font-black uppercase text-white leading-none">F3</span>
+          <Search className="w-4 h-4 shrink-0 text-white" />
           <span className="text-[10px] font-black leading-none text-center truncate w-full">Consultar Produto</span>
         </button>
 
-        {/* F4: Buscar / Incluir Produto (Cyan/Navy) */}
+        {/* F4: Buscar Produto (Navy) */}
         <button
           type="button"
           id="btn-f4"
@@ -1608,26 +1608,26 @@ export const PosView: React.FC<PosViewProps> = ({
             barcodeInputRef.current?.select();
             if (barcodeSearchInput.trim().length > 0) setIsSearchDropdownOpen(true);
           }}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-cyan-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-cyan-500/30 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-cyan-300 leading-none">F4</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F4</span>
           <Search className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Buscar Produto</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Buscar Produto</span>
         </button>
 
-        {/* F5: Cliente (Navy) */}
+        {/* F4 / F5: Cliente (Navy) */}
         <button
           type="button"
           id="btn-f5"
           onClick={() => setIsCustomerModalOpen(true)}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F5</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F4</span>
           <User className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Cliente</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Cliente</span>
         </button>
 
-        {/* F6: Excluir Produto (Navy with red icon) */}
+        {/* F6: Excluir Produto (Dark Crimson with Red icon) */}
         <button
           type="button"
           id="btn-f6"
@@ -1636,11 +1636,11 @@ export const PosView: React.FC<PosViewProps> = ({
               removeFromCart(selectedItemIndex);
             }
           }}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-rose-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#28080f] hover:bg-[#3b0b14] active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-rose-900/60 hover:border-rose-500 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F6</span>
+          <span className="text-[10px] font-black uppercase text-rose-300 leading-none">F6</span>
           <Trash2 className="w-4 h-4 text-rose-500 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Excluir Produto</span>
+          <span className="text-[10px] font-bold leading-none text-center text-rose-200 truncate w-full">Excluir Produto</span>
         </button>
 
         {/* F7: Cancelar Venda (Navy) */}
@@ -1648,11 +1648,11 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f7"
           onClick={clearCart}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F7</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F7</span>
           <Tag className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Cancelar Venda</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Cancelar Venda</span>
         </button>
 
         {/* F8: Imprimir Venda (Navy) */}
@@ -1660,11 +1660,11 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f8"
           onClick={handleOpenPrintDialog}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F8</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F8</span>
           <Printer className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Imprimir Venda</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Imprimir Venda</span>
         </button>
 
         {/* F9: Alterar Quantidade (Navy) */}
@@ -1672,11 +1672,11 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f9"
           onClick={() => setIsQtyModalOpen(true)}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F9</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F9</span>
           <Sliders className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Alterar Quantidade</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Alterar Quantidade</span>
         </button>
 
         {/* F10: Cat. Produto (Navy) */}
@@ -1684,11 +1684,11 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f10"
           onClick={() => setIsCatalogModalOpen(true)}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F10</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F10</span>
           <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Cat. Produto</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Cat. Produto</span>
         </button>
 
         {/* F11: Observações (Navy) */}
@@ -1696,11 +1696,11 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f11-obs"
           onClick={() => setIsNotesModalOpen(true)}
-          className="py-2.5 px-1 bg-[#0c1a32] hover:bg-blue-900/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-blue-900/80 shadow-md"
+          className="py-2 px-1 bg-[#020713] hover:bg-blue-950/60 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-[#0d2246] hover:border-cyan-400/80 shadow-sm"
         >
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 leading-none">F11</span>
+          <span className="text-[10px] font-black uppercase text-slate-400 leading-none">F11</span>
           <Settings className="w-4 h-4 text-cyan-400 shrink-0" />
-          <span className="text-[10px] font-extrabold leading-none text-center text-slate-200 truncate w-full">Observações</span>
+          <span className="text-[10px] font-bold leading-none text-center text-slate-200 truncate w-full">Observações</span>
         </button>
 
         {/* F12: Pré-venda (Bright Purple) */}
@@ -1708,14 +1708,14 @@ export const PosView: React.FC<PosViewProps> = ({
           type="button"
           id="btn-f12-pre"
           onClick={() => setIsPreSaleModalOpen(true)}
-          className="py-2.5 px-1 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-purple-400/40 shadow-lg"
+          className="py-2 px-1 bg-[#9333ea] hover:bg-purple-600 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(147,51,234,0.4)] font-black"
         >
-          <span className="text-[10px] font-extrabold uppercase text-purple-200 leading-none">F12</span>
-          <Camera className="w-4 h-4 shrink-0" />
+          <span className="text-[10px] font-black uppercase text-purple-200 leading-none">F12</span>
+          <Camera className="w-4 h-4 shrink-0 text-white" />
           <span className="text-[10px] font-black leading-none text-center truncate w-full">Pré-venda</span>
         </button>
 
-        {/* ESC: Fechar (Bright Red) */}
+        {/* ESC: Fechar (Bright Crimson/Red) */}
         <button
           type="button"
           id="btn-esc"
@@ -1723,19 +1723,19 @@ export const PosView: React.FC<PosViewProps> = ({
             window.location.hash = '#dashboard';
             onClose?.();
           }}
-          className="py-2.5 px-1 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border border-rose-400/40 shadow-lg"
+          className="py-2 px-1 bg-[#e11d48] hover:bg-rose-500 active:scale-95 text-white rounded-xl flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(225,29,72,0.4)] font-black"
         >
-          <span className="text-[10px] font-extrabold uppercase text-rose-200 leading-none">ESC</span>
-          <X className="w-4 h-4 shrink-0" />
+          <span className="text-[10px] font-black uppercase text-rose-100 leading-none">ESC</span>
+          <X className="w-4 h-4 shrink-0 text-white" />
           <span className="text-[10px] font-black leading-none text-center truncate w-full">Fechar</span>
         </button>
 
       </div>
 
       {/* 5. BOTTOM STATUS FOOTER BAR */}
-      <footer className="bg-[#050e20] border border-blue-900/50 rounded px-2 py-0.5 flex flex-wrap items-center justify-between text-[10px] text-slate-400 shrink-0">
+      <footer className="bg-[#020713] border border-[#0d2246] rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between text-[11px] text-slate-400 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="font-extrabold text-white">{company.name || 'TECHNOVA Informática'}</span>
+          <span className="font-extrabold text-white">{company.commercialName || company.name || 'MSP INFORMÁTICA'}</span>
           <span className="text-blue-900">|</span>
           <span className="font-medium text-slate-400">PDV - Sistema de Vendas</span>
           <span className="text-blue-900">|</span>
@@ -1757,7 +1757,7 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
 
           <div className="text-slate-300">
-            Usuário: <strong className="text-white">{currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1] || ''}</strong>
+            Usuário: <strong className="text-white">{currentUser.name || 'Administrador Master'}</strong>
           </div>
 
           <div className="text-slate-300">

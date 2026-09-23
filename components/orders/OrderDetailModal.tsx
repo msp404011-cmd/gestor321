@@ -33,6 +33,9 @@ import {
   Eye,
   EyeOff,
   Send,
+  Box,
+  Archive,
+  MapPin,
 } from 'lucide-react';
 import { ServiceOrder, OrderStatus, PaymentMethod, OrderPartItem, Product } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -131,11 +134,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   ]);
   const [isSavingPayments, setIsSavingPayments] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showArchiveLocationPrompt, setShowArchiveLocationPrompt] = useState(false);
+  const [detailArchiveLocationInput, setDetailArchiveLocationInput] = useState('');
 
   // Sync state whenever order changes or modal opens
   useEffect(() => {
     if (order) {
       setShowHistory(false);
+      setShowArchiveLocationPrompt(false);
+      setDetailArchiveLocationInput(order.archivedLocation || '');
       const partsLoaded = order.parts || (order.items ? order.items.filter((i) => i.type === 'PECA') : []) || [];
       setLocalParts(partsLoaded);
       const partsSub = partsLoaded.reduce(
@@ -237,12 +244,29 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
   };
 
+  const isArchivedStatus = (st?: string) => {
+    if (!st) return false;
+    const clean = st.trim().toUpperCase();
+    return clean === 'ARQUIVADO' || clean === 'ARQUIVO' || clean.includes('ARQUIV') || getCanonicalStatus(st) === 'ARQUIVADO';
+  };
+
+  const isDeliveredStatus = (st?: string) => {
+    if (!st) return false;
+    const clean = st.trim().toUpperCase();
+    return clean === 'ENTREGUE' || clean === 'CONCLUIDO' || clean === 'CONCLUÍDO' || getCanonicalStatus(st) === 'ENTREGUE';
+  };
+
   // Status Change Handler
   const handleUpdateStatus = (newStatus: OrderStatus, reason?: string) => {
     const current = currentOrder || order;
     if (!current) return;
-    if (newStatus === 'ENTREGUE') {
+    if (isDeliveredStatus(newStatus as string)) {
       setShowDeliveryModal(true);
+      return;
+    }
+    if (isArchivedStatus(newStatus as string)) {
+      setDetailArchiveLocationInput(current.archivedLocation || '');
+      setShowArchiveLocationPrompt(true);
       return;
     }
     const success = StorageService.updateOrderStatus(
@@ -255,6 +279,30 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       if (fresh) setCurrentOrder(fresh);
       showToast(`Status alterado com sucesso para "${getOrderStatusLabel(newStatus)}"`);
     }
+  };
+
+  const handleSaveArchiveLocation = (customLoc?: string) => {
+    const current = currentOrder || order;
+    if (!current) return;
+    const loc = (customLoc !== undefined ? customLoc : detailArchiveLocationInput).trim();
+    const updated: ServiceOrder = {
+      ...current,
+      status: 'ARQUIVADO',
+      archivedLocation: loc || undefined,
+      statusHistory: [
+        ...(current.statusHistory || []),
+        {
+          status: 'ARQUIVADO',
+          changedAt: new Date().toISOString(),
+          changedBy: currentUser?.name || 'Administrador',
+          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}` : ''}`,
+        },
+      ],
+    };
+    StorageService.saveOrder(updated);
+    setCurrentOrder(updated);
+    setShowArchiveLocationPrompt(false);
+    showToast(`OS arquivada com sucesso! Local: ${loc || 'Não informado'}`);
   };
 
   // Toast feedback helper
@@ -733,10 +781,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     key={st.id || st.code}
                     type="button"
                     onClick={() => {
-                      if (statusCode === 'ENTREGUE') {
+                      if (isDeliveredStatus(statusCode) || isDeliveredStatus(st.label)) {
                         setShowDeliveryModal(true);
+                      } else if (isArchivedStatus(statusCode) || isArchivedStatus(st.label)) {
+                        setDetailArchiveLocationInput(targetOrder.archivedLocation || '');
+                        setShowArchiveLocationPrompt(true);
                       } else {
-                        handleUpdateStatus(st.code as OrderStatus);
+                        handleUpdateStatus((st.code || st.id) as OrderStatus);
                       }
                     }}
                     className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
@@ -753,6 +804,50 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 );
               })}
             </div>
+
+            {/* Prominent High-Contrast Physical Location Card / Editor when Archived or has Location */}
+            {(canonical === 'ARQUIVADO' || targetOrder.archivedLocation) && (
+              <div className="mt-3 p-3.5 rounded-2xl border-2 border-amber-400/90 bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md shadow-amber-400/30">
+                    <Box className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                        📍 ONDE ESTÁ GUARDADO O APARELHO:
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase">
+                        Visível na Busca e Lista
+                      </span>
+                    </div>
+                    <span className="text-sm sm:text-base font-black text-white truncate block mt-0.5 tracking-wide drop-shadow-sm">
+                      {targetOrder.archivedLocation ? (
+                        <span className="text-amber-300 font-mono underline decoration-amber-400/60 decoration-2">
+                          {targetOrder.archivedLocation.toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic text-xs font-normal">
+                          Local não informado (clique no botão para definir onde está guardado)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailArchiveLocationInput(targetOrder.archivedLocation || '');
+                    setShowArchiveLocationPrompt(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer shrink-0 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95"
+                >
+                  <Edit2 className="w-4 h-4 stroke-[2.5]" />
+                  <span>{targetOrder.archivedLocation ? 'Alterar Localização' : 'Digitar Onde Está'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Details Grid: Defect & Diagnosis + Technical Data */}
@@ -1825,6 +1920,113 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           productToEdit={productToEditInDetail}
           initialName={productModalPrefillName}
         />
+      )}
+
+      {/* Archive Location Prompt Modal */}
+      {showArchiveLocationPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs cursor-pointer animate-in fade-in duration-150"
+          onClick={() => setShowArchiveLocationPrompt(false)}
+        >
+          <div
+            className={`w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl border space-y-4 cursor-default animate-in zoom-in-95 duration-150 ${
+              isDark
+                ? 'bg-[#0a1426] border-zinc-500/70 text-white shadow-[0_0_40px_rgba(245,158,11,0.25)]'
+                : 'bg-white border-zinc-400 text-slate-900 shadow-xl'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-start justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-600 text-amber-400 flex items-center justify-center font-black text-base shrink-0 shadow-inner">
+                  <Box className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-base leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Localização no Arquivo
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    OS #{targetOrder.orderNumber} • {targetOrder.brand} {targetOrder.model}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowArchiveLocationPrompt(false)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Onde está guardado o aparelho? (Ex: Gaveta, Prateleira, Armário)
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={detailArchiveLocationInput}
+                  onChange={(e) => setDetailArchiveLocationInput(e.target.value)}
+                  placeholder="Ex: Gaveta 1, Prateleira B, Armário 2..."
+                  className="w-full px-3 py-2.5 bg-[#040c1e] border border-zinc-500/80 focus:border-amber-400 rounded-xl text-sm font-bold text-amber-300 placeholder-slate-500 focus:outline-hidden font-sans shadow-inner"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveArchiveLocation();
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Quick Suggestion Chips */}
+              <div>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">
+                  Sugestões Rápidas:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Gaveta 1', 'Gaveta 2', 'Gaveta 3', 'Prateleira A', 'Prateleira B', 'Armário 1', 'Armário 2', 'Caixa 1', 'Caixa 2', 'Galpão'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDetailArchiveLocationInput(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        detailArchiveLocationInput === preset
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-black scale-105 shadow-sm'
+                          : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={`pt-3 border-t flex items-center justify-end gap-2 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <button
+                type="button"
+                onClick={() => setShowArchiveLocationPrompt(false)}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveArchiveLocation()}
+                className="px-5 py-2 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>Salvar Localização</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Wrench,
   X,
-  User,
   AlertTriangle,
   Check,
   ShieldCheck,
@@ -66,13 +65,14 @@ const COMMON_BRANDS = [
 ];
 
 const STATUS_CHOICES: { status: OrderStatus; label: string; icon: string }[] = [
-  { status: 'ORCAMENTO', label: 'Em Orçamento', icon: '⚙️' },
+  { status: 'ORCAMENTO', label: 'Orçamento', icon: '📌' },
   { status: 'AGUARDANDO_AUTORIZACAO', label: 'Aguardando Autorização', icon: '⏳' },
   { status: 'AUTORIZADO', label: 'Autorizado', icon: '⚙️' },
   { status: 'AGUARDANDO_PECA', label: 'Aguardando Peça', icon: '🧩' },
   { status: 'ATRASADO', label: 'Atrasado', icon: '⚠️' },
   { status: 'PRONTO', label: 'Pronto para Retirada', icon: '✅' },
   { status: 'ENTREGUE', label: 'Entregue / Concluído', icon: '📦' },
+  { status: 'ARQUIVADO', label: 'Arquivado', icon: '🗄️' },
 ];
 
 const QUICK_SERVICES = [
@@ -101,7 +101,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 }) => {
   const { isDark } = useTheme();
   const [customers, setCustomers] = useState<Customer[]>(() => StorageService.getCustomers());
-  const allDevices = StorageService.getDevices();
   const currentUser = StorageService.getCurrentUser();
 
   // Dynamic Settings from Storage
@@ -128,14 +127,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Device fields
   const [deviceId, setDeviceId] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceType>('Smartphone');
-  const [brand, setBrand] = useState('');
+  const [brand, setBrand] = useState('Samsung');
   const [model, setModel] = useState('');
   const [imei, setImei] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [physicalState, setPhysicalState] = useState('');
   const [hasNoDamages, setHasNoDamages] = useState(true);
 
-  // Password Options (Alphanumeric/PIN or Pattern Lock)
+  // Password Options
   const [passwordType, setPasswordType] = useState<'NONE' | 'PIN' | 'PATTERN'>('NONE');
   const [passwordPin, setPasswordPin] = useState('');
   const [patternNodes, setPatternNodes] = useState<number[]>([]);
@@ -152,11 +151,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Forecast & Pricing
   const [entryDate, setEntryDate] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
-  const [isDeliveryOptional, setIsDeliveryOptional] = useState(false);
+  const [isDeliveryOptional, setIsDeliveryOptional] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<string>('Não informado');
 
   // Status
   const [initialStatus, setInitialStatus] = useState<OrderStatus>('ORCAMENTO');
+  const [archivedLocation, setArchivedLocation] = useState<string>('');
 
   // Options
   const [printAfterCreate, setPrintAfterCreate] = useState(true);
@@ -218,7 +218,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     return STATUS_CHOICES;
   }, [customOSStatuses]);
 
-  // Initialize data on open - ALWAYS clean/zeroed unless editing
+  // Initialize data on open
   useEffect(() => {
     if (!isOpen) return;
 
@@ -255,7 +255,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setAuthorizedPickupPhone(orderToEdit.authorizedPickupPhone || '');
       setDeviceId(orderToEdit.deviceId || '');
       setDeviceType(orderToEdit.deviceType || (loadedDevTypes[0]?.name as DeviceType) || 'Smartphone');
-      setBrand(orderToEdit.brand || '');
+      setBrand(orderToEdit.brand || 'Samsung');
       setModel(orderToEdit.model || '');
       setImei(orderToEdit.imei || '');
       setSerialNumber(orderToEdit.serialNumber || '');
@@ -301,158 +301,110 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       } else {
         setCustomTotalPrice(null);
       }
-      setIsPriceUnlocked(false);
-      setShowManagerAuthModal(false);
-      setManagerPassInput('');
-      setManagerPassError('');
-      setPaymentMethod(orderToEdit.paymentMethod || 'Não informado');
-      setInitialStatus(orderToEdit.status || 'ORCAMENTO');
 
-      // Password configuration
+      setInitialStatus(orderToEdit.status || 'ORCAMENTO');
+      setArchivedLocation(orderToEdit.archivedLocation || '');
+      setPaymentMethod(orderToEdit.paymentMethod || 'Não informado');
+
       if (orderToEdit.passwordPattern && orderToEdit.passwordPattern.length > 0) {
         setPasswordType('PATTERN');
         setPatternNodes(orderToEdit.passwordPattern);
-        setPasswordPin(orderToEdit.passwordPin || '');
-      } else if (orderToEdit.passwordPin) {
-        if (orderToEdit.passwordPin.startsWith('Desenho:')) {
-          setPasswordType('PATTERN');
-          const seq = orderToEdit.passwordPin
-            .replace('Desenho:', '')
-            .trim()
-            .split('-')
-            .map(Number)
-            .filter((n) => !isNaN(n) && n >= 1 && n <= 9);
-          setPatternNodes(seq);
-          setPasswordPin('');
-        } else {
-          setPasswordType('PIN');
-          setPasswordPin(orderToEdit.passwordPin);
-          setPatternNodes([]);
-        }
+        setPasswordPin('');
+      } else if (orderToEdit.passwordPin && orderToEdit.passwordPin.trim()) {
+        setPasswordType('PIN');
+        setPasswordPin(orderToEdit.passwordPin);
+        setPatternNodes([]);
       } else {
         setPasswordType('NONE');
         setPasswordPin('');
         setPatternNodes([]);
       }
+      setPatternNote('');
 
-      // Load checklist accessories map
+      // Populate Accessories from checklist or text
       const initialMap: Record<string, { present: boolean; details: string }> = {};
-      const ca = orderToEdit.checklistAccessories || {};
-      const accText = orderToEdit.accessories || '';
-
       loadedAccessories.forEach((acc) => {
-        if (ca[acc.id]) {
-          initialMap[acc.id] = {
-            present: !!ca[acc.id].present,
-            details: ca[acc.id].details || '',
-          };
-        } else {
-          if (acc.id === 'acc-chip-1' && ca.chip1) {
-            initialMap[acc.id] = { present: !!ca.chip1.present, details: ca.chip1.details || '' };
-          } else if (acc.id === 'acc-chip-2' && ca.chip2) {
-            initialMap[acc.id] = { present: !!ca.chip2.present, details: ca.chip2.details || '' };
-          } else if (acc.id === 'acc-memory-card' && ca.memoryCard) {
-            initialMap[acc.id] = { present: !!ca.memoryCard.present, details: ca.memoryCard.details || '' };
-          } else if (acc.id === 'acc-case' && ca.caseCover) {
-            initialMap[acc.id] = { present: !!ca.caseCover.present, details: ca.caseCover.details || '' };
-          } else if (acc.id === 'acc-charger' && ca.charger) {
-            initialMap[acc.id] = { present: !!ca.charger.present, details: ca.charger.details || '' };
-          } else if (acc.id === 'acc-others' && ca.others) {
-            initialMap[acc.id] = { present: !!ca.others.present, details: ca.others.details || '' };
-          } else {
-            const regex = new RegExp(`${acc.name}:?\\s*(sim|presente)`, 'i');
-            const isPresent = regex.test(accText);
-            initialMap[acc.id] = { present: isPresent, details: '' };
-          }
-        }
+        initialMap[acc.id] = { present: false, details: '' };
       });
+
+      if (orderToEdit.checklistAccessories) {
+        const chk = orderToEdit.checklistAccessories as any;
+        if (chk.caseCover?.present) initialMap['acc-case'] = { present: true, details: chk.caseCover.details || '' };
+        if (chk.chip1?.present) initialMap['acc-chip-1'] = { present: true, details: chk.chip1.details || '' };
+        if (chk.chip2?.present) initialMap['acc-chip-2'] = { present: true, details: chk.chip2.details || '' };
+        if (chk.memoryCard?.present) initialMap['acc-memory-card'] = { present: true, details: chk.memoryCard.details || '' };
+        if (chk.charger?.present) initialMap['acc-charger'] = { present: true, details: chk.charger.details || '' };
+        if (chk.others?.present) initialMap['acc-others'] = { present: true, details: chk.others.details || '' };
+      }
       setCustomAccMap(initialMap);
-
     } else {
-      // NEW OS -> Completely clean and ZEROED OUT
-      let targetCust: Customer | null = null;
-      if (initialCustomerId) {
-        targetCust = currentCustomers.find((c) => c.id === initialCustomerId) || null;
-      } else if (defaultCustomer) {
-        targetCust = defaultCustomer;
-      }
-
-      if (targetCust) {
-        setSelectedCustomer(targetCust);
-        setCustomerSearch(targetCust.name);
-      } else {
-        setSelectedCustomer(null);
-        setCustomerSearch('');
-      }
-
+      // NEW ORDER - Fresh state
+      setSelectedCustomer(defaultCustomer || null);
+      setCustomerSearch(defaultCustomer ? defaultCustomer.name : '');
       setPickupType('OWNER_ONLY');
       setAuthorizedPickupName('');
       setAuthorizedPickupPhone('');
 
-      // Device fields ZEROED
       if (defaultDevice) {
         setDeviceId(defaultDevice.id);
-        setDeviceType(defaultDevice.type);
-        setBrand(defaultDevice.brand);
-        setModel(defaultDevice.model);
+        setDeviceType(defaultDevice.type || 'Smartphone');
+        setBrand(defaultDevice.brand || 'Samsung');
+        setModel(defaultDevice.model || '');
         setImei(defaultDevice.imei || '');
         setSerialNumber(defaultDevice.serialNumber || '');
-        setPasswordPin(defaultDevice.passwordPin || '');
-        setPhysicalState(defaultDevice.physicalCondition || '');
+        setHasNoDamages(true);
+        setPhysicalState('');
       } else {
         setDeviceId('');
         setDeviceType((loadedDevTypes[0]?.name as DeviceType) || 'Smartphone');
-        setBrand('');
+        setBrand('Samsung');
         setModel('');
         setImei('');
         setSerialNumber('');
+        setHasNoDamages(true);
         setPhysicalState('');
       }
 
-      // Password ZEROED
+      setClientDefect('');
+      setServiceToBeDone('');
+      setShowServicePicker(false);
+      setEntryDate(today);
+      setDeliveryDate('');
+      setIsDeliveryOptional(true);
+      setPaymentMethod('Não informado');
+      setInitialStatus('ORCAMENTO');
+      setArchivedLocation('');
+      setParts([]);
+      setDiscount(0);
+      setCustomTotalPrice(null);
+      setIsPriceUnlocked(false);
       setPasswordType('NONE');
       setPasswordPin('');
       setPatternNodes([]);
       setPatternNote('');
 
-      // Dynamic Accessories Checklist ZEROED
-      const initialMap: Record<string, { present: boolean; details: string }> = {};
+      const freshMap: Record<string, { present: boolean; details: string }> = {};
       loadedAccessories.forEach((acc) => {
-        initialMap[acc.id] = { present: false, details: '' };
+        freshMap[acc.id] = { present: false, details: '' };
       });
-      setCustomAccMap(initialMap);
-
-      // Defects & Prices ZEROED
-      setClientDefect('');
-      setServiceToBeDone('');
-      setHasNoDamages(true);
-      setPhysicalState('');
-      setEntryDate(today);
-      setDeliveryDate('');
-      setIsDeliveryOptional(true);
-      setDiscount(0);
-      setCustomTotalPrice(null);
-      setIsPriceUnlocked(false);
-      setShowManagerAuthModal(false);
-      setManagerPassInput('');
-      setManagerPassError('');
-      setPaymentMethod('Não informado');
-      setInitialStatus('ORCAMENTO');
-      setParts([]);
-      setPartSearch('');
-      setIsPartSearchOpen(false);
+      setCustomAccMap(freshMap);
     }
 
     setError('');
-  }, [isOpen, orderToEdit, defaultCustomer, defaultDevice, initialCustomerId]);
+    setShowFullCustomerModal(false);
+    setShowProductModalInOrder(false);
+    setShowManagerAuthModal(false);
+    setManagerPassInput('');
+    setManagerPassError('');
+  }, [isOpen, orderToEdit, defaultCustomer, defaultDevice]);
 
-  // Click outside search
+  // Click outside listener for search popovers
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setIsSearchOpen(false);
       }
-      if (partSearchRef.current && !partSearchRef.current.contains(event.target as Node)) {
+      if (partSearchRef.current && !partSearchRef.current.contains(e.target as Node)) {
         setIsPartSearchOpen(false);
       }
     };
@@ -460,39 +412,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!isOpen) return null;
-
-  // Filtered customer list
-  const filteredCustomers = customerSearch.trim()
-    ? customers.filter((c) => {
-        const query = customerSearch.toLowerCase();
-        return (
-          c.name.toLowerCase().includes(query) ||
-          c.phone.includes(query) ||
-          (c.document && c.document.includes(query)) ||
-          (c.email && c.email.toLowerCase().includes(query))
-        );
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers.slice(0, 8);
+    const q = customerSearch.toLowerCase();
+    return customers
+      .filter((c) => {
+        const nameMatch = c.name.toLowerCase().includes(q);
+        const phoneMatch = c.phone.replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+        const docMatch = c.document?.replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+        return nameMatch || (q.length >= 3 && (phoneMatch || docMatch));
       })
-    : customers.slice(0, 8);
+      .slice(0, 10);
+  }, [customers, customerSearch]);
 
-  const handleSelectCustomer = (cust: Customer) => {
-    setSelectedCustomer(cust);
-    setCustomerSearch(cust.name);
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerSearch(customer.name);
     setIsSearchOpen(false);
-
-    // Check if customer already has registered devices
-    const custDevs = allDevices.filter((d) => d.customerId === cust.id);
-    if (custDevs.length > 0) {
-      const dev = custDevs[0];
-      setDeviceId(dev.id);
-      setDeviceType(dev.type);
-      setBrand(dev.brand);
-      setModel(dev.model);
-      setImei(dev.imei || '');
-      setSerialNumber(dev.serialNumber || '');
-      setPasswordPin(dev.passwordPin || '');
-      setPhysicalState(dev.physicalCondition || '');
-    }
   };
 
   const handleOpenFullCustomerModal = (prefillName?: string) => {
@@ -679,7 +615,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         .slice(0, 12)
     : [];
 
-  // Compile accessories checklist into a clean summary string for the active device type
+  // Compile accessories summary
   const compileAccessoriesSummary = (): string => {
     const list: string[] = [];
     let anyPresent = false;
@@ -746,55 +682,41 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       }
 
       // 2. Resolve Device Brand & Model fallbacks
-      const finalBrand = brand.trim() || 'Geral';
+      const finalBrand = brand.trim() || 'Samsung';
       const finalModel = model.trim() || 'Aparelho';
-      const finalClientDefect = clientDefect.trim() || 'Avaliação / Orçamento técnico';
+      const finalClientDefect = clientDefect.trim() || 'Defeito a diagnosticar';
 
-      const nextNum = orderToEdit ? orderToEdit.orderNumber : StorageService.getNextOrderNumber();
-
-      // Determine final password representation
+      // 3. Password resolution
       let finalPassword = '';
       if (passwordType === 'PIN') {
         finalPassword = passwordPin.trim();
-      } else if (passwordType === 'PATTERN') {
-        if (patternNodes.length > 0) {
-          finalPassword = `Desenho: ${patternNodes.join('-')}${patternNote.trim() ? ` (${patternNote.trim()})` : ''}`;
-        }
+      } else if (passwordType === 'PATTERN' && patternNodes.length > 0) {
+        finalPassword = `Desenho: [${patternNodes.join('-')}]${
+          patternNote.trim() ? ` (${patternNote.trim()})` : ''
+        }`;
+      } else {
+        finalPassword = 'Sem senha informada';
       }
 
+      const nextNum = orderToEdit ? orderToEdit.orderNumber : StorageService.getNextOrderNumber();
       const compiledAccessories = compileAccessoriesSummary();
 
-      const historyList = orderToEdit
-        ? [
-            ...(orderToEdit.statusHistory || orderToEdit.history || []),
-            {
-              timestamp: new Date().toISOString(),
-              changedAt: new Date().toISOString(),
-              status: initialStatus,
-              userName: currentUser.name,
-              changedBy: currentUser.name,
-              notes: `OS editada por ${currentUser.name}`,
-            },
-          ]
+      const historyList = orderToEdit?.statusHistory
+        ? [...orderToEdit.statusHistory]
         : [
             {
-              timestamp: new Date().toISOString(),
-              changedAt: new Date().toISOString(),
               status: initialStatus,
-              userName: currentUser.name,
-              changedBy: currentUser.name,
-              notes: 'Ordem de serviço cadastrada no sistema',
+              updatedAt: new Date().toISOString(),
+              updatedBy: currentUser.name || 'Atendente',
+              notes: 'Ordem de serviço aberta no sistema.',
             },
           ];
 
-      // Build checklist dictionary
-      const checklistObj: Record<string, { present: boolean; details: string }> = {};
-      customAccessories.forEach((acc) => {
-        const state = customAccMap[acc.id] || { present: false, details: '' };
-        checklistObj[acc.id] = { present: state.present, details: state.details.trim() };
-      });
-
-      // Legacy fallback keys
+      const checklistObj: any = {};
+      checklistObj.caseCover = {
+        present: !!customAccMap['acc-case']?.present,
+        details: customAccMap['acc-case']?.details?.trim() || '',
+      };
       checklistObj.chip1 = {
         present: !!customAccMap['acc-chip-1']?.present,
         details: customAccMap['acc-chip-1']?.details?.trim() || '',
@@ -806,10 +728,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       checklistObj.memoryCard = {
         present: !!customAccMap['acc-memory-card']?.present,
         details: customAccMap['acc-memory-card']?.details?.trim() || '',
-      };
-      checklistObj.caseCover = {
-        present: !!customAccMap['acc-case']?.present,
-        details: customAccMap['acc-case']?.details?.trim() || '',
       };
       checklistObj.charger = {
         present: !!customAccMap['acc-charger']?.present,
@@ -877,6 +795,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           ? 'PAGO'
           : (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE'),
         status: initialStatus,
+        archivedLocation: (initialStatus === 'ARQUIVADO' || archivedLocation.trim()) ? (archivedLocation.trim() || undefined) : undefined,
         deliveredAt: (initialStatus === 'ENTREGUE' || initialStatus === 'CONCLUIDO')
           ? (orderToEdit?.deliveredAt || new Date().toISOString())
           : orderToEdit?.deliveredAt,
@@ -911,80 +830,38 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? cleanPhoneForWhatsApp(selectedCustomer.whatsapp || selectedCustomer.phone)
     : '';
 
+  if (!isOpen) return null;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-2 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-150 cursor-pointer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-150 cursor-pointer"
       onClick={onClose}
     >
-      {/* Main Proportional Container */}
+      {/* Main Container matching the reference image layout */}
       <div
-        className={`w-full max-w-[99vw] 2xl:max-w-[1720px] h-[98vh] max-h-[98vh] rounded-2xl border flex flex-col overflow-hidden cursor-default ${
-          isDark
-            ? 'bg-[#060e22] border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.18)] text-slate-100'
-            : 'bg-white border-slate-200 shadow-2xl text-slate-900'
-        }`}
+        className="w-full max-w-[99vw] 2xl:max-w-[1720px] h-[98vh] max-h-[98vh] rounded-3xl border-2 border-blue-600/40 shadow-[0_0_50px_rgba(37,99,235,0.25)] flex flex-col overflow-hidden cursor-default bg-[#040a18] text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 border-b shrink-0 flex items-center justify-between ${
-            isDark
-              ? 'bg-[#07132e]/95 border-slate-800/90'
-              : 'bg-slate-50 border-slate-200'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/30 shrink-0">
-              <Wrench className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+        <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-blue-900/40 shrink-0 flex items-center justify-between bg-[#061026]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.6)] shrink-0">
+              <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2
-                  className={`text-xs sm:text-sm font-black tracking-tight ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}
-                >
-                  {orderToEdit
-                    ? 'Editar Ordem de Serviço'
-                    : 'Nova Ordem de Serviço'}
-                </h2>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    isDark
-                      ? 'bg-[#0c1f44] text-cyan-400 border-cyan-500/50 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}
-                >
-                  OS #{nextOrderNumber}
-                </span>
-                {selectedCustomer && (
-                  <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-400">
-                    • Cliente:{' '}
-                    <strong className="text-slate-200">
-                      {selectedCustomer.name}
-                    </strong>
-                  </span>
-                )}
-                {(brand || model) && (
-                  <span className="hidden xl:inline-flex items-center gap-1 text-[11px] text-slate-400">
-                    • Aparelho:{' '}
-                    <strong className="text-slate-200">
-                      {brand} {model}
-                    </strong>
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
+                {orderToEdit ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}
+              </h2>
+              <span className="px-3 py-0.5 rounded-full text-xs font-black bg-[#07193b] text-cyan-400 border border-cyan-500/60 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                OS #{nextOrderNumber}
+              </span>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center transition-all cursor-pointer shadow-xs ${
-              isDark
-                ? 'bg-[#0a162e] border-slate-700/80 hover:bg-slate-800 text-slate-400 hover:text-white'
-                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-800'
-            }`}
+            className="w-8 h-8 rounded-xl border border-slate-700/80 bg-[#07132a] hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
             title="Fechar (Esc)"
           >
             <X className="w-4 h-4" />
@@ -993,20 +870,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
         {/* Global Error Notice if any */}
         {error && (
-          <div className="mx-3 mt-1.5 p-1.5 bg-rose-950/50 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs shrink-0">
+          <div className="mx-4 mt-2 p-2 bg-rose-950/70 text-rose-300 border border-rose-500/50 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm shrink-0">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Main 3-Column Proportional Grid Body (Non-scrolling on desktop) */}
-        <div
-          className={`flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-2.5 p-2 sm:p-2.5 overflow-hidden ${
-            isDark
-              ? 'bg-gradient-to-b from-[#060e22] via-[#071129] to-[#050c1e]'
-              : 'bg-slate-50/70'
-          }`}
-        >
+        {/* Main 3-Column Proportional Grid Body */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2 p-2 overflow-hidden bg-[#030814]">
           {/* COLUMN 1: CLIENTE & EQUIPAMENTO */}
           <OrderClientDeviceSection
             isDark={isDark}
@@ -1125,38 +996,34 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             initialStatus={initialStatus}
             setInitialStatus={setInitialStatus}
             statusChoices={dynamicStatusChoices}
+            archivedLocation={archivedLocation}
+            setArchivedLocation={setArchivedLocation}
           />
         </div>
 
         {/* Bottom Action Footer Bar */}
-        <div
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 border-t shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 ${
-            isDark
-              ? 'bg-[#07132e]/95 border-slate-800/90'
-              : 'bg-slate-50 border-slate-200'
-          }`}
-        >
-          <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0">
-            <span className="font-bold text-white truncate max-w-[150px] sm:max-w-[200px]">
+        <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-t border-blue-900/40 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#061026]">
+          <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0 flex-wrap">
+            <span className="font-bold text-white">
               {selectedCustomer ? selectedCustomer.name : 'Cliente não selecionado'}
             </span>
             <span className="text-slate-500">•</span>
-            <span className="text-slate-400 truncate max-w-[150px]">
-              {brand || model ? `${brand} ${model}` : 'Sem aparelho'}
+            <span className="text-slate-400">
+              {brand && model ? `${brand} ${model}` : 'Sem aparelho'}
             </span>
             <span className="text-slate-500">•</span>
-            <span className="font-bold text-emerald-400">
+            <span className="font-black text-emerald-400">
               Total: {formatCurrency(finalOrderTotal)}
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none">
+          <div className="flex items-center gap-3 shrink-0">
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={printAfterCreate}
                 onChange={(e) => setPrintAfterCreate(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-[#091632] border-slate-700 text-blue-600 focus:ring-0 cursor-pointer accent-blue-600"
+                className="w-4 h-4 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
               />
               <span>Imprimir comprovante</span>
             </label>
@@ -1164,7 +1031,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg border border-slate-700/80 bg-slate-800/50 hover:bg-slate-800 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-xl border border-slate-700 bg-[#08152e] hover:bg-[#0c1e40] text-slate-300 hover:text-white font-black text-xs transition-colors cursor-pointer"
             >
               Cancelar
             </button>
@@ -1172,9 +1039,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <button
               type="button"
               onClick={() => handleSubmit()}
-              className="px-4 sm:px-5 py-1.5 rounded-lg font-black text-xs text-white bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-md shadow-blue-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-6 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-4 h-4" />
               <span>
                 {orderToEdit ? 'Salvar Alterações' : 'Criar Ordem de Serviço'}
               </span>
@@ -1183,7 +1050,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         </div>
       </div>
 
-      {/* Full Normal Customer Registration / Edit Modal */}
+      {/* Full Customer Registration / Edit Modal */}
       {showFullCustomerModal && (
         <CustomerModal
           isOpen={showFullCustomerModal}
@@ -1198,7 +1065,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         />
       )}
 
-      {/* Full Normal Product Registration Modal directly from Order */}
+      {/* Full Product Registration Modal directly from Order */}
       {showProductModalInOrder && (
         <ProductModal
           isOpen={showProductModalInOrder}

@@ -76,6 +76,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { ThermalOrderReceipt } from '../orders/ThermalOrderReceipt';
 import { initialCompanySettings } from '../../services/mockData';
 import { SystemFormatTab } from './SystemFormatTab';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 const samplePreviewOrder: ServiceOrder = {
   id: 'os-sample-preview',
@@ -220,6 +221,22 @@ export const SettingsView: React.FC = () => {
   const [editingOsColor, setEditingOsColor] = useState('BLUE');
   const [draggedOsIndex, setDraggedOsIndex] = useState<number | null>(null);
 
+  // In-App Confirm Dialog State (Reliable across all browser/iframe environments)
+  const [confirmActionModal, setConfirmActionModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   const users = StorageService.getUsers();
   const auditLogs = StorageService.getAuditLogs();
   const currentUser = StorageService.getCurrentUser();
@@ -260,24 +277,30 @@ export const SettingsView: React.FC = () => {
       alert('Faça login com uma conta Google para restaurar do Google Drive.');
       return;
     }
-    if (!confirm('Deseja realmente restaurar os dados do backup salvo no seu Google Drive? Os dados atuais da tela serão substituídos pela versão da nuvem.')) {
-      return;
-    }
-    setIsDriveSyncing(true);
-    setDriveSyncMessage(null);
-    try {
-      const res = await GoogleDriveBackupService.restoreBackupFromGoogleDrive(authSession.email);
-      if (res.success) {
-        alert('Backup do Google Drive restaurado com sucesso! A página será atualizada.');
-        window.location.reload();
-      } else {
-        alert(res.error || 'Não foi possível restaurar do Google Drive.');
-      }
-    } catch (e: any) {
-      alert(e.message || 'Erro ao restaurar do Google Drive.');
-    } finally {
-      setIsDriveSyncing(false);
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar do Google Drive',
+      message: 'Deseja realmente restaurar os dados do backup salvo no seu Google Drive? Os dados atuais da tela serão substituídos pela versão da nuvem.',
+      confirmText: 'Restaurar Backup',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: async () => {
+        setIsDriveSyncing(true);
+        setDriveSyncMessage(null);
+        try {
+          const res = await GoogleDriveBackupService.restoreBackupFromGoogleDrive(authSession.email);
+          if (res.success) {
+            window.location.reload();
+          } else {
+            alert(res.error || 'Não foi possível restaurar do Google Drive.');
+          }
+        } catch (e: any) {
+          alert(e.message || 'Erro ao restaurar do Google Drive.');
+        } finally {
+          setIsDriveSyncing(false);
+        }
+      },
+    });
   };
 
   const showSuccessFeedback = () => {
@@ -294,14 +317,22 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleResetToPhotoDefault = () => {
-    if (confirm('Deseja restaurar as configurações padrão da empresa fictícia (TechNova Informática & Celulares)?')) {
-      const reset: CompanySettings = {
-        ...initialCompanySettings,
-      };
-      setCompany(reset);
-      StorageService.saveCompanySettings(reset);
-      showSuccessFeedback();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Padrão da Loja',
+      message: 'Deseja restaurar as configurações padrão da empresa (TechNova Informática & Celulares)?',
+      confirmText: 'Restaurar',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      onConfirm: () => {
+        const reset: CompanySettings = {
+          ...initialCompanySettings,
+        };
+        setCompany(reset);
+        StorageService.saveCompanySettings(reset);
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleSaveSupplier = (e: React.FormEvent) => {
@@ -348,11 +379,20 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeleteSupplier = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este fornecedor?')) {
-      StorageService.deleteSupplier(id);
-      setSuppliers(StorageService.getSuppliers());
-      showSuccessFeedback();
-    }
+    const sup = suppliers.find((s) => s.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Excluir Fornecedor',
+      message: `Tem certeza que deseja excluir o fornecedor "${sup?.name || 'selecionado'}"?`,
+      confirmText: 'Excluir Fornecedor',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        StorageService.deleteSupplier(id);
+        setSuppliers(StorageService.getSuppliers());
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleSavePurchasesConfig = (e: React.FormEvent) => {
@@ -422,20 +462,37 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeleteDeviceType = (id: string) => {
-    if (confirm('Deseja realmente remover este tipo de equipamento?')) {
-      const updated = deviceTypes.filter((t) => t.id !== id);
-      setDeviceTypes(updated);
-      StorageService.saveCustomDeviceTypes(updated);
-      showSuccessFeedback();
-    }
+    const dt = deviceTypes.find((t) => t.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Excluir Tipo de Equipamento',
+      message: `Deseja realmente remover o tipo de equipamento "${dt?.name || 'selecionado'}"?`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = deviceTypes.filter((t) => t.id !== id);
+        setDeviceTypes(updated);
+        StorageService.saveCustomDeviceTypes(updated);
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleResetDeviceTypes = () => {
-    if (confirm('Restaurar os tipos de equipamentos padrão do sistema?')) {
-      setDeviceTypes(defaultCustomDeviceTypes);
-      StorageService.saveCustomDeviceTypes(defaultCustomDeviceTypes);
-      showSuccessFeedback();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Tipos de Equipamentos',
+      message: 'Restaurar os tipos de equipamentos padrão do sistema?',
+      confirmText: 'Restaurar Padrão',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      onConfirm: () => {
+        setDeviceTypes(defaultCustomDeviceTypes);
+        StorageService.saveCustomDeviceTypes(defaultCustomDeviceTypes);
+        showSuccessFeedback();
+      },
+    });
   };
 
   // --- 2. ACCESSORIES CHECKLIST MANAGEMENT ---
@@ -488,20 +545,37 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeleteAccessory = (id: string) => {
-    if (confirm('Deseja realmente remover este item de acessório do checklist?')) {
-      const updated = accessories.filter((a) => a.id !== id);
-      setAccessories(updated);
-      StorageService.saveCustomAccessories(updated);
-      showSuccessFeedback();
-    }
+    const acc = accessories.find((a) => a.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Remover Item de Acessório',
+      message: `Deseja realmente remover o item "${acc?.name || 'selecionado'}" do checklist?`,
+      confirmText: 'Remover',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = accessories.filter((a) => a.id !== id);
+        setAccessories(updated);
+        StorageService.saveCustomAccessories(updated);
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleResetAccessories = () => {
-    if (confirm('Restaurar o checklist de acessórios padrão de fábrica organizados por tipo de equipamento?')) {
-      setAccessories(defaultCustomAccessories);
-      StorageService.saveCustomAccessories(defaultCustomAccessories);
-      showSuccessFeedback();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Checklist Padrão',
+      message: 'Restaurar o checklist de acessórios padrão de fábrica organizados por tipo de equipamento?',
+      confirmText: 'Restaurar',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      onConfirm: () => {
+        setAccessories(defaultCustomAccessories);
+        StorageService.saveCustomAccessories(defaultCustomAccessories);
+        showSuccessFeedback();
+      },
+    });
   };
 
   // --- 3. PAYMENT METHODS MANAGEMENT ---
@@ -546,20 +620,37 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeletePayment = (id: string) => {
-    if (confirm('Deseja realmente remover esta forma de pagamento?')) {
-      const updated = paymentMethods.filter((p) => p.id !== id);
-      setPaymentMethods(updated);
-      StorageService.saveCustomPaymentMethods(updated);
-      showSuccessFeedback();
-    }
+    const pm = paymentMethods.find((p) => p.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Remover Forma de Pagamento',
+      message: `Deseja realmente remover a forma de pagamento "${pm?.name || 'selecionada'}"?`,
+      confirmText: 'Remover',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = paymentMethods.filter((p) => p.id !== id);
+        setPaymentMethods(updated);
+        StorageService.saveCustomPaymentMethods(updated);
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleResetPayments = () => {
-    if (confirm('Restaurar as formas de pagamento padrão?')) {
-      setPaymentMethods(defaultCustomPaymentMethods);
-      StorageService.saveCustomPaymentMethods(defaultCustomPaymentMethods);
-      showSuccessFeedback();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Formas de Pagamento',
+      message: 'Restaurar as formas de pagamento padrão do sistema?',
+      confirmText: 'Restaurar Padrão',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      onConfirm: () => {
+        setPaymentMethods(defaultCustomPaymentMethods);
+        StorageService.saveCustomPaymentMethods(defaultCustomPaymentMethods);
+        showSuccessFeedback();
+      },
+    });
   };
 
   // --- 4. OS STATUSES MANAGEMENT ---
@@ -671,20 +762,41 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleResetOSStatuses = () => {
-    if (confirm('Deseja restaurar a ordem e lista de status padrão das Ordens de Serviço?')) {
-      setOsStatuses(defaultCustomOSStatuses);
-      StorageService.saveCustomOSStatuses(defaultCustomOSStatuses);
-      showSuccessFeedback();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Status Padrão',
+      message: 'Deseja restaurar a ordem e lista de status padrão das Ordens de Serviço?',
+      confirmText: 'Restaurar Padrão',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      onConfirm: () => {
+        setOsStatuses(defaultCustomOSStatuses);
+        StorageService.saveCustomOSStatuses(defaultCustomOSStatuses);
+        showSuccessFeedback();
+      },
+    });
   };
 
   const handleDeleteOSStatus = (id: string) => {
-    if (confirm('Deseja realmente excluir este status de OS?')) {
-      const updated = osStatuses.filter((s) => s.id !== id);
-      setOsStatuses(updated);
-      StorageService.saveCustomOSStatuses(updated);
-      showSuccessFeedback();
-    }
+    const st = osStatuses.find((s) => s.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Excluir Status de OS',
+      message: `Deseja realmente excluir o status "${st?.label || 'selecionado'}" das Ordens de Serviço?`,
+      confirmText: 'Sim, Excluir Status',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = osStatuses.filter((s) => s.id !== id);
+        setOsStatuses(updated);
+        StorageService.saveCustomOSStatuses(updated);
+        if (editingOsId === id) {
+          setEditingOsId(null);
+          setEditingOsLabel('');
+        }
+        showSuccessFeedback();
+      },
+    });
   };
 
   // --- 5. CATEGORIES MANAGEMENT ---
@@ -717,12 +829,21 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleDeleteCategory = (id: string) => {
-    if (confirm('Deseja realmente remover esta categoria?')) {
-      const updated = categories.filter((c) => c.id !== id);
-      setCategories(updated);
-      StorageService.saveCustomCategories(updated);
-      showSuccessFeedback();
-    }
+    const cat = categories.find((c) => c.id === id);
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Remover Categoria',
+      message: `Deseja realmente remover a categoria "${cat?.name || 'selecionada'}"?`,
+      confirmText: 'Remover',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        const updated = categories.filter((c) => c.id !== id);
+        setCategories(updated);
+        StorageService.saveCustomCategories(updated);
+        showSuccessFeedback();
+      },
+    });
   };
 
   // Export Backup
@@ -763,15 +884,18 @@ export const SettingsView: React.FC = () => {
 
   // Reset to Demo Data
   const handleResetDemo = () => {
-    if (
-      confirm(
-        'Deseja recarregar a base de dados de demonstração da MSP Informática? Todos os dados atuais serão substituídos pelos dados iniciais da loja.'
-      )
-    ) {
-      StorageService.resetToDemoData();
-      alert('Dados restaurados com sucesso!');
-      window.location.reload();
-    }
+    setConfirmActionModal({
+      isOpen: true,
+      title: 'Restaurar Dados Demo',
+      message: 'Deseja recarregar a base de dados de demonstração da MSP Informática? Todos os dados atuais serão substituídos pelos dados iniciais da loja.',
+      confirmText: 'Recarregar Demo',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      onConfirm: () => {
+        StorageService.resetToDemoData();
+        window.location.reload();
+      },
+    });
   };
 
   // System Formatter (Zerar Sistema) Handlers
@@ -3432,6 +3556,21 @@ export const SettingsView: React.FC = () => {
           onExportBackup={handleExportBackup}
         />
       )}
+
+      {/* Global In-App Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmActionModal.isOpen}
+        title={confirmActionModal.title}
+        message={confirmActionModal.message}
+        confirmText={confirmActionModal.confirmText}
+        cancelText={confirmActionModal.cancelText}
+        isDestructive={confirmActionModal.isDestructive}
+        onConfirm={() => {
+          confirmActionModal.onConfirm();
+          setConfirmActionModal((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmActionModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

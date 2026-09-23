@@ -374,6 +374,7 @@ export const AdminBackendService = {
     docId?: string;
     uid?: string;
     email?: string;
+    password?: string;
     nome?: string;
     empresa?: string;
     telefone?: string;
@@ -396,6 +397,16 @@ export const AdminBackendService = {
     return AdminBackendService.request('/api/admin/delete-user', {
       method: 'POST',
       body: JSON.stringify(params),
+    });
+  },
+
+  /**
+   * Purges all non-super-admin users from database and leaves only Super Admin.
+   */
+  async purgeNonAdmins(): Promise<{ success: boolean; deletedDocsCount: number; deletedAuthCount: number; kept: string[] }> {
+    return AdminBackendService.request('/api/admin/purge-non-admins', {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   },
 

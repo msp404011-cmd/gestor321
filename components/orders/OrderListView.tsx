@@ -28,6 +28,9 @@ import {
   Layers,
   Puzzle,
   X,
+  Box,
+  Archive,
+  MapPin,
 } from 'lucide-react';
 import { ServiceOrder, OrderStatus, CustomOSStatusItem } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -119,17 +122,32 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   const [orderToDelete, setOrderToDelete] = useState<ServiceOrder | null>(null);
   const [orderForDelivery, setOrderForDelivery] = useState<ServiceOrder | null>(null);
   const [orderForStatusChange, setOrderForStatusChange] = useState<ServiceOrder | null>(null);
+  const [orderForArchiveLocation, setOrderForArchiveLocation] = useState<ServiceOrder | null>(null);
+  const [archiveLocationInput, setArchiveLocationInput] = useState('');
   const [customOSStatuses, setCustomOSStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses());
+  const [orders, setOrders] = useState<ServiceOrder[]>(() => StorageService.getOrders());
 
   useEffect(() => {
     const unsub = StorageService.subscribe(() => {
       setCustomOSStatuses(StorageService.getCustomOSStatuses());
+      setOrders(StorageService.getOrders());
     });
     return unsub;
   }, []);
 
-  const orders = StorageService.getOrders();
   const currentUser = StorageService.getCurrentUser();
+
+  const isArchivedStatus = (st?: string) => {
+    if (!st) return false;
+    const clean = st.trim().toUpperCase();
+    return clean === 'ARQUIVADO' || clean === 'ARQUIVO' || clean.includes('ARQUIV') || getCanonicalStatus(st) === 'ARQUIVADO';
+  };
+
+  const isDeliveredStatus = (st?: string) => {
+    if (!st) return false;
+    const clean = st.trim().toUpperCase();
+    return clean === 'ENTREGUE' || clean === 'CONCLUIDO' || clean === 'CONCLUÍDO' || getCanonicalStatus(st) === 'ENTREGUE';
+  };
 
   // Helper to reliably compute the repair/service total of each OS
   const getOrderAmount = (o: ServiceOrder) => {
@@ -179,6 +197,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
       else if (codeUpper === 'PRONTO') icon = <CheckCircle2 className="w-4 h-4 text-white" />;
       else if (codeUpper === 'ENTREGUE') icon = <Package className="w-4 h-4 text-white" />;
       else if (codeUpper === 'GARANTIA') icon = <Layers className="w-4 h-4 text-white" />;
+      else if (codeUpper === 'ARQUIVADO') icon = <Archive className="w-4 h-4 text-white" />;
 
       const labelParts = s.label.split(' ');
       const line1 = labelParts.length > 2 ? labelParts.slice(0, Math.ceil(labelParts.length / 2)).join(' ') : labelParts[0] || s.label;
@@ -212,8 +231,14 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   // Status Change handler
   const handleUpdateOrderStatus = (order: ServiceOrder, newStatus: OrderStatus) => {
     setStatusMenuOpenForId(null);
-    if (newStatus === 'ENTREGUE') {
+    if (isDeliveredStatus(newStatus as string)) {
       setOrderForDelivery(order);
+      return;
+    }
+
+    if (isArchivedStatus(newStatus as string)) {
+      setArchiveLocationInput(order.archivedLocation || '');
+      setOrderForArchiveLocation(order);
       return;
     }
 
@@ -232,6 +257,30 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
       ],
     };
     StorageService.saveOrder(updated);
+    setOrders(StorageService.getOrders());
+  };
+
+  const handleConfirmArchiveLocation = (customLocation?: string) => {
+    if (!orderForArchiveLocation) return;
+    const loc = (customLocation !== undefined ? customLocation : archiveLocationInput).trim();
+    const updated: ServiceOrder = {
+      ...orderForArchiveLocation,
+      status: 'ARQUIVADO',
+      archivedLocation: loc || undefined,
+      statusHistory: [
+        ...(orderForArchiveLocation.statusHistory || []),
+        {
+          status: 'ARQUIVADO',
+          changedAt: new Date().toISOString(),
+          changedBy: currentUser?.name || 'Administrador',
+          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}` : ''}`,
+        },
+      ],
+    };
+    StorageService.saveOrder(updated);
+    setOrders(StorageService.getOrders());
+    setOrderForArchiveLocation(null);
+    setArchiveLocationInput('');
   };
 
   // Drag and Drop Handlers for Kanban mode
@@ -283,6 +332,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         o.model.toLowerCase().includes(q) ||
         (o.imei && o.imei.toLowerCase().includes(q)) ||
         (o.serialNumber && o.serialNumber.toLowerCase().includes(q)) ||
+        (o.archivedLocation && o.archivedLocation.toLowerCase().includes(q)) ||
         o.clientDefect.toLowerCase().includes(q) ||
         (o.technicalDiagnosis && o.technicalDiagnosis.toLowerCase().includes(q)) ||
         (o.requestedService && o.requestedService.toLowerCase().includes(q)) ||
@@ -347,6 +397,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         o.model.toLowerCase().includes(q) ||
         (o.imei && o.imei.toLowerCase().includes(q)) ||
         (o.serialNumber && o.serialNumber.toLowerCase().includes(q)) ||
+        (o.archivedLocation && o.archivedLocation.toLowerCase().includes(q)) ||
         o.clientDefect.toLowerCase().includes(q) ||
         (o.technicalDiagnosis && o.technicalDiagnosis.toLowerCase().includes(q)) ||
         (o.requestedService && o.requestedService.toLowerCase().includes(q)) ||
@@ -421,6 +472,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
       else if (codeUpper === 'ATRASADO') icon = <AlertTriangle className="w-4 h-4 text-rose-400" />;
       else if (codeUpper === 'PRONTO') icon = <Check className="w-4 h-4 text-emerald-400" />;
       else if (codeUpper === 'ENTREGUE') icon = <Package className="w-4 h-4 text-teal-400" />;
+      else if (codeUpper === 'ARQUIVADO') icon = <Archive className="w-4 h-4 text-zinc-300" />;
 
       return {
         id: codeUpper,
@@ -795,9 +847,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           : 'bg-slate-50 border-slate-200 hover:border-blue-400 hover:bg-blue-50'
                       }`}
                     >
-                      {/* Left: Customer + Equipment + Defect */}
+                      {/* Left: Customer + Equipment + Defect + Archived Location Badge */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-extrabold text-xs text-blue-400">
                             OS #{order.orderNumber}
                           </span>
@@ -807,8 +859,14 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           <span className="text-[10px] text-slate-400 font-mono">
                             {order.customerPhone}
                           </span>
+                          {order.archivedLocation && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 font-black text-[10px] border border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse">
+                              <Box className="w-3 h-3 text-slate-950 shrink-0" />
+                              <span>LOCAL: {order.archivedLocation}</span>
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-300">
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-300 flex-wrap">
                           <span className="font-medium text-slate-400">
                             {order.brand} {order.model}
                           </span>
@@ -1068,20 +1126,44 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           </div>
                         </td>
 
-                        {/* 5. STATUS (Clickable pill opening Quick Status Dialog) */}
+                        {/* 5. STATUS & PROMINENT ARCHIVED LOCATION (Clickable pill opening Quick Status Dialog) */}
                         <td className="py-2.5 px-3 align-middle">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOrderForStatusChange(os);
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] lg:text-[11px] font-bold border transition-all cursor-pointer shadow-xs whitespace-nowrap hover:scale-105 active:scale-95 ${badge.bg}`}
-                            title="Clique para mudar o status da OS"
-                          >
-                            {badge.icon}
-                            <span>{badge.label}</span>
-                          </button>
+                          <div className="flex flex-col items-start gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOrderForStatusChange(os);
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] lg:text-[11px] font-bold border transition-all cursor-pointer shadow-xs whitespace-nowrap hover:scale-105 active:scale-95 ${badge.bg}`}
+                              title="Clique para mudar o status da OS"
+                            >
+                              {badge.icon}
+                              <span>{badge.label}</span>
+                            </button>
+
+                            {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOrderForArchiveLocation(os);
+                                  setArchiveLocationInput(os.archivedLocation || '');
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all shadow-md cursor-pointer border max-w-[210px] truncate ${
+                                  os.archivedLocation
+                                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.5)] hover:from-amber-300 hover:to-amber-400 hover:scale-105'
+                                    : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-600 text-amber-300 hover:text-amber-200'
+                                }`}
+                                title="Localização física no arquivo. Clique para alterar."
+                              >
+                                <Box className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                                <span className="truncate">
+                                  {os.archivedLocation ? `📍 LOCAL: ${os.archivedLocation.toUpperCase()}` : '📍 DEFINIR LOCAL...'}
+                                </span>
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {/* 6. VALOR */}
@@ -1236,6 +1318,31 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                         <strong className="text-cyan-400 text-[10px] uppercase">Serviço:</strong> {os.requestedService || os.performedService || 'Em análise'}
                       </p>
                     </div>
+
+                    {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
+                      <div className="mb-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOrderForArchiveLocation(os);
+                            setArchiveLocationInput(os.archivedLocation || '');
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-md ${
+                            os.archivedLocation
+                              ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                              : 'bg-zinc-900 border-zinc-600 text-amber-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Box className="w-4 h-4 text-slate-950 shrink-0" />
+                            <span className="uppercase tracking-wider">LOCAL NO ARQUIVO:</span>
+                            <span className="truncate underline font-extrabold">{os.archivedLocation || 'Definir local...'}</span>
+                          </div>
+                          <Edit2 className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                        </button>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between pt-1 border-t border-slate-700/40">
                       <div>
@@ -1460,6 +1567,32 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                             <strong className="text-slate-400">Defeito:</strong> {os.clientDefect || 'Não especificado'}
                           </p>
 
+                          {/* Archived Location tag if present or status is ARQUIVADO */}
+                          {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOrderForArchiveLocation(os);
+                                setArchiveLocationInput(os.archivedLocation || '');
+                              }}
+                              className={`w-full mb-2 flex items-center justify-between p-2 rounded-xl text-[11px] font-black text-left transition-all cursor-pointer border shadow-sm ${
+                                os.archivedLocation
+                                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] hover:scale-[1.02]'
+                                  : 'bg-zinc-900/90 hover:bg-zinc-800 border-zinc-700 text-amber-300'
+                              }`}
+                              title="Clique para alterar a localização física no arquivo"
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <Box className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                                <span className="truncate">
+                                  {os.archivedLocation ? `📍 LOCAL: ${os.archivedLocation.toUpperCase()}` : '📍 DEFINIR LOCAL...'}
+                                </span>
+                              </div>
+                              <Edit2 className="w-3 h-3 text-slate-950 shrink-0" />
+                            </button>
+                          )}
+
                           {/* Price & Status */}
                           <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-1.5">
                             <span className="text-xs font-bold text-emerald-400">
@@ -1562,7 +1695,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                     onClick={() => {
                       const targetOrder = orderForStatusChange;
                       setOrderForStatusChange(null);
-                      handleUpdateOrderStatus(targetOrder, item.code as OrderStatus);
+                      const targetCode = item.code || item.id || item.label;
+                      if (isArchivedStatus(targetCode)) {
+                        setArchiveLocationInput(targetOrder.archivedLocation || '');
+                        setOrderForArchiveLocation(targetOrder);
+                      } else if (isDeliveredStatus(targetCode)) {
+                        setOrderForDelivery(targetOrder);
+                      } else {
+                        handleUpdateOrderStatus(targetOrder, (item.code || item.id) as OrderStatus);
+                      }
                     }}
                     className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer ${
                       isCurrent
@@ -1609,6 +1750,113 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         onClose={() => setOrderForDelivery(null)}
         onSuccess={() => setOrderForDelivery(null)}
       />
+
+      {/* Archive / Location Selection Modal */}
+      {orderForArchiveLocation && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs cursor-pointer animate-in fade-in duration-150"
+          onClick={() => setOrderForArchiveLocation(null)}
+        >
+          <div
+            className={`w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl border space-y-4 cursor-default animate-in zoom-in-95 duration-150 ${
+              isDark
+                ? 'bg-[#0a1426] border-zinc-500/70 text-white shadow-[0_0_40px_rgba(245,158,11,0.25)]'
+                : 'bg-white border-zinc-400 text-slate-900 shadow-xl'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-start justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-600 text-amber-400 flex items-center justify-center font-black text-base shrink-0 shadow-inner">
+                  <Box className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-base leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Localização no Arquivo
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    OS #{orderForArchiveLocation.orderNumber} • {orderForArchiveLocation.brand} {orderForArchiveLocation.model}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOrderForArchiveLocation(null)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Onde está guardado o aparelho? (Ex: Gaveta, Prateleira, Caixa)
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={archiveLocationInput}
+                  onChange={(e) => setArchiveLocationInput(e.target.value)}
+                  placeholder="Ex: Gaveta 1, Prateleira B, Armário 2..."
+                  className="w-full px-3 py-2.5 bg-[#040c1e] border border-zinc-500/80 focus:border-amber-400 rounded-xl text-sm font-bold text-amber-300 placeholder-slate-500 focus:outline-hidden font-sans shadow-inner"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleConfirmArchiveLocation();
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Quick Suggestion Chips */}
+              <div>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">
+                  Sugestões Rápidas:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['Gaveta 1', 'Gaveta 2', 'Gaveta 3', 'Prateleira A', 'Prateleira B', 'Armário 1', 'Armário 2', 'Caixa 1', 'Caixa 2', 'Galpão'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setArchiveLocationInput(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                        archiveLocationInput === preset
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-black scale-105 shadow-sm'
+                          : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-200'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={`pt-3 border-t flex items-center justify-end gap-2 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <button
+                type="button"
+                onClick={() => setOrderForArchiveLocation(null)}
+                className={`px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmArchiveLocation()}
+                className="px-5 py-2 text-xs font-black rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>Salvar Localização</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Wrench, ChevronRight, CheckCircle2, Clock, AlertTriangle, PlayCircle, FileText, Send } from 'lucide-react';
+import { Wrench, ChevronRight, CheckCircle2, Clock, AlertTriangle, PlayCircle, FileText, Send, Box } from 'lucide-react';
 import { ServiceOrder } from '../../types';
 import { AnimatedCountNumber } from './AnimatedCountNumber';
+import { getCanonicalStatus } from '../../services/formatters';
 
 interface AnimatedDonutChartProps {
   orders: ServiceOrder[];
@@ -13,12 +14,11 @@ interface AnimatedDonutChartProps {
 interface StatusConfig {
   key: string;
   label: string;
-  shortLabel: string;
   color: string;
-  bgLight: string;
   bgDark: string;
-  borderLight: string;
+  bgLight: string;
   borderDark: string;
+  borderLight: string;
   icon: React.ReactNode;
 }
 
@@ -33,68 +33,72 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
     {
       key: 'NOVA',
       label: 'Nova',
-      shortLabel: 'Nova',
-      color: '#06b6d4',
-      bgLight: 'bg-cyan-50 text-cyan-700',
-      bgDark: 'bg-cyan-950/50 text-cyan-300',
+      color: '#06b6d4', // Cyan
+      bgLight: 'bg-cyan-50 text-cyan-800',
+      bgDark: 'bg-cyan-950/40 text-cyan-300',
       borderLight: 'border-cyan-200',
       borderDark: 'border-cyan-500/30',
-      icon: <FileText className="w-3 h-3" />,
+      icon: <FileText className="w-3.5 h-3.5 text-cyan-400" />,
     },
     {
       key: 'ORCAMENTO',
       label: 'Orçamento',
-      shortLabel: 'Orç.',
-      color: '#eab308',
-      bgLight: 'bg-amber-50 text-amber-700',
-      bgDark: 'bg-amber-950/50 text-amber-300',
+      color: '#eab308', // Amber
+      bgLight: 'bg-amber-50 text-amber-800',
+      bgDark: 'bg-amber-950/40 text-amber-300',
       borderLight: 'border-amber-200',
       borderDark: 'border-amber-500/30',
-      icon: <Clock className="w-3 h-3" />,
+      icon: <Clock className="w-3.5 h-3.5 text-amber-400" />,
     },
     {
       key: 'AGUARDANDO_APROVACAO',
-      label: 'Aguard. Aprovação',
-      shortLabel: 'Aguard.',
-      color: '#f97316',
-      bgLight: 'bg-orange-50 text-orange-700',
-      bgDark: 'bg-orange-950/50 text-orange-300',
+      label: 'Aguardando Aprovação',
+      color: '#f97316', // Orange
+      bgLight: 'bg-orange-50 text-orange-800',
+      bgDark: 'bg-orange-950/40 text-orange-300',
       borderLight: 'border-orange-200',
       borderDark: 'border-orange-500/30',
-      icon: <AlertTriangle className="w-3 h-3" />,
+      icon: <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />,
     },
     {
       key: 'EM_ANDAMENTO',
       label: 'Em Manutenção',
-      shortLabel: 'Manut.',
-      color: '#a855f7',
-      bgLight: 'bg-purple-50 text-purple-700',
-      bgDark: 'bg-purple-950/50 text-purple-300',
+      color: '#a855f7', // Purple
+      bgLight: 'bg-purple-50 text-purple-800',
+      bgDark: 'bg-purple-950/40 text-purple-300',
       borderLight: 'border-purple-200',
       borderDark: 'border-purple-500/30',
-      icon: <PlayCircle className="w-3 h-3" />,
+      icon: <PlayCircle className="w-3.5 h-3.5 text-purple-400" />,
     },
     {
       key: 'PRONTA',
       label: 'Pronta',
-      shortLabel: 'Pronta',
-      color: '#10b981',
-      bgLight: 'bg-emerald-50 text-emerald-700',
-      bgDark: 'bg-emerald-950/50 text-emerald-300',
+      color: '#10b981', // Emerald
+      bgLight: 'bg-emerald-50 text-emerald-800',
+      bgDark: 'bg-emerald-950/40 text-emerald-300',
       borderLight: 'border-emerald-200',
       borderDark: 'border-emerald-500/30',
-      icon: <CheckCircle2 className="w-3 h-3" />,
+      icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />,
     },
     {
       key: 'ENTREGUE',
       label: 'Entregue',
-      shortLabel: 'Entregue',
-      color: '#3b82f6',
-      bgLight: 'bg-blue-50 text-blue-700',
-      bgDark: 'bg-blue-950/50 text-blue-300',
+      color: '#3b82f6', // Blue
+      bgLight: 'bg-blue-50 text-blue-800',
+      bgDark: 'bg-blue-950/40 text-blue-300',
       borderLight: 'border-blue-200',
       borderDark: 'border-blue-500/30',
-      icon: <Send className="w-3 h-3" />,
+      icon: <Send className="w-3.5 h-3.5 text-blue-400" />,
+    },
+    {
+      key: 'ARQUIVADO',
+      label: 'Arquivado',
+      color: '#71717a', // Zinc
+      bgLight: 'bg-zinc-100 text-zinc-800',
+      bgDark: 'bg-zinc-900/60 text-zinc-300',
+      borderLight: 'border-zinc-300',
+      borderDark: 'border-zinc-700/60',
+      icon: <Box className="w-3.5 h-3.5 text-zinc-400" />,
     },
   ];
 
@@ -105,15 +109,20 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
     });
 
     orders.forEach((o) => {
-      const st = o.status;
-      if (counts[st] !== undefined) {
-        counts[st]++;
-      } else if (st === 'PENDENTE' || st === 'ABERTA') {
-        counts['NOVA'] = (counts['NOVA'] || 0) + 1;
-      } else if (st === 'CONCLUIDA' || st === 'FINALIZADA') {
-        counts['PRONTA'] = (counts['PRONTA'] || 0) + 1;
+      const canonical = getCanonicalStatus(o.status as string);
+      if (counts[canonical] !== undefined) {
+        counts[canonical]++;
       } else {
-        counts['EM_ANDAMENTO'] = (counts['EM_ANDAMENTO'] || 0) + 1;
+        const raw = (o.status || '').toUpperCase();
+        if (raw === 'PENDENTE' || raw === 'ABERTA') {
+          counts['NOVA'] = (counts['NOVA'] || 0) + 1;
+        } else if (raw === 'PRONTO' || raw === 'CONCLUIDA' || raw === 'FINALIZADA') {
+          counts['PRONTA'] = (counts['PRONTA'] || 0) + 1;
+        } else if (raw === 'ARQUIVADA' || raw === 'ARQUIVADO') {
+          counts['ARQUIVADO'] = (counts['ARQUIVADO'] || 0) + 1;
+        } else {
+          counts['EM_ANDAMENTO'] = (counts['EM_ANDAMENTO'] || 0) + 1;
+        }
       }
     });
 
@@ -172,10 +181,10 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold tracking-tight truncate flex items-center gap-1.5">
-              <span>Ordens por Status</span>
+              <span>Ordens de Serviço por Status</span>
             </h2>
             <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              Distribuição do fluxo de serviços
+              Distribuição e fluxo de atendimentos
             </p>
           </div>
         </div>
@@ -194,9 +203,8 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
         </button>
       </div>
 
-      {/* Main Body: Donut + Interactive Metrics Grid */}
-      <div className="flex flex-col items-center gap-4 my-auto">
-        {/* Centered Donut SVG */}
+      {/* Main Body: Donut Centered */}
+      <div className="flex flex-col items-center justify-center my-1">
         <div className="relative flex items-center justify-center shrink-0">
           <svg
             width={size}
@@ -273,62 +281,73 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
             )}
           </div>
         </div>
+      </div>
 
-        {/* Status Grid: 2 Columns of beautiful, well-spaced Status Badges */}
-        <div className="grid grid-cols-2 gap-2 w-full">
-          {segments.map((seg) => {
-            const isHovered = hoveredKey === seg.key;
-            return (
-              <div
-                key={seg.key}
-                onMouseEnter={() => setHoveredKey(seg.key)}
-                onMouseLeave={() => setHoveredKey(null)}
-                onClick={() => onNavigate('ORDERS')}
-                className={`flex flex-col justify-between p-2 rounded-xl border transition-all duration-200 cursor-pointer ${
-                  isHovered
-                    ? isDark
-                      ? 'bg-purple-950/80 border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)] scale-[1.02]'
-                      : 'bg-purple-50 border-purple-400 shadow-sm scale-[1.02]'
-                    : isDark
-                    ? 'bg-[#0f172a]/70 border-slate-800 hover:border-slate-700 hover:bg-[#131d36]'
-                    : 'bg-slate-50/90 border-slate-200 hover:border-slate-300 hover:bg-slate-100/80'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1 mb-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform"
-                      style={{
-                        backgroundColor: seg.color,
-                        boxShadow: `0 0 6px ${seg.color}`,
-                        transform: isHovered ? 'scale(1.2)' : 'scale(1)',
-                      }}
-                    />
-                    <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                      {seg.label}
-                    </span>
-                  </div>
-
-                  <span className={`text-xs font-black shrink-0 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {seg.count}
+      {/* Status List: 2-Row clean layout where progress bar is underneath with zero text overlap */}
+      <div className="space-y-2 w-full mt-2">
+        {segments.map((seg) => {
+          const isHovered = hoveredKey === seg.key;
+          return (
+            <div
+              key={seg.key}
+              onMouseEnter={() => setHoveredKey(seg.key)}
+              onMouseLeave={() => setHoveredKey(null)}
+              onClick={() => onNavigate('ORDERS')}
+              className={`p-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+                isHovered
+                  ? isDark
+                    ? 'bg-purple-950/80 border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)] scale-[1.01]'
+                    : 'bg-purple-50 border-purple-400 shadow-sm scale-[1.01]'
+                  : isDark
+                  ? 'bg-[#0f172a]/70 border-slate-800/80 hover:border-slate-700 hover:bg-[#131d36]'
+                  : 'bg-slate-50/90 border-slate-200 hover:border-slate-300 hover:bg-slate-100/80'
+              }`}
+            >
+              {/* Row 1: Left has Icon + Dot + Status Name (Never clipped/covered); Right has Count + % */}
+              <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform"
+                    style={{
+                      backgroundColor: seg.color,
+                      boxShadow: `0 0 6px ${seg.color}`,
+                      transform: isHovered ? 'scale(1.25)' : 'scale(1)',
+                    }}
+                  />
+                  <span className="shrink-0">{seg.icon}</span>
+                  <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    {seg.label}
                   </span>
                 </div>
 
-                {/* Micro Progress Bar */}
-                <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${seg.exactPct}%`,
-                      backgroundColor: seg.color,
-                      boxShadow: isHovered ? `0 0 8px ${seg.color}` : 'none',
-                    }}
-                  />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {seg.count} OS
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                    isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {seg.pct}%
+                  </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Row 2: Dedicated full-width progress bar completely beneath the text */}
+              <div className={`w-full h-1.5 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/90' : 'bg-slate-200'}`}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${seg.exactPct}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    backgroundColor: seg.color,
+                    boxShadow: isHovered ? `0 0 8px ${seg.color}` : 'none',
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer Info */}
@@ -337,7 +356,7 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
       }`}>
         <span className="flex items-center gap-1.5 font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>{segments.find(s => s.key === 'EM_ANDAMENTO')?.count || 0} em manutenção</span>
+          <span>{segments.find(s => s.key === 'EM_ANDAMENTO')?.count || 0} em andamento</span>
         </span>
         <span className="font-semibold text-purple-400">
           {segments.find(s => s.key === 'PRONTA')?.count || 0} prontas
