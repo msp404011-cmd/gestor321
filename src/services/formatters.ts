@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod } from '../types';
+import { OrderStatus, PaymentMethod, ServiceOrder } from '../types';
 import { StorageService, defaultCustomOSStatuses, CustomOSStatusItem } from './storage';
 
 export function formatCurrency(value: number | undefined | null): string {
@@ -457,4 +457,26 @@ export function openWhatsAppLink(url: string): void {
       window.location.href = url;
     }
   }
+}
+
+export function getDeviceThumbnail(os: ServiceOrder): string {
+  if (os.photosBefore && os.photosBefore.length > 0) {
+    return os.photosBefore[0];
+  }
+  const modelLower = (os.model || '').toLowerCase();
+  const brandLower = (os.brand || '').toLowerCase();
+
+  if (os.deviceType === 'Notebook' || modelLower.includes('dell') || modelLower.includes('inspiron') || modelLower.includes('notebook') || modelLower.includes('laptop')) {
+    return 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&auto=format&fit=crop&q=80';
+  }
+  if (modelLower.includes('redmi') || brandLower.includes('xiaomi')) {
+    return 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=200&auto=format&fit=crop&q=80';
+  }
+  if (modelLower.includes('iphone 13') || modelLower.includes('iphone 14') || modelLower.includes('iphone 15')) {
+    return 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=200&auto=format&fit=crop&q=80';
+  }
+  if (modelLower.includes('iphone') || brandLower.includes('apple')) {
+    return 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=200&auto=format&fit=crop&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1565849904461-04a58ad377e0?w=200&auto=format&fit=crop&q=80';
 }

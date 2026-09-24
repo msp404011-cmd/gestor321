@@ -36,6 +36,8 @@ import {
   Box,
   Archive,
   MapPin,
+  Phone,
+  Camera,
 } from 'lucide-react';
 import { ServiceOrder, OrderStatus, PaymentMethod, OrderPartItem, Product } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -47,6 +49,7 @@ import {
   cleanPhoneForWhatsApp,
   getCanonicalStatus,
   getPaymentMethodLabel,
+  getDeviceThumbnail,
 } from '../../services/formatters';
 import { Modal } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
@@ -136,6 +139,32 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveLocationPrompt, setShowArchiveLocationPrompt] = useState(false);
   const [detailArchiveLocationInput, setDetailArchiveLocationInput] = useState('');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [showFinancialDetails, setShowFinancialDetails] = useState(false);
+
+  // Photo Attachment Upload Handler
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        const current = currentOrder || order;
+        if (!current) return;
+        const updatedPhotos = [...(current.photosBefore || []), result];
+        const updated: ServiceOrder = {
+          ...current,
+          photosBefore: updatedPhotos,
+        };
+        StorageService.saveOrder(updated);
+        setCurrentOrder(updated);
+        showToast('Foto anexada à OS com sucesso!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Sync state whenever order changes or modal opens
   useEffect(() => {
@@ -610,131 +639,123 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     return encodeURIComponent(msg);
   };
 
-  const whatsappUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${getWhatsAppMessage()}` : '';
+  const whatsappUrl = cleanPhone
+    ? `https://wa.me/${cleanPhone}?text=${getWhatsAppMessage()}`
+    : '';
+
+  if (!isOpen) return null;
 
   return (
     <>
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        title={
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-              #{targetOrder.orderNumber}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className={`text-base sm:text-lg font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {targetOrder.brand} {targetOrder.model}
-                </h3>
-                <span
-                  className={`px-2.5 py-0.5 text-xs font-bold rounded-full border ${badge.bg} ${badge.text} ${badge.border}`}
-                >
-                  {getOrderStatusLabel(targetOrder.status)}
-                </span>
+      {/* Side Drawer Overlay Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex justify-end animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-xl sm:max-w-2xl bg-[#081023] text-white border-l border-slate-700/80 shadow-2xl h-full flex flex-col overflow-hidden animate-in slide-in-from-right duration-250 cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 1. Drawer Header */}
+          <div className="p-4 sm:p-5 border-b border-slate-800/80 bg-[#060c1d] flex flex-col gap-3 shrink-0">
+            {/* Header row 1: Title & Close Button */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                  #{targetOrder.orderNumber}
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-white leading-tight">
+                    Detalhes da OS #{targetOrder.orderNumber}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Criado em {formatDate(targetOrder.createdAt)}
+                  </p>
+                </div>
               </div>
-              <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Cliente: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>{targetOrder.customerName}</strong> ({targetOrder.customerPhone})
-              </p>
-            </div>
-          </div>
-        }
-        size="4xl"
-        footer={
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {whatsappUrl && (
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Enviar WhatsApp</span>
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenPrint(targetOrder);
-                }}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Imprimir OS</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenPrint(targetOrder, 'eulis');
-                }}
-                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title="Imprimir Guia Exclusiva de Remessa Técnica C/ Euklis"
-              >
-                <Send className="w-4 h-4" />
-                <span>Via C/ Euklis</span>
-              </button>
-
-              {onDelete && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onDelete(targetOrder);
-                  }}
-                  className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer border border-rose-500/10"
-                  title="Excluir Ordem de Serviço"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Excluir OS</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onEdit(targetOrder);
-                }}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border transition-colors cursor-pointer ${
-                  isDark
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-500 shadow-xs'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-xs'
-                }`}
-                title="Abrir formulário completo de edição da OS"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Editar OS Completa</span>
-              </button>
 
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
-                  isDark
-                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+                title="Fechar detalhes"
               >
-                Fechar
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Header row 2: Action Bar (Status Selector Pill + Imprimir + Editar) */}
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/60 flex-wrap">
+              {/* Interactive Status Dropdown Pill */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                  className={`px-3 py-1.5 text-xs font-black rounded-full border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${badge.bg} ${badge.text} ${badge.border}`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${badge.dot || 'bg-current'}`} />
+                  <span>{getOrderStatusLabel(targetOrder.status)}</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+
+                {isStatusDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-50 w-56 rounded-2xl bg-[#0b1428] border border-slate-700 p-2 shadow-2xl space-y-1">
+                    {StorageService.getCustomOSStatuses().map((st) => {
+                      const stCode = (st.code || st.id).toUpperCase();
+                      const stBadge = getOrderStatusBadgeClasses(stCode);
+                      return (
+                        <button
+                          key={st.id || st.code}
+                          type="button"
+                          onClick={() => {
+                            setIsStatusDropdownOpen(false);
+                            handleUpdateStatus((st.code || st.id) as OrderStatus);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-800 cursor-pointer ${stBadge.text}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${stBadge.dot || 'bg-current'}`} />
+                          <span>{st.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions: Imprimir & Editar */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenPrint(targetOrder);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onEdit(targetOrder);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Editar</span>
+                </button>
+              </div>
+            </div>
           </div>
-        }
-      >
-        <div className="space-y-2.5">
-          {/* Quick Toast Notification */}
+
+          {/* Toast Notification Banner */}
           {toastMessage && (
-            <div className="p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="mx-4 sm:mx-5 mt-3 p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span>{toastMessage}</span>
               </div>
               <button
@@ -747,1041 +768,556 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
           )}
 
-          <div className="lg:grid lg:grid-cols-12 lg:gap-3 lg:items-start space-y-2.5 lg:space-y-0">
-            {/* Coluna Esquerda: Status, Aparelho, Diagnóstico e Histórico */}
-            <div className="lg:col-span-7 space-y-2.5">
-              {/* Quick Status Workflow Action Bar */}
-              <div
-                className={`p-2.5 rounded-xl border ${
-                  isDark ? 'bg-[#081226] border-slate-700/80 shadow-xs' : 'bg-slate-50 border-slate-200 shadow-xs'
-                }`}
-              >
-            <div className="flex items-center justify-between gap-2 mb-2.5">
-              <span className={`text-[11px] font-extrabold uppercase tracking-wider ${
-                isDark ? 'text-slate-300' : 'text-slate-700'
-              }`}>
-                Etapa / Status Atual da OS:
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Clique para alterar instantaneamente
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {StorageService.getCustomOSStatuses().map((st) => {
-                const statusCode = (st.code || st.id).toUpperCase();
-                const isCurrent =
-                  getCanonicalStatus(order.status as string) === statusCode ||
-                  (order.status as string)?.toUpperCase() === statusCode;
-
-                const badgeConfig = getOrderStatusBadgeClasses(statusCode);
-
-                return (
-                  <button
-                    key={st.id || st.code}
-                    type="button"
-                    onClick={() => {
-                      if (isDeliveredStatus(statusCode) || isDeliveredStatus(st.label)) {
-                        setShowDeliveryModal(true);
-                      } else if (isArchivedStatus(statusCode) || isArchivedStatus(st.label)) {
-                        setDetailArchiveLocationInput(targetOrder.archivedLocation || '');
-                        setShowArchiveLocationPrompt(true);
-                      } else {
-                        handleUpdateStatus((st.code || st.id) as OrderStatus);
-                      }
-                    }}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 ${
-                      isCurrent
-                        ? `${badgeConfig.bg} ${badgeConfig.text} ${badgeConfig.border} shadow-[0_0_12px_rgba(59,130,246,0.3)] ring-2 ring-current/50 scale-[1.02]`
-                        : isDark
-                        ? 'bg-[#0e1d38] hover:bg-[#172c54] text-slate-200 border-slate-700'
-                        : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${badgeConfig.dot || 'bg-current'}`} />
-                    <span>{st.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Prominent High-Contrast Physical Location Card / Editor when Archived or has Location */}
-            {(canonical === 'ARQUIVADO' || targetOrder.archivedLocation) && (
-              <div className="mt-3 p-3.5 rounded-2xl border-2 border-amber-400/90 bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md shadow-amber-400/30">
-                    <Box className="w-5 h-5 stroke-[2.5]" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
-                        📍 ONDE ESTÁ GUARDADO O APARELHO:
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase">
-                        Visível na Busca e Lista
-                      </span>
-                    </div>
-                    <span className="text-sm sm:text-base font-black text-white truncate block mt-0.5 tracking-wide drop-shadow-sm">
-                      {targetOrder.archivedLocation ? (
-                        <span className="text-amber-300 font-mono underline decoration-amber-400/60 decoration-2">
-                          {targetOrder.archivedLocation.toUpperCase()}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 italic text-xs font-normal">
-                          Local não informado (clique no botão para definir onde está guardado)
-                        </span>
-                      )}
-                    </span>
-                  </div>
+          {/* 2. Scrollable Drawer Content */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4">
+            {/* 1. Cliente */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <User className="w-4 h-4 text-cyan-400" />
+                  <span>Cliente</span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDetailArchiveLocationInput(targetOrder.archivedLocation || '');
-                    setShowArchiveLocationPrompt(true);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer shrink-0 flex items-center justify-center gap-2 shadow-lg shadow-amber-500/30 hover:scale-105 active:scale-95"
-                >
-                  <Edit2 className="w-4 h-4 stroke-[2.5]" />
-                  <span>{targetOrder.archivedLocation ? 'Alterar Localização' : 'Digitar Onde Está'}</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {targetOrder.customerPhone && (
+                    <a
+                      href={`tel:${targetOrder.customerPhone}`}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1"
+                      title="Ligar para cliente"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {whatsappUrl && (
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 border border-emerald-500/40"
+                      title="Enviar WhatsApp"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">WhatsApp</span>
+                    </a>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* Details Grid: Defect & Diagnosis + Technical Data */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            
-            {/* Defeito Relatado e SERVIÇO A SER FEITO */}
-            <div
-              className={`p-3 rounded-xl border space-y-2 ${
-                isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
-              }`}
-            >
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Defeito Relatado pelo Cliente
+              <div className="flex items-center gap-3 pt-1">
+                <div className="w-10 h-10 rounded-full bg-cyan-600 text-white font-black flex items-center justify-center text-sm shadow-md shrink-0">
+                  {targetOrder.customerName ? targetOrder.customerName[0].toUpperCase() : 'C'}
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-white">{targetOrder.customerName}</h3>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">{targetOrder.customerPhone}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Aparelho */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <Smartphone className="w-4 h-4 text-cyan-400" />
+                  <span>Aparelho</span>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                  Garantia: {targetOrder.warrantyDays || 90} dias
                 </span>
-                <p className={`text-xs font-semibold mt-0.5 leading-tight ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-                  {order.clientDefect || 'Problema não detalhado'}
-                </p>
               </div>
 
-              {/* SERVIÇO A SER FEITO COM CAMPO PARA COLOCAR / EDITAR */}
-              <div className={`pt-2 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-extrabold text-cyan-400 uppercase tracking-wider flex items-center gap-1">
-                    <Settings className="w-3 h-3" />
-                    <span>Serviço Solicitado</span>
-                  </span>
-                  {!isEditingService && (
+              <div className="flex items-center gap-3">
+                <img
+                  src={getDeviceThumbnail(targetOrder)}
+                  alt={targetOrder.model}
+                  className="w-14 h-14 rounded-xl object-cover border border-slate-700/80 bg-slate-900 shrink-0 shadow-sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-black text-sm text-white">{targetOrder.brand} {targetOrder.model}</h4>
+                  {targetOrder.imei && <p className="text-xs font-mono text-slate-400 mt-0.5">IMEI: {targetOrder.imei}</p>}
+                  {targetOrder.serialNumber && <p className="text-xs font-mono text-slate-400">S/N: {targetOrder.serialNumber}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Defeito relatado */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
+              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                <Wrench className="w-4 h-4 text-amber-400" />
+                <span>Defeito relatado</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
+                {targetOrder.clientDefect || 'Nenhum defeito detalhado informado pelo cliente.'}
+              </p>
+            </div>
+
+            {/* 4. Serviço executado */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <Settings className="w-4 h-4 text-cyan-400" />
+                  <span>Serviço executado</span>
+                </div>
+                {!isEditingService && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingService(true)}
+                    className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded-lg cursor-pointer"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span>Alterar</span>
+                  </button>
+                )}
+              </div>
+
+              {isEditingService ? (
+                <div className="space-y-2 animate-in fade-in">
+                  <textarea
+                    rows={2}
+                    value={localService}
+                    onChange={(e) => setLocalService(e.target.value)}
+                    placeholder="Informe o serviço executado na OS..."
+                    className="w-full p-2.5 bg-[#040815] border border-cyan-500/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden"
+                  />
+                  <div className="flex justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsEditingService(true)}
-                      className="text-[9px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-0.5 bg-cyan-950/60 border border-cyan-800/50 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                      onClick={() => setIsEditingService(false)}
+                      className="px-2.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer"
                     >
-                      <Edit2 className="w-2.5 h-2.5" />
-                      <span>Alterar</span>
+                      Cancelar
                     </button>
-                  )}
-                </div>
-
-                {isEditingService ? (
-                  <div className="space-y-1.5 animate-in fade-in">
-                    <textarea
-                      rows={2}
-                      value={localService}
-                      onChange={(e) => setLocalService(e.target.value)}
-                      placeholder="Informe o serviço a ser feito..."
-                      className="w-full p-2 bg-[#060e22] border border-cyan-500/50 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 resize-none leading-relaxed"
-                    />
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLocalService(order.requestedService || order.performedService || '');
-                          setIsEditingService(false);
-                        }}
-                        className="px-2 py-0.5 text-xs text-slate-400 hover:text-white cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditingService(false);
-                          saveUpdatedOrder(localParts, localCustomPrice, localDiscount, localService);
-                          showToast('Serviço atualizado!');
-                        }}
-                        className="px-2.5 py-0.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
-                      >
-                        <Check className="w-3 h-3" />
-                        <span>Salvar</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingService(false);
+                        saveUpdatedOrder(localParts, localCustomPrice, localDiscount, localService);
+                        showToast('Serviço atualizado!');
+                      }}
+                      className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                    >
+                      Salvar
+                    </button>
                   </div>
-                ) : (
-                  <div className={`p-2 rounded-lg border ${
-                    isDark ? 'bg-[#060e22] border-slate-700/60' : 'bg-slate-50 border-slate-200'
-                  }`}>
-                    <p className={`text-xs font-semibold leading-snug ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-                      {localService || order.requestedService || order.performedService || order.technicalDiagnosis || (
-                        <span className="text-slate-400 italic">Nenhum serviço informado.</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {order.technicalDiagnosis && order.technicalDiagnosis !== localService && (
-                <div className={`pt-2 border-t ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Laudo Técnico
-                  </span>
-                  <p className={`text-xs mt-0.5 leading-tight ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {order.technicalDiagnosis}
-                  </p>
                 </div>
-              )}
-
-              <div className={`pt-2 border-t space-y-1.5 text-xs ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                <div>
-                  <span className="text-slate-400 block text-[10px] font-bold">Acessórios Deixados:</span>
-                  <p className={`font-medium mt-0.5 leading-tight text-xs ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {order.accessories || 'Nenhum acessório adicional'}
-                  </p>
-                </div>
-
-                <div className="pt-1.5 border-t border-slate-700/40">
-                  <span className="text-slate-400 block text-[10px] font-bold">Senha de Desbloqueio:</span>
-                  {order.passwordPattern && order.passwordPattern.length > 0 ? (
-                    <div className="mt-1 flex items-center gap-2">
-                      <PatternLock
-                        value={order.passwordPattern}
-                        readOnly={true}
-                        size={65}
-                        theme={isDark ? 'dark' : 'light'}
-                      />
-                      <div>
-                        <span className="text-[10px] font-mono text-cyan-400 font-bold block">
-                          {order.passwordPattern.join(' ➔ ')}
-                        </span>
-                        {order.passwordPin && (
-                          <span className="text-[9px] text-slate-400 block">
-                            {order.passwordPin}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : order.passwordPin?.startsWith('Desenho:') ? (
-                    <div className="mt-0.5">
-                      <span className="px-1.5 py-0.5 rounded font-mono font-bold bg-cyan-950/60 text-cyan-300 border border-cyan-800 text-[11px]">
-                        {order.passwordPin}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className={`font-mono font-bold mt-0.5 text-xs ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                      {order.passwordPin || 'Sem senha informada'}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Equipamento e Responsável */}
-            <div
-              className={`p-3 rounded-xl border space-y-2 ${
-                isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
-              }`}
-            >
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Dados Técnicos do Aparelho
-                </span>
-                <p className={`text-sm font-bold mt-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {order.deviceType}: {order.brand} {order.model}
+              ) : (
+                <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
+                  {localService || targetOrder.requestedService || targetOrder.performedService || targetOrder.technicalDiagnosis || 'Nenhum serviço registrado.'}
                 </p>
-                {order.imei && (
-                  <p className={`text-xs font-mono mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    IMEI: {order.imei}
-                  </p>
-                )}
-                {order.serialNumber && (
-                  <p className={`text-xs font-mono mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    Serial: {order.serialNumber}
-                  </p>
-                )}
+              )}
+            </div>
+
+            {/* 5. Valor do serviço */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <span>Valor do serviço</span>
+                </div>
+                <p className="text-xl font-black text-emerald-400 font-mono mt-1">
+                  {formatCurrency(currentTotal)}
+                </p>
               </div>
 
-              <div className={`pt-2.5 border-t grid grid-cols-2 gap-2 text-xs ${isDark ? 'border-slate-700/60' : 'border-slate-100'}`}>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Técnico:</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                    {order.technicianName || 'Não atribuído'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Garantia:</span>
-                  <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                    {order.warrantyDays} dias
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Abertura:</span>
-                  <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-                    {formatDate(order.createdAt)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Previsão:</span>
-                  <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                    {formatDate(order.estimatedCompletionDate)}
-                  </span>
-                </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                  className={`px-3 py-1.5 text-xs font-black rounded-full border flex items-center gap-1.5 cursor-pointer shadow-xs ${badge.bg} ${badge.text} ${badge.border}`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${badge.dot || 'bg-current'}`} />
+                  <span>{getOrderStatusLabel(targetOrder.status)}</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-          </div>
 
-          {/* Audit / Status Change History (Recolhido por padrão) */}
-          <div
-            className={`p-2.5 rounded-xl border transition-all ${
-              isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => setShowHistory(!showHistory)}
-              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider cursor-pointer"
-            >
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-                  Histórico de Andamento da OS
-                </span>
-                <span className="text-[10px] text-slate-400 font-normal lowercase">
-                  ({(targetOrder.history?.length || targetOrder.statusHistory?.length || 0)} reg.)
-                </span>
+            {/* 6. Observações */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
+              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                <FileText className="w-4 h-4 text-slate-300" />
+                <span>Observações</span>
               </div>
-              <span className="text-xs text-cyan-400 font-semibold">
-                {showHistory ? '▲ Ocultar' : '▼ Mostrar'}
-              </span>
-            </button>
+              <p className="text-xs text-slate-300 leading-relaxed pl-6">
+                {targetOrder.internalNotes || targetOrder.notes || 'Sem observações adicionais.'}
+              </p>
+            </div>
 
-            {showHistory && (
-              <div className="space-y-2 text-xs mt-2.5 pt-2 border-t border-slate-700/50">
+            {/* 7. Fotos anexas com upload [+] */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <Camera className="w-4 h-4 text-cyan-400" />
+                  <span>Fotos anexas</span>
+                </div>
+
+                <label className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Anexar Foto</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {((targetOrder.photosBefore || []).concat(targetOrder.photosAfter || [])).length > 0 ? (
+                  (targetOrder.photosBefore || []).concat(targetOrder.photosAfter || []).map((imgUrl, i) => (
+                    <img
+                      key={i}
+                      src={imgUrl}
+                      alt={`Foto ${i + 1}`}
+                      className="w-16 h-16 rounded-xl object-cover border border-slate-700 hover:scale-105 transition-transform cursor-pointer shadow-xs"
+                      onClick={() => window.open(imgUrl, '_blank')}
+                    />
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 italic">Nenhuma foto anexada a esta OS.</p>
+                )}
+              </div>
+            </div>
+
+            {/* 8. Histórico da OS */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                <Clock className="w-4 h-4 text-cyan-400" />
+                <span>Histórico da OS</span>
+              </div>
+
+              <div className="space-y-2 pl-2 border-l-2 border-slate-800 ml-2 pt-1">
                 {((targetOrder.history && targetOrder.history.length > 0) || (targetOrder.statusHistory && targetOrder.statusHistory.length > 0)) ? (
                   (targetOrder.history && targetOrder.history.length > 0 ? targetOrder.history : (targetOrder.statusHistory || [])).map((h: any, i: number) => (
-                    <div key={i} className={`flex items-start gap-2.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                      <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 shadow-[0_0_6px_rgba(6,182,212,0.6)]" />
-                      <div className="flex-1">
-                        <p className={`font-medium ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
-                          {h.notes || h.note || 'Status atualizado'} — <span className="font-bold text-cyan-400">{getOrderStatusLabel(h.status || h.toStatus)}</span>
-                        </p>
-                        <span className="text-[10px] text-slate-400">
-                          {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
-                        </span>
-                      </div>
+                    <div key={i} className="relative pl-4 text-xs space-y-0.5">
+                      <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
+                      <p className="font-bold text-white">
+                        {getOrderStatusLabel(h.status || h.toStatus)}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
+                      </p>
+                      {h.notes && <p className="text-[11px] text-slate-300">{h.notes}</p>}
                     </div>
                   ))
                 ) : (
-                  <p className="text-slate-400 text-xs">Nenhum registro no histórico.</p>
+                  <div className="relative pl-4 text-xs">
+                    <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
+                    <p className="font-bold text-white">OS criada</p>
+                    <p className="text-[10px] text-slate-400">{formatDate(targetOrder.createdAt)}</p>
+                  </div>
                 )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Coluna Direita: Peças, Valores e Botão de Salvar */}
-        <div className="lg:col-span-5 space-y-2.5">
-          {/* ESPAÇO DEDICADO: PEÇAS E COMPONENTES UTILIZADOS (CONTABILIZAÇÃO NA OS) */}
-          <div
-            className={`p-3 rounded-xl border space-y-2.5 ${
-              isDark ? 'bg-[#081226] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
-            }`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-emerald-400" />
-                <span className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Peças e Componentes na OS
-                </span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-full">
-                  {localParts.length} item(ns) ({formatCurrency(partsTotal)})
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {/* Direct Cadastrar no Estoque Button */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenNewProductInDetail(partSearch || manualPartName || '')}
-                  className="px-2.5 py-1 bg-cyan-600/25 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/50 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
-                  title="Cadastrar novo produto diretamente no Estoque"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>+ Novo no Estoque</span>
-                </button>
-
-                {/* Mode Switcher */}
-                <div className={`inline-flex p-0.5 border rounded-lg ${isDark ? 'bg-[#050e1f] border-slate-700/80' : 'bg-slate-100 border-slate-300'}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPartInputMode('ESTOQUE');
-                      setShowStockCatalog(false);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                      partInputMode === 'ESTOQUE'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Package className="w-3 h-3" />
-                    <span>Estoque</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPartInputMode('AVULSO')}
-                    className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                      partInputMode === 'AVULSO'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Avulso</span>
-                  </button>
-                </div>
               </div>
             </div>
 
-            {/* Modo Estoque */}
-            {partInputMode === 'ESTOQUE' && (
-              <div className="space-y-1 relative" ref={partSearchRef}>
-                <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <Search className="w-3.5 h-3.5" />
-                    </span>
-                    <input
-                      type="text"
-                      value={partSearch}
-                      onChange={(e) => {
-                        setPartSearch(e.target.value);
-                        setIsPartSearchOpen(true);
-                      }}
-                      onFocus={() => {
-                        if (partSearch.trim()) setIsPartSearchOpen(true);
-                      }}
-                      placeholder="Buscar peça no estoque por nome, código ou SKU..."
-                      className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs border transition-colors ${
-                        isDark
-                          ? 'bg-[#060e22] border-slate-700/80 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-hidden'
-                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-hidden'
-                      }`}
-                    />
-                    {partSearch && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPartSearch('');
-                          setIsPartSearchOpen(false);
-                        }}
-                        className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-white cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleOpenNewProductInDetail(partSearch || '')}
-                    className="px-2.5 py-2 bg-blue-600/30 hover:bg-blue-600 text-cyan-300 hover:text-white border border-blue-500/40 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                    title="Cadastrar produto novo no Estoque"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Cadastrar Peça</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowStockCatalog(!showStockCatalog)}
-                    className={`px-2.5 py-2 border rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
-                      isDark ? 'bg-slate-800/80 hover:bg-slate-700 text-cyan-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Catálogo</span>
-                  </button>
+            {/* 9. Gestão Detalhada de Peças e Valores (Collapsible) */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowFinancialDetails(!showFinancialDetails)}
+                className="w-full flex items-center justify-between text-xs font-black uppercase text-slate-300 tracking-wider cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  <span>Peças, Mão de Obra e Pagamento</span>
                 </div>
+                <span className="text-cyan-400 font-bold">{showFinancialDetails ? '▲ Ocultar' : '▼ Gerenciar'}</span>
+              </button>
 
-                {/* Dropdown de Resultados da Pesquisa de Peças */}
-                {isPartSearchOpen && (
-                  <div className={`absolute left-0 right-0 top-full mt-1 rounded-xl border shadow-2xl z-50 max-h-56 overflow-y-auto divide-y ${
-                    isDark ? 'bg-[#091632] border-cyan-500/50 divide-slate-800 text-white' : 'bg-white border-blue-300 divide-slate-100 text-slate-900'
-                  }`}>
-                    {filteredProducts.length > 0 ? (
-                      <>
-                        {filteredProducts.map((p) => {
-                          const price = p.sellingPrice || (p as any).price || 0;
-                          const isUnmanaged = p.manageStock === false || (p as any).stockStatus === 'UNLIMITED';
-                          const stock = p.stockQuantity !== undefined ? p.stockQuantity : (p as any).stock || 0;
-                          return (
-                            <div
-                              key={p.id}
-                              onClick={() => handleAddProductAsPart(p)}
-                              className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                                isDark ? 'hover:bg-cyan-950/60' : 'hover:bg-blue-50'
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold truncate">{p.name}</p>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                                  {p.category && <span>{p.category}</span>}
-                                  {p.barcode && <span>Cod: {p.barcode}</span>}
-                                  {isUnmanaged ? (
-                                    <span className="text-cyan-400 font-bold">Sem controle (Ilimitado)</span>
-                                  ) : stock > 0 ? (
-                                    <span className="text-emerald-400 font-semibold">{stock} em estoque</span>
-                                  ) : (
-                                    <span className="text-rose-400 font-bold">Sem estoque / 0 un</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-bold text-emerald-400 block">
-                                  {formatCurrency(price)}
-                                </span>
-                                <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-0.5 justify-end mt-0.5">
-                                  <Plus className="w-3 h-3" /> Inserir na OS
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        <div className={`p-2.5 flex items-center justify-between border-t ${isDark ? 'bg-[#061024] border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                          <span className="text-[10px] text-slate-400">Não encontrou o que procura?</span>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenNewProductInDetail(partSearch)}
-                            className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Cadastrar no Estoque</span>
-                          </button>
-                        </div>
-                      </>
-                    ) : partSearch.trim() ? (
-                      <div className="p-3.5 text-center space-y-2">
-                        <p className="text-xs text-slate-300 font-medium">
-                          Nenhum produto encontrado com "<span className="text-cyan-300 font-bold">{partSearch}</span>"
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenNewProductInDetail(partSearch)}
-                          className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs rounded-lg inline-flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Cadastrar "{partSearch}" no Estoque</span>
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-
-                {/* Quick Stock Catalog View */}
-                {showStockCatalog && (
-                  <div className={`p-2.5 rounded-xl border mt-2 max-h-48 overflow-y-auto space-y-1 ${
-                    isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
-                  }`}>
-                    <div className="flex items-center justify-between pb-1 border-b border-slate-700/40 text-[10px] font-bold text-slate-400 uppercase">
-                      <span>Catálogo de Produtos em Estoque ({products.length})</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowStockCatalog(false)}
-                        className="text-slate-400 hover:text-white cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    {products.length === 0 ? (
-                      <p className="text-center text-xs text-slate-400 py-3">Nenhum produto cadastrado no estoque.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
-                        {products.slice(0, 12).map((prod) => {
-                          const pPrice = prod.sellingPrice || (prod as any).price || 0;
-                          const pStock = prod.stockQuantity !== undefined ? prod.stockQuantity : (prod as any).stock || 0;
-                          const isUnmanaged = prod.manageStock === false || (prod as any).stockStatus === 'UNLIMITED';
-                          return (
+              {showFinancialDetails && (
+                <div className="space-y-4 pt-3 border-t border-slate-800 animate-in fade-in">
+                  {/* Stock search & parts list */}
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold text-slate-300 block">Peças no Estoque</span>
+                    <div className="relative" ref={partSearchRef}>
+                      <input
+                        type="text"
+                        value={partSearch}
+                        onChange={(e) => {
+                          setPartSearch(e.target.value);
+                          setIsPartSearchOpen(true);
+                        }}
+                        placeholder="Buscar peça no estoque..."
+                        className="w-full p-2.5 bg-[#040815] border border-slate-700 rounded-xl text-xs text-white"
+                      />
+                      {isPartSearchOpen && filteredProducts.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#0b1428] border border-slate-700 rounded-xl p-2 z-50 max-h-48 overflow-y-auto space-y-1">
+                          {filteredProducts.map((p) => (
                             <button
-                              key={prod.id}
+                              key={p.id}
                               type="button"
-                              onClick={() => {
-                                handleAddProductAsPart(prod);
-                                setShowStockCatalog(false);
-                              }}
-                              className={`p-2 text-left rounded-lg border transition-all flex items-center justify-between cursor-pointer ${
-                                isDark ? 'bg-[#091632] hover:bg-cyan-950/60 border-slate-700/60 text-white' : 'bg-white hover:bg-blue-50 border-slate-200 text-slate-900'
-                              }`}
+                              onClick={() => handleAddProductAsPart(p)}
+                              className="w-full text-left p-2 rounded-lg hover:bg-slate-800 text-xs flex justify-between cursor-pointer"
                             >
-                              <div className="min-w-0 pr-1">
-                                <p className="text-xs font-bold truncate">{prod.name}</p>
-                                <p className="text-[9px] text-slate-400">
-                                  {isUnmanaged ? 'Ilimitado' : `${pStock} em estoque`}
-                                </p>
-                              </div>
-                              <span className="text-xs font-bold text-emerald-400 shrink-0">
-                                {formatCurrency(pPrice)}
-                              </span>
+                              <span>{p.name}</span>
+                              <span className="font-mono text-emerald-400">{formatCurrency(p.sellingPrice)}</span>
                             </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-            {/* Modo Peça Avulsa / Manual */}
-            {partInputMode === 'AVULSO' && (
-              <div className={`p-3 rounded-xl border space-y-2.5 animate-in fade-in ${
-                isDark ? 'bg-[#060e22] border-amber-500/40' : 'bg-amber-50/70 border-amber-200'
-              }`}>
-                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
-                  <span className="flex items-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Adicionar Peça / Componente Avulso</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    (Não debita do estoque)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
-                      Nome / Descrição da Peça
-                    </label>
-                    <input
-                      type="text"
-                      value={manualPartName}
-                      onChange={(e) => setManualPartName(e.target.value)}
-                      placeholder="Ex: Conector Tipo-C, Bateria Premium..."
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-xs border ${
-                        isDark ? 'bg-[#091632] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
-                      Quantidade
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={manualPartQty}
-                      onChange={(e) => setManualPartQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-xs border ${
-                        isDark ? 'bg-[#091632] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">
-                      Preço Unitário (R$)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={manualPartPrice}
-                      onChange={(e) => setManualPartPrice(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className={`w-full px-2.5 py-1.5 rounded-lg text-xs border ${
-                        isDark ? 'bg-[#091632] border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between pt-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenNewProductInDetail(manualPartName)}
-                    className="text-cyan-400 hover:text-cyan-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Cadastrar esta peça no Estoque</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleAddManualPart}
-                    className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Inserir Peça na OS</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Listagem de Peças Aplicadas na OS */}
-            <div className={`divide-y rounded-xl overflow-hidden text-xs border ${
-              isDark ? 'divide-slate-700/60 border-slate-700/60 bg-[#060e22]' : 'divide-slate-200 border-slate-200 bg-slate-50/60'
-            }`}>
-              {localParts.length === 0 ? (
-                <div className="p-4 text-center text-slate-400 text-xs">
-                  Nenhuma peça cadastrada nesta OS ainda. Utilize o campo de busca acima ou clique em "+ Peça Avulsa" para adicionar.
-                </div>
-              ) : (
-                localParts.map((p) => {
-                  const sub = p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0);
-                  return (
-                    <div key={p.id} className="p-2.5 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
+                    {/* Added parts list */}
+                    {localParts.map((part) => (
+                      <div key={part.id} className="flex items-center justify-between p-2 rounded-xl bg-[#040815] border border-slate-800 text-xs">
+                        <div>
+                          <p className="font-bold text-white">{part.name}</p>
+                          <span className="text-[10px] text-slate-400">Qtd: {part.quantity} x {formatCurrency(part.unitPrice)}</span>
+                        </div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'} truncate`}>
-                            {p.productName || p.name}
-                          </span>
-                          {p.productId && (
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              ({p.productId})
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400">
-                          Preço un: {formatCurrency(p.unitPrice)}
-                        </span>
-                      </div>
-
-                      {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdatePartQty(p.id, -1)}
-                          className="w-6 h-6 rounded bg-slate-700/60 hover:bg-slate-600 text-white flex items-center justify-center font-bold text-xs cursor-pointer"
-                          title="Diminuir quantidade"
-                        >
-                          -
-                        </button>
-                        <span className="w-7 text-center font-bold text-xs">
-                          {p.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdatePartQty(p.id, 1)}
-                          className="w-6 h-6 rounded bg-slate-700/60 hover:bg-slate-600 text-white flex items-center justify-center font-bold text-xs cursor-pointer"
-                          title="Aumentar quantidade"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      {/* Subtotal */}
-                      <div className="text-right shrink-0 w-24">
-                        <span className={`font-bold text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                          {formatCurrency(sub)}
-                        </span>
-                      </div>
-
-                      {/* Delete */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePart(p.id)}
-                        className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors shrink-0"
-                        title="Remover peça da OS"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Contabilização Financeira: Valor Base da OS, Desconto e Total */}
-            <div className={`p-2.5 rounded-xl border space-y-2.5 ${
-              isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Total Peças */}
-                <div className={`p-2.5 rounded-lg border ${
-                  isDark ? 'bg-[#081226] border-slate-700/60' : 'bg-white border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                    Subtotal Peças (R$)
-                  </span>
-                  <span className="text-sm font-black text-cyan-400 block mt-0.5">
-                    {formatCurrency(partsTotal)}
-                  </span>
-                  <span className="text-[9px] text-slate-500 mt-0.5 block">
-                    {localParts.length} peça(s)
-                  </span>
-                </div>
-
-                {/* Mão de Obra / Serviço (Editável com Senha do Gerente) */}
-                <div className={`p-2.5 rounded-lg border transition-all ${
-                  isPriceUnlocked
-                    ? isDark ? 'bg-amber-950/20 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.15)]' : 'bg-amber-50 border-amber-300'
-                    : isDark ? 'bg-[#081226] border-slate-700/60' : 'bg-white border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-slate-300 uppercase block truncate">
-                      Mão de Obra / Serviço (R$)
-                    </span>
-                    {isPriceUnlocked ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                        <ShieldCheck className="w-2.5 h-2.5" />
-                        <span>Liberado</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setManagerPassError('');
-                          setManagerPassInput('');
-                          setShowManagerAuthModal(true);
-                        }}
-                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 transition-all cursor-pointer"
-                        title="Liberar edição com Senha do Gerente"
-                      >
-                        <Lock className="w-2.5 h-2.5" />
-                        <span>Editar</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {isPriceUnlocked ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={localCustomPrice !== null ? localCustomPrice : 0}
-                      onChange={(e) => {
-                        const val = Math.max(0, parseFloat(e.target.value) || 0);
-                        setLocalCustomPrice(val);
-                        saveUpdatedOrder(localParts, val, localDiscount, localService);
-                      }}
-                      className={`w-full font-bold text-sm bg-transparent focus:outline-hidden border-b ${
-                        isDark ? 'text-amber-300 border-amber-500/60 focus:border-amber-400' : 'text-slate-900 border-amber-400 focus:border-amber-500'
-                      }`}
-                    />
-                  ) : (
-                    <div
-                      onClick={() => {
-                        setManagerPassError('');
-                        setManagerPassInput('');
-                        setShowManagerAuthModal(true);
-                      }}
-                      className="cursor-pointer group flex items-center justify-between"
-                      title="Clique para autorizar edição com senha do gerente"
-                    >
-                      <span className="text-sm font-black text-white group-hover:text-amber-300 transition-colors">
-                        {formatCurrency(laborPrice)}
-                      </span>
-                      <Lock className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 transition-colors" />
-                    </div>
-                  )}
-                  <span className="text-[9px] text-slate-500 mt-1 block">
-                    {isPriceUnlocked ? 'Mão de obra manual autorizada' : 'Requer autorização'}
-                  </span>
-                </div>
-
-                {/* Desconto */}
-                <div className={`p-2.5 rounded-lg border ${
-                  isDark ? 'bg-[#081226] border-slate-700/60' : 'bg-white border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
-                    Desconto (R$)
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={localDiscount}
-                    onChange={(e) => {
-                      const val = Math.max(0, parseFloat(e.target.value) || 0);
-                      setLocalDiscount(val);
-                      saveUpdatedOrder(localParts, localCustomPrice, val, localService);
-                    }}
-                    className="w-full font-bold text-sm bg-transparent focus:outline-hidden border-b text-rose-400 border-slate-700 focus:border-rose-400"
-                  />
-                  <span className="text-[9px] text-slate-500 mt-1 block">
-                    Abatimento
-                  </span>
-                </div>
-              </div>
-
-              {/* Total Final da OS */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-slate-700/60">
-                <span className={`text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Fórmula: <strong className="text-amber-300">{formatCurrency(laborPrice)} (Serviço)</strong> + <strong className="text-cyan-400">{formatCurrency(partsTotal)} (Peças)</strong> - <strong className="text-rose-400">{formatCurrency(localDiscount)} (Desconto)</strong>
-                </span>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Total da OS</span>
-                    <span className="text-lg font-black text-emerald-400">
-                      {formatCurrency(currentTotal)}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveAllFinancials}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Salvar Valores</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Formas e Registro de Pagamentos na OS */}
-            {(() => {
-              const sumInlinePaid = inlinePaymentRows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
-              const diffInlinePaid = (currentTotal || 0) - sumInlinePaid;
-              return (
-                <div className={`p-3 rounded-xl border space-y-2.5 mt-2.5 ${
-                  isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  {/* Header compacto */}
-                  <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-700/50">
-                    <div className="flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5 text-teal-400" />
-                      <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        Formas de Pagamento
-                      </h4>
-                    </div>
-
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                      targetOrder?.paymentStatus === 'PAGO'
-                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
-                        : targetOrder?.paymentStatus === 'PARCIAL'
-                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
-                        : 'bg-rose-500/15 text-rose-400 border-rose-500/40'
-                    }`}>
-                      {targetOrder?.paymentStatus === 'PAGO' ? '● PAGO (100%)' : targetOrder?.paymentStatus === 'PARCIAL' ? '● PAGTO PARCIAL' : '● PENDENTE'}
-                    </span>
-                  </div>
-
-                  {/* Active Payment Rows (Compact list) */}
-                  <div className="space-y-1.5">
-                    {inlinePaymentRows.map((row) => (
-                      <div key={row.id} className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
-                        {/* Select de Forma de Pagamento */}
-                        <div className="flex-1 min-w-0">
-                          <select
-                            value={row.method}
-                            onChange={(e) => handleUpdateInlineRowMethod(row.id, e.target.value)}
-                            className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-hidden cursor-pointer truncate ${
-                              isDark
-                                ? 'bg-[#040a17] text-white border-slate-700 focus:border-teal-500'
-                                : 'bg-white text-slate-900 border-slate-300 focus:border-teal-600'
-                            }`}
-                          >
-                            {allInlinePaymentOptions.map((opt) => (
-                              <option key={opt.id} value={opt.id} className={isDark ? 'bg-[#091632] text-white' : 'bg-white text-slate-900'}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Input de Valor */}
-                        <div className="relative w-28 sm:w-32 shrink-0">
-                          <span className="absolute left-2 top-1.5 text-xs font-bold text-slate-400">R$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0,00"
-                            value={row.amount}
-                            onChange={(e) => handleUpdateInlineRowAmount(row.id, e.target.value)}
-                            className={`w-full pl-7 pr-2 py-1.5 rounded-lg text-xs font-black border focus:outline-hidden ${
-                              isDark
-                                ? 'bg-[#040a17] text-teal-300 border-slate-700 focus:border-teal-500'
-                                : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-teal-600'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Remover */}
-                        {inlinePaymentRows.length > 1 && (
+                          <span className="font-mono font-bold text-emerald-400">{formatCurrency(part.totalPrice || part.quantity * part.unitPrice)}</span>
                           <button
                             type="button"
-                            onClick={() => handleRemoveInlineRow(row.id)}
-                            className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0"
-                            title="Remover forma"
+                            onClick={() => handleRemovePart(part.id)}
+                            className="p-1 text-rose-400 hover:text-rose-200 cursor-pointer"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Actions & Resumo compacto na mesma linha */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-700/50">
-                    <button
-                      type="button"
-                      onClick={handleAddInlinePaymentRow}
-                      className="px-2.5 py-1 text-[11px] font-bold text-teal-400 hover:text-teal-300 border border-dashed border-teal-500/40 rounded-lg hover:bg-teal-500/10 transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>+ Adicionar outra forma</span>
-                    </button>
-
-                    <div className="flex items-center gap-3 text-xs font-bold justify-between sm:justify-end">
-                      <span className="text-[11px] text-slate-400">
-                        Informado: <strong className="text-emerald-400">{formatCurrency(sumInlinePaid)}</strong>
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {diffInlinePaid <= 0 ? (
-                          <strong className="text-emerald-400">Quitado (100%)</strong>
+                  {/* Labor & Discount Grid */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Labor */}
+                    <div className="p-3 rounded-xl bg-[#040815] border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300">Mão de Obra</span>
+                        {!isPriceUnlocked ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowManagerAuthModal(true)}
+                            className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>Liberar</span>
+                          </button>
                         ) : (
-                          <>Faltando: <strong className="text-rose-400">{formatCurrency(diffInlinePaid)}</strong></>
+                          <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5">
+                            <Unlock className="w-2.5 h-2.5" /> Sim
+                          </span>
                         )}
-                      </span>
+                      </div>
+
+                      {isPriceUnlocked ? (
+                        <input
+                          type="number"
+                          value={localCustomPrice !== null ? localCustomPrice : 0}
+                          onChange={(e) => setLocalCustomPrice(Number(e.target.value))}
+                          className="w-full p-2 bg-[#081023] border border-amber-500/60 rounded-lg text-xs font-mono font-bold text-amber-300"
+                        />
+                      ) : (
+                        <div className="p-2 text-xs font-mono text-slate-400 font-bold">
+                          {formatCurrency(laborPrice)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Discount */}
+                    <div className="p-3 rounded-xl bg-[#040815] border border-slate-800 space-y-2">
+                      <span className="text-xs font-bold text-slate-300 block">Desconto (R$)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={localDiscount !== null ? localDiscount : 0}
+                        onChange={(e) => setLocalDiscount(Number(e.target.value))}
+                        className="w-full p-2 bg-[#081023] border border-slate-700 focus:border-cyan-500/60 rounded-lg text-xs font-mono font-bold text-rose-300"
+                      />
                     </div>
                   </div>
 
-                  {/* Botões de Ação */}
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-700/50">
-                    <button
-                      type="button"
-                      onClick={() => setShowDeliveryModal(true)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
-                    >
-                      <Package className="w-3.5 h-3.5 text-teal-400" />
-                      <span>Opções de Entrega</span>
-                    </button>
+                  {/* Total Final da OS */}
+                  <div className="p-3.5 rounded-xl bg-[#040815] border border-slate-800 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2">
+                      <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                        Mão de Obra: <strong className="text-amber-300">{formatCurrency(laborPrice)}</strong> + Peças: <strong className="text-cyan-400">{formatCurrency(partsTotal)}</strong> - Desconto: <strong className="text-rose-400">{formatCurrency(localDiscount)}</strong>
+                      </span>
 
-                    <button
-                      type="button"
-                      onClick={handleSaveInlinePayments}
-                      disabled={isSavingPayments}
-                      className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{isSavingPayments ? 'Salvando...' : 'Salvar Pagamento'}</span>
-                    </button>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Total da OS</span>
+                          <span className="text-lg font-black text-emerald-400">
+                            {formatCurrency(currentTotal)}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveAllFinancials}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Salvar</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Formas e Registro de Pagamentos na OS */}
+                  {(() => {
+                    const sumInlinePaid = inlinePaymentRows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+                    const diffInlinePaid = (currentTotal || 0) - sumInlinePaid;
+                    return (
+                      <div className={`p-3 rounded-xl border space-y-2.5 mt-2.5 ${
+                        isDark ? 'bg-[#060e22] border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                      }`}>
+                        {/* Header compacto */}
+                        <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-700/50">
+                          <div className="flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-teal-400" />
+                            <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                              Formas de Pagamento
+                            </h4>
+                          </div>
+
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                            targetOrder?.paymentStatus === 'PAGO'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                              : targetOrder?.paymentStatus === 'PARCIAL'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/40'
+                              : 'bg-rose-500/15 text-rose-400 border-rose-500/40'
+                          }`}>
+                            {targetOrder?.paymentStatus === 'PAGO' ? '● PAGO (100%)' : targetOrder?.paymentStatus === 'PARCIAL' ? '● PAGTO PARCIAL' : '● PENDENTE'}
+                          </span>
+                        </div>
+
+                        {/* Active Payment Rows (Compact list) */}
+                        <div className="space-y-1.5">
+                          {inlinePaymentRows.map((row) => (
+                            <div key={row.id} className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
+                              {/* Select de Forma de Pagamento */}
+                              <div className="flex-1 min-w-0">
+                                <select
+                                  value={row.method}
+                                  onChange={(e) => handleUpdateInlineRowMethod(row.id, e.target.value)}
+                                  className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-hidden cursor-pointer truncate ${
+                                    isDark
+                                      ? 'bg-[#040a17] text-white border-slate-700 focus:border-teal-500'
+                                      : 'bg-white text-slate-900 border-slate-300 focus:border-teal-600'
+                                  }`}
+                                >
+                                  {allInlinePaymentOptions.map((opt) => (
+                                    <option key={opt.id} value={opt.id} className={isDark ? 'bg-[#091632] text-white' : 'bg-white text-slate-900'}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Input de Valor */}
+                              <div className="relative w-28 sm:w-32 shrink-0">
+                                <span className="absolute left-2 top-1.5 text-xs font-bold text-slate-400">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={row.amount}
+                                  onChange={(e) => handleUpdateInlineRowAmount(row.id, e.target.value)}
+                                  className={`w-full pl-7 pr-2 py-1.5 rounded-lg text-xs font-black border focus:outline-hidden ${
+                                    isDark
+                                      ? 'bg-[#040a17] text-teal-300 border-slate-700 focus:border-teal-500'
+                                      : 'bg-slate-50 text-slate-900 border-slate-300 focus:border-teal-600'
+                                  }`}
+                                />
+                              </div>
+
+                              {/* Remover */}
+                              {inlinePaymentRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveInlineRow(row.id)}
+                                  className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer shrink-0"
+                                  title="Remover forma"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Actions & Resumo compacto na mesma linha */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-700/50">
+                          <button
+                            type="button"
+                            onClick={handleAddInlinePaymentRow}
+                            className="px-2.5 py-1 text-[11px] font-bold text-teal-400 hover:text-teal-300 border border-dashed border-teal-500/40 rounded-lg hover:bg-teal-500/10 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>+ Adicionar outra forma</span>
+                          </button>
+
+                          <div className="flex items-center gap-3 text-xs font-bold justify-between sm:justify-end">
+                            <span className="text-[11px] text-slate-400">
+                              Informado: <strong className="text-emerald-400">{formatCurrency(sumInlinePaid)}</strong>
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {diffInlinePaid <= 0 ? (
+                                <strong className="text-emerald-400">Quitado (100%)</strong>
+                              ) : (
+                                <>Faltando: <strong className="text-rose-400">{formatCurrency(diffInlinePaid)}</strong></>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Save Payment button */}
+                        <div className="flex justify-end pt-2 border-t border-slate-700/40">
+                          <button
+                            type="button"
+                            onClick={handleSaveInlinePayments}
+                            className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Salvar Pagamento</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              );
-            })()}
+              )}
+            </div>
+          </div>
+
+          {/* 3. Fixed Drawer Footer CTAs */}
+          <div className="p-4 border-t border-slate-800/90 bg-[#060c1d] flex items-center justify-between gap-3 shrink-0">
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(targetOrder);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Excluir OS</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus('CANCELADA')}
+                className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <X className="w-4 h-4" />
+                <span>Cancelar OS</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowDeliveryModal(true)}
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-600/30 hover:scale-102 active:scale-98"
+            >
+              <Check className="w-4 h-4 stroke-[2.5]" />
+              <span>Marcar como Entregue</span>
+            </button>
           </div>
         </div>
       </div>
-    </div>
-      </Modal>
 
       {/* Order Delivery & Payment Modal (Supports Cash & A Prazo / Fiado) */}
       <OrderDeliveryModal

@@ -31,6 +31,7 @@ import {
   Box,
   Archive,
   MapPin,
+  LayoutGrid,
 } from 'lucide-react';
 import { ServiceOrder, OrderStatus, CustomOSStatusItem } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -88,10 +89,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   const [filterPreset, setFilterPreset] = useState<FilterPreset>('TODAS');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('TODOS');
   const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [viewMode, setViewMode] = useState<'blocks' | 'table' | 'kanban'>('blocks');
   const [statusMenuOpenForId, setStatusMenuOpenForId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
 
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const periodDropdownRef = useRef<HTMLDivElement>(null);
@@ -552,6 +553,21 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
           >
             <button
               type="button"
+              onClick={() => setViewMode('blocks')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === 'blocks'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : isDark
+                  ? 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Visualização em Blocos"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Blocos</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setViewMode('table')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === 'table'
@@ -970,8 +986,208 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         </div>
       )}
 
-      {/* 4. MAIN OS DATA (100% visible on all screens without horizontal scroll) */}
-      {viewMode === 'table' ? (
+      {/* 4. MAIN OS DATA (Blocos / Tabela / Kanban) */}
+      {viewMode === 'blocks' ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {filteredOrders.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-slate-400 text-xs sm:text-sm bg-[#080d1a] border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <p>
+                    Nenhuma ordem de serviço encontrada com os filtros ativos{' '}
+                    {filterPreset !== 'TODAS' && (
+                      <>
+                        (Status: <strong>{getOrderStatusLabel(filterPreset as OrderStatus)}</strong>)
+                      </>
+                    )}
+                    {search && (
+                      <>
+                        {' '}e busca "<strong>{search}</strong>"
+                      </>
+                    )}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-blue-600/30"
+                  >
+                    <Filter className="w-3.5 h-3.5" />
+                    <span>Limpar Filtros e Ver Todas ({orders.length})</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              paginatedOrders.map((os) => {
+                const badge = getStatusBadgeConfig(os.status as string);
+                const thumb = getDeviceThumbnail(os);
+                const avatarColor = getAvatarBg(os.customerName);
+                const isHighlighted = highlightedOrderId === os.id;
+                const totalAmount = os.totalPrice || 0;
+
+                return (
+                  <div
+                    key={os.id}
+                    id={`order-row-${os.id}`}
+                    onClick={() => onViewOrderDetail(os)}
+                    className={`bg-[#0b1328] border border-slate-800 hover:border-blue-500/80 rounded-2xl p-4 shadow-xl flex flex-col justify-between gap-3 transition-all cursor-pointer hover:shadow-2xl hover:scale-[1.01] group ${
+                      isHighlighted ? 'ring-2 ring-cyan-400 bg-cyan-950/80 shadow-[0_0_25px_rgba(6,182,212,0.5)] animate-pulse' : ''
+                    }`}
+                  >
+                    {/* Card Header: #OS_NUMBER + Date/Time + Status Badge */}
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-cyan-400 tracking-tight">#{os.orderNumber}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{formatDate(os.createdAt)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOrderForStatusChange(os);
+                        }}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-black border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-xs ${badge.bg}`}
+                        title="Clique para alterar status da OS"
+                      >
+                        {badge.label}
+                      </button>
+                    </div>
+
+                    {/* Customer & Equipment Main Info */}
+                    <div className="flex items-start gap-3">
+                      <div className="relative shrink-0 mt-0.5">
+                        <img
+                          src={thumb}
+                          alt={os.model}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-700/80 bg-slate-900 shadow-sm"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=200&auto=format&fit=crop&q=80';
+                          }}
+                        />
+                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center font-black text-[9px] border border-slate-900 shadow-xs ${avatarColor}`}>
+                          {os.customerName ? os.customerName[0].toUpperCase() : 'C'}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-xs text-white truncate group-hover:text-cyan-300 transition-colors">
+                          {os.customerName}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 truncate">{os.customerPhone}</p>
+                        <p className="text-xs font-extrabold text-slate-200 truncate mt-1">
+                          {os.brand} {os.model}
+                        </p>
+                        <p className="text-[10px] font-mono text-slate-400 truncate">
+                          {os.imei ? `IMEI: ${os.imei}` : os.serialNumber ? `S/N: ${os.serialNumber}` : 'Sem IMEI'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Defect & Executed Service Box */}
+                    <div className="p-2.5 rounded-xl bg-[#060c1d] border border-slate-800/80 space-y-1 text-xs">
+                      <p className="text-slate-300 line-clamp-1">
+                        <strong className="text-amber-400 text-[10px] uppercase font-black mr-1">DEFEITO:</strong>
+                        <span>{os.clientDefect || 'Não informado pelo cliente'}</span>
+                      </p>
+                      <p className="text-slate-300 line-clamp-1">
+                        <strong className="text-cyan-400 text-[10px] uppercase font-black mr-1">SERVIÇO:</strong>
+                        <span>{os.requestedService || os.performedService || os.technicalDiagnosis || 'Em análise técnica'}</span>
+                      </p>
+                    </div>
+
+                    {/* Physical Location in Archive if applicable */}
+                    {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOrderForArchiveLocation(os);
+                          setArchiveLocationInput(os.archivedLocation || '');
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center justify-between cursor-pointer hover:bg-amber-500/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Box className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                          <span className="truncate">LOCAL NO ARQUIVO: {os.archivedLocation || 'Definir local...'}</span>
+                        </div>
+                        <Edit2 className="w-3 h-3 text-amber-400 shrink-0" />
+                      </div>
+                    )}
+
+                    {/* Footer Row: Value + Print + Details Buttons */}
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] uppercase font-extrabold text-slate-400">Valor do serviço</span>
+                        <span className="text-base font-black text-emerald-400 font-mono tracking-tight">
+                          {formatCurrency(totalAmount)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {/* OPÇÃO DE IMPRESSÃO EM TODAS AS OSs */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPrint(os);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                          title="Imprimir esta Ordem de Serviço"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Imprimir</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewOrderDetail(os);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-blue-600/30"
+                        >
+                          <span>Ver detalhes</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Pagination Controls for Blocks Mode */}
+          {filteredOrders.length > itemsPerPage && (
+            <div className="px-4 py-3 bg-[#080d1a] border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+              <div>
+                Exibindo <strong>{(currentPage - 1) * itemsPerPage + 1}</strong> a{' '}
+                <strong>{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</strong> de{' '}
+                <strong>{filteredOrders.length}</strong> ordens de serviço
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 cursor-pointer font-bold"
+                >
+                  Anterior
+                </button>
+                <span className="font-bold text-slate-200">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 cursor-pointer font-bold"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : viewMode === 'table' ? (
         <div
           className={`rounded-xl border overflow-hidden shadow-xs ${
             isDark ? 'bg-[#080d1a] border-slate-800' : 'bg-white border-slate-200'
