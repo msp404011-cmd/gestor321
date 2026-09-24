@@ -31,6 +31,7 @@ const SettingsView = lazy(() => import('./components/settings/SettingsView').the
 const CompatibilityView = lazy(() => import('./components/compatibility/CompatibilityView').then(m => ({ default: m.CompatibilityView })));
 const EmployeesView = lazy(() => import('./components/employees/EmployeesView').then(m => ({ default: m.EmployeesView })));
 const ReceivablesView = lazy(() => import('./components/receivables/ReceivablesView').then(m => ({ default: m.ReceivablesView })));
+const MonthlyDebitsView = lazy(() => import('./components/finance/MonthlyDebitsView').then(m => ({ default: m.MonthlyDebitsView })));
 const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionModal').then(m => ({ default: m.SubscriptionModal })));
 const PaywallModal = lazy(() => import('./components/subscription/PaywallModal').then(m => ({ default: m.PaywallModal })));
 const BlockedAccountModal = lazy(() => import('./components/common/BlockedAccountModal').then(m => ({ default: m.BlockedAccountModal })));
@@ -907,6 +908,8 @@ export default function App() {
             {activeTab === 'COMPATIBILITY' && <CompatibilityView />}
 
             {activeTab === 'SETTINGS' && <SettingsView />}
+
+            {activeTab === 'MONTHLY_DEBITS' && <MonthlyDebitsView />}
           </Suspense>
         </main>
 

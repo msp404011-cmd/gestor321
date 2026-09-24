@@ -19,7 +19,45 @@ export type NavigationTab =
   | 'REPORTS'
   | 'EMPLOYEES'
   | 'COMPATIBILITY'
-  | 'SETTINGS';
+  | 'SETTINGS'
+  | 'MONTHLY_DEBITS';
+
+export interface MonthlyDebitPayment {
+  installmentIndex: number;
+  paidAt: string;
+  amount: number;
+}
+
+export interface MonthlyDebit {
+  id: string;
+  name: string;
+  totalAmount: number;
+  installmentsCount: number;
+  installmentAmount: number;
+  dueDate: string; // ISO string or simple YYYY-MM-DD
+  paidInstallments: number;
+  createdAt: string;
+  payments: MonthlyDebitPayment[];
+  status: 'OPEN' | 'PAID';
+  startMonth?: string; // Format: YYYY-MM
+}
+
+export interface AccountsPayableTransaction {
+  id: string;
+  type: 'DEBIT' | 'PAYMENT'; // DEBIT = comprar/dever, PAYMENT = abater/pagar
+  description: string;
+  amount: number;
+  date: string; // ISO String
+}
+
+export interface AccountsPayable {
+  id: string;
+  name: string;
+  currentBalance: number;
+  dueDate: string; // Ex: "Todo dia 10"
+  createdAt: string;
+  transactions: AccountsPayableTransaction[];
+}
 
 export interface CompatibilitySector {
   id: string;

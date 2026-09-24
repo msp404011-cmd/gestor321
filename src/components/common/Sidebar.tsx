@@ -410,6 +410,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           subtitle: 'Ajustes do sistema',
           icon: Settings,
         },
+        {
+          id: 'MONTHLY_DEBITS',
+          title: 'Débitos Mensais',
+          subtitle: 'Controle de contas e parcelas',
+          icon: CreditCard,
+        },
       ],
     },
     {
@@ -433,6 +439,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const filteredSections = sections
     .map((section) => {
       const allowedItems = section.items.filter((item) => {
+        if (item.id === 'MONTHLY_DEBITS' && !isSuper) return false;
         if (isSuper) return true;
         const normalizedTab = item.id.replace('_SECTION', '').replace('_TERMS', '').replace('_REPORTS', '');
         if (['HELP_SUPPORT'].includes(item.id)) return true;

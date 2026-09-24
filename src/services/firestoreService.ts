@@ -16,7 +16,9 @@ import {
   CashMovement,
   Reseller,
   ResellerTransaction,
-  StockMovement
+  StockMovement,
+  MonthlyDebit,
+  AccountsPayable
 } from '../types';
 import { prepareAccountForSave, normalizeAccountData, CanonicalAccount } from './accountSchema';
 import { CloudEngine } from './cloudEngine';
@@ -327,6 +329,38 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Save monthly debit to Firestore /accounts/{tenantId}/monthly_debits/{id}
+   */
+  async saveMonthlyDebit(debit: MonthlyDebit): Promise<void> {
+    try {
+      if (!db || !debit.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'monthly_debits', debit.id);
+      const sanitized = sanitizeObject(debit);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveMonthlyDebit error:', err);
+    }
+  },
+
+  /**
+   * Save accounts payable (contas a pagar) to Firestore /accounts/{tenantId}/accounts_payable/{id}
+   */
+  async saveAccountsPayable(account: AccountsPayable): Promise<void> {
+    try {
+      if (!db || !account.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'accounts_payable', account.id);
+      const sanitized = sanitizeObject(account);
+      await setDoc(docRef, sanitized, { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveAccountsPayable error:', err);
+    }
+  },
+
+  /**
    * Delete service order from Firestore
    */
   async deleteOrder(id: string): Promise<void> {
@@ -407,6 +441,34 @@ export const FirestoreSyncService = {
       await deleteDoc(doc(db, 'accounts', tenantId, 'expenses', id));
     } catch (err) {
       console.warn('Firestore deleteExpense error:', err);
+    }
+  },
+
+  /**
+   * Delete monthly debit from Firestore
+   */
+  async deleteMonthlyDebit(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'monthly_debits', id));
+    } catch (err) {
+      console.warn('Firestore deleteMonthlyDebit error:', err);
+    }
+  },
+
+  /**
+   * Delete accounts payable (contas a pagar) from Firestore
+   */
+  async deleteAccountsPayable(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'accounts_payable', id));
+    } catch (err) {
+      console.warn('Firestore deleteAccountsPayable error:', err);
     }
   },
 
@@ -788,6 +850,50 @@ export const FirestoreSyncService = {
   },
 
   /**
+   * Load all monthly debits from Firestore for current tenant
+   */
+  async fetchMonthlyDebits(): Promise<MonthlyDebit[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'monthly_debits');
+      const snap = await getDocs(colRef);
+      const debits: MonthlyDebit[] = [];
+      snap.forEach((d) => {
+        const deb = d.data() as MonthlyDebit;
+        if (deb && deb.id) debits.push(deb);
+      });
+      return debits;
+    } catch (err) {
+      console.warn('Firestore fetchMonthlyDebits error:', err);
+      return [];
+    }
+  },
+
+  /**
+   * Load all accounts payable from Firestore for current tenant
+   */
+  async fetchAccountsPayable(): Promise<AccountsPayable[]> {
+    try {
+      if (!db) return [];
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return [];
+      const colRef = collection(db, 'accounts', tenantId, 'accounts_payable');
+      const snap = await getDocs(colRef);
+      const accounts: AccountsPayable[] = [];
+      snap.forEach((d) => {
+        const acc = d.data() as AccountsPayable;
+        if (acc && acc.id) accounts.push(acc);
+      });
+      return accounts;
+    } catch (err) {
+      console.warn('Firestore fetchAccountsPayable error:', err);
+      return [];
+    }
+  },
+
+  /**
    * Load all user accounts from Firestore
    */
   async fetchUserAccounts(): Promise<CanonicalAccount[]> {
@@ -940,6 +1046,14 @@ export const FirestoreSyncService = {
       const remoteResellerTransactions = await this.fetchResellerTransactions();
       setLocalKey('msp_reseller_transactions_v1', remoteResellerTransactions);
 
+      // 16. Fetch Monthly Debits (Super Admin Debitos Mensais)
+      const remoteMonthlyDebits = await this.fetchMonthlyDebits();
+      setLocalKey('msp_monthly_debits_v1', remoteMonthlyDebits);
+
+      // 17. Fetch Accounts Payable (Super Admin Contas a Pagar)
+      const remoteAccountsPayable = await this.fetchAccountsPayable();
+      setLocalKey('msp_accounts_payable_v1', remoteAccountsPayable);
+
       notifyStorageListeners();
       console.log('✅ [FirestoreSyncService] Sincronização 100% Nuvem Firebase concluída!');
       if (onSuccess) onSuccess();
@@ -960,6 +1074,8 @@ export const FirestoreSyncService = {
     devices?: Device[];
     receivables?: AccountReceivable[];
     expenses?: Expense[];
+    monthlyDebits?: MonthlyDebit[];
+    accountsPayable?: AccountsPayable[];
     settings?: CompanySettings;
     customOsConfigs?: any;
   }): Promise<void> {
@@ -1027,6 +1143,14 @@ export const FirestoreSyncService = {
 
       if (localData.expenses && localData.expenses.length > 0) {
         await commitItemsInBatches('expenses', localData.expenses);
+      }
+
+      if (localData.monthlyDebits && localData.monthlyDebits.length > 0) {
+        await commitItemsInBatches('monthly_debits', localData.monthlyDebits);
+      }
+
+      if (localData.accountsPayable && localData.accountsPayable.length > 0) {
+        await commitItemsInBatches('accounts_payable', localData.accountsPayable);
       }
 
       console.log('✅ [FirestoreSyncService] Envio controlado de dados para a nuvem concluído!');

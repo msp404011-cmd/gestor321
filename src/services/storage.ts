@@ -25,6 +25,10 @@ import {
   UserAccount,
   CompatibilitySector,
   CompatibilityCard,
+  MonthlyDebit,
+  MonthlyDebitPayment,
+  AccountsPayable,
+  AccountsPayableTransaction,
 } from '../types';
 import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
 import { FirestoreSyncService } from './firestoreService';
@@ -80,6 +84,8 @@ export const STORAGE_KEYS = {
   USER_ACCOUNTS: 'msp_user_accounts_v1',
   COMPATIBILITY_SECTORS: 'msp_compatibility_sectors_v1',
   COMPATIBILITY_CARDS: 'msp_compatibility_cards_v1',
+  MONTHLY_DEBITS: 'msp_monthly_debits_v1',
+  ACCOUNTS_PAYABLE: 'msp_accounts_payable_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -4607,6 +4613,68 @@ export const StorageService = {
 
   getCustomOsStatuses(): CustomOSStatusItem[] {
     return this.getCustomOSStatuses();
+  },
+
+  // Monthly Debits (Débitos Mensais)
+  getMonthlyDebits(): MonthlyDebit[] {
+    return getItem<MonthlyDebit[]>(STORAGE_KEYS.MONTHLY_DEBITS, []);
+  },
+
+  saveMonthlyDebit(debit: MonthlyDebit): MonthlyDebit {
+    const list = this.getMonthlyDebits();
+    const idx = list.findIndex((d) => d.id === debit.id);
+    if (idx >= 0) {
+      list[idx] = debit;
+      this.logAction(`Débito mensal atualizado: ${debit.name} (R$ ${debit.totalAmount.toFixed(2)})`);
+    } else {
+      list.unshift(debit);
+      this.logAction(`Novo débito mensal cadastrado: ${debit.name} (R$ ${debit.totalAmount.toFixed(2)})`);
+    }
+    setItem(STORAGE_KEYS.MONTHLY_DEBITS, list);
+    FirestoreSyncService.saveMonthlyDebit(debit);
+    return debit;
+  },
+
+  deleteMonthlyDebit(id: string): void {
+    const list = this.getMonthlyDebits();
+    const target = list.find((d) => d.id === id);
+    const filtered = list.filter((d) => d.id !== id);
+    setItem(STORAGE_KEYS.MONTHLY_DEBITS, filtered);
+    FirestoreSyncService.deleteMonthlyDebit(id);
+    if (target) {
+      this.logAction(`Débito mensal excluído: ${target.name}`);
+    }
+  },
+
+  // Accounts Payable (Contas a Pagar / Diárias)
+  getAccountsPayable(): AccountsPayable[] {
+    return getItem<AccountsPayable[]>(STORAGE_KEYS.ACCOUNTS_PAYABLE, []);
+  },
+
+  saveAccountsPayable(account: AccountsPayable): AccountsPayable {
+    const list = this.getAccountsPayable();
+    const idx = list.findIndex((a) => a.id === account.id);
+    if (idx >= 0) {
+      list[idx] = account;
+      this.logAction(`Conta a pagar atualizada: ${account.name} (Saldo: R$ ${account.currentBalance.toFixed(2)})`);
+    } else {
+      list.unshift(account);
+      this.logAction(`Nova conta a pagar criada: ${account.name} (Saldo: R$ ${account.currentBalance.toFixed(2)})`);
+    }
+    setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, list);
+    FirestoreSyncService.saveAccountsPayable(account);
+    return account;
+  },
+
+  deleteAccountsPayable(id: string): void {
+    const list = this.getAccountsPayable();
+    const target = list.find((a) => a.id === id);
+    const filtered = list.filter((a) => a.id !== id);
+    setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, filtered);
+    FirestoreSyncService.deleteAccountsPayable(id);
+    if (target) {
+      this.logAction(`Conta a pagar excluída: ${target.name}`);
+    }
   },
 };
 
