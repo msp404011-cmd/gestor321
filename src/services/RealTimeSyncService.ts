@@ -27,7 +27,7 @@ class RealTimeSyncService {
       snapshot.docs.forEach((docSnap) => {
         const norm = normalizeAccountData(docSnap.id, docSnap.data());
         
-        const key = norm.uid || norm.email || norm.id;
+        const key = (norm.email || norm.uid || norm.id || '').toLowerCase().trim();
         if (key && seen.has(key)) return;
         if (key) seen.add(key);
         

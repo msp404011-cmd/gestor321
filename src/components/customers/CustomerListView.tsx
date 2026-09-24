@@ -30,7 +30,7 @@ import { Customer } from '../../types';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
 import { formatPhone, cleanPhoneForWhatsApp } from '../../services/formatters';
-import { ConfirmDialog } from '../common/ConfirmDialog';
+import { ConfirmDialog } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
 
 interface CustomerListViewProps {

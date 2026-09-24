@@ -5,7 +5,7 @@ import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-re
 import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
-import { ConfirmDialog } from './components/common/ConfirmDialog';
+import { ConfirmDialog } from './components/common/Modal';
 import { SubscriptionService, normalizePlanType } from './services/subscriptionService';
 import { AdminBackendService } from './services/adminBackendService';
 
@@ -66,7 +66,44 @@ import { GoogleDriveBackupService } from './services/googleDriveBackupService';
 
 export default function App() {
   const { isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState<NavigationTab>('DASHBOARD');
+  const parseHashToTab = (hashStr: string): NavigationTab | null => {
+    const h = hashStr.replace('#', '').toUpperCase().trim();
+    if (!h) return null;
+    if (['POS', 'PDV', 'VENDAS', 'CAIXA_PDV'].includes(h)) return 'POS';
+    if (['ORDERS', 'OS', 'SERVICOS', 'ORDENS'].includes(h)) return 'ORDERS';
+    if (['CUSTOMERS', 'CLIENTES'].includes(h)) return 'CUSTOMERS';
+    if (['PRODUCTS', 'PRODUTOS', 'ESTOQUE'].includes(h)) return 'PRODUCTS';
+    if (['FINANCE', 'FINANCEIRO', 'CASH'].includes(h)) return 'FINANCE';
+    if (['RECEIVABLES', 'RECEBER', 'CONTASARECEBER'].includes(h)) return 'RECEIVABLES';
+    if (['REPORTS', 'RELATORIOS'].includes(h)) return 'REPORTS';
+    if (['SETTINGS', 'CONFIGURACOES', 'CONFIG'].includes(h)) return 'SETTINGS';
+    if (['EMPLOYEES', 'FUNCIONARIOS', 'EQUIPE'].includes(h)) return 'EMPLOYEES';
+    if (['PURCHASES', 'COMPRAS'].includes(h)) return 'PURCHASES';
+    if (['DEVICES', 'APARELHOS', 'EQUIPAMENTOS'].includes(h)) return 'DEVICES';
+    if (['COMPATIBILITY', 'COMPATIBILIDADE'].includes(h)) return 'COMPATIBILITY';
+    if (['RESELLERS', 'REVENDEDORES'].includes(h)) return 'RESELLERS';
+    if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
+    return null;
+  };
+
+  const [activeTab, setActiveTab] = useState<NavigationTab>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseHashToTab(window.location.hash);
+      if (parsed) return parsed;
+    }
+    return 'DASHBOARD';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash) {
+        const parsed = parseHashToTab(window.location.hash);
+        if (parsed) setActiveTab(parsed);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -441,28 +478,26 @@ export default function App() {
       
       const mappedExpiry = data.dataVencimento || data.vencimento || data.dueDate || data.trialEndsAt || data.expiryDate || new Date().toISOString().split('T')[0];
       
-      // REGRA RÍGIDA: Impede alteração automática de plano por rotinas de sync, login, refresh, vencimento ou renovação
+      // Sincronização em tempo real das alterações feitas no Painel Master (Plano, Vencimento, Status)
       const existingPlan = StorageService.getSubscriptionForEmail(emailKey) || StorageService.getSubscriptionPlan();
 
-      let normalizedPlanType: PlanType;
-      let planName: string;
-      let planPrice: number;
+      const isSuperAdmin = SubscriptionService.isSuperAdminUser(emailKey);
+      const rawPlanId = String(
+        data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || ''
+      );
 
-      if (existingPlan && existingPlan.planType) {
-        normalizedPlanType = existingPlan.planType;
-        planName = existingPlan.planName;
-        planPrice = existingPlan.planPrice;
-      } else {
-        const rawPlanId = String(
-          data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || 'ASSISTENCIA'
-        );
-        normalizedPlanType = normalizePlanType(rawPlanId);
-        const isTrial = normalizedPlanType === 'TRIAL';
-        planPrice = isTrial ? 0 : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? 69.90);
-        planName = data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica');
-      }
+      const normalizedPlanType: PlanType = isSuperAdmin
+        ? 'SUPER_ADMIN'
+        : (rawPlanId ? normalizePlanType(rawPlanId) : (existingPlan?.planType || 'ASSISTENCIA'));
 
       const isTrial = normalizedPlanType === 'TRIAL';
+      const planPrice = (isSuperAdmin || isTrial)
+        ? 0
+        : Number(data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.amount ?? existingPlan?.planPrice ?? 69.90);
+
+      const planName = isSuperAdmin
+        ? 'Plano Super Admin Vitalício'
+        : (data.planoNome || data.planName || (isTrial ? 'Teste Grátis (7 Dias)' : (existingPlan?.planName || 'Plano Assistência Técnica')));
 
       const updatedPlan: SubscriptionPlanInfo = {
         ...StorageService.getSubscriptionPlan(),
@@ -470,14 +505,24 @@ export default function App() {
         planName: planName,
         planPrice: planPrice,
         status: mappedStatus,
-        expiryDate: mappedExpiry,
+        expiryDate: isSuperAdmin ? '' : mappedExpiry,
         isTrial: isTrial,
       };
 
       console.log('🔥 Nova atualização de assinatura recebida em tempo real do Firestore:', updatedPlan.planName, updatedPlan.planType, 'R$', updatedPlan.planPrice, 'Status:', updatedPlan.status, 'Bloqueado:', isBlocked);
       
       // Update local cache and notify listeners so Gestor updates permissions and tabs immediately
+      StorageService.saveSubscriptionForEmail(emailKey, updatedPlan);
       StorageService.saveSubscriptionPlanOnlyLocal(updatedPlan);
+
+      // Sincroniza dados cadastrais em tempo real se alterados
+      if (data.nome || data.name) {
+        const u = StorageService.getCurrentUser();
+        if (u) {
+          u.name = data.nome || data.name || u.name;
+          StorageService.setCurrentUser(u);
+        }
+      }
       
       // Re-trigger re-renders
       setTick((prev) => prev + 1);
@@ -502,9 +547,11 @@ export default function App() {
         const expDate = new Date(y, (m || 1) - 1, d || 1);
         expDate.setHours(0, 0, 0, 0);
 
-        const isExpired = updatedPlan.status === 'expired' || 
-                          updatedPlan.status === 'canceled' || 
-                          expDate < now;
+        const isExpired = !isSuperAdmin && (
+          updatedPlan.status === 'expired' || 
+          updatedPlan.status === 'canceled' || 
+          Boolean(updatedPlan.expiryDate && expDate < now)
+        );
 
         if (isExpired) {
            console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');

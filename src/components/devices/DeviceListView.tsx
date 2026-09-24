@@ -49,7 +49,7 @@ import {
 import { Device, DeviceType, Customer } from '../../types';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
-import { ConfirmDialog } from '../common/ConfirmDialog';
+import { ConfirmDialog } from '../common/Modal';
 import { getOrderStatusLabel, formatCurrency, formatDate } from '../../services/formatters';
 import { useTheme } from '../../context/ThemeContext';
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Wrench,
   Package,
@@ -33,16 +34,520 @@ import {
   Video,
   Tv,
   Truck,
+  ChevronRight,
+  PlayCircle,
+  Send,
+  QrCode,
+  Banknote,
+  Building,
+  HelpCircle,
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
-import { formatCurrency } from '../../services/formatters';
-import { ServiceOrder, SubscriptionPlanInfo } from '../../types';
+import { formatCurrency, getCanonicalStatus } from '../../services/formatters';
+import { ServiceOrder, Sale, SubscriptionPlanInfo } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { AppAccessManagement } from '../master/AppAccessManagement';
 import { CameraPackageManagement } from '../master/CameraPackageManagement';
+
+// --- ANIMATED COUNT NUMBER ---
+export interface AnimatedCountNumberProps {
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  decimals?: number;
+  duration?: number;
+  className?: string;
+}
+
+export const AnimatedCountNumber: React.FC<AnimatedCountNumberProps> = ({
+  value,
+  prefix = '',
+  suffix = '',
+  decimals = 0,
+  duration = 1000,
+  className = '',
+}) => {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    const startVal = displayValue;
+    const endVal = isNaN(value) ? 0 : value;
+
+    if (startVal === endVal) return;
+
+    let animationFrameId: number;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      const current = startVal + (endVal - startVal) * easeProgress;
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(step);
+      } else {
+        setDisplayValue(endVal);
+      }
+    };
+
+    animationFrameId = window.requestAnimationFrame(step);
+    return () => {
+      if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [value, duration]);
+
+  const formattedNumber = decimals > 0
+    ? displayValue.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    : Math.round(displayValue).toLocaleString('pt-BR');
+
+  return (
+    <span className={`tabular-nums transition-colors ${className}`}>
+      {prefix}{formattedNumber}{suffix}
+    </span>
+  );
+};
+
+// --- ANIMATED DONUT CHART ---
+interface AnimatedDonutChartProps {
+  orders: ServiceOrder[];
+  isDark: boolean;
+  onNavigate: (tab: string, filter?: string) => void;
+}
+
+interface StatusConfig {
+  key: string;
+  label: string;
+  color: string;
+  bgDark: string;
+  bgLight: string;
+  borderDark: string;
+  borderLight: string;
+  icon: React.ReactNode;
+}
+
+export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
+  orders,
+  isDark,
+  onNavigate,
+}) => {
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+
+  const statusConfigs: StatusConfig[] = [
+    { key: 'NOVA', label: 'Nova', color: '#06b6d4', bgLight: 'bg-cyan-50 text-cyan-800', bgDark: 'bg-cyan-950/40 text-cyan-300', borderLight: 'border-cyan-200', borderDark: 'border-cyan-500/30', icon: <Info className="w-3.5 h-3.5 text-cyan-400" /> },
+    { key: 'ORCAMENTO', label: 'Orçamento', color: '#eab308', bgLight: 'bg-amber-50 text-amber-800', bgDark: 'bg-amber-950/40 text-amber-300', borderLight: 'border-amber-200', borderDark: 'border-amber-500/30', icon: <Clock className="w-3.5 h-3.5 text-amber-400" /> },
+    { key: 'AGUARDANDO_APROVACAO', label: 'Aguardando Aprovação', color: '#f97316', bgLight: 'bg-orange-50 text-orange-800', bgDark: 'bg-orange-950/40 text-orange-300', borderLight: 'border-orange-200', borderDark: 'border-orange-500/30', icon: <AlertTriangle className="w-3.5 h-3.5 text-orange-400" /> },
+    { key: 'EM_ANDAMENTO', label: 'Em Manutenção', color: '#a855f7', bgLight: 'bg-purple-50 text-purple-800', bgDark: 'bg-purple-950/40 text-purple-300', borderLight: 'border-purple-200', borderDark: 'border-purple-500/30', icon: <PlayCircle className="w-3.5 h-3.5 text-purple-400" /> },
+    { key: 'PRONTA', label: 'Pronta', color: '#10b981', bgLight: 'bg-emerald-50 text-emerald-800', bgDark: 'bg-emerald-950/40 text-emerald-300', borderLight: 'border-emerald-200', borderDark: 'border-emerald-500/30', icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> },
+    { key: 'ENTREGUE', label: 'Entregue', color: '#3b82f6', bgLight: 'bg-blue-50 text-blue-800', bgDark: 'bg-blue-950/40 text-blue-300', borderLight: 'border-blue-200', borderDark: 'border-blue-500/30', icon: <Send className="w-3.5 h-3.5 text-blue-400" /> },
+    { key: 'ARQUIVADO', label: 'Arquivado', color: '#71717a', bgLight: 'bg-zinc-100 text-zinc-800', bgDark: 'bg-zinc-900/60 text-zinc-300', borderLight: 'border-zinc-300', borderDark: 'border-zinc-700/60', icon: <Box className="w-3.5 h-3.5 text-zinc-400" /> },
+  ];
+
+  const { segments, totalCount, activeItem } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    statusConfigs.forEach((c) => { counts[c.key] = 0; });
+
+    orders.forEach((o) => {
+      const canonical = getCanonicalStatus(o.status as string);
+      if (counts[canonical] !== undefined) {
+        counts[canonical]++;
+      } else {
+        const raw = (o.status || '').toUpperCase();
+        if (raw === 'PENDENTE' || raw === 'ABERTA') counts['NOVA'] = (counts['NOVA'] || 0) + 1;
+        else if (raw === 'PRONTO' || raw === 'CONCLUIDA' || raw === 'FINALIZADA') counts['PRONTA'] = (counts['PRONTA'] || 0) + 1;
+        else if (raw === 'ARQUIVADA' || raw === 'ARQUIVADO') counts['ARQUIVADO'] = (counts['ARQUIVADO'] || 0) + 1;
+        else counts['EM_ANDAMENTO'] = (counts['EM_ANDAMENTO'] || 0) + 1;
+      }
+    });
+
+    const total = orders.length;
+    let cumulativeAngle = 0;
+    const segments = statusConfigs.map((c) => {
+      const count = counts[c.key] || 0;
+      const pct = total > 0 ? (count / total) * 100 : 0;
+      const startAngle = cumulativeAngle;
+      cumulativeAngle += pct;
+      return { ...c, count, pct: Math.round(pct), exactPct: pct, startAngle };
+    });
+
+    const activeItem = hoveredKey ? segments.find((s) => s.key === hoveredKey) || null : null;
+    return { segments, totalCount: total, activeItem };
+  }, [orders, hoveredKey]);
+
+  const size = 150;
+  const strokeWidth = 14;
+  const center = size / 2;
+  const radius = (size - strokeWidth - 6) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all duration-300 relative overflow-hidden h-full shadow-lg ${
+      isDark ? 'bg-gradient-to-b from-[#0b1329] via-[#090f20] to-[#060a17] border-purple-500/40 shadow-[0_0_25px_rgba(168,85,247,0.18)] text-white hover:border-purple-400/60' : 'bg-white border-slate-200 shadow-sm text-slate-900 hover:border-purple-300'
+    }`}>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`p-1.5 rounded-lg border shrink-0 ${isDark ? 'bg-purple-950/70 border-purple-500/50 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-600'}`}>
+            <Wrench className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold tracking-tight truncate">Ordens de Serviço por Status</h2>
+            <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Distribuição e fluxo</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => onNavigate('ORDERS')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border ${
+          isDark ? 'bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 border-purple-500/30' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
+        }`}>
+          <span>Ver OS</span>
+          <ChevronRight className="w-3 h-3" />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center justify-center my-1">
+        <div className="relative flex items-center justify-center shrink-0">
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90 overflow-visible">
+            <circle cx={center} cy={center} r={radius} fill="none" stroke={isDark ? '#141e33' : '#e2e8f0'} strokeWidth={strokeWidth} />
+            {segments.map((seg) => {
+              if (seg.count === 0 && totalCount > 0) return null;
+              const isHovered = hoveredKey === seg.key;
+              const strokeDash = (seg.exactPct / 100) * circumference;
+              const strokeOffset = -((seg.startAngle / 100) * circumference);
+              return (
+                <circle key={seg.key} cx={center} cy={center} r={radius} fill="none" stroke={seg.color} strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth} strokeDasharray={`${Math.max(0, strokeDash - 3)} ${circumference}`} strokeDashoffset={strokeOffset} strokeLinecap="round" className="transition-all duration-300 cursor-pointer" onMouseEnter={() => setHoveredKey(seg.key)} onMouseLeave={() => setHoveredKey(null)} onClick={() => onNavigate('ORDERS')} />
+              );
+            })}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
+            <span className={`text-2xl font-black tracking-tight leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <AnimatedCountNumber value={activeItem ? activeItem.count : totalCount} duration={400} />
+            </span>
+            <span className={`text-[10px] font-bold uppercase tracking-wider mt-1 line-clamp-1 ${activeItem ? 'text-cyan-400' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {activeItem ? activeItem.label : 'Total OS'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2 w-full mt-2">
+        {segments.map((seg) => {
+          const isHovered = hoveredKey === seg.key;
+          return (
+            <div key={seg.key} onMouseEnter={() => setHoveredKey(seg.key)} onMouseLeave={() => setHoveredKey(null)} onClick={() => onNavigate('ORDERS')} className={`p-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+              isHovered ? (isDark ? 'bg-purple-950/80 border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)] scale-[1.01]' : 'bg-purple-50 border-purple-400 shadow-sm scale-[1.01]') : (isDark ? 'bg-[#0f172a]/70 border-slate-800/80 hover:border-slate-700' : 'bg-slate-50/90 border-slate-200')
+            }`}>
+              <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="shrink-0">{seg.icon}</span>
+                  <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{seg.label}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{seg.count} OS</span>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>{seg.pct}%</span>
+                </div>
+              </div>
+              <div className={`w-full h-1.5 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/90' : 'bg-slate-200'}`}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${seg.exactPct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className="h-full rounded-full" style={{ backgroundColor: seg.color }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- ANIMATED PAYMENT METHODS ---
+interface AnimatedPaymentMethodsProps {
+  sales: Sale[];
+  orders: ServiceOrder[];
+  isDark: boolean;
+}
+
+export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({ sales, orders, isDark }) => {
+  const [hoveredMethod, setHoveredMethod] = useState<string | null>(null);
+
+  const methodsData = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const totals: Record<string, { total: number; count: number }> = {
+      PIX: { total: 0, count: 0 },
+      'Cartão de Crédito': { total: 0, count: 0 },
+      Dinheiro: { total: 0, count: 0 },
+      'Cartão de Débito': { total: 0, count: 0 },
+      Transferência: { total: 0, count: 0 },
+      Outros: { total: 0, count: 0 },
+    };
+
+    sales.forEach((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        const method = (s.paymentMethod || '').toUpperCase();
+        const amt = s.total || 0;
+        if (method.includes('PIX')) { totals['PIX'].total += amt; totals['PIX'].count++; }
+        else if (method.includes('CREDIT') || method.includes('CRÉDITO') || method.includes('CREDITO')) { totals['Cartão de Crédito'].total += amt; totals['Cartão de Crédito'].count++; }
+        else if (method.includes('DEBIT') || method.includes('DÉBITO') || method.includes('DEBITO')) { totals['Cartão de Débito'].total += amt; totals['Cartão de Débito'].count++; }
+        else if (method.includes('DINHEIRO') || method.includes('CASH')) { totals['Dinheiro'].total += amt; totals['Dinheiro'].count++; }
+        else if (method.includes('TRANSF') || method.includes('TED') || method.includes('BOLETO')) { totals['Transferência'].total += amt; totals['Transferência'].count++; }
+        else { totals['Outros'].total += amt; totals['Outros'].count++; }
+      }
+    });
+
+    orders.forEach((o) => {
+      if (o.status === 'ENTREGUE') {
+        const d = new Date(o.deliveredAt || o.updatedAt || o.createdAt || '');
+        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+          const method = (o.paymentMethod || '').toUpperCase();
+          const amt = o.totalPrice || 0;
+          if (method.includes('PIX')) { totals['PIX'].total += amt; totals['PIX'].count++; }
+          else if (method.includes('CREDIT') || method.includes('CRÉDITO') || method.includes('CREDITO')) { totals['Cartão de Crédito'].total += amt; totals['Cartão de Crédito'].count++; }
+          else if (method.includes('DEBIT') || method.includes('DÉBITO') || method.includes('DEBITO')) { totals['Cartão de Débito'].total += amt; totals['Cartão de Débito'].count++; }
+          else if (method.includes('DINHEIRO') || method.includes('CASH')) { totals['Dinheiro'].total += amt; totals['Dinheiro'].count++; }
+          else if (method.includes('TRANSF') || method.includes('TED') || method.includes('BOLETO')) { totals['Transferência'].total += amt; totals['Transferência'].count++; }
+          else { totals['Outros'].total += amt; totals['Outros'].count++; }
+        }
+      }
+    });
+
+    const grandTotal = Object.values(totals).reduce((sum, item) => sum + item.total, 0);
+
+    const configs = [
+      { name: 'PIX', color: '#06b6d4', gradient: 'from-cyan-500 to-blue-500', glow: 'rgba(6,182,212,0.8)', icon: <QrCode className="w-3 h-3 text-cyan-400" /> },
+      { name: 'Cartão de Crédito', color: '#3b82f6', gradient: 'from-blue-500 to-indigo-500', glow: 'rgba(59,130,246,0.8)', icon: <CreditCard className="w-3 h-3 text-blue-400" /> },
+      { name: 'Dinheiro', color: '#f59e0b', gradient: 'from-amber-400 to-orange-500', glow: 'rgba(245,158,11,0.8)', icon: <Banknote className="w-3 h-3 text-amber-400" /> },
+      { name: 'Cartão de Débito', color: '#6366f1', gradient: 'from-indigo-500 to-purple-500', glow: 'rgba(99,102,241,0.8)', icon: <CreditCard className="w-3 h-3 text-indigo-400" /> },
+      { name: 'Transferência', color: '#a855f7', gradient: 'from-purple-500 to-pink-500', glow: 'rgba(168,85,247,0.8)', icon: <Building className="w-3 h-3 text-purple-400" /> },
+      { name: 'Outros', color: '#10b981', gradient: 'from-emerald-400 to-teal-500', glow: 'rgba(16,185,129,0.8)', icon: <HelpCircle className="w-3 h-3 text-emerald-400" /> },
+    ];
+
+    return configs.map((c) => {
+      const data = totals[c.name] || { total: 0, count: 0 };
+      const pct = grandTotal > 0 ? (data.total / grandTotal) * 100 : 0;
+      return { ...c, amount: data.total, count: data.count, pct: Math.round(pct) };
+    });
+  }, [sales, orders]);
+
+  return (
+    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all relative overflow-hidden group shadow-xl ${
+      isDark ? 'bg-gradient-to-b from-[#071927]/95 via-[#051420]/90 to-[#020b12] border-teal-500/50 text-white' : 'bg-white border-teal-200 shadow-lg text-slate-900'
+    }`}>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm sm:text-base font-black tracking-wide flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
+          Formas de Pagamento (Mês)
+        </h2>
+        <span className="text-xs font-bold text-teal-400">Distribuição</span>
+      </div>
+
+      <div className="space-y-2.5 my-auto">
+        {methodsData.map((item) => (
+          <div key={item.name} className={`p-1.5 rounded-xl transition-all duration-200 cursor-pointer ${hoveredMethod === item.name ? 'bg-slate-800/80 border border-teal-500/40' : ''}`} onMouseEnter={() => setHoveredMethod(item.name)} onMouseLeave={() => setHoveredMethod(null)}>
+            <div className="flex items-center justify-between gap-2 text-xs mb-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border ${isDark ? 'bg-[#061422] border-slate-700' : 'bg-slate-100 border-slate-200'}`}>{item.icon}</div>
+                <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{item.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400 font-mono">{formatCurrency(item.amount)}</span>
+                <span className="font-black text-xs w-9 text-right text-white">{item.pct}%</span>
+              </div>
+            </div>
+            <div className={`w-full h-2 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/80' : 'bg-slate-200'}`}>
+              <motion.div initial={{ width: 0 }} animate={{ width: `${item.pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className={`h-full rounded-full bg-gradient-to-r ${item.gradient}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- ANIMATED REVENUE CHART ---
+export type ChartTimeframe = 'today' | '7days' | '15days' | '30days' | 'year';
+
+interface DataPoint {
+  label: string;
+  fullDate: string;
+  salesVal: number;
+  salesCount: number;
+  serviceVal: number;
+  serviceCount: number;
+  totalVal: number;
+  x: number;
+  salesY: number;
+  serviceY: number;
+  totalY: number;
+}
+
+export const AnimatedRevenueChart: React.FC<{ sales: Sale[]; orders: ServiceOrder[]; isDark: boolean }> = ({ sales, orders, isDark }) => {
+  const [timeframe, setTimeframe] = useState<ChartTimeframe>('30days');
+  const [activeSeries, setActiveSeries] = useState({ sales: true, services: true, total: false });
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { points, chartMax, totalRevenueSum, peakPoint } = useMemo(() => {
+    const now = new Date();
+    const buckets: { label: string; fullDate: string; salesVal: number; salesCount: number; serviceVal: number; serviceCount: number; totalVal: number }[] = [];
+
+    let numPoints = 7;
+    let daysStep = 5;
+
+    if (timeframe === 'today') {
+      for (let h = 0; h < 24; h += 3) {
+        const hLabel = `${String(h).padStart(2, '0')}:00`;
+        const start = new Date(now); start.setHours(h, 0, 0, 0);
+        const end = new Date(now); end.setHours(h + 2, 59, 59, 999);
+        let sVal = 0, sCount = 0, oVal = 0, oCount = 0;
+        sales.forEach((s) => { const sDate = new Date(s.date || s.createdAt || ''); if (sDate >= start && sDate <= end) { sVal += s.total || 0; sCount++; } });
+        orders.forEach((o) => { if (o.status === 'ENTREGUE') { const oDate = new Date(o.deliveredAt || o.updatedAt || o.createdAt || ''); if (oDate >= start && oDate <= end) { oVal += o.totalPrice || 0; oCount++; } } });
+        buckets.push({ label: hLabel, fullDate: `Hoje às ${hLabel}`, salesVal: sVal, salesCount: sCount, serviceVal: oVal, serviceCount: oCount, totalVal: sVal + oVal });
+      }
+    } else {
+      if (timeframe === '7days') { numPoints = 7; daysStep = 1; }
+      else if (timeframe === '15days') { numPoints = 8; daysStep = 2; }
+      else if (timeframe === '30days') { numPoints = 7; daysStep = 5; }
+
+      if (timeframe === 'year') {
+        const currentYear = now.getFullYear();
+        const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        for (let m = 0; m < 12; m++) {
+          const start = new Date(currentYear, m, 1, 0, 0, 0);
+          const end = new Date(currentYear, m + 1, 0, 23, 59, 59);
+          let sVal = 0, sCount = 0, oVal = 0, oCount = 0;
+          sales.forEach((s) => { const sDate = new Date(s.date || s.createdAt || ''); if (sDate >= start && sDate <= end) { sVal += s.total || 0; sCount++; } });
+          orders.forEach((o) => { if (o.status === 'ENTREGUE') { const oDate = new Date(o.deliveredAt || o.updatedAt || o.createdAt || ''); if (oDate >= start && oDate <= end) { oVal += o.totalPrice || 0; oCount++; } } });
+          buckets.push({ label: monthNames[m], fullDate: `${monthNames[m]} de ${currentYear}`, salesVal: sVal, salesCount: sCount, serviceVal: oVal, serviceCount: oCount, totalVal: sVal + oVal });
+        }
+      } else {
+        for (let i = numPoints - 1; i >= 0; i--) {
+          const d = new Date(now); d.setDate(d.getDate() - Math.round(i * daysStep));
+          const label = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const start = new Date(d); start.setHours(0, 0, 0, 0);
+          const end = new Date(d); end.setHours(23, 59, 59, 999);
+          let sVal = 0, sCount = 0, oVal = 0, oCount = 0;
+          sales.forEach((s) => { const sDate = new Date(s.date || s.createdAt || ''); if (sDate >= start && sDate <= end) { sVal += s.total || 0; sCount++; } });
+          orders.forEach((o) => { if (o.status === 'ENTREGUE') { const oDate = new Date(o.deliveredAt || o.updatedAt || o.createdAt || ''); if (oDate >= start && oDate <= end) { oVal += o.totalPrice || 0; oCount++; } } });
+          buckets.push({ label, fullDate: d.toLocaleDateString('pt-BR'), salesVal: sVal, salesCount: sCount, serviceVal: oVal, serviceCount: oCount, totalVal: sVal + oVal });
+        }
+      }
+    }
+
+    const totalSalesSum = buckets.reduce((acc, b) => acc + b.salesVal, 0);
+    const totalServiceSum = buckets.reduce((acc, b) => acc + b.serviceVal, 0);
+    const totalRevenueSum = totalSalesSum + totalServiceSum;
+
+    const maxVal = Math.max(...buckets.flatMap((b) => [b.salesVal, b.serviceVal, b.totalVal]), 0);
+    const chartMax = maxVal > 0 ? Math.ceil((maxVal * 1.25) / 50) * 50 : 500;
+
+    const startX = 45, endX = 515, widthSpan = endX - startX, bottomY = 175, topY = 30, heightSpan = bottomY - topY;
+
+    const points: DataPoint[] = buckets.map((b, idx) => {
+      const x = startX + (idx / Math.max(buckets.length - 1, 1)) * widthSpan;
+      return {
+        ...b,
+        x,
+        salesY: bottomY - (b.salesVal / chartMax) * heightSpan,
+        serviceY: bottomY - (b.serviceVal / chartMax) * heightSpan,
+        totalY: bottomY - (b.totalVal / chartMax) * heightSpan,
+      };
+    });
+
+    let peakPoint: DataPoint | null = null;
+    let maxBucketVal = -1;
+    points.forEach((pt) => {
+      const v = Math.max(pt.salesVal, pt.serviceVal);
+      if (v > maxBucketVal) { maxBucketVal = v; peakPoint = pt; }
+    });
+
+    return { points, maxVal, chartMax, totalSalesSum, totalServiceSum, totalRevenueSum, peakPoint: maxBucketVal > 0 ? peakPoint : null };
+  }, [sales, orders, timeframe]);
+
+  const generateSmoothPath = (pts: { x: number; y: number }[]) => {
+    if (!pts || pts.length === 0) return 'M 45 175 L 515 175';
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i], p1 = pts[i + 1];
+      d += ` C ${p0.x + (p1.x - p0.x) * 0.45} ${p0.y}, ${p0.x + (p1.x - p0.x) * 0.55} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return d;
+  };
+
+  const salesPath = useMemo(() => generateSmoothPath(points.map((p) => ({ x: p.x, y: p.salesY }))), [points]);
+  const servicePath = useMemo(() => generateSmoothPath(points.map((p) => ({ x: p.x, y: p.serviceY }))), [points]);
+  const totalPath = useMemo(() => generateSmoothPath(points.map((p) => ({ x: p.x, y: p.totalY }))), [points]);
+
+  const yAxisTicks = useMemo(() => {
+    const steps = 4, ticks = [];
+    for (let i = 0; i <= steps; i++) {
+      const val = chartMax * (1 - i / steps);
+      ticks.push({ val, label: val >= 1000 ? `${(val / 1000).toFixed(1)}k` : `${Math.round(val)}`, y: 30 + i * (145 / steps) });
+    }
+    return ticks;
+  }, [chartMax]);
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!containerRef.current || points.length === 0) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const viewBoxX = ((e.clientX - rect.left) / rect.width) * 540;
+    let closestIdx = 0, minDistance = 99999;
+    points.forEach((pt, idx) => {
+      const dist = Math.abs(pt.x - viewBoxX);
+      if (dist < minDistance) { minDistance = dist; closestIdx = idx; }
+    });
+    setHoveredIndex(closestIdx);
+  };
+
+  const hoveredData = hoveredIndex !== null ? points[hoveredIndex] : null;
+
+  return (
+    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all relative overflow-hidden group shadow-xl ${
+      isDark ? 'bg-gradient-to-b from-[#0a152d]/95 via-[#071024]/90 to-[#040a18] border-cyan-500/50 text-white' : 'bg-white border-blue-200 shadow-lg text-slate-900'
+    }`}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2 relative z-10">
+        <div>
+          <h2 className="text-sm sm:text-base font-black tracking-wide flex items-center gap-1.5">Faturamento</h2>
+          <div className="flex items-center gap-3 mt-1 text-xs">
+            <span className="text-slate-400 font-medium">Total:</span>
+            <span className="font-extrabold text-emerald-400 text-sm tracking-tight">
+              <AnimatedCountNumber value={totalRevenueSum} prefix="R$ " decimals={2} />
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 bg-[#050f24] p-1 rounded-xl border border-blue-900/60">
+          {(['today', '7days', '15days', '30days', 'year'] as ChartTimeframe[]).map((t) => (
+            <button key={t} type="button" onClick={() => setTimeframe(t)} className={`px-2 py-1 rounded-lg text-xs font-bold ${timeframe === t ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      <div ref={containerRef} className="relative w-full h-52 sm:h-60 mt-2 select-none" onMouseLeave={() => setHoveredIndex(null)}>
+        <svg viewBox="0 0 540 210" className="w-full h-full overflow-visible cursor-crosshair" preserveAspectRatio="none" onMouseMove={handleMouseMove}>
+          {yAxisTicks.map((t, idx) => (
+            <g key={idx}>
+              <text x="36" y={t.y + 3.5} textAnchor="end" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="10" fontFamily="monospace">{t.label}</text>
+              <line x1="45" y1={t.y} x2="515" y2={t.y} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4 3" />
+            </g>
+          ))}
+
+          {activeSeries.sales && <path d={salesPath} fill="none" stroke="#06b6d4" strokeWidth="2.8" strokeLinecap="round" />}
+          {activeSeries.services && <path d={servicePath} fill="none" stroke="#ec4899" strokeWidth="2.8" strokeLinecap="round" />}
+
+          {points.map((pt, idx) => (
+            <circle key={idx} cx={pt.x} cy={pt.salesY} r="4" fill="#06b6d4" />
+          ))}
+
+          {hoveredData && <line x1={hoveredData.x} y1="25" x2={hoveredData.x} y2="175" stroke="#38bdf8" strokeWidth="1.8" strokeDasharray="4 2" />}
+        </svg>
+      </div>
+    </div>
+  );
+};
 
 interface DashboardRecentOrder {
   id: string;
@@ -1546,9 +2051,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 1: Faturamento Hoje (Green 3D Glass) */}
         <div
           onClick={() => onNavigate('CASH')}
-          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg ${
+          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] ${
             isDark
-              ? 'bg-gradient-to-br from-[#06241a] via-[#081f18] to-[#04130f] border-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.35)] hover:shadow-[0_0_32px_rgba(16,185,129,0.55)]'
+              ? 'bg-gradient-to-br from-[#06241a] via-[#081f18] to-[#04130f] border-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.65)] hover:border-emerald-400'
               : 'bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border-emerald-400 shadow-sm hover:shadow-md'
           }`}
           title="Ver movimentações e fluxo do Caixa de hoje"
@@ -1559,14 +2064,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
             <span className={`border rounded-full px-1.5 py-0.2 text-[9px] font-bold whitespace-nowrap shrink-0 ${
               growthPercentage >= 0 
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.4)]' 
                 : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
             }`}>
               {growthPercentage >= 0 ? `↑ +${growthPercentage}%` : `↓ ${growthPercentage}%`}
             </span>
           </div>
           <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {formatCurrency(todaySalesTotal)}
+            <AnimatedCountNumber value={todaySalesTotal} prefix="R$ " decimals={2} />
           </div>
           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-emerald-500/30 text-[10px]">
             <span className="text-emerald-400 font-semibold whitespace-nowrap truncate">
@@ -1581,9 +2086,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 2: Faturamento Mês (Cyan/Blue 3D Glass) */}
         <div
           onClick={() => onNavigate('FINANCE')}
-          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg ${
+          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] ${
             isDark
-              ? 'bg-gradient-to-br from-[#07203a] via-[#061a30] to-[#041020] border-cyan-500 shadow-[0_0_22px_rgba(6,182,212,0.35)] hover:shadow-[0_0_32px_rgba(6,182,212,0.55)]'
+              ? 'bg-gradient-to-br from-[#07203a] via-[#061a30] to-[#041020] border-cyan-500 shadow-[0_0_22px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.65)] hover:border-cyan-400'
               : 'bg-gradient-to-br from-cyan-50 via-white to-blue-50/50 border-cyan-400 shadow-sm hover:shadow-md'
           }`}
           title="Ver Gestão Financeira Completa"
@@ -1592,12 +2097,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               FATURAMENTO MÊS
             </span>
-            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded-full px-1.5 py-0.2 text-[9px] font-bold whitespace-nowrap shrink-0">
+            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded-full px-1.5 py-0.2 text-[9px] font-bold whitespace-nowrap shrink-0 shadow-[0_0_6px_rgba(6,182,212,0.4)]">
               ↑ Mensal
             </span>
           </div>
           <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {formatCurrency(monthRevenueTotal)}
+            <AnimatedCountNumber value={monthRevenueTotal} prefix="R$ " decimals={2} />
           </div>
           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-cyan-500/30 text-[10px]">
             <span className="text-cyan-400 font-medium whitespace-nowrap truncate">
@@ -1613,9 +2118,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <div
             onClick={() => onNavigate('ORDERS')}
-            className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg ${
+            className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
               isDark
-                ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_32px_rgba(168,85,247,0.55)]'
+                ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_35px_rgba(168,85,247,0.65)] hover:border-purple-400'
                 : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
             }`}
           >
@@ -1627,7 +2132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ORDENS DE SERVIÇO
               </span>
               <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {statusCounts.total}
+                <AnimatedCountNumber value={statusCounts.total} />
               </div>
               <span className="text-purple-300 text-[10px] font-medium block whitespace-nowrap truncate">
                 {statusCounts.emManutencao} em andamento
@@ -1639,9 +2144,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 5: Estoque Baixo (Red/Crimson 3D Glass) */}
         <div
           onClick={() => onNavigate('PRODUCTS')}
-          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg ${
+          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
             isDark
-              ? 'bg-gradient-to-br from-[#300c17] via-[#240811] to-[#170409] border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.35)] hover:shadow-[0_0_32px_rgba(244,63,94,0.55)]'
+              ? 'bg-gradient-to-br from-[#300c17] via-[#240811] to-[#170409] border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.35)] hover:shadow-[0_0_35px_rgba(244,63,94,0.65)] hover:border-rose-400'
               : 'bg-gradient-to-br from-rose-50 via-white to-rose-50/50 border-rose-400 shadow-sm hover:shadow-md'
           }`}
         >
@@ -1653,7 +2158,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               ESTOQUE BAIXO
             </span>
             <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {lowStockCount}
+              <AnimatedCountNumber value={lowStockCount} />
             </div>
             <span className="text-rose-300 text-[10px] font-medium block whitespace-nowrap truncate">
               produtos em alerta
@@ -1664,9 +2169,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 6: Clientes (Teal 3D Glass) */}
         <div
           onClick={() => onNavigate('CUSTOMERS')}
-          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg ${
+          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
             isDark
-              ? 'bg-gradient-to-br from-[#062429] via-[#051b1f] to-[#031114] border-teal-400 shadow-[0_0_22px_rgba(20,184,166,0.35)] hover:shadow-[0_0_32px_rgba(20,184,166,0.55)]'
+              ? 'bg-gradient-to-br from-[#062429] via-[#051b1f] to-[#031114] border-teal-400 shadow-[0_0_22px_rgba(20,184,166,0.35)] hover:shadow-[0_0_35px_rgba(20,184,166,0.65)] hover:border-teal-300'
               : 'bg-gradient-to-br from-teal-50 via-white to-teal-50/50 border-teal-400 shadow-sm hover:shadow-md'
           }`}
         >
@@ -1678,7 +2183,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               CLIENTES
             </span>
             <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {customerCount}
+              <AnimatedCountNumber value={customerCount} />
             </div>
             <span className="text-teal-300 text-[10px] font-semibold block whitespace-nowrap truncate">
               {customerCount === 1 ? 'cliente cadastrado' : 'clientes cadastrados'}
@@ -1687,322 +2192,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </section>
 
-      {/* 4. CHARTS & ANALYTICS ROW (3 COLUMNS WITH 3D GLASS DIVISIONS) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
-        {/* Column 1: Faturamento (Últimos 30 dias) SVG Area Chart (lg:col-span-6) */}
-        <div
-          className={`lg:col-span-6 xl:col-span-6 rounded-2xl p-4 flex flex-col justify-between border-2 transition-all ${
-            isDark
-              ? 'bg-[#0c1626]/90 border-blue-500/70 shadow-[0_0_24px_rgba(59,130,246,0.25)] text-white'
-              : 'bg-white border-blue-300 shadow-sm text-slate-900'
-          }`}
-        >
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-            <div className="flex items-center gap-2">
-              <div className="flex items-end gap-0.5 h-4">
-                <span className="w-1 h-3 bg-cyan-400 rounded-xs" />
-                <span className="w-1 h-4 bg-purple-400 rounded-xs" />
-                <span className="w-1 h-2.5 bg-pink-400 rounded-xs" />
-              </div>
-              <h2 className="text-sm font-bold tracking-wide whitespace-nowrap">
-                Faturamento <span className={`text-xs font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>(Últimos 30 dias)</span>
-              </h2>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              {/* Legend */}
-              <div className="hidden sm:flex items-center gap-3 text-xs whitespace-nowrap">
-                <span className="flex items-center gap-1.5 text-cyan-400 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
-                  Vendas
-                </span>
-                <span className="flex items-center gap-1.5 text-pink-400 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-pink-400 shadow-[0_0_6px_rgba(236,72,153,0.8)]" />
-                  Serviços (OS)
-                </span>
-              </div>
-
-              {/* Selector */}
-              <div className="relative">
-                <select
-                  value={chartPeriod}
-                  onChange={(e) => setChartPeriod(e.target.value as any)}
-                  className={`border-2 rounded-xl px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-cyan-500 ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 text-slate-300'
-                      : 'bg-slate-100 border-slate-300 text-slate-800'
-                  }`}
-                >
-                  <option value="30days">Últimos 30 dias</option>
-                  <option value="15days">Últimos 15 dias</option>
-                  <option value="7days">Últimos 7 dias</option>
-                  <option value="year">Este Ano</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* SVG Area Chart Container */}
-          <div className="relative w-full h-48 sm:h-52 mt-1">
-            <svg
-              viewBox="0 0 540 210"
-              className="w-full h-full overflow-visible"
-              preserveAspectRatio="none"
-            >
-              <defs>
-                <linearGradient id="vendasGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.45" />
-                  <stop offset="80%" stopColor="#06b6d4" stopOpacity="0.05" />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
-                </linearGradient>
-                <linearGradient id="servicosGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ec4899" stopOpacity="0.4" />
-                  <stop offset="80%" stopColor="#ec4899" stopOpacity="0.05" />
-                  <stop offset="100%" stopColor="#ec4899" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-
-              {/* Horizontal Grid lines and Y-labels */}
-              {chartData.yLabels.map((yl, idx) => {
-                const yPos = 30 + idx * 35;
-                return (
-                  <g key={yl + '-' + idx}>
-                    <text
-                      x="35"
-                      y={yPos + 4}
-                      textAnchor="end"
-                      fill="#64748b"
-                      fontSize="10"
-                      fontFamily="monospace"
-                    >
-                      {yl}
-                    </text>
-                    <line
-                      x1="45"
-                      y1={yPos}
-                      x2="530"
-                      y2={yPos}
-                      stroke="#1e293b"
-                      strokeWidth="1"
-                      strokeDasharray={idx === 4 ? '0' : '4 3'}
-                    />
-                  </g>
-                );
-              })}
-
-              {/* Area Fills */}
-              <path d={salesAreaPath} fill="url(#vendasGradient)" />
-              <path d={serviceAreaPath} fill="url(#servicosGradient)" />
-
-              {/* Curves */}
-              <path
-                d={servicePath}
-                fill="none"
-                stroke="#ec4899"
-                strokeWidth="2.5"
-                className="drop-shadow-[0_0_6px_rgba(236,72,153,0.7)]"
-              />
-              <path
-                d={salesPath}
-                fill="none"
-                stroke="#06b6d4"
-                strokeWidth="2.5"
-                className="drop-shadow-[0_0_6px_rgba(6,182,212,0.8)]"
-              />
-
-              {/* Data points */}
-              {chartData.salesPoints.map((pt, i) => (
-                <circle
-                  key={`pt-${i}`}
-                  cx={pt.x}
-                  cy={pt.y}
-                  r="4"
-                  fill="#06b6d4"
-                  stroke="#ffffff"
-                  strokeWidth="2"
-                  className="cursor-pointer transition-all hover:r-6 hover:shadow-[0_0_12px_#06b6d4]"
-                  onMouseEnter={() => setHoveredPoint(pt)}
-                />
-              ))}
-
-              {/* Dynamic Peak Tooltip Pin */}
-              {chartData.hasData && chartData.peakPoint && (
-                <g transform={`translate(${chartData.peakPoint.x}, ${chartData.peakPoint.y})`}>
-                  <line x1="0" y1="0" x2="0" y2={175 - chartData.peakPoint.y} stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="3 2" />
-                  <circle cx="0" cy="0" r="5" fill="#ffffff" stroke="#06b6d4" strokeWidth="2.5" />
-                  {/* Pinned Card */}
-                  <g transform={`translate(${chartData.peakPoint.x > 400 ? -75 : -40}, ${chartData.peakPoint.y > 60 ? -55 : 15})`}>
-                    <rect
-                      width="80"
-                      height="42"
-                      rx="8"
-                      fill="#0b1326"
-                      stroke="#06b6d4"
-                      strokeWidth="1.5"
-                      filter="drop-shadow(0 0 10px rgba(6,182,212,0.5))"
-                    />
-                    <text x="40" y="18" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="bold">
-                      {formatCurrency(chartData.peakPoint.val)}
-                    </text>
-                    <text x="40" y="32" textAnchor="middle" fill="#94a3b8" fontSize="8">
-                      {chartData.peakPoint.date}
-                    </text>
-                  </g>
-                </g>
-              )}
-
-              {/* X-axis Date Labels */}
-              {chartData.xLabels.map((xl, idx) => {
-                const xPos = 50 + idx * 78;
-                return (
-                  <text
-                    key={xl + '-' + idx}
-                    x={xPos}
-                    y="196"
-                    textAnchor="middle"
-                    fill="#64748b"
-                    fontSize="10"
-                    fontFamily="sans-serif"
-                  >
-                    {xl}
-                  </text>
-                );
-              })}
-            </svg>
-          </div>
+      {/* 4. CHARTS & ANALYTICS ROW (3 INTERACTIVE ANIMATED MODULES) */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        {/* Column 1: Faturamento (Últimos 30 dias / Selecionável) SVG Area Chart (lg:col-span-12 xl:col-span-6) */}
+        <div className="lg:col-span-12 xl:col-span-6 flex flex-col">
+          <AnimatedRevenueChart sales={sales} orders={orders} isDark={isDark} />
         </div>
 
-        {/* Column 2: Ordens de Serviço por Status (Donut Chart) (xl:col-span-3) */}
-        <div
-          className={`lg:col-span-6 xl:col-span-3 rounded-2xl p-4 flex flex-col justify-between border-2 transition-all ${
-            isDark
-              ? 'bg-[#0c1626]/90 border-purple-500/70 shadow-[0_0_24px_rgba(168,85,247,0.25)] text-white'
-              : 'bg-white border-purple-300 shadow-sm text-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-bold tracking-wide whitespace-nowrap">
-              Ordens de Serviço por Status
-            </h2>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 my-auto">
-            {/* Donut Graphic */}
-            <div className="relative w-28 h-28 sm:w-32 sm:h-32 2xl:w-36 2xl:h-36 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 140 140" className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="70"
-                  cy="70"
-                  r={donutRadius}
-                  fill="none"
-                  stroke={isDark ? '#1e293b' : '#e2e8f0'}
-                  strokeWidth="16"
-                />
-                {donutArcs.map((arc, i) => (
-                  <circle
-                    key={i}
-                    cx="70"
-                    cy="70"
-                    r={donutRadius}
-                    fill="none"
-                    stroke={arc.color}
-                    strokeWidth="16"
-                    strokeDasharray={`${Math.max(0, arc.strokeDash - 2)} ${donutCircumference}`}
-                    strokeDashoffset={arc.strokeOffset}
-                    strokeLinecap="round"
-                    className="transition-all duration-500"
-                    style={{
-                      filter: `drop-shadow(0 0 4px ${arc.color})`,
-                    }}
-                  />
-                ))}
-              </svg>
-
-              {/* Center Total Count */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                <span className="text-2xl font-black tracking-tight leading-none">
-                  {statusCounts.total}
-                </span>
-                <span className={`text-[10px] font-semibold uppercase tracking-wider mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Total
-                </span>
-              </div>
-            </div>
-
-            {/* Right Legend */}
-            <div className="space-y-1.5 w-full sm:w-auto flex-1 min-w-0">
-              {donutSegments.map((seg) => (
-                <div
-                  key={seg.label}
-                  className="flex items-center justify-between gap-2 text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => onNavigate('ORDERS')}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{
-                        backgroundColor: seg.color,
-                        boxShadow: `0 0 6px ${seg.color}`,
-                      }}
-                    />
-                    <span className={`text-xs truncate whitespace-nowrap ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{seg.label}</span>
-                  </div>
-                  <span className="font-bold text-xs ml-auto shrink-0">{seg.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Column 2: Ordens de Serviço por Status (Donut Chart) (lg:col-span-6 xl:col-span-3) */}
+        <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
+          <AnimatedDonutChart orders={orders} isDark={isDark} onNavigate={onNavigate} />
         </div>
 
-        {/* Column 3: Formas de Pagamento (Mês) (xl:col-span-3) */}
-        <div
-          className={`lg:col-span-6 xl:col-span-3 rounded-2xl p-4 flex flex-col justify-between border-2 transition-all ${
-            isDark
-              ? 'bg-[#0c1626]/90 border-teal-500/70 shadow-[0_0_24px_rgba(20,184,166,0.25)] text-white'
-              : 'bg-white border-teal-300 shadow-sm text-slate-900'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-sm font-bold tracking-wide whitespace-nowrap">
-              Formas de Pagamento <span className={`text-xs font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>(Mês)</span>
-            </h2>
-          </div>
-
-          <div className="space-y-2.5 my-auto">
-            {paymentMethods.map((pm) => (
-              <div key={pm.name} className="flex items-center gap-2 text-xs">
-                {/* Method Icon token */}
-                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border ${
-                  isDark ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'
-                }`}>
-                  {pm.name === 'PIX' ? (
-                    <span className="text-cyan-400 font-bold text-[9px]">◆</span>
-                  ) : pm.name === 'Dinheiro' ? (
-                    <span className="text-amber-400 font-bold text-[9px]">$</span>
-                  ) : pm.name === 'Transferência' ? (
-                    <span className="text-purple-400 font-bold text-[9px]">🏦</span>
-                  ) : (
-                    <span className="text-blue-400 font-bold text-[9px]">💳</span>
-                  )}
-                </div>
-
-                <span className={`text-xs min-w-[95px] max-w-[120px] truncate whitespace-nowrap ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{pm.name}</span>
-
-                {/* Progress bar with Glowing aura */}
-                <div className={`flex-1 h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                  <div
-                    className={`h-full rounded-full ${pm.color} transition-all duration-700 shadow-[0_0_8px_currentColor]`}
-                    style={{ width: `${pm.pct}%` }}
-                  />
-                </div>
-
-                <span className="font-bold text-xs w-8 text-right shrink-0">{pm.pct}%</span>
-              </div>
-            ))}
-          </div>
+        {/* Column 3: Formas de Pagamento (Mês) (lg:col-span-6 xl:col-span-3) */}
+        <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
+          <AnimatedPaymentMethods sales={sales} orders={orders} isDark={isDark} />
         </div>
       </section>
+
+      {/* Live Interactive Dashboard Status Bar (Inspired by the Reference Image) */}
+      <div className={`p-3 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3 text-xs shadow-lg transition-all ${
+        isDark
+          ? 'bg-[#071328]/90 border-cyan-500/30 text-slate-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+          : 'bg-blue-50/80 border-blue-200 text-slate-700'
+      }`}>
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+          <span className="font-extrabold text-emerald-400">Tempo Real:</span>
+          <span className="font-medium">Faturamento e gráficos sincronizados com PDV e Ordens de Serviço.</span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)] flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-cyan-400" />
+            Gráfico Interativo com Filtros
+          </span>
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-950/80 border border-purple-500/50 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.3)] flex items-center gap-1.5">
+            <Zap className="w-3 h-3 text-purple-400" />
+            Efeitos Animados & Glow Neon
+          </span>
+        </div>
+      </div>
 
       {/* 5. BOTTOM 3 CARDS IN ONE ROW: ULTIMAS ORDENS (col-5) + PRODUTOS MAIS VENDIDOS (col-3) + ALERTAS (col-4) */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">

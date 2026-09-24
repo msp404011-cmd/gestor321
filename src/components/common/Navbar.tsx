@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Store,
   Cloud,
+  ShoppingCart,
 } from 'lucide-react';
 import { Employee, CashSession } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -42,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNotifications,
   unreadNotificationsCount,
   currentUser: propCurrentUser,
+  onOpenPDV,
   onSwitchUser,
   onLogout,
   onOpenPlans,
@@ -198,6 +200,21 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
         </button>
+
+        {/* PDV / Caixa Direct Button */}
+        {onOpenPDV && (
+          <button
+            type="button"
+            id="btn-navbar-pdv"
+            onClick={onOpenPDV}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-[0_0_12px_rgba(16,185,129,0.35)] cursor-pointer transition-all active:scale-95 border border-emerald-400/30"
+            title="Abrir PDV - Ponto de Venda"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span className="hidden sm:inline">PDV / Caixa</span>
+            <span className="sm:hidden">PDV</span>
+          </button>
+        )}
 
 
 

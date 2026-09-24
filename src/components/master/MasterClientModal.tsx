@@ -14,6 +14,10 @@ import {
   Phone,
   Mail,
   User,
+  Building,
+  KeyRound,
+  Eye,
+  EyeOff,
   Clock
 } from 'lucide-react';
 import { CanonicalAccount } from '../../services/accountSchema';
@@ -66,12 +70,18 @@ const AVAILABLE_SYSTEM_PLANS: Array<{
 
 export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, onClose }) => {
   const [formData, setFormData] = useState({
+    nome: client.nome || client.name || '',
+    empresa: client.empresa || client.nomeEmpresa || '',
+    telefone: client.telefone || client.phone || client.whatsapp || '',
+    newPassword: '',
     planoId: client.planoId || client.plano || '',
     planoNome: client.planoNome || client.plano || '',
     valorMensalidade: client.valorPlano !== undefined && client.valorPlano !== null ? Number(client.valorPlano) : (client.valorMensalidade !== undefined && client.valorMensalidade !== null ? Number(client.valorMensalidade) : (client.mensalidade !== undefined && client.mensalidade !== null ? Number(client.mensalidade) : 0)),
     status: (client.bloqueado ? 'bloqueado' : client.status || 'ativo') as 'ativo' | 'bloqueado' | 'vencido',
     dataVencimento: client.dataVencimento || client.vencimento || ''
   });
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -118,6 +128,10 @@ export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, on
         docId: targetId,
         uid: client.uid || (targetId.includes('@') ? '' : targetId),
         email: client.email || (targetId.includes('@') ? targetId : ''),
+        nome: formData.nome.trim(),
+        empresa: formData.empresa.trim(),
+        telefone: formData.telefone.trim(),
+        password: formData.newPassword.trim() ? formData.newPassword.trim() : undefined,
         planoId: formData.planoId,
         planoNome: formData.planoNome,
         valorPlano: Number(formData.valorMensalidade),
@@ -125,7 +139,7 @@ export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, on
         dataVencimento: formData.dataVencimento,
       });
 
-      setSuccessMsg('Plano e dados atualizados com sucesso no Firebase!');
+      setSuccessMsg('Dados, plano e credenciais atualizados com sucesso no Firebase!');
       setTimeout(() => {
         onClose();
       }, 1000);
@@ -354,6 +368,81 @@ export const MasterClientModal: React.FC<MasterClientModalProps> = ({ client, on
                   <span>Bloquear Usuário</span>
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Seção 0: Dados do Usuário & Senha de Acesso */}
+          <div className="space-y-3">
+            <label className="text-slate-300 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+              <User className="w-4 h-4 text-cyan-400" />
+              Dados do Usuário e Credenciais de Acesso
+            </label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-slate-400 text-xs font-semibold flex items-center gap-1.5 mb-1">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  Nome do Responsável
+                </label>
+                <input 
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded-xl text-white text-sm focus:border-cyan-500 outline-none" 
+                  value={formData.nome} 
+                  onChange={e => setFormData({ ...formData, nome: e.target.value })} 
+                  placeholder="Nome do cliente"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-semibold flex items-center gap-1.5 mb-1">
+                  <Building className="w-3.5 h-3.5 text-slate-400" />
+                  Nome da Empresa / Loja
+                </label>
+                <input 
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded-xl text-white text-sm focus:border-cyan-500 outline-none" 
+                  value={formData.empresa} 
+                  onChange={e => setFormData({ ...formData, empresa: e.target.value })} 
+                  placeholder="Empresa ou Loja"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-semibold flex items-center gap-1.5 mb-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  Telefone / WhatsApp
+                </label>
+                <input 
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded-xl text-white text-sm focus:border-cyan-500 outline-none" 
+                  value={formData.telefone} 
+                  onChange={e => setFormData({ ...formData, telefone: e.target.value })} 
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-semibold flex items-center gap-1.5 mb-1">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  Redefinir Senha de Acesso (opcional)
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? 'text' : 'password'}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 pr-10 rounded-xl text-white text-sm focus:border-cyan-500 outline-none font-mono" 
+                    value={formData.newPassword} 
+                    onChange={e => setFormData({ ...formData, newPassword: e.target.value })} 
+                    placeholder="Deixe em branco para não alterar"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

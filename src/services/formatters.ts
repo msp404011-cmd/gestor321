@@ -86,6 +86,7 @@ export type CanonicalStatus =
   | 'ENTREGUE'
   | 'GARANTIA'
   | 'CANCELADA'
+  | 'ARQUIVADO'
   | string;
 
 function normalizeStatusForMatch(str?: string): string {
@@ -213,6 +214,10 @@ export function getCanonicalStatus(status?: string): string {
     return 'CANCELADA';
   }
 
+  if (sUpper === 'ARQUIVADO' || sUpper === 'ARQUIVADA' || sUpper === 'ARQUIVO' || sUpper === 'GUARDADO') {
+    return 'ARQUIVADO';
+  }
+
   return sUpper;
 }
 
@@ -236,6 +241,7 @@ export function getOrderStatusLabel(status: OrderStatus | string): string {
     ENTREGUE: 'Entregue / Concluído',
     GARANTIA: 'Retorno em Garantia',
     CANCELADA: 'Cancelado pelo Cliente',
+    ARQUIVADO: 'Arquivado',
     EM_MANUTENCAO: 'Em Manutenção',
     EM_ANALISE: 'Em Análise',
   };
@@ -293,6 +299,9 @@ export function getOrderStatusBadgeClasses(status: OrderStatus | string): {
 
     case 'CANCELADA':
       return { bg: 'bg-slate-500/15', text: 'text-slate-400', border: 'border-slate-500/40', dot: 'bg-slate-400' };
+
+    case 'ARQUIVADO':
+      return { bg: 'bg-zinc-700/30', text: 'text-zinc-200', border: 'border-zinc-500/50', dot: 'bg-zinc-400' };
 
     default:
       return { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/40', dot: 'bg-blue-400' };

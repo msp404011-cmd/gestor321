@@ -37,10 +37,165 @@ import { Product } from '../../types';
 import { StorageService } from '../../services/storage';
 import { formatCurrency } from '../../services/formatters';
 import { SubscriptionService } from '../../services/subscriptionService';
-import { ConfirmDialog } from '../common/ConfirmDialog';
-import { StockAdjustModal } from './StockAdjustModal';
+import { ConfirmDialog } from '../common/Modal';
 import { BrandLogo } from '../../utils/brandUtils';
 import { useTheme } from '../../context/ThemeContext';
+
+interface StockAdjustModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  product: Product | null;
+}
+
+const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
+  isOpen,
+  onClose,
+  product,
+}) => {
+  const [type, setType] = useState<'IN' | 'OUT'>('IN');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [reason, setReason] = useState<string>('Reposição de Estoque');
+
+  useEffect(() => {
+    if (isOpen) {
+      setType('IN');
+      setQuantity(1);
+      setReason('Reposição de Estoque');
+    }
+  }, [isOpen, product]);
+
+  if (!isOpen || !product) return null;
+
+  const currentUser = StorageService.getCurrentUser();
+  const currentStock = product.stockQuantity;
+  const newStock = type === 'IN' ? currentStock + quantity : Math.max(0, currentStock - quantity);
+
+  const movements = StorageService.getStockMovements().filter(m => m.productId === product.id);
+  const handleConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (quantity <= 0) return;
+
+    StorageService.addStockMovement({
+      productId: product.id,
+      productName: product.name,
+      quantity: type === 'IN' ? quantity : -quantity,
+      type: type === 'IN' ? 'ENTRADA' : 'SAIDA',
+      reason,
+      previousStock: currentStock,
+      newStock,
+      userName: currentUser?.name || 'Administrador',
+    });
+
+    const updatedProduct = {
+      ...product,
+      stockQuantity: newStock,
+    };
+    StorageService.saveProduct(updatedProduct);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-[#0c1626] border-2 border-slate-700/90 shadow-[0_0_35px_rgba(6,182,212,0.2)] rounded-2xl max-w-md w-full overflow-hidden text-white animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#070e1d]">
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-cyan-400" />
+            <h3 className="font-bold text-base">Ajuste de Estoque</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleConfirm} className="p-5 space-y-4">
+          <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <p className="text-xs text-slate-400">Produto Selecionado</p>
+            <p className="font-bold text-sm text-cyan-300 mt-0.5">{product.name}</p>
+            <p className="text-xs text-slate-400 mt-1">Estoque Atual: <strong className="text-white">{currentStock} un</strong></p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setType('IN')}
+              className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                type === 'IN' ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Entrada (+ Estoque)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('OUT')}
+              className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                type === 'OUT' ? 'bg-rose-600/30 border-rose-500 text-rose-300 shadow-md' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Saída (- Estoque)</span>
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1">Quantidade</label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-bold text-sm focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1">Motivo do Ajuste</label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-none focus:border-cyan-500"
+            >
+              {type === 'IN' ? (
+                <>
+                  <option value="Reposição de Estoque">Reposição de Estoque</option>
+                  <option value="Devolução de Cliente">Devolução de Cliente</option>
+                  <option value="Ajuste de Inventário (Sobras)">Ajuste de Inventário (Sobras)</option>
+                  <option value="Compra sem Nota">Compra sem Nota</option>
+                </>
+              ) : (
+                <>
+                  <option value="Perda / Avaria / Quebra">Perda / Avaria / Quebra</option>
+                  <option value="Defeito de Fabricação">Defeito de Fabricação</option>
+                  <option value="Uso Interno / Bancada">Uso Interno / Bancada</option>
+                  <option value="Ajuste de Inventário (Falta)">Ajuste de Inventário (Falta)</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/50 flex items-center justify-between text-xs">
+            <span className="text-slate-300">Novo Estoque Previsto:</span>
+            <span className="font-black text-sm text-cyan-300">{newStock} un</span>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white rounded-xl transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+            >
+              <span>Confirmar Ajuste</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 interface ProductListViewProps {
   onOpenNewProduct: () => void;

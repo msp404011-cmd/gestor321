@@ -158,10 +158,140 @@ export const initialEmployees: Employee[] = [
   },
 ];
 
-export const initialCustomers: Customer[] = [];
-export const initialDevices: Device[] = [];
-export const initialProducts: Product[] = [];
-export const initialOrders: ServiceOrder[] = [];
+export const initialCustomers: Customer[] = [
+  {
+    id: 'cust-1',
+    name: 'Carlos Eduardo Santos',
+    phone: '(11) 98765-4321',
+    whatsapp: '(11) 98765-4321',
+    document: '345.678.912-00',
+    email: 'carlos.eduardo@email.com',
+    address: 'Av. Paulista, 1000 - Bela Vista',
+    city: 'São Paulo - SP',
+    debtBalance: 0,
+    createdAt: '2025-01-20T10:00:00.000Z',
+  },
+];
+
+export const initialDevices: Device[] = [
+  {
+    id: 'dev-1',
+    customerId: 'cust-1',
+    customerName: 'Carlos Eduardo Santos',
+    type: 'Smartphone',
+    brand: 'Samsung',
+    model: 'Galaxy A54 5G',
+    serialNumber: 'R58M90ABCDE',
+    imei: '358742091234567',
+    color: 'Preto',
+    physicalCondition: 'Pequenos riscos de uso na tampa traseira',
+    accessoriesDelivered: 'Capa Protetora Transparente',
+    notes: 'Aparelho bem conservado',
+    createdAt: '2025-01-20T10:00:00.000Z',
+  },
+];
+
+export const initialProducts: Product[] = [
+  {
+    id: 'prod-1',
+    name: 'Subplaca Conector Carga Samsung A54',
+    sku: 'PEC-SAM-A54-SUB',
+    barcode: '7891000200030',
+    category: 'Peças',
+    costPrice: 35.0,
+    sellingPrice: 80.0,
+    resellerPrice: 65.0,
+    stockQuantity: 10,
+    minStockQuantity: 2,
+    brand: 'Samsung',
+    model: 'Galaxy A54',
+    unit: 'UN',
+    isActive: true,
+    createdAt: '2025-01-20T10:00:00.000Z',
+  },
+];
+
+export const initialOrders: ServiceOrder[] = [
+  {
+    id: 'os-1001',
+    orderNumber: 1001,
+    customerId: 'cust-1',
+    customerName: 'Carlos Eduardo Santos',
+    customerPhone: '(11) 98765-4321',
+    customerWhatsapp: '(11) 98765-4321',
+    customerDocument: '345.678.912-00',
+    deviceId: 'dev-1',
+    deviceType: 'Smartphone',
+    brand: 'Samsung',
+    model: 'Galaxy A54 5G',
+    imei: '358742091234567',
+    serialNumber: 'R58M90ABCDE',
+    passwordPin: '1234',
+    passwordType: 'PIN',
+    accessories: 'Capa Protetora Transparente',
+    physicalCondition: 'Pequenos riscos na tampa traseira, sem trincos',
+    physicalState: 'Pequenos riscos na tampa traseira, sem trincos',
+    clientDefect: 'Aparelho não carrega e conector esquenta ao plugar no carregador',
+    technicalDiagnosis: 'Conector de carga tipo C oxidado com curto na placa sub',
+    requestedService: 'Troca da placa do conector de carga (Subplaca) e limpeza interna',
+    performedService: 'Troca da placa do conector de carga (Subplaca) e limpeza interna',
+    laborPrice: 120,
+    partsPrice: 80,
+    discount: 0,
+    totalPrice: 200,
+    paymentMethod: 'PIX',
+    paymentStatus: 'PENDENTE',
+    status: 'ORCAMENTO',
+    archivedLocation: 'Gaveta 1',
+    technicianName: 'Juliana Costa',
+    attendantName: 'Juliana Costa',
+    warrantyDays: 90,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    items: [
+      {
+        id: 'part-ex-1',
+        name: 'Subplaca Conector Carga Samsung A54',
+        productName: 'Subplaca Conector Carga Samsung A54',
+        type: 'PECA',
+        quantity: 1,
+        unitPrice: 80,
+        discount: 0,
+        total: 80,
+        totalPrice: 80,
+      },
+    ],
+    parts: [
+      {
+        id: 'part-ex-1',
+        name: 'Subplaca Conector Carga Samsung A54',
+        productName: 'Subplaca Conector Carga Samsung A54',
+        type: 'PECA',
+        quantity: 1,
+        unitPrice: 80,
+        discount: 0,
+        total: 80,
+        totalPrice: 80,
+      },
+    ],
+    statusHistory: [
+      {
+        status: 'ORCAMENTO',
+        changedAt: new Date().toISOString(),
+        changedBy: 'Juliana Costa',
+        notes: 'Ordem de serviço criada com diagnóstico inicial.',
+      },
+    ],
+    history: [
+      {
+        status: 'ORCAMENTO',
+        changedAt: new Date().toISOString(),
+        changedBy: 'Juliana Costa',
+        notes: 'Ordem de serviço criada com diagnóstico inicial.',
+      },
+    ],
+  },
+];
 export const initialSales: Sale[] = [];
 
 export const initialCashSession: CashSession = {

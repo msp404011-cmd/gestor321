@@ -33,7 +33,7 @@ import { Expense, PaymentMethod } from '../../types';
 import { formatCurrency, formatDate } from '../../services/formatters';
 import { CashSessionModal } from './CashSessionModal';
 import { ExpenseModal } from './ExpenseModal';
-import { ConfirmDialog } from '../common/ConfirmDialog';
+import { ConfirmDialog } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
 
 type FinanceTab = 'CASH' | 'EXPENSES';

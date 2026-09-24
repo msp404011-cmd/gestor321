@@ -401,6 +401,29 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
           <button
             type="button"
             onClick={async () => {
+              if (confirm('ATENÇÃO: Deseja apagar todos os clientes/usuários e manter APENAS a conta do Super Admin oficial (mmspmartins62@gmail.com)? Esta ação é definitiva no Firebase.')) {
+                try {
+                  setLoadingAction('purge');
+                  const res = await AdminBackendService.purgeNonAdmins();
+                  showToast(`Base resetada com sucesso! ${res.deletedDocsCount} registros excluídos. Super Admin preservado.`);
+                  setTimeout(() => window.location.reload(), 1200);
+                } catch(e: any) { 
+                  showToast(e.message || 'Erro ao resetar base', 'error'); 
+                } finally {
+                  setLoadingAction(null);
+                }
+              }
+            }}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-rose-950/50 cursor-pointer"
+            title="Exclui todos os usuários e mantém apenas o Super Admin"
+          >
+            <Trash2 className="w-4 h-4 text-rose-200" />
+            <span>Limpar Todos (Manter Super Admin)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={async () => {
               if (confirm('Deseja realmente limpar contas duplicadas?')) {
                 try {
                   const token = AdminBackendService.getToken();

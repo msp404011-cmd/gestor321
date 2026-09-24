@@ -68,33 +68,40 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   // E-mail limpo em minúsculas
   const email = (data.email || data.userEmail || data.login || data.loginUsuario || id || '').trim().toLowerCase();
 
+  // Verificação de Super Administrador Master
+  const isSuperAdmin =
+    email === 'mmspmartins62@gmail.com' ||
+    email === 'msp404011@gmail.com' ||
+    email.includes('mmspmartins62') ||
+    email.includes('msp404011');
+
   // UID consistente: usa o existente ou o ID do documento
   const uid = data.uid || data.userId || data.id || id || email;
 
   // Nome e Empresa
-  const nome = data.nome || data.name || data.responsavel || data.empresa || data.storeName || 'Cliente';
-  const empresa = data.empresa || data.nomeEmpresa || data.nomeFantasia || data.razaoSocial || data.storeName || nome;
+  const nome = data.nome || data.name || data.responsavel || (isSuperAdmin ? 'Administrador Master' : 'Cliente');
+  const empresa = data.empresa || data.nomeEmpresa || data.nomeFantasia || data.razaoSocial || (isSuperAdmin ? 'Painel Master Gestor' : nome);
   const telefone = data.telefone || data.phone || data.celular || data.whatsapp || '';
 
   // Plano e Valor
-  const rawPlanStr = String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '');
-  const plano = normalizePlanType(rawPlanStr);
+  const rawPlanStr = isSuperAdmin ? 'SUPER_ADMIN' : String(data.planoId || data.plano || data.plan || data.planType || data.planoNome || data.planName || '');
+  const plano = isSuperAdmin ? 'SUPER_ADMIN' : normalizePlanType(rawPlanStr);
 
   const isTrialPlan = plano === 'TRIAL';
-  const planoNome = data.planoNome || data.planName || data.plano || data.planType || (isTrialPlan ? 'Teste Grátis (7 Dias)' : '');
+  const planoNome = isSuperAdmin
+    ? 'Plano Super Admin Vitalício'
+    : (data.planoNome || data.planName || data.plano || data.planType || (isTrialPlan ? 'Teste Grátis (7 Dias)' : 'Plano Assistência Técnica'));
   
-  // Para valorPlano, vamos buscar exatamente o que está no banco e não forçar 0 a menos que seja realmente TRIAL. 
-  // Se não tiver valor definido no banco, deixamos o que existir ou undefined/0, mas preferimos os campos reais.
   const rawValor = data.valorPlano ?? data.valorMensalidade ?? data.mensalidade ?? data.valor ?? data.amount ?? data.preco ?? data.price;
-  const valorPlano = isTrialPlan ? 0 : (rawValor !== undefined && rawValor !== null ? Number(rawValor) : 0);
+  const valorPlano = (isSuperAdmin || isTrialPlan) ? 0 : (rawValor !== undefined && rawValor !== null ? Number(rawValor) : 69.90);
 
   // Datas
   const nowIso = new Date().toISOString();
   const dataCriacao = data.dataCriacao || data.createdAt || data.dataCadastro || nowIso;
   
-  // Se não houver data de vencimento, calcula 7 dias para TRIAL ou 30 dias para planos normais a partir da data de criação (estável)
-  let dataVencimento = data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || '';
-  if (!dataVencimento) {
+  // Se for super admin, não tem vencimento
+  let dataVencimento = isSuperAdmin ? '' : (data.dataVencimento || data.vencimento || data.dueDate || data.expiryDate || '');
+  if (!dataVencimento && !isSuperAdmin) {
     try {
       const baseDate = new Date(dataCriacao);
       if (!isNaN(baseDate.getTime())) {
@@ -113,7 +120,7 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   }
 
   // Status e Bloqueio
-  const isBlocked = Boolean(
+  const isBlocked = isSuperAdmin ? false : Boolean(
     data.bloqueado === true ||
     data.blocked === true ||
     data.status === 'bloqueado' ||
@@ -125,7 +132,7 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
   let calculatedStatus: 'ativo' | 'bloqueado' | 'vencido' = 'ativo';
   if (isBlocked) {
     calculatedStatus = 'bloqueado';
-  } else {
+  } else if (!isSuperAdmin) {
     try {
       let exp: Date;
       if (typeof dataVencimento === 'string' && dataVencimento.includes('-')) {
@@ -135,15 +142,17 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
         } else {
           exp = new Date(dataVencimento);
         }
-      } else {
+      } else if (dataVencimento) {
         exp = new Date(dataVencimento);
+      } else {
+        exp = new Date();
       }
       exp.setHours(0, 0, 0, 0);
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (exp.getTime() < today.getTime()) {
+      if (dataVencimento && exp.getTime() < today.getTime()) {
         calculatedStatus = 'vencido';
       }
     } catch {
@@ -151,8 +160,8 @@ export function normalizeAccountData(id: string, rawData: any): CanonicalAccount
     }
   }
 
-  const status = isBlocked ? 'bloqueado' : (data.status || calculatedStatus);
-  const situacaoPagamento = data.situacaoPagamento || (status === 'vencido' ? 'atrasado' : 'em_dia');
+  const status = isSuperAdmin ? 'ativo' : (isBlocked ? 'bloqueado' : (data.status || calculatedStatus));
+  const situacaoPagamento = isSuperAdmin ? 'em_dia' : (data.situacaoPagamento || (status === 'vencido' ? 'atrasado' : 'em_dia'));
 
   return {
     ...data,

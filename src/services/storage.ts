@@ -387,6 +387,7 @@ export const defaultCustomOSStatuses: CustomOSStatusItem[] = [
   { id: 'os-7', code: 'ENTREGUE', label: 'Entregue / Concluído', colorBg: 'bg-teal-500/15', colorText: 'text-teal-400', colorBorder: 'border-teal-500/40', colorDot: 'bg-teal-400', isSystem: true },
   { id: 'os-8', code: 'GARANTIA', label: 'Retorno em Garantia', colorBg: 'bg-indigo-500/15', colorText: 'text-indigo-400', colorBorder: 'border-indigo-500/40', colorDot: 'bg-indigo-400' },
   { id: 'os-9', code: 'CANCELADA', label: 'Cancelado pelo Cliente', colorBg: 'bg-slate-500/15', colorText: 'text-slate-400', colorBorder: 'border-slate-500/40', colorDot: 'bg-slate-400' },
+  { id: 'os-10', code: 'ARQUIVADO', label: 'Arquivado', colorBg: 'bg-zinc-700/30', colorText: 'text-zinc-200', colorBorder: 'border-zinc-500/50', colorDot: 'bg-zinc-400' },
 ];
 
 export interface SystemFormatOptions {
@@ -510,7 +511,7 @@ function loadInitialAuthSession(): AuthSession | null {
 }
 
 export const DEMO_ORDER_IDS = new Set([
-  'os-1001', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
   'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
   'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
 ]);
@@ -1414,7 +1415,11 @@ export const StorageService = {
 
   // Service Orders
   getOrders(): ServiceOrder[] {
-    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, []);
+    const orders = getItem<ServiceOrder[]>(STORAGE_KEYS.ORDERS, initialOrders);
+    if (!orders || orders.length === 0) {
+      setItem(STORAGE_KEYS.ORDERS, initialOrders);
+      return initialOrders;
+    }
     return orders.filter((o) => !isDemoOrder(o));
   },
 
@@ -1662,7 +1667,167 @@ export const StorageService = {
       `Total: R$ ${sale.total.toFixed(2)} (${sale.paymentMethod}) - Vendedor: ${sale.sellerName}`
     );
 
+    // 6. Automatic 12-Month Retention Policy Check:
+    // Keeps sales for 12 months. When reaching 12 months, drops the oldest expired month (never all months).
+    try {
+      this.cleanExpiredSales();
+    } catch (e) {
+      console.warn('Erro na verificação automática de retenção de 12 meses:', e);
+    }
+
     return sale;
+  },
+
+  /**
+   * Política de Retenção de 12 Meses:
+   * Mantém as vendas armazenadas por até 12 meses (1 ano móvel).
+   * Ao atingir mais de 12 meses, remove estritamente o mês mais antigo expirado,
+   * garantindo que os últimos 12 meses de vendas permaneçam sempre íntegros e intactos.
+   */
+  cleanExpiredSales(): { deletedMonth: string | null; deletedCount: number; remainingCount: number } {
+    const sales = this.getSales();
+    if (sales.length === 0) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: 0 };
+    }
+
+    const now = new Date();
+    // Vendas com mais de 12 meses completos em relação à data atual
+    const expiredSales = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      if (isNaN(d.getTime())) return false;
+      const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+      return diffMonths > 12;
+    });
+
+    if (expiredSales.length === 0) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: sales.length };
+    }
+
+    // Identifica estritamente o mês mais antigo entre as vendas expiradas (ex: '2025-01')
+    let oldestMonthKey: string | null = null;
+    expiredSales.forEach((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!oldestMonthKey || mKey < oldestMonthKey) {
+        oldestMonthKey = mKey;
+      }
+    });
+
+    if (!oldestMonthKey) {
+      return { deletedMonth: null, deletedCount: 0, remainingCount: sales.length };
+    }
+
+    // Apaga SOMENTE as vendas correspondentes a esse mês mais antigo
+    const salesToDelete = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return mKey === oldestMonthKey;
+    });
+
+    const remainingSales = sales.filter((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return mKey !== oldestMonthKey;
+    });
+
+    if (salesToDelete.length > 0) {
+      setItem(STORAGE_KEYS.SALES, remainingSales);
+      notifyListeners();
+
+      // Sincroniza exclusão no Firestore para cada venda do mês expurgado
+      salesToDelete.forEach((s) => {
+        try {
+          FirestoreSyncService.deleteSale(s.id);
+        } catch (e) {
+          console.warn('Erro ao deletar venda expirada no Firestore:', e);
+        }
+      });
+
+      this.logAction(
+        `Retenção 12 Meses: Mês mais antigo (${oldestMonthKey}) expurgado`,
+        `${salesToDelete.length} vendas do mês ${oldestMonthKey} foram removidas. Restam ${remainingSales.length} vendas nos últimos 12 meses.`
+      );
+    }
+
+    return {
+      deletedMonth: oldestMonthKey,
+      deletedCount: salesToDelete.length,
+      remainingCount: remainingSales.length,
+    };
+  },
+
+  getSalesRetentionStats(): {
+    totalSales: number;
+    oldestDate: string | null;
+    newestDate: string | null;
+    distinctMonthsCount: number;
+    hasExpiredMonths: boolean;
+    oldestExpiredMonth: string | null;
+  } {
+    const sales = this.getSales();
+    if (sales.length === 0) {
+      return {
+        totalSales: 0,
+        oldestDate: null,
+        newestDate: null,
+        distinctMonthsCount: 0,
+        hasExpiredMonths: false,
+        oldestExpiredMonth: null,
+      };
+    }
+
+    const now = new Date();
+    const monthsSet = new Set<string>();
+    let oldestTimestamp = Infinity;
+    let newestTimestamp = -Infinity;
+    let oldestExpiredMonth: string | null = null;
+
+    sales.forEach((s) => {
+      const d = new Date(s.date || s.createdAt || '');
+      if (!isNaN(d.getTime())) {
+        const ts = d.getTime();
+        if (ts < oldestTimestamp) oldestTimestamp = ts;
+        if (ts > newestTimestamp) newestTimestamp = ts;
+
+        const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthsSet.add(mKey);
+
+        const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (diffMonths > 12) {
+          if (!oldestExpiredMonth || mKey < oldestExpiredMonth) {
+            oldestExpiredMonth = mKey;
+          }
+        }
+      }
+    });
+
+    return {
+      totalSales: sales.length,
+      oldestDate: oldestTimestamp !== Infinity ? new Date(oldestTimestamp).toISOString() : null,
+      newestDate: newestTimestamp !== -Infinity ? new Date(newestTimestamp).toISOString() : null,
+      distinctMonthsCount: monthsSet.size,
+      hasExpiredMonths: !!oldestExpiredMonth,
+      oldestExpiredMonth,
+    };
+  },
+
+  deleteSale(id: string): boolean {
+    const sales = this.getSales();
+    const target = sales.find((s) => s.id === id);
+    if (!target) return false;
+
+    const filtered = sales.filter((s) => s.id !== id);
+    setItem(STORAGE_KEYS.SALES, filtered);
+    notifyListeners();
+
+    try {
+      FirestoreSyncService.deleteSale(id);
+    } catch (e) {
+      console.warn('Firestore deleteSale error:', e);
+    }
+
+    this.logAction(`Venda #${target.saleNumber} excluída.`);
+    return true;
   },
 
   // Cash Register
@@ -3982,43 +4147,18 @@ export const StorageService = {
   },
 
   getCustomOSStatuses(): CustomOSStatusItem[] {
-    const list = getItem<CustomOSStatusItem[]>(STORAGE_KEYS.CUSTOM_OS_STATUSES, defaultCustomOSStatuses);
+    const list = getItem<CustomOSStatusItem[] | null>(STORAGE_KEYS.CUSTOM_OS_STATUSES, null);
     if (Array.isArray(list) && list.length > 0) {
-      let modified = false;
-
-      // Auto-correct any legacy "Eulis" to "C/ Euklis"
-      list.forEach((s) => {
-        if (s.label && s.label !== 'C/ Euklis' && (s.label.toUpperCase() === 'C/ EULIS' || s.label.toUpperCase() === 'EULIS' || s.label.toUpperCase() === 'EUKLIS')) {
-          s.label = 'C/ Euklis';
-          modified = true;
+      const merged = [...list];
+      defaultCustomOSStatuses.forEach((def) => {
+        const exists = merged.some(
+          (s) => s.code?.toUpperCase() === def.code?.toUpperCase() || s.id === def.id
+        );
+        if (!exists) {
+          merged.push(def);
         }
       });
-
-      const hasEulis = list.some(
-        (s) => s.code?.toUpperCase().includes('EULIS') || s.code?.toUpperCase().includes('EUKLIS') || s.label?.toUpperCase().includes('EULIS') || s.label?.toUpperCase().includes('EUKLIS')
-      );
-      if (!hasEulis) {
-        list.splice(3, 0, {
-          id: 'os-eulis',
-          code: 'C_EULIS',
-          label: 'C/ Euklis',
-          colorBg: 'bg-indigo-500/15',
-          colorText: 'text-indigo-400',
-          colorBorder: 'border-indigo-500/40',
-          colorDot: 'bg-indigo-400',
-        });
-        modified = true;
-      }
-
-      if (modified) {
-        // Save quietly without triggering broadcast feedback loop during a get read
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem(STORAGE_KEYS.CUSTOM_OS_STATUSES, JSON.stringify(list));
-          }
-        } catch (_) {}
-      }
-      return list;
+      return merged;
     }
     return defaultCustomOSStatuses;
   },
