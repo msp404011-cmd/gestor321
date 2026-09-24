@@ -66,6 +66,16 @@ service cloud.firestore {
       // Deletions: allowed for SuperAdmins
       allow delete: if isSuperAdmin();
 
+      // Monthly Debits (Super Admin only)
+      match /monthly_debits/{debitId} {
+        allow read, write: if isSuperAdmin();
+      }
+
+      // Accounts Payable (Super Admin only)
+      match /accounts_payable/{payableId} {
+        allow read, write: if isSuperAdmin();
+      }
+
       // SUBCOLLECTIONS (orders, receivables, expenses, products, customers, suppliers, purchases, employees, settings, etc.)
       match /{subcollection}/{document=**} {
         allow read, write: if isOwner(accountId) && (isSuperAdmin() || isDocNotBlocked());

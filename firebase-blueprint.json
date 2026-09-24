@@ -76,6 +76,38 @@
         "paymentStatus": { "type": "string" }
       },
       "required": ["purchaseId", "paymentStatus"]
+    },
+    "MonthlyDebit": {
+      "title": "MonthlyDebit",
+      "description": "Monthly debts or bills for tenant (Super Admin only)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "installmentsCount": { "type": "number" },
+        "installmentAmount": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "paidInstallments": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "status": { "type": "string" },
+        "payments": { "type": "array" }
+      },
+      "required": ["id", "name", "totalAmount"]
+    },
+    "AccountsPayable": {
+      "title": "AccountsPayable",
+      "description": "Day-to-day accounts payable running balance ledger for tenant (Super Admin only)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "currentBalance": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "transactions": { "type": "array" }
+      },
+      "required": ["id", "name"]
     }
   },
   "firestore": {
@@ -102,6 +134,14 @@
     "/accounts/{accountId}/supplier_purchases/{purchaseId}": {
       "schema": "SupplierPurchase",
       "description": "Supplier purchases and parts debits for tenant"
+    },
+    "/accounts/{accountId}/monthly_debits/{debitId}": {
+      "schema": "MonthlyDebit",
+      "description": "Monthly bills and debits for tenant"
+    },
+    "/accounts/{accountId}/accounts_payable/{payableId}": {
+      "schema": "AccountsPayable",
+      "description": "Day-to-day accounts payable ledger cards for tenant"
     }
   }
 }
