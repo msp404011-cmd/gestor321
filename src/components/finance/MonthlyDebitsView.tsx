@@ -580,11 +580,11 @@ export function MonthlyDebitsView() {
         </div>
 
         {/* TAB SWITCHER */}
-        <div className="p-1 rounded-2xl bg-[#08152e] border border-blue-900/60 flex items-center gap-1">
+        <div className="p-1 rounded-2xl bg-[#08152e] border border-blue-900/60 flex items-center gap-1 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveMainTab('PARCELADOS')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center ${
               activeMainTab === 'PARCELADOS'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
@@ -595,7 +595,7 @@ export function MonthlyDebitsView() {
           <button
             type="button"
             onClick={() => setActiveMainTab('CONTAS_PAGAR')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center ${
               activeMainTab === 'CONTAS_PAGAR'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
@@ -610,82 +610,82 @@ export function MonthlyDebitsView() {
       {activeMainTab === 'PARCELADOS' && (
         <>
           {/* STATS BANNER */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {/* Stat 1: Total Geral */}
-            <div className="relative overflow-hidden rounded-3xl border border-pink-500/30 bg-[#080210] p-5 shadow-[0_0_20px_rgba(236,72,153,0.15)] group hover:border-pink-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-pink-500/30 bg-[#080210] p-3 sm:p-5 shadow-[0_0_20px_rgba(236,72,153,0.15)] group hover:border-pink-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-pink-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Soma de Todos</span>
-                <div className="w-7 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]">
-                  <DollarSign className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Soma de Todos</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)] shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {formatCurrency(stats.sumTotal)}
                 </span>
-                <span className="text-[9px] text-pink-400 font-bold block mt-1 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-pink-400 animate-spin" />
-                  <span>Dívidas Ativas e Pagas</span>
+                <span className="text-[8px] sm:text-[9px] text-pink-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider flex items-center gap-1 truncate">
+                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-pink-400 animate-spin shrink-0" />
+                  <span className="truncate">Dívidas Ativas/Pagas</span>
                 </span>
               </div>
             </div>
 
             {/* Stat 2: Total Restante */}
-            <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-[#100702] p-5 shadow-[0_0_20px_rgba(245,158,11,0.15)] group hover:border-amber-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-amber-500/30 bg-[#100702] p-3 sm:p-5 shadow-[0_0_20px_rgba(245,158,11,0.15)] group hover:border-amber-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-amber-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Faltando</span>
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]">
-                  <TrendingUp className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Total Faltando</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)] shrink-0">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {formatCurrency(stats.sumRemaining)}
                 </span>
-                <span className="text-[9px] text-amber-400 font-bold block mt-1 uppercase tracking-wider">
+                <span className="text-[8px] sm:text-[9px] text-amber-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
                   {debits.length > 0 ? `${((stats.sumRemaining / stats.sumTotal) * 100).toFixed(0)}% restante` : '0% restante'}
                 </span>
               </div>
             </div>
 
             {/* Stat 3: Pendente Mês Aberto */}
-            <div className="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-[#020d14] p-5 shadow-[0_0_20px_rgba(6,182,212,0.15)] group hover:border-cyan-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-cyan-500/30 bg-[#020d14] p-3 sm:p-5 shadow-[0_0_20px_rgba(6,182,212,0.15)] group hover:border-cyan-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-cyan-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mês Aberto</span>
-                <div className="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.3)]">
-                  <Calendar className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Mês Aberto</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.3)] shrink-0">
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {formatCurrency(stats.openMonthPending)}
                 </span>
-                <span className="text-[9px] text-cyan-400 font-bold block mt-1 uppercase tracking-wider flex items-center gap-1 animate-pulse">
-                  <BadgeAlert className="w-3 h-3 text-cyan-400" />
-                  <span>Pendente Mês Atual</span>
+                <span className="text-[8px] sm:text-[9px] text-cyan-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider flex items-center gap-1 animate-pulse truncate">
+                  <BadgeAlert className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-cyan-400 shrink-0" />
+                  <span className="truncate">Pendente Mês Atual</span>
                 </span>
               </div>
             </div>
 
             {/* Stat 4: Completion Ratio */}
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-[#021008] p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-emerald-500/30 bg-[#021008] p-3 sm:p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Percentual Pago</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
-                  <PieChart className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Percentual Pago</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)] shrink-0">
+                  <PieChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
+              <div className="mt-2 sm:mt-3">
                 <div className="flex items-end justify-between">
-                  <span className="text-2xl font-black text-white tracking-wide">
+                  <span className="text-base sm:text-2xl font-black text-white tracking-wide truncate">
                     {stats.percentage.toFixed(1)}%
                   </span>
-                  <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
-                    {formatCurrency(stats.sumPaid)} pago
+                  <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold uppercase tracking-wider truncate">
+                    {formatCurrency(stats.sumPaid)}
                   </span>
                 </div>
                 <div className="w-full h-1.5 bg-emerald-950 rounded-full mt-2 overflow-hidden border border-emerald-900/35">
@@ -926,79 +926,79 @@ export function MonthlyDebitsView() {
       {activeMainTab === 'CONTAS_PAGAR' && (
         <>
           {/* TOP STATS BANNER */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {/* Stat 1: Total Geral Devido */}
-            <div className="relative overflow-hidden rounded-3xl border border-pink-500/30 bg-[#080210] p-5 shadow-[0_0_20px_rgba(236,72,153,0.15)] group hover:border-pink-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-pink-500/30 bg-[#080210] p-3 sm:p-5 shadow-[0_0_20px_rgba(236,72,153,0.15)] group hover:border-pink-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-pink-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Devendo Total</span>
-                <div className="w-7 h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)]">
-                  <DollarSign className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Saldo Devendo Total</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.3)] shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide animate-pulse">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide animate-pulse truncate">
                   {formatCurrency(payableStats.totalOutstanding)}
                 </span>
-                <span className="text-[9px] text-pink-400 font-bold block mt-1 uppercase tracking-wider flex items-center gap-1">
-                  <BadgeAlert className="w-3 h-3 text-pink-400" />
-                  <span>Soma de Todas as Contas</span>
+                <span className="text-[8px] sm:text-[9px] text-pink-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider flex items-center gap-1 truncate">
+                  <BadgeAlert className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-pink-400 shrink-0" />
+                  <span className="truncate">Soma de Todas as Contas</span>
                 </span>
               </div>
             </div>
 
             {/* Stat 2: Total Abatido/Pago */}
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-500/30 bg-[#021008] p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-emerald-500/30 bg-[#021008] p-3 sm:p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pago (Abatido)</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
-                  <CheckCircle2 className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Total Pago (Abatido)</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)] shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {formatCurrency(payableStats.totalPaid)}
                 </span>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-1 uppercase tracking-wider">
+                <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
                   Histórico de Acertos
                 </span>
               </div>
             </div>
 
             {/* Stat 3: Total Compras / Débito */}
-            <div className="relative overflow-hidden rounded-3xl border border-blue-500/30 bg-[#020d14] p-5 shadow-[0_0_20px_rgba(37,99,235,0.15)] group hover:border-blue-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-blue-500/30 bg-[#020d14] p-3 sm:p-5 shadow-[0_0_20px_rgba(37,99,235,0.15)] group hover:border-blue-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-blue-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Comprado (Dívida)</span>
-                <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shadow-[0_0_8px_rgba(37,99,235,0.3)]">
-                  <TrendingUp className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Total Comprado (Dívida)</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shadow-[0_0_8px_rgba(37,99,235,0.3)] shrink-0">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {formatCurrency(payableStats.totalDebited)}
                 </span>
-                <span className="text-[9px] text-blue-400 font-bold block mt-1 uppercase tracking-wider">
+                <span className="text-[8px] sm:text-[9px] text-blue-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
                   Lançamento de Compras
                 </span>
               </div>
             </div>
 
             {/* Stat 4: Quantidade Contas */}
-            <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 bg-[#100702] p-5 shadow-[0_0_20px_rgba(245,158,11,0.15)] group hover:border-amber-400/50 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-amber-500/30 bg-[#100702] p-3 sm:p-5 shadow-[0_0_20px_rgba(245,158,11,0.15)] group hover:border-amber-400/50 transition-all">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-amber-500/5 blur-xl group-hover:scale-125 transition-transform" />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credores Ativos</span>
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]">
-                  <ListPlus className="w-4 h-4" />
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Credores Ativos</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)] shrink-0">
+                  <ListPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="mt-3">
-                <span className="text-2xl font-black text-white block tracking-wide">
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-white block tracking-wide truncate">
                   {payableStats.activeAccountsCount}
                 </span>
-                <span className="text-[9px] text-amber-400 font-bold block mt-1 uppercase tracking-wider">
+                <span className="text-[8px] sm:text-[9px] text-amber-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
                   Contas c/ saldo em aberto
                 </span>
               </div>

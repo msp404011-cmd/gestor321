@@ -761,7 +761,7 @@ export default function App() {
         <main className={
           activeTab === 'POS'
             ? "flex-1 h-screen w-screen overflow-hidden p-0 flex flex-col"
-            : "flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-[1780px] w-full mx-auto scrollbar-thin"
+            : "flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 pb-24 lg:pb-6 max-w-[1780px] w-full mx-auto custom-scrollbar"
         }>
           <Suspense fallback={<ViewLoadingFallback />}>
             {/* Master Panel */}
@@ -915,8 +915,8 @@ export default function App() {
 
         {/* Mobile Bottom Navigation Bar */}
         {activeTab !== 'POS' && (
-          <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 h-16 border-t flex items-center justify-around px-2 transition-colors ${
-            isDark ? 'bg-[#070b14]/95 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]'
+          <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 h-15 sm:h-16 border-t flex items-center justify-around px-1 sm:px-2 safe-bottom backdrop-blur-lg transition-colors ${
+            isDark ? 'bg-[#070b14]/90 border-slate-800 text-slate-300' : 'bg-white/90 border-slate-200 text-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]'
           }`}>
             {[
               { id: 'DASHBOARD', label: 'Início', icon: LayoutDashboard },
@@ -939,14 +939,17 @@ export default function App() {
                       setActiveTab(item.id as NavigationTab);
                     }
                   }}
-                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors cursor-pointer ${
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all cursor-pointer relative ${
                     isActive
-                      ? 'text-cyan-400 font-bold'
-                      : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
+                      ? 'text-cyan-400 font-extrabold'
+                      : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-cyan-400 scale-110 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : ''}`} />
-                  <span className="text-[10px] truncate max-w-full">{item.label}</span>
+                  {isActive && (
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                  )}
+                  <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'text-cyan-400 scale-110 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : ''}`} />
+                  <span className="text-[10px] tracking-tight truncate max-w-full">{item.label}</span>
                 </button>
               );
             })}

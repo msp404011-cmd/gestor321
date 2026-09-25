@@ -225,7 +225,7 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
       </div>
 
       {/* 2. TOP METRICS CARDS (4 BOXES MATCHING CLIENTE.PNG) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* Total de Clientes */}
         <div className={`border rounded-2xl p-4 flex flex-col justify-between transition-all relative overflow-hidden ${
           isDark
@@ -535,7 +535,178 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
       <div className={`border rounded-2xl overflow-hidden transition-all ${
         isDark ? 'bg-[#081226] border-blue-900/60 shadow-[0_0_20px_rgba(2,132,199,0.1)]' : 'bg-white border-slate-200 shadow-xs'
       }`}>
-        <div className="overflow-x-auto">
+        {/* MOBILE CARDS VIEW (100% responsive, app-like on phones) */}
+        <div className="block lg:hidden divide-y divide-blue-950/60 p-2 sm:p-3 space-y-3">
+          {filteredCustomers.length === 0 ? (
+            <div className="py-10 text-center text-slate-500">
+              <Users className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+              <p className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nenhum cliente encontrado</p>
+              <p className="text-xs text-slate-400 mt-0.5">Tente redefinir os filtros aplicados.</p>
+            </div>
+          ) : (
+            paginatedCustomers.map((c) => {
+              const isChecked = selectedCustomerIds.includes(c.id);
+              const cleanWa = cleanPhoneForWhatsApp(c.whatsapp || c.phone);
+              const waLink = cleanWa
+                ? `https://wa.me/${cleanWa}?text=${encodeURIComponent(
+                    `Olá ${c.name}, tudo bem? Aqui é da MSP Informática!`
+                  )}`
+                : null;
+
+              const getInitialColor = (name: string) => {
+                const firstChar = name.charAt(0).toUpperCase();
+                if (['A', 'B', 'C', 'D', 'E'].includes(firstChar)) return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+                if (['F', 'G', 'H', 'I', 'J'].includes(firstChar)) return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
+                if (['K', 'L', 'M', 'N', 'O'].includes(firstChar)) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
+              };
+
+              return (
+                <div
+                  key={c.id}
+                  className={`p-3 rounded-2xl border transition-all ${
+                    isChecked
+                      ? isDark ? 'bg-blue-950/60 border-cyan-500/60' : 'bg-blue-50 border-blue-300'
+                      : isDark ? 'bg-[#09152a] border-blue-900/60' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  {/* Top: Avatar, Name, Status & Checkbox */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleSelectOne(c.id)}
+                        className={`rounded shrink-0 focus:ring-0 ${
+                          isDark ? 'border-blue-900 bg-[#081226] text-cyan-500' : 'border-slate-300 bg-white text-blue-600'
+                        }`}
+                      />
+                      {c.avatarUrl ? (
+                        <img
+                          src={c.avatarUrl}
+                          alt={c.name}
+                          className="w-10 h-10 rounded-full object-cover border border-blue-900/80 shrink-0"
+                        />
+                      ) : (
+                        <div className={`w-10 h-10 rounded-full border flex items-center justify-center font-extrabold text-sm shrink-0 ${getInitialColor(c.name)}`}>
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => handleView(c)}
+                          className={`font-black text-sm text-left truncate block w-full ${
+                            isDark ? 'text-white hover:text-cyan-400' : 'text-slate-900 hover:text-blue-600'
+                          }`}
+                        >
+                          {c.name}
+                        </button>
+                        <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {c.document || 'Sem documento'} • {c.city || 'Sem cidade'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                      c.status === 'Inativo'
+                        ? 'bg-slate-800 text-slate-400 border-slate-700'
+                        : c.status === 'VIP'
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    }`}>
+                      {c.status || 'Ativo'}
+                    </span>
+                  </div>
+
+                  {/* Middle: Contatos & Total Gasto */}
+                  <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-blue-950/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Telefone</span>
+                      <p className={`font-mono text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {formatPhone(c.phone) || 'Não informado'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Gasto</span>
+                      <p className={`font-mono text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                        {c.totalSpent ? `R$ ${c.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bottom: Action Buttons */}
+                  <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-blue-950/60">
+                    <div className="flex items-center gap-1.5">
+                      {c.phone && (
+                        <a
+                          href={`tel:${c.phone}`}
+                          className="p-1.5 rounded-xl bg-blue-950/80 border border-blue-800/60 text-cyan-300 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                          title="Ligar"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {waLink && (
+                        <a
+                          href={waLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-600 hover:text-white text-xs font-bold flex items-center gap-1 transition-colors"
+                          title="Conversar no WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>WhatsApp</span>
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {SubscriptionService.isTabAllowed('ORDERS') && (
+                        <button
+                          type="button"
+                          onClick={() => handleNewOrder(c)}
+                          className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Nova OS</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleView(c)}
+                        className={`p-1.5 rounded-xl border text-xs transition-colors ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-300 text-slate-700'
+                        }`}
+                        title="Ver Detalhes"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+
+                      {currentUser.permissions.canManageCustomers && (
+                        <button
+                          type="button"
+                          onClick={() => onEditCustomer(c)}
+                          className={`p-1.5 rounded-xl border text-xs transition-colors ${
+                            isDark ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-300 text-slate-700'
+                          }`}
+                          title="Editar Cliente"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* DESKTOP TABLE VIEW */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className={`border-b font-bold uppercase tracking-wider text-[10px] ${

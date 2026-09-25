@@ -110,78 +110,79 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header
-      className={`h-16 border-b-2 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors ${
+      className={`h-14 sm:h-16 border-b-2 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors ${
         isDark
           ? 'bg-[#070b14]/95 border-slate-800 text-slate-100'
           : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
       }`}
     >
       {/* Left side: Mobile Toggle + Search Bar */}
-      <div className="flex items-center gap-3 flex-1 max-w-xl">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-xl min-w-0 mr-2">
         <button
           type="button"
           onClick={handleMobileMenu}
-          className={`p-2 rounded-lg lg:hidden transition-colors ${
+          className={`p-2 rounded-xl lg:hidden transition-colors shrink-0 ${
             isDark
-              ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              ? 'text-slate-300 hover:text-white hover:bg-slate-800/60 bg-slate-900/60 border border-slate-800'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-slate-100 border border-slate-200'
           }`}
           title="Menu Principal"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-5 h-5 text-cyan-400" />
         </button>
 
-        <div className="relative w-full">
+        <div className="relative w-full min-w-0">
           <button
             type="button"
             onClick={onOpenSearch}
-            className={`w-full text-left relative pl-10 pr-16 py-2 rounded-xl text-xs transition-all flex items-center justify-between cursor-pointer border-2 group ${
+            className={`w-full text-left relative pl-8 sm:pl-10 pr-2 sm:pr-16 py-1.5 sm:py-2 rounded-xl text-xs transition-all flex items-center justify-between cursor-pointer border-2 group truncate ${
               isDark
                 ? 'bg-[#0c1427] hover:bg-[#101b33] border-slate-700/80 hover:border-cyan-500/80 text-slate-200 focus:shadow-[0_0_15px_rgba(6,182,212,0.3)]'
                 : 'bg-slate-100 hover:bg-slate-200/70 border-slate-300 text-slate-700 hover:border-blue-500'
             }`}
           >
-            <span className={`truncate ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-slate-600'}`}>
-              Pesquisar clientes, OS, produtos, IMEI...
+            <span className={`truncate text-[11px] sm:text-xs ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-slate-600'}`}>
+              <span className="sm:hidden">Pesquisar...</span>
+              <span className="hidden sm:inline">Pesquisar clientes, OS, produtos, IMEI...</span>
             </span>
             <span
-              className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+              className={`text-[9px] sm:text-[10px] font-mono px-1.5 sm:px-2 py-0.5 rounded border hidden sm:inline ${
                 isDark ? 'text-slate-400 bg-slate-800/80 border-slate-700' : 'text-slate-600 bg-white border-slate-300'
               }`}
             >
               Ctrl + K
             </span>
           </button>
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5 pointer-events-none group-hover:text-cyan-400 transition-colors" />
+          <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 absolute left-2.5 sm:left-3.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-cyan-400 transition-colors" />
         </div>
       </div>
 
       {/* Right side: Notifications, WhatsApp, Theme Toggle & User Profile */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Notifications Icon with Glowing Red Counter Badge */}
         <button
           type="button"
           onClick={onOpenNotifications}
-          className={`relative p-2 rounded-full transition-colors cursor-pointer ${
+          className={`relative p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer ${
             isDark
               ? 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
           title="Alertas e Notificações"
         >
-          <Bell className="w-5 h-5" />
+          <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
           {calculatedUnread > 0 && (
-            <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-[#070b14] shadow-[0_0_10px_rgba(244,63,94,0.7)] animate-pulse">
+            <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-rose-500 text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center rounded-full border border-[#070b14] shadow-[0_0_10px_rgba(244,63,94,0.7)] animate-pulse">
               {calculatedUnread > 9 ? '9+' : calculatedUnread}
             </span>
           )}
         </button>
 
-        {/* WhatsApp Icon with Emerald Aura */}
+        {/* WhatsApp Icon with Emerald Aura - hidden on small mobile */}
         <button
           type="button"
           onClick={handleWhatsApp}
-          className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-full transition-colors cursor-pointer drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+          className="hidden sm:flex p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-xl transition-colors cursor-pointer drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
           title="Abrir WhatsApp"
         >
           <MessageCircle className="w-5 h-5" />
@@ -191,28 +192,27 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={toggleTheme}
-          className={`p-2 rounded-full transition-all cursor-pointer border ${
+          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer border ${
             isDark
               ? 'text-amber-400 hover:bg-slate-800/80 border-slate-700 bg-slate-900/60 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
               : 'text-blue-600 hover:bg-slate-200 border-slate-300 bg-white shadow-xs'
           }`}
           title={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
         >
-          {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-600" />}
+          {isDark ? <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />}
         </button>
 
-        {/* PDV / Caixa Direct Button */}
+        {/* PDV / Caixa Direct Button (visible on sm+) */}
         {onOpenPDV && (
           <button
             type="button"
             id="btn-navbar-pdv"
             onClick={onOpenPDV}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-[0_0_12px_rgba(16,185,129,0.35)] cursor-pointer transition-all active:scale-95 border border-emerald-400/30"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-[0_0_12px_rgba(16,185,129,0.35)] cursor-pointer transition-all active:scale-95 border border-emerald-400/30"
             title="Abrir PDV - Ponto de Venda"
           >
             <ShoppingCart className="w-4 h-4" />
-            <span className="hidden sm:inline">PDV / Caixa</span>
-            <span className="sm:hidden">PDV</span>
+            <span>PDV / Caixa</span>
           </button>
         )}
 

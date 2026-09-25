@@ -29,6 +29,7 @@ import {
   Pin,
   PanelLeftClose,
   PanelLeftOpen,
+  X,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -585,10 +586,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isDark
             ? 'bg-[#030712] border-blue-950 text-slate-100 shadow-[0_0_30px_rgba(0,0,0,0.8)]'
             : 'bg-[#f8fafc] border-slate-300 text-slate-800 shadow-xl'
-        } ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${
+        } ${mobileOpen ? 'translate-x-0 w-[290px] sm:w-[320px] max-w-[85vw]' : '-translate-x-full lg:translate-x-0'} ${
           isExpanded
-            ? 'w-[300px] shadow-[0_10px_40px_rgba(0,0,0,0.7)]'
-            : 'w-[76px]'
+            ? 'lg:w-[300px] shadow-[0_10px_40px_rgba(0,0,0,0.7)]'
+            : 'lg:w-[76px]'
         }`}
       >
         {/* TOP HEADER: MENU PRINCIPAL & COLLAPSE BUTTON */}
@@ -597,7 +598,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             isDark ? 'border-blue-950/80 bg-[#040916]' : 'border-slate-200 bg-white'
           }`}
         >
-          {isExpanded ? (
+          {isExpanded || mobileOpen ? (
             <div className="flex items-center justify-between w-full min-w-0">
               <div
                 onClick={() => {
@@ -619,15 +620,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
 
-              {/* Pin / Collapse Toggle Button */}
-              <button
-                type="button"
-                onClick={toggleCollapsed}
-                className="w-7 h-7 rounded-xl border border-blue-900/60 bg-[#08152e] hover:bg-[#0c1f44] text-cyan-400 flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
-                title={isCollapsed ? 'Fixar menu aberto na tela' : 'Recolher menu lateral'}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+              {/* Close Button on Mobile / Pin Toggle on Desktop */}
+              <div className="flex items-center gap-1">
+                {onCloseMobile && (
+                  <button
+                    type="button"
+                    onClick={onCloseMobile}
+                    className="w-7 h-7 rounded-xl border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center lg:hidden cursor-pointer shrink-0"
+                    title="Fechar menu lateral"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  className="hidden lg:flex w-7 h-7 rounded-xl border border-blue-900/60 bg-[#08152e] hover:bg-[#0c1f44] text-cyan-400 items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+                  title={isCollapsed ? 'Fixar menu aberto na tela' : 'Recolher menu lateral'}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center w-full gap-1">

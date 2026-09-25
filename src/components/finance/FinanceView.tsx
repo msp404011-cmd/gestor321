@@ -881,7 +881,45 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          {/* MOBILE CASH MOVEMENTS CARDS */}
+          <div className="block md:hidden divide-y divide-slate-800/80 p-2 space-y-2">
+            {cashMovements.length === 0 ? (
+              <p className="text-center py-6 text-xs text-slate-400">Nenhuma movimentação no caixa atual.</p>
+            ) : (
+              cashMovements.map((mov) => {
+                const isPositive = mov.type === 'ABERTURA' || mov.type === 'VENDA' || mov.type === 'ORDEM SERVIÇO' || mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA';
+                return (
+                  <div key={mov.id} className="p-3 rounded-xl bg-[#050e1f] border border-blue-900/40 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider ${
+                        mov.type === 'ABERTURA'
+                          ? 'bg-blue-500/20 text-blue-300 border-blue-500/50'
+                          : mov.type === 'SANGRIA' || mov.type === 'DESPESA'
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/50'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                      }`}>
+                        {mov.type}
+                      </span>
+                      <span className={`font-black font-mono text-sm ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isPositive ? '+' : '-'} {formatCurrency(mov.amount)}
+                      </span>
+                    </div>
+
+                    <div className="text-xs">
+                      <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{mov.description}</p>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                        <span>{mov.userName || 'Sistema'}</span>
+                        <span className="font-mono">{new Date(mov.timestamp || (mov as any).date || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* DESKTOP CASH MOVEMENTS TABLE */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className={`font-black uppercase tracking-wider text-[11px] border-b ${
@@ -1389,7 +1427,80 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                  {/* MOBILE EXPENSES CARDS */}
+                  <div className="block md:hidden divide-y divide-slate-800/80 p-2 space-y-2.5">
+                    {nonInstallmentExpenses.map((exp) => (
+                      <div key={exp.id} className="p-3.5 rounded-2xl bg-[#050e1f] border border-blue-900/40 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-mono text-slate-400">
+                            Vence: <strong className="text-white">{formatDate(exp.dueDate)}</strong>
+                          </span>
+                          <span className={`px-2 py-0.5 text-[10px] font-black rounded-lg border whitespace-nowrap inline-flex items-center gap-1 ${
+                            exp.status === 'PAGO'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                          }`}>
+                            {exp.status === 'PAGO' ? 'Quitado' : 'Pendente'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className={`font-bold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>{exp.description}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                              {exp.category.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{exp.paymentMethod || 'PIX / Dinheiro'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block">Valor</span>
+                            <span className="font-black text-sm text-emerald-400 font-mono">
+                              {formatCurrency(exp.amount)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setExpenseToPay(exp)}
+                              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm transition-all ${
+                                exp.status === 'PAGO'
+                                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/80'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{exp.status === 'PAGO' ? 'Pago' : 'Quitar'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpenseToEdit(exp);
+                                setIsExpenseModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 text-xs"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpenseToDelete(exp)}
+                              className="p-1.5 rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 text-xs"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* DESKTOP EXPENSES TABLE */}
+                  <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className={`font-black uppercase tracking-wider text-[11px] border-b ${
@@ -1482,7 +1593,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
                     </tbody>
                   </table>
                 </div>
-              )}
+              </>
+            )}
             </div>
           )}
 

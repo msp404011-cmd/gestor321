@@ -839,20 +839,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     >
       {/* Main Container matching the reference image layout */}
       <div
-        className="w-full max-w-[99vw] 2xl:max-w-[1720px] h-[98vh] max-h-[98vh] rounded-3xl border-2 border-blue-600/40 shadow-[0_0_50px_rgba(37,99,235,0.25)] flex flex-col overflow-hidden cursor-default bg-[#040a18] text-white"
+        className="w-full max-w-full sm:max-w-[99vw] 2xl:max-w-[1720px] h-full sm:h-[98vh] sm:max-h-[98vh] sm:rounded-3xl rounded-none border-0 sm:border-2 border-blue-600/40 shadow-[0_0_50px_rgba(37,99,235,0.25)] flex flex-col overflow-hidden cursor-default bg-[#040a18] text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-b border-blue-900/40 shrink-0 flex items-center justify-between bg-[#061026]">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="px-3 py-2.5 sm:px-5 sm:py-3 border-b border-blue-900/40 shrink-0 flex items-center justify-between bg-[#061026]">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.6)] shrink-0">
               <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
-                {orderToEdit ? 'Editar Ordem de Serviço' : 'Nova Ordem de Serviço'}
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+              <h2 className="text-xs sm:text-base font-black tracking-tight text-white truncate max-w-[160px] sm:max-w-none">
+                {orderToEdit ? 'Editar OS' : 'Nova Ordem de Serviço'}
               </h2>
-              <span className="px-3 py-0.5 rounded-full text-xs font-black bg-[#07193b] text-cyan-400 border border-cyan-500/60 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-black bg-[#07193b] text-cyan-400 border border-cyan-500/60 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
                 OS #{nextOrderNumber}
               </span>
             </div>
@@ -876,8 +876,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
         )}
 
-        {/* Main 3-Column Proportional Grid Body */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2 p-2 overflow-hidden bg-[#030814]">
+        {/* Main 3-Column Proportional Grid Body - Scrollable on mobile, 3-column on desktop */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 p-2 sm:p-2.5 overflow-y-auto lg:overflow-hidden bg-[#030814]">
           {/* COLUMN 1: CLIENTE & EQUIPAMENTO */}
           <OrderClientDeviceSection
             isDark={isDark}

@@ -721,7 +721,159 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
       <div className={`border rounded-2xl overflow-hidden transition-all ${
         isDark ? 'bg-[#081226] border-blue-900/60 shadow-[0_0_20px_rgba(2,132,199,0.1)]' : 'bg-white border-slate-200 shadow-xs'
       }`}>
-        <div className="overflow-x-auto">
+        {/* MOBILE CARDS VIEW (100% responsive, app-like on phones) */}
+        <div className="block lg:hidden divide-y divide-blue-950/60 p-2 sm:p-3 space-y-3">
+          {filteredProducts.length === 0 ? (
+            <div className="py-10 text-center text-slate-500">
+              <Package className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+              <p className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nenhum produto encontrado</p>
+              <p className="text-xs text-slate-400 mt-0.5">Tente redefinir os filtros aplicados.</p>
+            </div>
+          ) : (
+            paginatedProducts.map((p) => {
+              const isChecked = selectedProductIds.includes(p.id);
+              const isUnmanaged = p.manageStock === false || p.stockStatus === 'UNLIMITED';
+              const isOutOfStock = !isUnmanaged && p.stockQuantity <= 0;
+              const isLowStock = !isUnmanaged && p.stockQuantity > 0 && p.stockQuantity <= p.minStockQuantity;
+
+              return (
+                <div
+                  key={p.id}
+                  className={`p-3 rounded-2xl border transition-all ${
+                    isChecked
+                      ? isDark ? 'bg-blue-950/60 border-cyan-500/60' : 'bg-blue-50 border-blue-300'
+                      : isDark ? 'bg-[#09152a] border-blue-900/60' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  {/* Top: Product image + Name + Category & Checkbox */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleSelectOne(p.id)}
+                        className={`rounded shrink-0 focus:ring-0 ${
+                          isDark ? 'border-blue-900 bg-[#081226] text-cyan-500' : 'border-slate-300 bg-white text-blue-600'
+                        }`}
+                      />
+                      {p.photoUrl ? (
+                        <img
+                          src={p.photoUrl}
+                          alt={p.name}
+                          className="w-11 h-11 rounded-xl object-cover border border-blue-900/80 bg-slate-900 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-cyan-400 shrink-0">
+                          <Package className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditProduct(p)}
+                          className={`font-black text-sm text-left truncate block w-full leading-tight ${
+                            isDark ? 'text-white hover:text-cyan-400' : 'text-slate-900 hover:text-blue-600'
+                          }`}
+                        >
+                          {p.name}
+                        </button>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 truncate">
+                          <span>{p.category || 'Geral'}</span>
+                          <span>•</span>
+                          <span className="font-mono text-[10px]">{p.sku || p.barcode || 'Sem cód.'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stock Badge */}
+                    <div className="shrink-0 text-right">
+                      {isUnmanaged ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+                          Ilimitado
+                        </span>
+                      ) : isOutOfStock ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                          Esgotado
+                        </span>
+                      ) : isLowStock ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                          {p.stockQuantity} un (Baixo)
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                          {p.stockQuantity} un
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Middle: Preços */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2.5 pt-2 border-t border-blue-950/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Preço Venda</span>
+                      <p className={`font-mono text-sm font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                        {formatCurrency(p.sellingPrice)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Preço Custo</span>
+                      <p className={`font-mono text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {formatCurrency(p.costPrice || 0)}
+                      </p>
+                    </div>
+
+                    {SubscriptionService.isResellerFeatureAllowed() && (
+                      <div className="col-span-2 sm:col-span-1">
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Revenda (Atacado)</span>
+                        <p className={`font-mono text-xs font-bold ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                          {formatCurrency(p.resellerPrice || p.sellingPrice)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom: Action Buttons */}
+                  <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-blue-950/60">
+                    <button
+                      type="button"
+                      onClick={() => setProductToAdjust(p)}
+                      className="px-2.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-cyan-300 border border-blue-500/40 font-bold text-xs flex items-center gap-1 transition-all"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5" />
+                      <span>Ajustar Estoque</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onEditProduct(p)}
+                        className={`p-1.5 rounded-xl border text-xs transition-colors ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-300 text-slate-700'
+                        }`}
+                        title="Editar Produto"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setProductToDelete(p)}
+                        className="p-1.5 rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 hover:text-rose-200 transition-colors"
+                        title="Excluir Produto"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* DESKTOP TABLE VIEW */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className={`border-b font-bold uppercase tracking-wider text-[10px] ${
