@@ -2,6 +2,7 @@ export type UserRole = 'ADMINISTRADOR' | 'ADMIN' | 'GERENTE' | 'TECNICO' | 'VEND
 
 export type NavigationTab =
   | 'DASHBOARD'
+  | 'MESSAGE_BUDGETS'
   | 'CAMERAS'
   | 'SUPPLIER_ORDERS'
   | 'EXCLUSIVE_ORDERS'
@@ -21,6 +22,25 @@ export type NavigationTab =
   | 'COMPATIBILITY'
   | 'SETTINGS'
   | 'MONTHLY_DEBITS';
+
+export interface BudgetCard {
+  id: string;
+  title: string;
+  clientName: string;
+  clientPhone?: string;
+  deviceModel: string;
+  serviceType: string; // Default: 'VALOR DA TROCA DE TELA'
+  goodPrice: number; // e.g., 250
+  cheapPrice: number; // e.g., 180
+  storeName: string; // Default: 'MSP Informática'
+  customGoodText?: string; // User edited text for Option 1
+  customCheapText?: string; // User edited text for Option 2
+  customComparisonText?: string; // User edited text for Comparison
+  warrantyText?: string; // Optional warranty
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface MonthlyDebitPayment {
   installmentIndex: number;

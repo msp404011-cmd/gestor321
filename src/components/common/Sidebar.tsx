@@ -30,6 +30,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  MessageSquareText,
+  MessageCircle,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -181,6 +183,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sections: MenuSectionDef[] = [
     ...(isSuper
       ? [
+          {
+            id: 'MESSAGES_BUDGET_SECTION',
+            title: 'ORÇAMENTOS E MENSAGENS',
+            icon: MessageSquareText,
+            colorTheme: 'cyan' as const,
+            items: [
+              {
+                id: 'MESSAGE_BUDGETS',
+                title: 'Orçamentos WhatsApp',
+                subtitle: 'Comparativo de Telas & Peças',
+                icon: MessageCircle,
+                badge: 'EXCLUSIVO',
+                badgeType: 'master-blue' as const,
+              },
+            ],
+          },
           {
             id: 'CAMERAS_ACCESS',
             title: 'CÂMERAS E ACESSOS',

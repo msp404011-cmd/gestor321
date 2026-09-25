@@ -27,7 +27,103 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
   if (!isOpen || !sale) return null;
 
   const handlePrint = () => {
-    window.print();
+    const container = document.getElementById('printable-pos-receipt');
+    if (!container) {
+      window.print();
+      return;
+    }
+
+    try {
+      let printFrame = document.getElementById('pos-print-iframe') as HTMLIFrameElement;
+      if (!printFrame) {
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'pos-print-iframe';
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        printFrame.style.opacity = '0';
+        printFrame.style.pointerEvents = 'none';
+        document.body.appendChild(printFrame);
+      }
+
+      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        window.print();
+        return;
+      }
+
+      const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+        .map((el) => el.outerHTML)
+        .join('\n');
+
+      const contentHtml = container.innerHTML;
+      const printWidth = paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%';
+      const pageMargin = paperFormat === 'A4' ? '8mm' : '0mm';
+      const pageSize = paperFormat === 'A4' ? 'A4 portrait' : 'auto';
+
+      frameDoc.open();
+      frameDoc.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <title>Venda #${sale.saleNumber} - ${company.commercialName || company.name || 'Comprovante'}</title>
+            ${styleTags}
+            <style>
+              @page {
+                size: ${pageSize};
+                margin: ${pageMargin} !important;
+              }
+              * {
+                box-sizing: border-box !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                width: 100% !important;
+                font-family: monospace, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+              }
+              .print-pos-wrapper {
+                width: ${printWidth} !important;
+                max-width: ${printWidth} !important;
+                margin: 0 auto !important;
+                padding: ${paperFormat === 'A4' ? '0' : '1.5mm 2mm'} !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                box-sizing: border-box !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="print-pos-wrapper">
+              ${contentHtml}
+            </div>
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      setTimeout(() => {
+        try {
+          printFrame.contentWindow?.focus();
+          printFrame.contentWindow?.print();
+        } catch {
+          window.print();
+        }
+      }, 250);
+    } catch {
+      window.print();
+    }
   };
 
   const handleSendWhatsApp = () => {
@@ -71,28 +167,38 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       {/* Dynamic Print CSS Injection */}
       <style>{`
         @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
           body * {
             visibility: hidden;
           }
           #printable-pos-receipt, #printable-pos-receipt * {
-            visibility: visible;
+            visibility: visible !important;
           }
           #printable-pos-receipt {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: ${paperFormat === '50mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
-            max-width: ${paperFormat === '50mm' ? '50mm' : paperFormat === '80mm' ? '80mm' : '100%'} !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
+            max-width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
             margin: 0 auto !important;
-            padding: 0 !important;
+            padding: ${paperFormat === 'A4' ? '0' : '1.5mm 2mm'} !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
             color: black !important;
+            box-sizing: border-box !important;
           }
           @page {
-            size: ${paperFormat === '50mm' ? '50mm auto' : paperFormat === '80mm' ? '80mm auto' : 'A4 portrait'};
-            margin: ${paperFormat === 'A4' ? '10mm' : '0mm'};
+            size: ${paperFormat === 'A4' ? 'A4 portrait' : 'auto'};
+            margin: ${paperFormat === 'A4' ? '8mm' : '0mm'} !important;
           }
           .no-print {
             display: none !important;
@@ -192,9 +298,9 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
         <div 
           id="printable-pos-receipt"
           className={`overflow-y-auto flex-1 font-mono text-slate-900 bg-white printable-content ${
-            paperFormat === '50mm' ? 'p-2 text-[9px] w-[50mm] max-w-[50mm] mx-auto' : paperFormat === 'A4' ? 'p-8 text-xs' : 'p-4 text-xs w-[80mm] max-w-[80mm] mx-auto'
+            paperFormat === '50mm' ? 'p-2 text-[9px] w-[48mm] max-w-[48mm] mx-auto' : paperFormat === 'A4' ? 'p-8 text-xs' : 'p-3 text-xs w-[72mm] max-w-[72mm] mx-auto'
           }`}
-          style={{ color: '#000000', wordBreak: 'break-word' }}
+          style={{ color: '#000000', wordBreak: 'break-word', boxSizing: 'border-box' }}
         >
           {paperFormat === 'A4' ? (
             /* A4 Full Page Format */

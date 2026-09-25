@@ -41,6 +41,7 @@ import {
   Banknote,
   Building,
   HelpCircle,
+  MessageCircle,
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -1775,7 +1776,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {/* Orçamentos WhatsApp (Comparativo de Telas) */}
+            <button
+              type="button"
+              onClick={() => onNavigate('MESSAGE_BUDGETS')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+                isDark
+                  ? 'bg-blue-950/40 hover:bg-blue-900/50 border-cyan-500/50 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                  : 'bg-blue-50 hover:bg-blue-100 border-cyan-300 text-blue-950 shadow-xs'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(6,182,212,0.35)]">
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold block truncate">Orçamentos WhatsApp</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-blue-700'}`}>Comparativo de Telas</span>
+              </div>
+            </button>
+
             {/* Fornecedor / Pedidos Fornecedor */}
             <button
               type="button"

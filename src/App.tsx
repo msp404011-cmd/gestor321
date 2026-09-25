@@ -43,6 +43,7 @@ const AppAccessManagement = lazy(() => import('./components/master/AppAccessMana
 const CameraPackageManagement = lazy(() => import('./components/master/CameraPackageManagement').then(m => ({ default: m.CameraPackageManagement })));
 const SupplierOrdersManagement = lazy(() => import('./components/master/SupplierOrdersManagement').then(m => ({ default: m.SupplierOrdersManagement })));
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
+const MessageBudgetsView = lazy(() => import('./components/master/MessageBudgetsView').then(m => ({ default: m.MessageBudgetsView })));
 const GlobalSearchModal = lazy(() => import('./components/common/GlobalSearchModal').then(m => ({ default: m.GlobalSearchModal })));
 const NotificationDrawer = lazy(() => import('./components/common/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
 
@@ -83,6 +84,7 @@ export default function App() {
     if (['DEVICES', 'APARELHOS', 'EQUIPAMENTOS'].includes(h)) return 'DEVICES';
     if (['COMPATIBILITY', 'COMPATIBILIDADE'].includes(h)) return 'COMPATIBILITY';
     if (['RESELLERS', 'REVENDEDORES'].includes(h)) return 'RESELLERS';
+    if (['MESSAGE_BUDGETS', 'ORCAMENTOS', 'MENSAGENS', 'ORCAMENTO_MENSAGENS'].includes(h)) return 'MESSAGE_BUDGETS';
     if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
     return null;
   };
@@ -795,6 +797,10 @@ export default function App() {
                 onOpenNewProduct={() => handleOpenNewProduct()}
                 onOpenPlans={() => setIsSubscriptionModalOpen(true)}
               />
+            )}
+
+            {activeTab === 'MESSAGE_BUDGETS' && (
+              <MessageBudgetsView />
             )}
 
             {activeTab === 'ACCESSES' && (

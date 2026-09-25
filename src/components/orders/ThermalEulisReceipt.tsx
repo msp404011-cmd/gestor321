@@ -32,10 +32,10 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
     <div
       className={`mx-auto bg-white text-black select-text ${
         isMini
-          ? 'w-[50mm] max-w-[50mm] p-1.5 text-[8.5px] leading-tight font-sans'
-          : 'w-[80mm] max-w-[80mm] p-3 text-[10px] leading-tight font-sans'
+          ? 'w-[48mm] max-w-[48mm] p-1 text-[8px] leading-tight font-sans'
+          : 'w-[72mm] max-w-[72mm] p-2 text-[9px] leading-tight font-sans'
       }`}
-      style={{ color: '#000000', wordBreak: 'break-word' }}
+      style={{ color: '#000000', wordBreak: 'break-word', boxSizing: 'border-box' }}
     >
       {/* 1. BRAND / LOGO HEADER (Same as standard OS) */}
       <div className="text-center">
@@ -44,12 +44,12 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
             <img
               src={company.logoUrl}
               alt="Logo"
-              className={`${isMini ? 'max-h-10 max-w-[110px]' : 'max-h-14 max-w-[150px]'} object-contain`}
+              className={`${isMini ? 'max-h-9 max-w-[105px]' : 'max-h-12 max-w-[140px]'} object-contain`}
             />
           </div>
         ) : (
           <div className="mb-1">
-            <div className={`font-black tracking-wide leading-tight ${isMini ? 'text-xs' : 'text-base'} uppercase font-sans`}>
+            <div className={`font-black tracking-wide leading-tight ${isMini ? 'text-[11px]' : 'text-sm'} uppercase font-sans break-words`}>
               {company.commercialName || company.name || 'TECHNOVA ASSISTÊNCIA TÉCNICA'}
             </div>
             {company.slogan && (
@@ -61,10 +61,10 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
         )}
 
         {/* Company address and identification */}
-        <div className={`text-center ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-snug mt-1 text-slate-900`}>
-          <div className="font-black uppercase">{company.commercialName || company.name || 'TECHNOVA ASSISTÊNCIA TÉCNICA'}</div>
+        <div className={`text-center ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} leading-snug mt-1 text-slate-900`}>
+          <div className="font-black uppercase break-words">{company.commercialName || company.name || 'TECHNOVA ASSISTÊNCIA TÉCNICA'}</div>
           {company.ownerName && <div>{company.ownerName}</div>}
-          <div>
+          <div className="break-words">
             CNPJ: {company.cnpj || company.cnpjCpf || '12.345.678/0001-90'}
             {company.zipCode ? ` CEP: ${company.zipCode}` : ''}
             {company.address ? ` - ${company.address}` : ''}
@@ -76,46 +76,46 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
       </div>
 
       {/* 2. ORDER NUMBER & TITLE (EXCLUSIVE C/ EULIS) */}
-      <div className="text-center my-2 pb-1.5 border-b border-black">
-        <div className={`${isMini ? 'text-[9px]' : 'text-[11px]'} font-extrabold tracking-wide uppercase`}>
+      <div className="text-center my-1.5 pb-1 border-b border-black">
+        <div className={`${isMini ? 'text-[8.5px]' : 'text-[10px]'} font-extrabold tracking-wide uppercase`}>
           ORDEM DE SERVIÇO • GUIA DE REMESSA
         </div>
-        <div className={`${isMini ? 'text-xl' : 'text-2xl'} font-black my-0.5 tracking-wider font-mono`}>
+        <div className={`${isMini ? 'text-lg' : 'text-xl'} font-black my-0.5 tracking-wider font-mono`}>
           OS #{order.orderNumber}
         </div>
-        <div className="inline-block px-2 py-0.5 bg-black text-white font-black text-[9px] uppercase tracking-wider rounded-sm my-0.5">
+        <div className="inline-block px-2 py-0.5 bg-black text-white font-black text-[8.5px] uppercase tracking-wider rounded-sm my-0.5">
           VIA C/ EUKLIS (TERCEIRIZADO)
         </div>
-        <div className="flex justify-between text-[8.5px] font-semibold text-slate-800 mt-1">
+        <div className="flex justify-between text-[8px] font-semibold text-slate-800 mt-1">
           <span>Entrada: {formatDate(order.createdAt)}</span>
           <span>Envio: {formatDate(new Date().toISOString())}</span>
         </div>
       </div>
 
       {/* 3. DADOS DO CLIENTE (APENAS NOME) */}
-      <div className={`text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight space-y-0.5 my-1.5 py-1 border-b border-slate-300`}>
+      <div className={`text-left ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} leading-tight space-y-0.5 my-1.5 py-1 border-b border-slate-300`}>
         <div className="flex">
-          <span className={`${isMini ? 'w-12' : 'w-16'} shrink-0 font-bold text-slate-700`}>Cliente:</span>
-          <span className="font-black uppercase truncate">{customerName}</span>
+          <span className={`${isMini ? 'w-11' : 'w-14'} shrink-0 font-bold text-slate-700`}>Cliente:</span>
+          <span className="font-black uppercase break-words">{customerName}</span>
         </div>
       </div>
 
       {/* 4. DADOS DO APARELHO */}
-      <div className={`text-left ${isMini ? 'text-[8px]' : 'text-[9.5px]'} leading-tight space-y-0.5 my-1.5 py-1 border-b border-slate-300`}>
+      <div className={`text-left ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} leading-tight space-y-0.5 my-1.5 py-1 border-b border-slate-300`}>
         <div className="flex">
-          <span className={`${isMini ? 'w-16' : 'w-20'} shrink-0 font-bold text-slate-700`}>Aparelho:</span>
-          <span className="font-black uppercase">
+          <span className={`${isMini ? 'w-13' : 'w-16'} shrink-0 font-bold text-slate-700`}>Aparelho:</span>
+          <span className="font-black uppercase break-words">
             {order.brand ? `${order.brand} ${order.model}` : order.model || 'Equipamento'}
           </span>
         </div>
         <div className="flex">
-          <span className={`${isMini ? 'w-16' : 'w-20'} shrink-0 font-bold text-slate-700`}>Tipo:</span>
+          <span className={`${isMini ? 'w-13' : 'w-16'} shrink-0 font-bold text-slate-700`}>Tipo:</span>
           <span>{order.deviceType || 'Smartphone'}</span>
         </div>
         {(order.imei || order.serialNumber) && (
           <div className="flex">
-            <span className={`${isMini ? 'w-16' : 'w-20'} shrink-0 font-bold text-slate-700`}>IMEI / Serial:</span>
-            <span className="font-mono text-[8px] font-semibold">{order.imei || order.serialNumber}</span>
+            <span className={`${isMini ? 'w-13' : 'w-16'} shrink-0 font-bold text-slate-700`}>IMEI/Serial:</span>
+            <span className="font-mono text-[7.5px] font-semibold break-all">{order.imei || order.serialNumber}</span>
           </div>
         )}
         {order.passwordPin && (
