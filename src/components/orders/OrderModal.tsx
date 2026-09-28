@@ -31,6 +31,7 @@ import { OrderProblemAccessoriesSection } from './OrderProblemAccessoriesSection
 import { OrderPartsFinancialSection } from './OrderPartsFinancialSection';
 import { CustomerModal } from '../customers/CustomerModal';
 import { ProductModal } from '../products/ProductModal';
+import { filterAndSortCustomers } from '../../utils/searchUtils';
 
 interface OrderModalProps {
   isOpen: boolean;
@@ -413,16 +414,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   }, []);
 
   const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers.slice(0, 8);
-    const q = customerSearch.toLowerCase();
-    return customers
-      .filter((c) => {
-        const nameMatch = c.name.toLowerCase().includes(q);
-        const phoneMatch = c.phone.replace(/\D/g, '').includes(q.replace(/\D/g, ''));
-        const docMatch = c.document?.replace(/\D/g, '').includes(q.replace(/\D/g, ''));
-        return nameMatch || (q.length >= 3 && (phoneMatch || docMatch));
-      })
-      .slice(0, 10);
+    return filterAndSortCustomers(customers, customerSearch, 35);
   }, [customers, customerSearch]);
 
   const handleSelectCustomer = (customer: Customer) => {

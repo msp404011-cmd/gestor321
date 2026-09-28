@@ -31,6 +31,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { StorageService } from '../../services/storage';
 import { Customer, BudgetCard } from '../../types';
+import { filterAndSortCustomers } from '../../utils/searchUtils';
 import { db } from '../../lib/firebase';
 import { getTenantId } from '../../services/firestoreService';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -408,12 +409,7 @@ ${priceDifference > 0 ? `💡 *Diferença de apenas R$ ${formatPriceNumber(price
   // Customer filter
   const filteredCustomers = useMemo(() => {
     if (!customerSearchQuery.trim()) return [];
-    const q = customerSearchQuery.toLowerCase();
-    return customersList.filter(c => 
-      c.name.toLowerCase().includes(q) || 
-      (c.phone && c.phone.includes(q)) ||
-      (c.whatsapp && c.whatsapp.includes(q))
-    ).slice(0, 5);
+    return filterAndSortCustomers(customersList, customerSearchQuery, 10);
   }, [customerSearchQuery, customersList]);
 
   return (

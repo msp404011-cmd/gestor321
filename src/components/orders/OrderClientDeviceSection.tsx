@@ -198,29 +198,33 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
 
             {/* Autocomplete Dropdown */}
             {isSearchOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[#07132a] border border-cyan-500/50 rounded-xl shadow-2xl overflow-hidden max-h-40 overflow-y-auto divide-y divide-slate-800">
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[#07132a] border border-cyan-500/60 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto divide-y divide-slate-800/80 custom-scrollbar">
                 {filteredCustomers.length > 0 ? (
                   filteredCustomers.map((c) => (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => handleSelectCustomer(c)}
-                      className="w-full text-left p-2 hover:bg-blue-600/30 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                      className="w-full text-left p-2.5 hover:bg-blue-600/30 transition-colors flex items-center justify-between text-xs cursor-pointer group"
                     >
                       <div className="min-w-0 pr-2">
-                        <p className="font-bold text-white truncate text-xs">{c.name}</p>
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {c.phone} {c.document ? `• CPF: ${c.document}` : ''}
+                        <p className="font-bold text-white group-hover:text-cyan-300 transition-colors truncate text-xs">
+                          {c.name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {c.phone || c.whatsapp || 'Sem tel.'} 
+                          {c.document ? ` • CPF: ${c.document}` : ''}
+                          {c.city ? ` • ${c.city}` : ''}
                         </p>
                       </div>
-                      <span className="text-[9px] text-cyan-300 bg-cyan-950/80 border border-cyan-700 px-1.5 py-0.5 rounded-lg font-bold shrink-0">
+                      <span className="text-[9px] text-cyan-300 bg-cyan-950/90 group-hover:bg-cyan-600 group-hover:text-white border border-cyan-700/80 px-2 py-0.5 rounded-lg font-black shrink-0 transition-all">
                         Selecionar
                       </span>
                     </button>
                   ))
                 ) : (
-                  <div className="p-2.5 text-center text-xs text-slate-400">
-                    Nenhum cliente encontrado.{' '}
+                  <div className="p-3 text-center text-xs text-slate-400">
+                    Nenhum cliente encontrado para "{customerSearch}".{' '}
                     <button
                       type="button"
                       onClick={() => {
@@ -231,9 +235,9 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
                           setShowQuickCustomerModal(true);
                         }
                       }}
-                      className="text-cyan-400 font-bold hover:underline cursor-pointer ml-1"
+                      className="text-cyan-400 font-bold hover:underline cursor-pointer ml-1 inline-flex items-center gap-1"
                     >
-                      Cadastrar?
+                      + Cadastrar agora
                     </button>
                   </div>
                 )}

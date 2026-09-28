@@ -49,6 +49,7 @@ import { formatCurrency, formatDate, cleanPhoneForWhatsApp } from '../../service
 import { PosReceiptModal, PrintPaperFormat } from './PosReceiptModal';
 import { PosSalesHistoryModal } from './PosSalesHistoryModal';
 import { useTheme } from '../../context/ThemeContext';
+import { matchCustomer, filterAndSortCustomers } from '../../utils/searchUtils';
 
 interface PosViewProps {
   onOpenNewCustomer: () => void;
@@ -2374,34 +2375,26 @@ export const PosView: React.FC<PosViewProps> = ({
                 ))}
 
               {/* Standard Customers list */}
-              {customers
-                .filter((c) => {
-                  const q = customerSearchInput.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    c.name.toLowerCase().includes(q) ||
-                    (c.phone && c.phone.toLowerCase().includes(q)) ||
-                    (c.document && c.document.toLowerCase().includes(q))
-                  );
-                })
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => {
-                      setCustomerId(c.id);
-                      setCustomerSearchInput('');
-                      setIsCustomerModalOpen(false);
-                    }}
-                    className={`p-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-colors flex justify-between items-center ${
-                      customerId === c.id ? 'bg-blue-600 border-cyan-400 text-white' : 'bg-[#040a18] border-blue-900 text-slate-300 hover:border-cyan-400'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-white">{c.name}</p>
-                      <p className="text-[10px] text-slate-400">{c.phone || c.document}</p>
-                    </div>
+              {filterAndSortCustomers(customers, customerSearchInput, 50).map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    setCustomerId(c.id);
+                    setCustomerSearchInput('');
+                    setIsCustomerModalOpen(false);
+                  }}
+                  className={`p-2.5 rounded-xl border text-xs font-bold cursor-pointer transition-colors flex justify-between items-center ${
+                    customerId === c.id ? 'bg-blue-600 border-cyan-400 text-white' : 'bg-[#040a18] border-blue-900 text-slate-300 hover:border-cyan-400'
+                  }`}
+                >
+                  <div>
+                    <p className="text-white">{c.name}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {c.phone || c.whatsapp || ''} {c.document ? `• CPF: ${c.document}` : ''} {c.city ? `• ${c.city}` : ''}
+                    </p>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
 
             <button

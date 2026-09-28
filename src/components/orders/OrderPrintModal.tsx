@@ -38,9 +38,8 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => {
     const defaultFormat = company.osDefaultPaperFormat as PaperFormat;
     if (defaultFormat === '50mm' || defaultFormat === '58mm') return '50mm';
-    if (defaultFormat === '80mm') return '80mm';
     if (defaultFormat === 'a4') return 'a4';
-    return '80mm';
+    return '80mm'; // Default to 80mm (Elgin i9)
   });
 
   const [isSavedInOrder, setIsSavedInOrder] = useState(false);
@@ -73,13 +72,15 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const defaultFormat = company.osDefaultPaperFormat as PaperFormat;
+      setPaperFormat(defaultFormat === 'a4' ? 'a4' : defaultFormat === '50mm' || defaultFormat === '58mm' ? '50mm' : '80mm');
       if (mode) {
         setPrintType(mode);
       } else if (isEulisStatus(order?.status)) {
         setPrintType('eulis');
       }
     }
-  }, [isOpen, mode, order?.status]);
+  }, [isOpen, mode, order?.status, company.osDefaultPaperFormat]);
 
   useEffect(() => {
     if (isOpen) {
@@ -312,10 +313,20 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 
       const triggerPrint = () => {
         try {
+          if (printFrame.contentWindow) {
+            printFrame.contentWindow.onafterprint = () => {
+              onClose();
+            };
+          }
           printFrame.contentWindow?.focus();
           printFrame.contentWindow?.print();
         } catch {
           window.print();
+        } finally {
+          // Fechar automaticamente a tela de impressão após disparar para a Elgin i9 / impressora
+          setTimeout(() => {
+            onClose();
+          }, 350);
         }
       };
 

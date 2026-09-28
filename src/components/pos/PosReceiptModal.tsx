@@ -148,10 +148,19 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
 
       const triggerPrint = () => {
         try {
+          if (printFrame.contentWindow) {
+            printFrame.contentWindow.onafterprint = () => {
+              onClose();
+            };
+          }
           printFrame.contentWindow?.focus();
           printFrame.contentWindow?.print();
         } catch {
           window.print();
+        } finally {
+          setTimeout(() => {
+            onClose();
+          }, 350);
         }
       };
 

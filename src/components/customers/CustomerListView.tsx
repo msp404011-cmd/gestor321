@@ -32,6 +32,7 @@ import { SubscriptionService } from '../../services/subscriptionService';
 import { formatPhone, cleanPhoneForWhatsApp } from '../../services/formatters';
 import { ConfirmDialog } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
+import { matchCustomer } from '../../utils/searchUtils';
 
 interface CustomerListViewProps {
   onOpenNewCustomer: () => void;
@@ -105,17 +106,11 @@ export const CustomerListView: React.FC<CustomerListViewProps> = ({
       }
 
       // Search query
-      const q = search.trim().toLowerCase();
-      if (!q) return true;
+      if (!matchCustomer(c, search)) {
+        return false;
+      }
 
-      return (
-        c.name.toLowerCase().includes(q) ||
-        (c.document && c.document.includes(q)) ||
-        (c.phone && c.phone.includes(q)) ||
-        (c.whatsapp && c.whatsapp.includes(q)) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.city && c.city.toLowerCase().includes(q))
-      );
+      return true;
     });
   }, [customers, selectedTab, selectedStatus, selectedCity, search]);
 
