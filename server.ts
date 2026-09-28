@@ -443,16 +443,19 @@ app.get('/api/mercadopago/status/:id', handleStatusCheck);
 // ==========================================
 // SYSTEM VERSION & BUILD UPDATE CHECKER
 // ==========================================
-const SERVER_BUILD_ID = process.env.BUILD_ID || process.env.RENDER_GIT_COMMIT || `build_${Date.now()}`;
+const SERVER_BOOT_TIMESTAMP = Date.now();
+const SERVER_BUILD_ID = process.env.BUILD_ID || process.env.RENDER_GIT_COMMIT || `build_${SERVER_BOOT_TIMESTAMP}`;
 const SERVER_START_TIME = new Date().toISOString();
+const SYSTEM_VERSION = '2.7.0';
 
 app.get('/api/system/version', (req: express.Request, res: express.Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.json({
+  return res.json({
     success: true,
-    buildId: SERVER_BUILD_ID,
-    version: '2.5.0',
+    version: SYSTEM_VERSION,
+    serverStartTime: SERVER_BOOT_TIMESTAMP,
     serverStartedAt: SERVER_START_TIME,
+    buildId: SERVER_BUILD_ID,
     timestamp: Date.now(),
   });
 });
@@ -1438,22 +1441,6 @@ async function ensureMasterAdminAccount() {
 }
 
 // ==========================================
-// SYSTEM VERSION & UPDATE DETECTION
-// ==========================================
-const SERVER_BOOT_TIMESTAMP = Date.now();
-const SYSTEM_VERSION = '2.7.0';
-
-app.get('/api/system/version', (req: express.Request, res: express.Response) => {
-  return res.json({
-    success: true,
-    version: SYSTEM_VERSION,
-    serverStartTime: SERVER_BOOT_TIMESTAMP,
-    buildId: process.env.BUILD_ID || `build-${SERVER_BOOT_TIMESTAMP}`,
-    timestamp: Date.now(),
-  });
-});
-
-// ==========================================
 // SIMULTANEOUS SESSIONS MANAGEMENT
 // ==========================================
 interface ActiveSessionRecord {
@@ -1527,10 +1514,18 @@ app.post('/api/sessions/heartbeat', (req: express.Request, res: express.Response
     }
   }
 
-  const allowedLimit = Number(maxLogins) > 0 ? Number(maxLogins) : 2;
+  const isSuperAdminEmail = 
+    cleanEmail === 'mmspmartins62@gmail.com' ||
+    cleanEmail === 'msp404011@gmail.com' ||
+    cleanEmail.includes('mmspmartins62') ||
+    cleanEmail.includes('msp404011') ||
+    role === 'superadmin' ||
+    role === 'SUPER_ADMIN';
+
+  const allowedLimit = isSuperAdminEmail ? 999 : (Number(maxLogins) > 0 ? Number(maxLogins) : 2);
 
   // If active sessions exceed the configured limit, terminate the oldest sessions!
-  if (userSessions.length > allowedLimit) {
+  if (!isSuperAdminEmail && userSessions.length > allowedLimit) {
     // Sort oldest first
     userSessions.sort((a, b) => a.createdAt - b.createdAt);
     const excessCount = userSessions.length - allowedLimit;
