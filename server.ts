@@ -441,6 +441,23 @@ app.post('/api/check-status', handleStatusCheck);
 app.get('/api/mercadopago/status/:id', handleStatusCheck);
 
 // ==========================================
+// SYSTEM VERSION & BUILD UPDATE CHECKER
+// ==========================================
+const SERVER_BUILD_ID = process.env.BUILD_ID || process.env.RENDER_GIT_COMMIT || `build_${Date.now()}`;
+const SERVER_START_TIME = new Date().toISOString();
+
+app.get('/api/system/version', (req: express.Request, res: express.Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.json({
+    success: true,
+    buildId: SERVER_BUILD_ID,
+    version: '2.5.0',
+    serverStartedAt: SERVER_START_TIME,
+    timestamp: Date.now(),
+  });
+});
+
+// ==========================================
 // SECURE ADMIN ENDPOINTS (Backend Enforced)
 // ==========================================
 
@@ -1419,6 +1436,177 @@ async function ensureMasterAdminAccount() {
     return { success: false, error: e.message };
   }
 }
+
+// ==========================================
+// SYSTEM VERSION & UPDATE DETECTION
+// ==========================================
+const SERVER_BOOT_TIMESTAMP = Date.now();
+const SYSTEM_VERSION = '2.7.0';
+
+app.get('/api/system/version', (req: express.Request, res: express.Response) => {
+  return res.json({
+    success: true,
+    version: SYSTEM_VERSION,
+    serverStartTime: SERVER_BOOT_TIMESTAMP,
+    buildId: process.env.BUILD_ID || `build-${SERVER_BOOT_TIMESTAMP}`,
+    timestamp: Date.now(),
+  });
+});
+
+// ==========================================
+// SIMULTANEOUS SESSIONS MANAGEMENT
+// ==========================================
+interface ActiveSessionRecord {
+  sessionId: string;
+  email: string;
+  role?: string;
+  ip?: string;
+  device?: string;
+  userAgent?: string;
+  lastPing: number;
+  createdAt: number;
+  terminated?: boolean;
+  terminationReason?: string;
+}
+
+const activeSessionsStore = new Map<string, ActiveSessionRecord>();
+
+// Clean up stale sessions (> 90 seconds without ping)
+setInterval(() => {
+  const cutoff = Date.now() - 90_000;
+  for (const [id, sess] of activeSessionsStore.entries()) {
+    if (sess.lastPing < cutoff) {
+      activeSessionsStore.delete(id);
+    }
+  }
+}, 30_000);
+
+// Heartbeat & session register
+app.post('/api/sessions/heartbeat', (req: express.Request, res: express.Response) => {
+  const { sessionId, email, device, userAgent, maxLogins, role } = req.body || {};
+  if (!sessionId || !email) {
+    return res.status(400).json({ success: false, error: 'sessionId e email são obrigatórios.' });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const existing = activeSessionsStore.get(sessionId);
+
+  if (existing && existing.terminated) {
+    activeSessionsStore.delete(sessionId);
+    return res.json({
+      success: true,
+      active: false,
+      terminated: true,
+      reason: existing.terminationReason || 'concurrent_limit',
+      message: 'Sua sessão foi encerrada porque sua conta atingiu o limite de logins simultâneos em outro dispositivo.',
+    });
+  }
+
+  const now = Date.now();
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '127.0.0.1';
+
+  // Update or insert this session
+  activeSessionsStore.set(sessionId, {
+    sessionId,
+    email: cleanEmail,
+    role: role || (existing ? existing.role : 'user'),
+    ip,
+    device: device || (existing ? existing.device : 'Navegador Web'),
+    userAgent: userAgent || (existing ? existing.userAgent : ''),
+    lastPing: now,
+    createdAt: existing ? existing.createdAt : now,
+    terminated: false,
+  });
+
+  // Calculate active sessions for this email
+  const userSessions: ActiveSessionRecord[] = [];
+  const cutoff = now - 90_000;
+  for (const [_, sess] of activeSessionsStore.entries()) {
+    if (sess.email === cleanEmail && sess.lastPing >= cutoff && !sess.terminated) {
+      userSessions.push(sess);
+    }
+  }
+
+  const allowedLimit = Number(maxLogins) > 0 ? Number(maxLogins) : 2;
+
+  // If active sessions exceed the configured limit, terminate the oldest sessions!
+  if (userSessions.length > allowedLimit) {
+    // Sort oldest first
+    userSessions.sort((a, b) => a.createdAt - b.createdAt);
+    const excessCount = userSessions.length - allowedLimit;
+    const toTerminate = userSessions.slice(0, excessCount);
+
+    for (const sess of toTerminate) {
+      sess.terminated = true;
+      sess.terminationReason = 'concurrent_limit';
+      activeSessionsStore.set(sess.sessionId, sess);
+      if (sess.sessionId === sessionId) {
+        return res.json({
+          success: true,
+          active: false,
+          terminated: true,
+          reason: 'concurrent_limit',
+          message: 'Limite de logins simultâneos atingido nesta conta.',
+        });
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    active: true,
+    sessionId,
+    totalActiveForUser: Math.min(userSessions.length, allowedLimit),
+    allowedLimit,
+  });
+});
+
+// Get active sessions for an email or all (for admin)
+app.get('/api/sessions/active', (req: express.Request, res: express.Response) => {
+  const emailQuery = (req.query.email as string)?.trim().toLowerCase();
+  const now = Date.now();
+  const cutoff = now - 90_000;
+  const list: ActiveSessionRecord[] = [];
+
+  for (const sess of activeSessionsStore.values()) {
+    if (sess.lastPing >= cutoff && !sess.terminated) {
+      if (!emailQuery || sess.email === emailQuery) {
+        list.push(sess);
+      }
+    }
+  }
+
+  return res.json({ success: true, sessions: list });
+});
+
+// Terminate a session explicitly
+app.post('/api/sessions/terminate', (req: express.Request, res: express.Response) => {
+  const { sessionId, email, allOthers } = req.body || {};
+  if (allOthers && email) {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const currentSessionId = sessionId;
+    for (const [id, sess] of activeSessionsStore.entries()) {
+      if (sess.email === cleanEmail && id !== currentSessionId) {
+        sess.terminated = true;
+        sess.terminationReason = 'manual_disconnect';
+        activeSessionsStore.set(id, sess);
+      }
+    }
+    return res.json({ success: true, message: 'Todas as outras sessões foram desconectadas.' });
+  }
+
+  if (sessionId) {
+    const sess = activeSessionsStore.get(sessionId);
+    if (sess) {
+      sess.terminated = true;
+      sess.terminationReason = 'manual_disconnect';
+      activeSessionsStore.set(sessionId, sess);
+    }
+    return res.json({ success: true, message: 'Sessão desconectada com sucesso.' });
+  }
+
+  return res.status(400).json({ success: false, error: 'Parâmetros inválidos.' });
+});
 
 app.post('/api/admin/bootstrap-admin', async (req: express.Request, res: express.Response) => {
   const result = await ensureMasterAdminAccount();
