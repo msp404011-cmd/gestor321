@@ -501,6 +501,13 @@ const GLOBAL_KEYS = new Set([
 function loadInitialAuthSession(): AuthSession | null {
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {
+      // Must have active browser session flag. If browser was closed, flag is gone, requiring fresh login.
+      const isSessionActive = sessionStorage.getItem('msp_browser_session_active') === 'true';
+      if (!isSessionActive) {
+        sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+        sessionStorage.removeItem('msp_auth_session_v1');
+        return null;
+      }
       const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || sessionStorage.getItem('msp_auth_session_v1');
       if (raw) {
         return JSON.parse(raw);
@@ -2813,6 +2820,7 @@ export const StorageService = {
     activeAuthSession = session;
     try {
       if (typeof window !== 'undefined') {
+        sessionStorage.setItem('msp_browser_session_active', 'true');
         sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
         sessionStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
         localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -2848,6 +2856,7 @@ export const StorageService = {
     activeAuthSession = null;
     try {
       if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('msp_browser_session_active');
         sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
         sessionStorage.removeItem('msp_auth_session_v1');
         sessionStorage.removeItem('msp_auth_session');

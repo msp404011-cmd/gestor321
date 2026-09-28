@@ -766,6 +766,10 @@ export interface CompanySettings {
   osShowSignatures?: boolean; // Default: true
   osShowCustomerAddress?: boolean; // Default: true
   osDefaultPaperFormat?: '80mm' | '58mm' | '50mm' | 'a4'; // Default: '80mm'
+
+  // Simultaneous Logins Control (Configurable in panel & Super Admin)
+  maxSimultaneousLogins?: number; // 1, 2, 3, 5, 10, or 999 (Unlimited). Default: 2
+  superAdminMaxSimultaneousLogins?: number; // Super admin login limit (Default: 5 or 999)
 }
 
 export interface Supplier {

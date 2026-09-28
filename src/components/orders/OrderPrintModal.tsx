@@ -194,20 +194,23 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
     }
 
     try {
-      let printFrame = document.getElementById('receipt-print-iframe') as HTMLIFrameElement;
-      if (!printFrame) {
-        printFrame = document.createElement('iframe');
-        printFrame.id = 'receipt-print-iframe';
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        printFrame.style.opacity = '0';
-        printFrame.style.pointerEvents = 'none';
-        document.body.appendChild(printFrame);
+      const existingFrame = document.getElementById('receipt-print-iframe');
+      if (existingFrame) {
+        existingFrame.remove();
       }
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'receipt-print-iframe';
+      // Chromium requires real dimensions and DOM presence to calculate print layout!
+      // Must NOT use width: 0, height: 0, or opacity: 0 which renders blank pages in Chrome.
+      printFrame.style.position = 'fixed';
+      printFrame.style.left = '-9999px';
+      printFrame.style.top = '0';
+      printFrame.style.width = '1024px';
+      printFrame.style.height = '1024px';
+      printFrame.style.border = '0';
+      printFrame.style.zIndex = '-9999';
+      document.body.appendChild(printFrame);
 
       const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
       if (!frameDoc) {
@@ -215,8 +218,12 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
         return;
       }
 
-      // Collect all document styles
+      // Collect all document styles BUT filter out any modal print styles that set visibility: hidden
       const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+        .filter((el) => {
+          const content = el.innerHTML || '';
+          return !content.includes('body * {') && !content.includes('visibility: hidden');
+        })
         .map((el) => el.outerHTML)
         .join('\n');
 
@@ -238,10 +245,14 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 size: ${pageSize};
                 margin: ${pageMargin} !important;
               }
-              * {
+              *, *::before, *::after {
                 box-sizing: border-box !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                filter: none !important;
+                visibility: visible !important;
               }
               html, body {
                 margin: 0 !important;
@@ -250,8 +261,12 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 color: #000000 !important;
                 width: 100% !important;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+                visibility: visible !important;
               }
-              .print-root-wrapper {
+              body * {
+                visibility: visible !important;
+              }
+              #printable-order-container, .print-root-wrapper {
                 width: ${printWidth} !important;
                 max-width: ${printWidth} !important;
                 margin: 0 auto !important;
@@ -259,6 +274,8 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 background: #ffffff !important;
                 color: #000000 !important;
                 box-sizing: border-box !important;
+                display: block !important;
+                visibility: visible !important;
               }
               .no-print {
                 display: none !important;
@@ -266,7 +283,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             </style>
           </head>
           <body>
-            <div class="print-root-wrapper">
+            <div id="printable-order-container" class="print-root-wrapper">
               ${contentHtml}
             </div>
           </body>
@@ -317,6 +334,13 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       {/* Dynamic Print CSS Injection for Exact Paper Sizes */}
       <style>{`
         @media print {
+          *, *::before, *::after {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            filter: none !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -325,17 +349,28 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             overflow: visible !important;
             background: #ffffff !important;
             color: #000000 !important;
+            visibility: visible !important;
           }
-          body * {
-            visibility: hidden;
+          /* Hide non-print application interface */
+          header, aside, nav, button, .no-print {
+            display: none !important;
+          }
+          .fixed.inset-0 {
+            position: static !important;
+            background: #ffffff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+            width: 100% !important;
           }
           #printable-order-container, #printable-order-container * {
             visibility: visible !important;
           }
           #printable-order-container {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
             width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
             max-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
             margin: 0 auto !important;
@@ -345,13 +380,11 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             background: #ffffff !important;
             color: #000000 !important;
             box-sizing: border-box !important;
+            display: block !important;
           }
           @page {
             size: ${paperFormat === 'a4' ? 'A4 portrait' : 'auto'};
             margin: ${paperFormat === 'a4' ? '8mm' : '0mm'} !important;
-          }
-          .no-print {
-            display: none !important;
           }
         }
       `}</style>

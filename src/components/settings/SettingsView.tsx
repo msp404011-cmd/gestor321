@@ -73,6 +73,7 @@ import {
 import { CompanySettings, UserRole, Supplier, ServiceOrder } from '../../types';
 import { formatDate } from '../../services/formatters';
 import { useTheme } from '../../context/ThemeContext';
+import { sessionManager, ActiveSession } from '../../services/sessionManager';
 import { ThermalOrderReceipt } from '../orders/ThermalOrderReceipt';
 import { initialCompanySettings } from '../../services/mockData';
 import { SystemFormatTab } from './SystemFormatTab';
@@ -248,6 +249,27 @@ export const SettingsView: React.FC = () => {
   const [driveSyncStatus, setDriveSyncStatus] = useState(() =>
     authSession?.email ? GoogleDriveBackupService.getSyncStatus(authSession.email) : null
   );
+
+  // Simultaneous sessions for current account
+  const [currentAccountSessions, setCurrentAccountSessions] = useState<ActiveSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionSaveSuccess, setSessionSaveSuccess] = useState(false);
+
+  const loadAccountSessions = () => {
+    const email = authSession?.email || currentUser?.email || company.email;
+    if (email) {
+      setSessionsLoading(true);
+      sessionManager.fetchActiveSessions(email).then((sess) => {
+        setCurrentAccountSessions(sess);
+      }).finally(() => setSessionsLoading(false));
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'USERS') {
+      loadAccountSessions();
+    }
+  }, [activeTab]);
 
   const handleManualGoogleDriveSync = async () => {
     if (!authSession?.email) {
@@ -3069,6 +3091,132 @@ export const SettingsView: React.FC = () => {
                 </span>
               </div>
             ))}
+          </div>
+
+          {/* Card: Controle de Logins Simultâneos */}
+          <div className={`p-5 rounded-xl border mt-6 space-y-4 ${
+            isDark ? 'bg-[#040a17] border-blue-900/60' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-600/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className={`font-black text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Controle de Logins Simultâneos
+                  </h4>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Defina quantos aparelhos (computadores ou celulares) podem usar o sistema ao mesmo tempo.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  StorageService.saveCompanySettings(company);
+                  setSessionSaveSuccess(true);
+                  setTimeout(() => setSessionSaveSuccess(false), 2500);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-cyan-950 cursor-pointer self-start sm:self-auto"
+              >
+                {sessionSaveSuccess ? <Check className="w-4 h-4 text-emerald-300" /> : <ShieldCheck className="w-4 h-4" />}
+                <span>{sessionSaveSuccess ? 'Salvo com Sucesso!' : 'Salvar Limite'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <div className="sm:col-span-2">
+                <label className={`block text-xs font-bold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Limite Máximo de Conexões Simultâneas para esta Conta:
+                </label>
+                <select
+                  value={company.maxSimultaneousLogins || 2}
+                  onChange={(e) => setCompany({
+                    ...company,
+                    maxSimultaneousLogins: Number(e.target.value)
+                  })}
+                  className={`w-full max-w-sm rounded-xl px-3 py-2 text-xs font-semibold border focus:outline-hidden focus:border-cyan-500 ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value={1}>1 Dispositivo (Mais Seguro - Apenas 1 acesso por vez)</option>
+                  <option value={2}>2 Dispositivos (Padrão Recomendado)</option>
+                  <option value={3}>3 Dispositivos</option>
+                  <option value={5}>5 Dispositivos</option>
+                  <option value={10}>10 Dispositivos</option>
+                  <option value={999}>Ilimitado (Sem bloqueio)</option>
+                </select>
+                <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Se um novo dispositivo fizer login além do limite, a sessão mais antiga é desconectada com aviso de segurança.
+                </p>
+              </div>
+
+              <div className="flex sm:justify-end">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const email = authSession?.email || currentUser?.email || company.email;
+                    if (!email) return;
+                    if (confirm('Deseja desconectar todos os outros computadores/celulares conectados nesta conta?')) {
+                      await sessionManager.disconnectOtherSessions(email);
+                      loadAccountSessions();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Desconectar Outros Aparelhos</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de sessões ativas da conta */}
+            <div className="pt-2 border-t border-slate-700/40">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Aparelhos Conectados Recentemente ({currentAccountSessions.length}):
+                </span>
+                <button
+                  type="button"
+                  onClick={loadAccountSessions}
+                  disabled={sessionsLoading}
+                  className={`text-[11px] font-semibold hover:underline flex items-center gap-1 ${
+                    isDark ? 'text-cyan-400' : 'text-cyan-600'
+                  }`}
+                >
+                  <RefreshCw className={`w-3 h-3 ${sessionsLoading ? 'animate-spin' : ''}`} />
+                  <span>Atualizar</span>
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                {currentAccountSessions.map((sess) => (
+                  <div
+                    key={sess.sessionId}
+                    className={`flex items-center justify-between p-2 rounded-lg text-xs border ${
+                      isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Laptop className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="font-semibold">{sess.device || 'Navegador'}</span>
+                      <span className="text-[11px] text-slate-500 font-mono">({sess.ip || '127.0.0.1'})</span>
+                      {sess.isCurrent && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold">
+                          Este aparelho
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Ativo
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}

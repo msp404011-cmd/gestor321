@@ -56,6 +56,8 @@ export const initialCompanySettings: CompanySettings = {
   osShowSignatures: false,
   osShowCustomerAddress: true,
   osDefaultPaperFormat: '80mm',
+  maxSimultaneousLogins: 2,
+  superAdminMaxSimultaneousLogins: 5,
 };
 
 export const initialEmployees: Employee[] = [

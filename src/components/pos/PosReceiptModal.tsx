@@ -34,20 +34,21 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
     }
 
     try {
-      let printFrame = document.getElementById('pos-print-iframe') as HTMLIFrameElement;
-      if (!printFrame) {
-        printFrame = document.createElement('iframe');
-        printFrame.id = 'pos-print-iframe';
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        printFrame.style.opacity = '0';
-        printFrame.style.pointerEvents = 'none';
-        document.body.appendChild(printFrame);
+      const existingFrame = document.getElementById('pos-print-iframe');
+      if (existingFrame) {
+        existingFrame.remove();
       }
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'pos-print-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.left = '-9999px';
+      printFrame.style.top = '0';
+      printFrame.style.width = '1024px';
+      printFrame.style.height = '1024px';
+      printFrame.style.border = '0';
+      printFrame.style.zIndex = '-9999';
+      document.body.appendChild(printFrame);
 
       const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
       if (!frameDoc) {
@@ -55,7 +56,12 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
         return;
       }
 
+      // Collect all document styles BUT filter out any styles that set visibility: hidden
       const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+        .filter((el) => {
+          const content = el.innerHTML || '';
+          return !content.includes('body * {') && !content.includes('visibility: hidden');
+        })
         .map((el) => el.outerHTML)
         .join('\n');
 
@@ -77,10 +83,14 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 size: ${pageSize};
                 margin: ${pageMargin} !important;
               }
-              * {
+              *, *::before, *::after {
                 box-sizing: border-box !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                filter: none !important;
+                visibility: visible !important;
               }
               html, body {
                 margin: 0 !important;
@@ -89,8 +99,12 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 color: #000000 !important;
                 width: 100% !important;
                 font-family: monospace, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+                visibility: visible !important;
               }
-              .print-pos-wrapper {
+              body * {
+                visibility: visible !important;
+              }
+              #printable-pos-receipt, .print-pos-wrapper {
                 width: ${printWidth} !important;
                 max-width: ${printWidth} !important;
                 margin: 0 auto !important;
@@ -98,6 +112,8 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 background: #ffffff !important;
                 color: #000000 !important;
                 box-sizing: border-box !important;
+                display: block !important;
+                visibility: visible !important;
               }
               .no-print {
                 display: none !important;
@@ -105,7 +121,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             </style>
           </head>
           <body>
-            <div class="print-pos-wrapper">
+            <div id="printable-pos-receipt" class="print-pos-wrapper">
               ${contentHtml}
             </div>
           </body>
@@ -167,6 +183,13 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       {/* Dynamic Print CSS Injection */}
       <style>{`
         @media print {
+          *, *::before, *::after {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            filter: none !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
@@ -175,17 +198,27 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             overflow: visible !important;
             background: #ffffff !important;
             color: #000000 !important;
+            visibility: visible !important;
           }
-          body * {
-            visibility: hidden;
+          header, aside, nav, button, .no-print {
+            display: none !important;
+          }
+          .fixed.inset-0 {
+            position: static !important;
+            background: #ffffff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+            width: 100% !important;
           }
           #printable-pos-receipt, #printable-pos-receipt * {
             visibility: visible !important;
           }
           #printable-pos-receipt {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
             width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
             max-width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
             margin: 0 auto !important;
@@ -195,13 +228,11 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             background: white !important;
             color: black !important;
             box-sizing: border-box !important;
+            display: block !important;
           }
           @page {
             size: ${paperFormat === 'A4' ? 'A4 portrait' : 'auto'};
             margin: ${paperFormat === 'A4' ? '8mm' : '0mm'} !important;
-          }
-          .no-print {
-            display: none !important;
           }
         }
       `}</style>

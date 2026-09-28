@@ -1,13 +1,15 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { LayoutDashboard, Wrench, ShoppingCart, Users, Package } from 'lucide-react';
+import { LayoutDashboard, Wrench, ShoppingCart, Users, Package, RefreshCw, Smartphone, Power, AlertTriangle } from 'lucide-react';
 import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
 import { ConfirmDialog } from './components/common/Modal';
 import { SubscriptionService, normalizePlanType } from './services/subscriptionService';
 import { AdminBackendService } from './services/adminBackendService';
+import { updateService } from './services/updateService';
+import { sessionManager } from './services/sessionManager';
 
 // Lazy-loaded Views & Modals for Code Splitting
 const DashboardView = lazy(() => import('./components/dashboard/DashboardView').then(m => ({ default: m.DashboardView })));
@@ -191,6 +193,32 @@ export default function App() {
     }
   });
 
+  // System Update Notification State
+  const [updateAvailableInfo, setUpdateAvailableInfo] = useState<{
+    newVersion: string;
+  } | null>(null);
+
+  // Concurrency Session Kick State
+  const [sessionKickInfo, setSessionKickInfo] = useState<{
+    message: string;
+  } | null>(null);
+
+  // Listen for deployed system updates
+  useEffect(() => {
+    const unsubUpdate = updateService.subscribe((info) => {
+      setUpdateAvailableInfo({ newVersion: info.newVersion });
+    });
+    return () => unsubUpdate();
+  }, []);
+
+  // Listen for simultaneous session termination
+  useEffect(() => {
+    const unsubSession = sessionManager.onTerminated((reason, message) => {
+      setSessionKickInfo({ message });
+    });
+    return () => unsubSession();
+  }, []);
+
   // Verify master session validity on mount if master panel is open
   useEffect(() => {
     if (showMasterPanel) {
@@ -223,6 +251,19 @@ export default function App() {
     }
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       try {
+        // If the browser/tab was closed, require fresh login!
+        const isBrowserSessionActive = typeof window !== 'undefined' && sessionStorage.getItem('msp_browser_session_active') === 'true';
+        if (!isBrowserSessionActive) {
+          if (fbUser && auth) {
+            signOut(auth).catch(() => {});
+          }
+          StorageService.clearAuthSession();
+          setAuthSession(null);
+          setCurrentUser(null);
+          setIsAuthChecking(false);
+          return;
+        }
+
         if (fbUser && fbUser.email) {
           const cleanEmail = fbUser.email.toLowerCase().trim();
           let accountData: any = null;
@@ -252,8 +293,10 @@ export default function App() {
 
           setAuthSession(StorageService.getAuthSession());
           setCurrentUser(StorageService.getCurrentUser());
+          sessionManager.startHeartbeat(cleanEmail, accountData?.role || 'user');
           setTick((prev) => prev + 1);
         } else {
+          sessionManager.stopHeartbeat();
           // Explicitly clear session if Firebase Auth state is unauthenticated (e.g. after logout)
           StorageService.clearAuthSession();
           setAuthSession(null);
@@ -652,8 +695,15 @@ export default function App() {
     isFirstAccess?: boolean;
     isExpiredOrCanceled?: boolean;
   }) => {
+    try {
+      sessionStorage.setItem('msp_browser_session_active', 'true');
+    } catch {}
     setCurrentUser(result.user);
-    setAuthSession(StorageService.getAuthSession());
+    const session = StorageService.getAuthSession();
+    setAuthSession(session);
+    if (session?.email) {
+      sessionManager.startHeartbeat(session.email, result.user.role);
+    }
     setTick((prev) => prev + 1);
 
     if (result.isExpiredOrCanceled) {
@@ -662,6 +712,11 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    sessionManager.stopHeartbeat();
+    try {
+      sessionStorage.removeItem('msp_browser_session_active');
+    } catch {}
+
     // Attempt non-blocking backup if account is connected
     try {
       const session = StorageService.getAuthSession();
@@ -1129,6 +1184,74 @@ export default function App() {
         onConfirm={handleGlobalDeleteConfirm}
         onClose={() => setGlobalOrderToDelete(null)}
       />
+
+      {/* Modal de Nova Atualização Subida no Servidor */}
+      {updateAvailableInfo && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in-50 duration-200">
+          <div className="bg-slate-900 border-2 border-cyan-500/80 p-6 sm:p-7 rounded-3xl max-w-md w-full shadow-2xl text-white space-y-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-cyan-600/20 border border-cyan-400/50 flex items-center justify-center text-cyan-400 mx-auto shadow-lg shadow-cyan-950">
+              <RefreshCw className="w-8 h-8 animate-spin" />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 bg-cyan-950/90 text-cyan-300 rounded-full border border-cyan-700/60 inline-block mb-2">
+                Atualização Publicada
+              </span>
+              <h2 className="text-xl font-black text-white">Nova Atualização Disponível!</h2>
+              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                Uma nova versão do sistema foi disponibilizada no servidor com melhorias e correções.
+                Para aplicar as atualizações e garantir a segurança, a página será atualizada e solicitará que você faça login novamente.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => updateService.applyUpdateAndRelogin()}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-cyan-950 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Atualizar Página e Fazer Login</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Limite de Logins Simultâneos Excedido */}
+      {sessionKickInfo && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in-50 duration-200">
+          <div className="bg-slate-900 border-2 border-amber-500/80 p-6 sm:p-7 rounded-3xl max-w-md w-full shadow-2xl text-white space-y-5 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-amber-600/20 border border-amber-400/50 flex items-center justify-center text-amber-400 mx-auto shadow-lg shadow-amber-950">
+              <Smartphone className="w-8 h-8" />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 bg-amber-950/90 text-amber-300 rounded-full border border-amber-700/60 inline-block mb-2">
+                Sessão Desconectada
+              </span>
+              <h2 className="text-xl font-black text-white">Limite de Logins Simultâneos Atingido</h2>
+              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                {sessionKickInfo.message || 'Sua conta foi conectada em outro computador ou celular e o limite configurado foi atingido. Para sua segurança, esta sessão anterior foi finalizada.'}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSessionKickInfo(null);
+                  handleLogout();
+                }}
+                className="w-full py-3.5 px-4 bg-amber-600 hover:bg-amber-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-950 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Power className="w-4 h-4" />
+                <span>Fazer Login Novamente</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,7 +26,8 @@ import {
   AlertCircle,
   Video,
   Smartphone,
-  Tv
+  Tv,
+  MessageSquare
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { realTimeSyncEngine } from '../../services/RealTimeSyncService';
@@ -35,6 +36,8 @@ import { ChangePlanModal } from './ChangePlanModal';
 import { CreateUserModal } from './CreateUserModal';
 import { DeleteUserModal } from './DeleteUserModal';
 import { AppAccessManagement } from './AppAccessManagement';
+import { MessageBudgetsView } from './MessageBudgetsView';
+import { MasterSessionsManagement } from './MasterSessionsManagement';
 import { normalizeAccountData, CanonicalAccount } from '../../services/accountSchema';
 import { AdminBackendService } from '../../services/adminBackendService';
 
@@ -63,7 +66,7 @@ interface MasterPanelProps {
 
 export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
   const [data, setData] = useState<CanonicalAccount[]>([]);
-  const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'cameras'>('users');
+  const [activeMasterTab, setActiveMasterTab] = useState<'users' | 'messages' | 'cameras' | 'sessions'>('users');
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<CanonicalAccount | null>(null);
   const [changePlanClient, setChangePlanClient] = useState<CanonicalAccount | null>(null);
@@ -510,7 +513,7 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
       </div>
 
       {/* Tab Switcher - Master Panel Selection */}
-      <div className="flex border-b border-slate-800/80 mb-6 gap-2">
+      <div className="flex flex-wrap border-b border-slate-800/80 mb-6 gap-2">
         <button
           type="button"
           onClick={() => setActiveMasterTab('users')}
@@ -525,6 +528,18 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
         </button>
         <button
           type="button"
+          onClick={() => setActiveMasterTab('messages')}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeMasterTab === 'messages'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-cyan-400" />
+          <span>Setor de Mensagens & Orçamentos</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveMasterTab('cameras')}
           className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
             activeMasterTab === 'cameras'
@@ -535,9 +550,21 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
           <Tv className="w-4 h-4 text-cyan-400" />
           <span>Controle de Acessos</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveMasterTab('sessions')}
+          className={`px-5 py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+            activeMasterTab === 'sessions'
+              ? 'border-cyan-500 text-cyan-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Smartphone className="w-4 h-4 text-cyan-400" />
+          <span>Logins Simultâneos & Sessões</span>
+        </button>
       </div>
 
-      {activeMasterTab === 'users' ? (
+      {activeMasterTab === 'users' && (
         <>
           {/* Seção 📅 Vencimentos Próximos (Visão Rápida) */}
           {upcomingExpirations.length > 0 && (
@@ -899,8 +926,24 @@ export const MasterPanel: React.FC<MasterPanelProps> = ({ onClose }) => {
         </div>
       </div>
         </>
-      ) : (
-        <AppAccessManagement />
+      )}
+
+      {activeMasterTab === 'messages' && (
+        <div className="animate-in fade-in-50 duration-150">
+          <MessageBudgetsView />
+        </div>
+      )}
+
+      {activeMasterTab === 'cameras' && (
+        <div className="animate-in fade-in-50 duration-150">
+          <AppAccessManagement />
+        </div>
+      )}
+
+      {activeMasterTab === 'sessions' && (
+        <div className="animate-in fade-in-50 duration-150">
+          <MasterSessionsManagement />
+        </div>
       )}
       
       {/* Modal Dedicado de Criação de Usuário (Firebase Auth + Firestore UID) */}

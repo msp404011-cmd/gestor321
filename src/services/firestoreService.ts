@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, deleteDoc, writeBatch, Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, getDocs, getDoc, collection, onSnapshot, deleteDoc, updateDoc, deleteField, writeBatch, Unsubscribe } from 'firebase/firestore';
 import firebaseConfig, { db } from '../lib/firebase';
 import {
   UserAccount,
@@ -1478,19 +1478,70 @@ export const FirestoreSyncService = {
   },
 
   /**
-   * Registers or overwrites the active session for a user in Firestore /active_sessions/{uid}
+   * Registers or updates an active session for a user in Firestore /active_sessions/{uid}
+   * Supporting configurable simultaneous logins limit (maxAllowed).
    */
-  async registerActiveSession(uid: string, email: string, sessionId: string): Promise<void> {
+  async registerActiveSession(
+    uid: string,
+    email: string,
+    sessionId: string,
+    maxAllowed: number = 2,
+    deviceLabel?: string
+  ): Promise<void> {
     try {
-      if (!db || !uid) return;
+      if (!db || !uid || !sessionId) return;
       const docRef = doc(db, 'active_sessions', uid);
+      const docSnap = await getDoc(docRef);
       const now = new Date().toISOString();
-      await setDoc(docRef, {
-        uid,
-        email: email.toLowerCase().trim(),
+      const nowMs = Date.now();
+
+      let sessions: Record<string, any> = {};
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && typeof data.sessions === 'object' && data.sessions !== null) {
+          // Prune sessions older than 3 minutes (inactive or closed windows)
+          Object.entries(data.sessions).forEach(([sId, sData]: [string, any]) => {
+            const lastHb = sData?.lastHeartbeat ? new Date(sData.lastHeartbeat).getTime() : 0;
+            if (nowMs - lastHb < 180000 && sId !== sessionId) {
+              sessions[sId] = sData;
+            }
+          });
+        }
+      }
+
+      // Check maxAllowed limit
+      const existingSessionIds = Object.keys(sessions);
+      if (maxAllowed < 999 && existingSessionIds.length >= maxAllowed) {
+        // Sort sessions by createdAt ascending to drop the oldest ones
+        const sorted = existingSessionIds.sort((a, b) => {
+          const tA = new Date(sessions[a]?.createdAt || 0).getTime();
+          const tB = new Date(sessions[b]?.createdAt || 0).getTime();
+          return tA - tB;
+        });
+
+        const dropCount = (existingSessionIds.length - maxAllowed) + 1;
+        for (let i = 0; i < dropCount; i++) {
+          if (sorted[i]) {
+            delete sessions[sorted[i]];
+          }
+        }
+      }
+
+      // Add current session
+      sessions[sessionId] = {
         sessionId,
         createdAt: now,
         lastHeartbeat: now,
+        deviceLabel: deviceLabel || (typeof navigator !== 'undefined' ? (navigator.userAgent.includes('Mobile') ? 'Celular / Tablet' : 'Computador') : 'Dispositivo'),
+      };
+
+      await setDoc(docRef, {
+        uid,
+        email: email.toLowerCase().trim(),
+        maxAllowed,
+        sessions,
+        lastUpdated: now,
       }, { merge: true });
     } catch (err) {
       console.warn('Firestore registerActiveSession error:', err);
@@ -1504,32 +1555,49 @@ export const FirestoreSyncService = {
     try {
       if (!db || !uid || !sessionId) return;
       const docRef = doc(db, 'active_sessions', uid);
-      await setDoc(docRef, {
-        sessionId,
-        lastHeartbeat: new Date().toISOString(),
-      }, { merge: true });
+      const now = new Date().toISOString();
+      await updateDoc(docRef, {
+        [`sessions.${sessionId}.lastHeartbeat`]: now,
+        lastUpdated: now,
+      }).catch(async () => {
+        // If nested update fails, merge cleanly
+        await setDoc(docRef, {
+          sessions: {
+            [sessionId]: {
+              lastHeartbeat: now,
+            }
+          },
+          lastUpdated: now,
+        }, { merge: true });
+      });
     } catch (err) {
-      console.warn('Firestore updateSessionHeartbeat error:', err);
+      // Ignored - heartbeat is best effort
     }
   },
 
   /**
-   * Subscribes in real-time to /active_sessions/{uid} to detect if another device took over the session
+   * Subscribes in real-time to /active_sessions/{uid} to detect if the session was displaced
+   * when simultaneous login limit is exceeded.
    */
-  subscribeToActiveSession(uid: string, currentSessionId: string, onSessionTakenOver: () => void): () => void {
+  subscribeToActiveSession(
+    uid: string,
+    currentSessionId: string,
+    onSessionTakenOver: (info?: { reason: string; maxAllowed: number }) => void
+  ): () => void {
     try {
       if (!db || !uid || !currentSessionId) return () => {};
       const docRef = doc(db, 'active_sessions', uid);
       return onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data && data.sessionId && data.sessionId !== currentSessionId) {
-            // Check if heartbeat is recent (e.g. within 90 seconds) to avoid immediate false-positives
-            const lastHb = data.lastHeartbeat ? new Date(data.lastHeartbeat).getTime() : 0;
-            const now = Date.now();
-            if (now - lastHb < 120000) { // 2 minutes timeout
-              console.warn('⚠️ [Session] Sola-sessão violada: outra sessão assumiu o acesso.');
-              onSessionTakenOver();
+          if (data && data.sessions && typeof data.sessions === 'object') {
+            const sessionKeys = Object.keys(data.sessions);
+            // If the document has registered sessions but currentSessionId is missing,
+            // it means another login exceeded maxAllowed and displaced this session!
+            if (sessionKeys.length > 0 && !data.sessions[currentSessionId]) {
+              const max = Number(data.maxAllowed) || 1;
+              console.warn(`🔒 Sessão encerrada: Limite de ${max} conexões simultâneas foi atingido.`);
+              onSessionTakenOver({ reason: 'max_logins_exceeded', maxAllowed: max });
             }
           }
         }
@@ -1552,11 +1620,11 @@ export const FirestoreSyncService = {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data && data.sessionId === sessionId) {
-          await setDoc(docRef, {
-            sessionId: 'LOGGED_OUT_' + Date.now(),
-            lastHeartbeat: new Date(0).toISOString(),
-          }, { merge: true });
+        if (data && data.sessions && data.sessions[sessionId]) {
+          await updateDoc(docRef, {
+            [`sessions.${sessionId}`]: deleteField(),
+            lastUpdated: new Date().toISOString(),
+          }).catch(() => {});
         }
       }
     } catch (err) {
