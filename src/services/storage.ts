@@ -2821,6 +2821,7 @@ export const StorageService = {
     try {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('msp_browser_session_active', 'true');
+        localStorage.setItem('msp_browser_session_active', 'true');
         sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
         sessionStorage.setItem('msp_auth_session_v1', JSON.stringify(session));
         localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -2857,6 +2858,7 @@ export const StorageService = {
     try {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('msp_browser_session_active');
+        localStorage.removeItem('msp_browser_session_active');
         sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
         sessionStorage.removeItem('msp_auth_session_v1');
         sessionStorage.removeItem('msp_auth_session');

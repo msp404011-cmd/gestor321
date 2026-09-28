@@ -44,8 +44,9 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       printFrame.style.position = 'fixed';
       printFrame.style.left = '-9999px';
       printFrame.style.top = '0';
-      printFrame.style.width = '1024px';
-      printFrame.style.height = '1024px';
+      const iframePixelWidth = paperFormat === 'A4' ? '794px' : paperFormat === '80mm' ? '302px' : '220px';
+      printFrame.style.width = iframePixelWidth;
+      printFrame.style.height = '1200px';
       printFrame.style.border = '0';
       printFrame.style.zIndex = '-9999';
       document.body.appendChild(printFrame);
@@ -66,9 +67,10 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
         .join('\n');
 
       const contentHtml = container.innerHTML;
-      const printWidth = paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%';
+      const printWidth = paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%';
       const pageMargin = paperFormat === 'A4' ? '8mm' : '0mm';
-      const pageSize = paperFormat === 'A4' ? 'A4 portrait' : 'auto';
+      const pageSize = paperFormat === 'A4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto';
+      const bodyWidth = paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm';
 
       frameDoc.open();
       frameDoc.write(`
@@ -92,14 +94,24 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                 filter: none !important;
                 visibility: visible !important;
               }
-              html, body {
+              html {
                 margin: 0 !important;
                 padding: 0 !important;
                 background: #ffffff !important;
-                color: #000000 !important;
                 width: 100% !important;
+                visibility: visible !important;
+              }
+              body {
+                margin: 0 auto !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                width: ${bodyWidth} !important;
+                max-width: ${bodyWidth} !important;
+                min-width: ${bodyWidth} !important;
                 font-family: monospace, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
                 visibility: visible !important;
+                display: block !important;
               }
               body * {
                 visibility: visible !important;
@@ -107,13 +119,18 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
               #printable-pos-receipt, .print-pos-wrapper {
                 width: ${printWidth} !important;
                 max-width: ${printWidth} !important;
-                margin: 0 auto !important;
-                padding: ${paperFormat === 'A4' ? '0' : '1.5mm 2mm'} !important;
+                min-width: ${printWidth} !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                padding: 0 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
                 box-sizing: border-box !important;
                 display: block !important;
                 visibility: visible !important;
+                overflow: visible !important;
               }
               .no-print {
                 display: none !important;
@@ -129,14 +146,37 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
       `);
       frameDoc.close();
 
-      setTimeout(() => {
+      const triggerPrint = () => {
         try {
           printFrame.contentWindow?.focus();
           printFrame.contentWindow?.print();
         } catch {
           window.print();
         }
-      }, 250);
+      };
+
+      const images = Array.from(frameDoc.images || []);
+      if (images.length > 0) {
+        let loadedCount = 0;
+        const total = images.length;
+        const checkDone = () => {
+          loadedCount++;
+          if (loadedCount >= total) {
+            setTimeout(triggerPrint, 150);
+          }
+        };
+        images.forEach((img) => {
+          if (img.complete) {
+            checkDone();
+          } else {
+            img.onload = checkDone;
+            img.onerror = checkDone;
+          }
+        });
+        setTimeout(triggerPrint, 500);
+      } else {
+        setTimeout(triggerPrint, 250);
+      }
     } catch {
       window.print();
     }
@@ -189,16 +229,27 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             filter: none !important;
             text-shadow: none !important;
             box-shadow: none !important;
+            box-sizing: border-box !important;
           }
-          html, body {
+          html {
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
             width: 100% !important;
+            visibility: visible !important;
+          }
+          body {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            width: ${paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            max-width: ${paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            min-width: ${paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
             height: auto !important;
             overflow: visible !important;
             background: #ffffff !important;
             color: #000000 !important;
             visibility: visible !important;
+            display: block !important;
           }
           header, aside, nav, button, .no-print {
             display: none !important;
@@ -209,20 +260,25 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
             padding: 0 !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             overflow: visible !important;
             height: auto !important;
-            width: 100% !important;
+            width: ${paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            max-width: ${paperFormat === 'A4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
           }
           #printable-pos-receipt, #printable-pos-receipt * {
             visibility: visible !important;
           }
           #printable-pos-receipt {
             position: static !important;
-            width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
-            max-width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
-            margin: 0 auto !important;
-            padding: ${paperFormat === 'A4' ? '0' : '1.5mm 2mm'} !important;
+            width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            max-width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            min-width: ${paperFormat === '50mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
@@ -231,7 +287,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             display: block !important;
           }
           @page {
-            size: ${paperFormat === 'A4' ? 'A4 portrait' : 'auto'};
+            size: ${paperFormat === 'A4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto'};
             margin: ${paperFormat === 'A4' ? '8mm' : '0mm'} !important;
           }
         }
@@ -269,7 +325,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              80mm (Padrão)
+              80mm (Elgin i9)
             </button>
             <button
               type="button"
@@ -424,7 +480,7 @@ export const PosReceiptModal: React.FC<PosReceiptModalProps> = ({
             </div>
           ) : (
             /* Thermal Roll (80mm or 50mm) */
-            <div>
+            <div className={`mx-auto ${paperFormat === '50mm' ? 'w-[48mm] max-w-[48mm] p-1 text-[8px]' : 'w-[70mm] max-w-[70mm] p-1.5 text-[9px]'} font-mono select-text`} style={{ boxSizing: 'border-box' }}>
               <div className="text-center pb-2 border-b border-dashed border-slate-300">
                 {company.logoUrl && (
                   <div className="flex justify-center mb-1">

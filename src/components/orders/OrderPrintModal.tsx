@@ -202,12 +202,13 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       const printFrame = document.createElement('iframe');
       printFrame.id = 'receipt-print-iframe';
       // Chromium requires real dimensions and DOM presence to calculate print layout!
-      // Must NOT use width: 0, height: 0, or opacity: 0 which renders blank pages in Chrome.
+      // Sizing viewport matching paper format prevents Chrome from shifting/centering on a 1024px canvas!
       printFrame.style.position = 'fixed';
       printFrame.style.left = '-9999px';
       printFrame.style.top = '0';
-      printFrame.style.width = '1024px';
-      printFrame.style.height = '1024px';
+      const iframePixelWidth = paperFormat === 'a4' ? '794px' : paperFormat === '80mm' ? '302px' : '220px';
+      printFrame.style.width = iframePixelWidth;
+      printFrame.style.height = '1200px';
       printFrame.style.border = '0';
       printFrame.style.zIndex = '-9999';
       document.body.appendChild(printFrame);
@@ -228,9 +229,12 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
         .join('\n');
 
       const contentHtml = container.innerHTML;
-      const printWidth = paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%';
+      // For Elgin i9 80mm: roll is 80mm, receipt width is 70mm centered with 5mm margins.
+      // Zero clipping on left or right edges!
+      const printWidth = paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%';
       const pageMargin = paperFormat === 'a4' ? '8mm' : '0mm';
-      const pageSize = paperFormat === 'a4' ? 'A4 portrait' : 'auto';
+      const pageSize = paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto';
+      const bodyWidth = paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm';
 
       frameDoc.open();
       frameDoc.write(`
@@ -254,14 +258,24 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 filter: none !important;
                 visibility: visible !important;
               }
-              html, body {
+              html {
                 margin: 0 !important;
                 padding: 0 !important;
                 background: #ffffff !important;
-                color: #000000 !important;
                 width: 100% !important;
+                visibility: visible !important;
+              }
+              body {
+                margin: 0 auto !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                width: ${bodyWidth} !important;
+                max-width: ${bodyWidth} !important;
+                min-width: ${bodyWidth} !important;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
                 visibility: visible !important;
+                display: block !important;
               }
               body * {
                 visibility: visible !important;
@@ -269,13 +283,18 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               #printable-order-container, .print-root-wrapper {
                 width: ${printWidth} !important;
                 max-width: ${printWidth} !important;
-                margin: 0 auto !important;
-                padding: ${paperFormat === 'a4' ? '0' : '1mm 2mm'} !important;
+                min-width: ${printWidth} !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                padding: 0 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
                 box-sizing: border-box !important;
                 display: block !important;
                 visibility: visible !important;
+                overflow: visible !important;
               }
               .no-print {
                 display: none !important;
@@ -291,14 +310,37 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       `);
       frameDoc.close();
 
-      setTimeout(() => {
+      const triggerPrint = () => {
         try {
           printFrame.contentWindow?.focus();
           printFrame.contentWindow?.print();
         } catch {
           window.print();
         }
-      }, 250);
+      };
+
+      const images = Array.from(frameDoc.images || []);
+      if (images.length > 0) {
+        let loadedCount = 0;
+        const total = images.length;
+        const checkDone = () => {
+          loadedCount++;
+          if (loadedCount >= total) {
+            setTimeout(triggerPrint, 150);
+          }
+        };
+        images.forEach((img) => {
+          if (img.complete) {
+            checkDone();
+          } else {
+            img.onload = checkDone;
+            img.onerror = checkDone;
+          }
+        });
+        setTimeout(triggerPrint, 500);
+      } else {
+        setTimeout(triggerPrint, 250);
+      }
     } catch {
       window.print();
     }
@@ -340,16 +382,27 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             filter: none !important;
             text-shadow: none !important;
             box-shadow: none !important;
+            box-sizing: border-box !important;
           }
-          html, body {
+          html {
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
             width: 100% !important;
+            visibility: visible !important;
+          }
+          body {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            min-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
             height: auto !important;
             overflow: visible !important;
             background: #ffffff !important;
             color: #000000 !important;
             visibility: visible !important;
+            display: block !important;
           }
           /* Hide non-print application interface */
           header, aside, nav, button, .no-print {
@@ -361,20 +414,25 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
             padding: 0 !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             overflow: visible !important;
             height: auto !important;
-            width: 100% !important;
+            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
           }
           #printable-order-container, #printable-order-container * {
             visibility: visible !important;
           }
           #printable-order-container {
             position: static !important;
-            width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
-            max-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%'} !important;
-            margin: 0 auto !important;
-            padding: ${paperFormat === 'a4' ? '0' : '1mm 2mm'} !important;
+            width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            max-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            min-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
             background: #ffffff !important;
@@ -383,7 +441,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             display: block !important;
           }
           @page {
-            size: ${paperFormat === 'a4' ? 'A4 portrait' : 'auto'};
+            size: ${paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto'};
             margin: ${paperFormat === 'a4' ? '8mm' : '0mm'} !important;
           }
         }
@@ -481,9 +539,9 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   paperFormat === '80mm' ? 'bg-emerald-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-800'
                 }`}
-                title="Impressora Térmica 80mm"
+                title="Impressora Térmica 80mm (Otimizada Elgin i9)"
               >
-                🧾 80mm
+                🧾 80mm (Elgin i9)
               </button>
               <button
                 type="button"

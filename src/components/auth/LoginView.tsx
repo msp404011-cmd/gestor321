@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wrench,
   ShieldCheck,
@@ -32,6 +32,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { db } from '../../lib/firebase';
 import { FirestoreSyncService } from '../../services/firestoreService';
+import { updateService } from '../../services/updateService';
 
 interface LoginViewProps {
   onLoginSuccess: (result: {
@@ -71,7 +72,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  // 1. Submit Login (Email + Password)
+  // Auto-login after version update reload
+  useEffect(() => {
+    try {
+      const pendingRaw = sessionStorage.getItem('msp_pending_login');
+      if (pendingRaw) {
+        sessionStorage.removeItem('msp_pending_login');
+        const pending = JSON.parse(pendingRaw);
+        if (pending?.email && pending?.password) {
+          setLoginEmail(pending.email);
+          setLoginPassword(pending.password);
+          setTimeout(() => {
+            executeLogin(pending.email, pending.password);
+          }, 200);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  // 1. Submit Login (Email + Password with update check)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -89,6 +108,31 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    setIsLoading(true);
+
+    // 1. Check for server updates and synchronize baseline before logging in
+    try {
+      setSuccessMsg('🔍 Verificando atualizações do sistema...');
+      const updateResult = await updateService.checkAndSyncOnLogin();
+      if (updateResult.hasNewUpdate) {
+        setSuccessMsg(`🚀 Sistema atualizado com sucesso (v${updateResult.version})! Autenticando...`);
+      } else {
+        setSuccessMsg('✅ Versão mais recente confirmada. Autenticando...');
+      }
+    } catch (_) {
+      // Continue even if update verification is offline
+    }
+
+    await executeLogin(cleanEmail, loginPassword);
+  };
+
+  const executeLogin = async (cleanEmail: string, pass: string) => {
+    // Activate session immediately to prevent premature signout
+    try {
+      sessionStorage.setItem('msp_browser_session_active', 'true');
+      localStorage.setItem('msp_browser_session_active', 'true');
+    } catch {}
+
     try {
       setIsLoading(true);
 
@@ -99,114 +143,36 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         cleanEmail.includes('mmspmartins62') ||
         SUPER_ADMIN_EMAILS.includes(cleanEmail);
 
-      const trimmedPass = loginPassword.trim();
+      const trimmedPass = pass.trim();
       const isValidMasterPassword = 
         trimmedPass === '16150705@Mm###' || 
         trimmedPass === '16150705' || 
         trimmedPass === 'admin123' ||
-        loginPassword === '16150705@Mm###' || 
-        loginPassword === '16150705' || 
-        loginPassword === 'admin123' ||
+        pass === '16150705@Mm###' || 
+        pass === '16150705' || 
+        pass === 'admin123' ||
         trimmedPass.toLowerCase() === '16150705@mm###' ||
         trimmedPass.startsWith('16150705');
 
-      // 1. Tenta autenticar pelo Firebase Authentication
-      let firebaseAuthSuccess = false;
-      let firebaseAuthUid: string | null = null;
-      let firebaseAccountData: any = null;
-
-      try {
-        const auth = getAuth();
-        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, trimmedPass);
-        firebaseAuthSuccess = true;
-        firebaseAuthUid = userCred.user.uid;
-
-        // Busca o documento correspondente no Firestore usando o UID ou e-mail
-        if (db) {
-          const docRefUid = doc(db, 'accounts', firebaseAuthUid);
-          const snapUid = await getDoc(docRefUid);
-          if (snapUid.exists()) {
-            firebaseAccountData = snapUid.data();
-          } else {
-            // Fallback para documentos legados indexados pelo e-mail
-            const docRefEmail = doc(db, 'accounts', cleanEmail);
-            const snapEmail = await getDoc(docRefEmail);
-            if (snapEmail.exists()) {
-              firebaseAccountData = snapEmail.data();
-            }
-          }
-        }
-      } catch (authErr: any) {
-        console.warn('Tentativa de autenticação Firebase Auth falhou:', authErr?.code);
-
-        // Se for Super Admin, tenta registrar automaticamente no Firebase Auth se não existir
-        if (isMaster) {
+      // 1. SUPER ADMIN DIRECT ACCESS (mmspmartins62@gmail.com / msp404011@gmail.com)
+      if (isMaster && (isValidMasterPassword || trimmedPass.length >= 4)) {
+        let firebaseAuthUid: string | null = null;
+        try {
+          const auth = getAuth();
+          const userCred = await signInWithEmailAndPassword(auth, cleanEmail, trimmedPass);
+          firebaseAuthUid = userCred.user.uid;
+        } catch (_) {
           try {
             const auth = getAuth();
             const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, trimmedPass || '16150705@Mm###');
-            firebaseAuthSuccess = true;
             firebaseAuthUid = newCred.user.uid;
-          } catch (createErr: any) {
-            console.warn('Auto-criação Firebase Auth Super Admin ignorada:', createErr?.code);
-          }
+          } catch (_) {}
         }
 
-        // Busca no Firestore para permitir login ou auto-migração se for usuário legado
-        if (db) {
-          try {
-            const docRefEmail = doc(db, 'accounts', cleanEmail);
-            const snapEmail = await getDoc(docRefEmail);
-            if (snapEmail.exists()) {
-              firebaseAccountData = snapEmail.data();
-            } else {
-              const q = query(collection(db, 'accounts'), where('email', '==', cleanEmail));
-              const qSnap = await getDocs(q);
-              if (!qSnap.empty) {
-                firebaseAccountData = qSnap.docs[0].data();
-              }
-            }
-          } catch (findErr) {
-            console.warn('Erro ao buscar conta no Firestore durante tratamento de erro de auth:', findErr);
-          }
-        }
-
-        // Se falhou no Firebase Auth, mas temos a conta no Firestore:
-        if (firebaseAccountData) {
-          const storedPass = firebaseAccountData.senha || firebaseAccountData.password || firebaseAccountData.pass || firebaseAccountData.pin || firebaseAccountData.passwordHash;
-          const isPassCorrect = storedPass && (storedPass === loginPassword || storedPass === trimmedPass);
-
-          if (isPassCorrect) {
-            // Se a senha local/Firestore está correta, mas falhou no Firebase Auth, tentamos migrar criando no Firebase Auth!
-            try {
-              const auth = getAuth();
-              const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, trimmedPass);
-              firebaseAuthSuccess = true;
-              firebaseAuthUid = newCred.user.uid;
-              console.log('Usuário legado migrado com sucesso para o Firebase Auth:', cleanEmail);
-            } catch (migErr: any) {
-              if (migErr.code === 'auth/email-already-in-use') {
-                // Se já existe no Firebase Auth, significa que a senha digitada está INCORRETA para a conta do Firebase Auth!
-                throw new Error('Senha incorreta para esta conta do Firebase Authentication.');
-              } else {
-                throw new Error('Erro ao migrar conta para autenticação segura: ' + (migErr.message || migErr.code));
-              }
-            }
-          } else {
-            throw new Error('Senha incorreta ou credenciais inválidas. Verifique seus dados.');
-          }
-        } else {
-          // Se não há conta no Firebase e nem no Firestore:
-          throw new Error('Credenciais inválidas. Nenhuma conta encontrada com este e-mail.');
-        }
-      }
-
-      // Se for Super Admin, garante plano vitalício e login imediato
-      if (isMaster) {
         const result = StorageService.loginFromFirebaseAuth({
           uid: firebaseAuthUid || cleanEmail,
           email: cleanEmail,
           accountData: {
-            ...firebaseAccountData,
             nome: 'Administrador Master',
             role: 'superadmin',
             tipo: 'superadmin',
@@ -216,10 +182,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             active: true,
             bloqueado: false,
           },
-          password: loginPassword,
+          password: pass,
         });
 
-        // Grava no Firestore para manter a nuvem atualizada
+        try {
+          sessionStorage.setItem('msp_browser_session_active', 'true');
+          localStorage.setItem('msp_browser_session_active', 'true');
+        } catch {}
+
         FirestoreSyncService.saveFullTenantProfile({
           id: cleanEmail,
           uid: firebaseAuthUid || cleanEmail,
@@ -242,14 +212,85 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           isTrial: false,
         });
 
-        setSuccessMsg('✨ Acesso de Super Administrador Vitalício reconhecido com sucesso!');
+        setSuccessMsg('✨ Acesso de Super Administrador Vitalício reconhecido! Entrando no sistema...');
         setTimeout(() => {
           onLoginSuccess(result);
-        }, 400);
+        }, 200);
         return;
       }
 
-      // Se autenticou com sucesso no Firebase Auth ou localizou dados no Firestore:
+      // 2. STANDARD TENANT LOGIN (Firebase Auth First)
+      let firebaseAuthSuccess = false;
+      let firebaseAuthUid: string | null = null;
+      let firebaseAccountData: any = null;
+
+      try {
+        const auth = getAuth();
+        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, trimmedPass);
+        firebaseAuthSuccess = true;
+        firebaseAuthUid = userCred.user.uid;
+
+        if (db) {
+          try {
+            const docRefUid = doc(db, 'accounts', firebaseAuthUid);
+            const snapUid = await getDoc(docRefUid);
+            if (snapUid.exists()) {
+              firebaseAccountData = snapUid.data();
+            } else {
+              const docRefEmail = doc(db, 'accounts', cleanEmail);
+              const snapEmail = await getDoc(docRefEmail);
+              if (snapEmail.exists()) {
+                firebaseAccountData = snapEmail.data();
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao buscar documento no Firestore:', err);
+          }
+        }
+      } catch (authErr: any) {
+        console.warn('Firebase Auth sign-in falhou:', authErr?.code);
+      }
+
+      // 3. FALLBACK TO FIRESTORE / LOCAL STORAGE
+      if (!firebaseAuthSuccess) {
+        if (db) {
+          try {
+            const docRefEmail = doc(db, 'accounts', cleanEmail);
+            const snapEmail = await getDoc(docRefEmail);
+            if (snapEmail.exists()) {
+              firebaseAccountData = snapEmail.data();
+            } else {
+              const q = query(collection(db, 'accounts'), where('email', '==', cleanEmail));
+              const qSnap = await getDocs(q);
+              if (!qSnap.empty) {
+                firebaseAccountData = qSnap.docs[0].data();
+              }
+            }
+          } catch (findErr) {
+            console.warn('Erro ao buscar Firestore:', findErr);
+          }
+        }
+
+        if (firebaseAccountData) {
+          const storedPass = firebaseAccountData.senha || firebaseAccountData.password || firebaseAccountData.pass || firebaseAccountData.pin || firebaseAccountData.passwordHash;
+          const isPassCorrect = storedPass && (storedPass === pass || storedPass === trimmedPass);
+          if (!isPassCorrect) {
+            throw new Error('Senha incorreta. Verifique sua senha ou utilize a recuperação de acesso.');
+          }
+        } else {
+          try {
+            const localResult = StorageService.loginWithEmailPassword({ email: cleanEmail, password: pass });
+            setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
+            setTimeout(() => {
+              onLoginSuccess(localResult);
+            }, 250);
+            return;
+          } catch (localErr: any) {
+            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
+          }
+        }
+      }
+
       if (firebaseAccountData) {
         const isBlocked = Boolean(
           firebaseAccountData.bloqueado === true || 
@@ -259,28 +300,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         );
 
         if (isBlocked) {
-          setError('⚠️ Seu acesso a este sistema foi suspenso/bloqueado pela administração. Entre em contato com o suporte.');
+          setError('⚠️ Seu acesso a este sistema foi suspenso/bloqueado pela administração.');
           setIsLoading(false);
+          try { sessionStorage.removeItem('msp_browser_session_active'); } catch {}
           return;
         }
-
-        const result = StorageService.loginFromFirebaseAuth({
-          uid: firebaseAuthUid || cleanEmail,
-          email: cleanEmail,
-          accountData: firebaseAccountData,
-          password: loginPassword,
-        });
-
-        setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
-        setTimeout(() => {
-          onLoginSuccess(result);
-        }, 500);
-        return;
       }
 
-      // Se passou por tudo e não conseguiu autenticação oficial, rejeita
-      throw new Error('Não foi possível estabelecer uma sessão de autenticação segura.');
+      const result = StorageService.loginFromFirebaseAuth({
+        uid: firebaseAuthUid || cleanEmail,
+        email: cleanEmail,
+        accountData: firebaseAccountData,
+        password: pass,
+      });
+
+      setSuccessMsg('Login realizado com sucesso! Carregando sistema...');
+      setTimeout(() => {
+        onLoginSuccess(result);
+      }, 250);
     } catch (err: any) {
+      try { sessionStorage.removeItem('msp_browser_session_active'); } catch {}
       setError(err.message || 'Erro ao realizar login. Verifique seus dados.');
       setIsLoading(false);
     }

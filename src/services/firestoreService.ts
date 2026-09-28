@@ -1586,18 +1586,34 @@ export const FirestoreSyncService = {
   ): () => void {
     try {
       if (!db || !uid || !currentSessionId) return () => {};
+
+      const cleanUid = String(uid).trim().toLowerCase();
+      if (
+        cleanUid === 'mmspmartins62@gmail.com' ||
+        cleanUid === 'msp404011@gmail.com' ||
+        cleanUid.includes('mmspmartins62') ||
+        cleanUid.includes('msp404011') ||
+        cleanUid === 'emp-super-admin'
+      ) {
+        // Super Admin sessions never get displaced
+        return () => {};
+      }
+
+      let hasBeenRegistered = false;
       const docRef = doc(db, 'active_sessions', uid);
       return onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data && data.sessions && typeof data.sessions === 'object') {
-            const sessionKeys = Object.keys(data.sessions);
-            // If the document has registered sessions but currentSessionId is missing,
-            // it means another login exceeded maxAllowed and displaced this session!
-            if (sessionKeys.length > 0 && !data.sessions[currentSessionId]) {
-              const max = Number(data.maxAllowed) || 1;
-              console.warn(`🔒 Sessão encerrada: Limite de ${max} conexões simultâneas foi atingido.`);
-              onSessionTakenOver({ reason: 'max_logins_exceeded', maxAllowed: max });
+            if (data.sessions[currentSessionId]) {
+              hasBeenRegistered = true;
+            } else if (hasBeenRegistered) {
+              const sessionKeys = Object.keys(data.sessions);
+              if (sessionKeys.length > 0) {
+                const max = Number(data.maxAllowed) || 2;
+                console.warn(`🔒 Sessão encerrada: Limite de ${max} conexões simultâneas atingido.`);
+                onSessionTakenOver({ reason: 'max_logins_exceeded', maxAllowed: max });
+              }
             }
           }
         }

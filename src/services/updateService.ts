@@ -7,6 +7,7 @@
 export interface SystemVersionInfo {
   version: string;
   serverStartTime: number;
+  serverStartedAt?: string;
   buildId: string;
   timestamp: number;
 }
@@ -31,20 +32,16 @@ class UpdateService {
 
     // Fetch initial version
     try {
-      const res = await fetch('/api/system/version', { cache: 'no-store' });
+      const res = await fetch(`/api/system/version?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data: SystemVersionInfo = await res.json();
-        this.initialServerStartTime = data.serverStartTime;
-        this.initialBuildId = data.buildId;
-        this.currentVersion = data.version;
+        this.initialServerStartTime = data.serverStartTime || Date.now();
+        this.initialBuildId = data.buildId || 'build-v1';
+        this.currentVersion = data.version || '2.7.0';
 
-        // Remember in sessionStorage so F5 in same session knows initial baseline
         const storedBoot = sessionStorage.getItem('msp_app_boot_time');
         if (!storedBoot) {
-          sessionStorage.setItem('msp_app_boot_time', String(data.serverStartTime));
-        } else if (Number(storedBoot) !== data.serverStartTime) {
-          // If stored boot from previous tab load differs, notify update immediately
-          this.triggerUpdate(data.version, data.buildId);
+          sessionStorage.setItem('msp_app_boot_time', String(this.initialServerStartTime));
         }
       }
     } catch (e) {
@@ -54,7 +51,7 @@ class UpdateService {
     // Start periodic polling every 35 seconds
     this.startPolling();
 
-    // Check immediately on focus / tab visibility
+    // Check on focus / tab visibility
     window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.checkForUpdates();
@@ -79,6 +76,50 @@ class UpdateService {
     }
   }
 
+  /**
+   * Specifically called on Login submit:
+   * Checks server version, synchronizes baseline, updates internal cache,
+   * and guarantees NO loop or modal obstruction upon entering the system.
+   */
+  public async checkAndSyncOnLogin(): Promise<{ hasNewUpdate: boolean; version: string }> {
+    try {
+      const res = await fetch(`/api/system/version?_t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data: SystemVersionInfo = await res.json();
+        const serverBoot = data.serverStartTime || Date.now();
+        const serverBuild = data.buildId || 'build-v1';
+        const serverVersion = data.version || '2.7.0';
+
+        const wasNew = Boolean(
+          this.initialServerStartTime && 
+          (serverBoot !== this.initialServerStartTime || serverBuild !== this.initialBuildId)
+        );
+
+        // Synchronize and acknowledge current version so application enters seamlessly
+        this.initialServerStartTime = serverBoot;
+        this.initialBuildId = serverBuild;
+        this.currentVersion = serverVersion;
+        this.hasUpdate = false;
+
+        try {
+          sessionStorage.setItem('msp_app_boot_time', String(serverBoot));
+        } catch {}
+
+        return {
+          hasNewUpdate: wasNew,
+          version: serverVersion,
+        };
+      }
+    } catch (_) {
+      // Offline / network fallback
+    }
+
+    return {
+      hasNewUpdate: false,
+      version: this.currentVersion,
+    };
+  }
+
   public async checkForUpdates(): Promise<boolean> {
     if (this.isChecking || typeof window === 'undefined') return this.hasUpdate;
     this.isChecking = true;
@@ -90,15 +131,18 @@ class UpdateService {
         
         // If we didn't have an initial baseline yet, record it
         if (!this.initialServerStartTime) {
-          this.initialServerStartTime = data.serverStartTime;
+          this.initialServerStartTime = data.serverStartTime || Date.now();
           this.initialBuildId = data.buildId;
-          this.currentVersion = data.version;
+          this.currentVersion = data.version || '2.7.0';
           return false;
         }
 
         // Compare server boot time / build ID
-        if (data.serverStartTime !== this.initialServerStartTime || (data.buildId && data.buildId !== this.initialBuildId)) {
-          this.triggerUpdate(data.version, data.buildId);
+        if (
+          (data.serverStartTime && data.serverStartTime !== this.initialServerStartTime) || 
+          (data.buildId && data.buildId !== this.initialBuildId)
+        ) {
+          this.triggerUpdate(data.version || '2.7.0', data.buildId || '');
           return true;
         }
       }
@@ -144,6 +188,10 @@ class UpdateService {
 
   public isUpdateAvailable(): boolean {
     return this.hasUpdate;
+  }
+
+  public dismissUpdate(): void {
+    this.hasUpdate = false;
   }
 
   /**

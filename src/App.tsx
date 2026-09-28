@@ -251,15 +251,18 @@ export default function App() {
     }
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       try {
-        // If the browser/tab was closed, require fresh login!
-        const isBrowserSessionActive = typeof window !== 'undefined' && sessionStorage.getItem('msp_browser_session_active') === 'true';
+        const isBrowserSessionActive = typeof window !== 'undefined' && (
+          sessionStorage.getItem('msp_browser_session_active') === 'true' ||
+          localStorage.getItem('msp_browser_session_active') === 'true'
+        );
+        
+        // If the browser/tab was closed and reopened, require login on fresh boot
         if (!isBrowserSessionActive) {
-          if (fbUser && auth) {
-            signOut(auth).catch(() => {});
+          const currentLocalSession = StorageService.getAuthSession();
+          if (!currentLocalSession?.isAuthenticated) {
+            setAuthSession(null);
+            setCurrentUser(null);
           }
-          StorageService.clearAuthSession();
-          setAuthSession(null);
-          setCurrentUser(null);
           setIsAuthChecking(false);
           return;
         }
@@ -296,11 +299,15 @@ export default function App() {
           sessionManager.startHeartbeat(cleanEmail, accountData?.role || 'user');
           setTick((prev) => prev + 1);
         } else {
-          sessionManager.stopHeartbeat();
-          // Explicitly clear session if Firebase Auth state is unauthenticated (e.g. after logout)
-          StorageService.clearAuthSession();
-          setAuthSession(null);
-          setCurrentUser(null);
+          // If Firebase Auth has no user, but we have an active local/sessionStorage session, preserve it!
+          const currentLocalSession = StorageService.getAuthSession();
+          if (currentLocalSession?.isAuthenticated) {
+            setAuthSession(currentLocalSession);
+            setCurrentUser(StorageService.getCurrentUser());
+            if (currentLocalSession.email) {
+              sessionManager.startHeartbeat(currentLocalSession.email, 'user');
+            }
+          }
         }
       } catch (err) {
         console.error('Error in onAuthStateChanged:', err);
@@ -333,7 +340,7 @@ export default function App() {
       setTick((prev) => prev + 1);
     });
 
-    // Single Session Control: Register session and listen for session takeover
+    // Single Session Control: Register session and listen for session takeover (bypassed for Super Admin)
     const uid = authSession.uid || currentUser?.id;
     let currentSessionId = sessionStorage.getItem('msp_current_session_id');
     if (!currentSessionId) {
@@ -341,30 +348,24 @@ export default function App() {
       sessionStorage.setItem('msp_current_session_id', currentSessionId);
     }
 
-    if (uid && db) {
+    if (uid && db && !isMasterAdmin) {
       FirestoreSyncService.registerActiveSession(uid, authSession.email, currentSessionId);
     }
 
     // Heartbeat every 45 seconds (controlled, no spam)
     const hbInterval = setInterval(() => {
-      if (uid && currentSessionId) {
+      if (uid && currentSessionId && !isMasterAdmin) {
         FirestoreSyncService.updateSessionHeartbeat(uid, currentSessionId);
       }
     }, 45000);
 
-    // Listen to active session changes in Firestore
-    const unsubActiveSession = uid && currentSessionId ? FirestoreSyncService.subscribeToActiveSession(uid, currentSessionId, () => {
+    // Listen to active session changes in Firestore (bypassed for Super Admin)
+    const unsubActiveSession = (uid && currentSessionId && !isMasterAdmin) ? FirestoreSyncService.subscribeToActiveSession(uid, currentSessionId, (info) => {
       // Session taken over by another device!
       console.warn('🔒 Sessão encerrada: Outro dispositivo entrou com esta conta.');
-      StorageService.clearAuthSession();
-      sessionStorage.removeItem('msp_current_session_id');
-      if (auth) {
-        signOut(auth).catch(() => {});
-      }
-      setAuthSession(null);
-      setCurrentUser(null);
-      alert('Sua sessão foi encerrada porque esta conta foi acessada em outro computador ou dispositivo.');
-      window.location.reload();
+      setSessionKickInfo({
+        message: `Sua conta foi conectada em outro computador ou celular (Limite: ${info?.maxAllowed || 2} acessos simultâneos). Esta sessão foi finalizada por segurança.`
+      });
     }) : () => {};
 
     return () => {
@@ -697,6 +698,7 @@ export default function App() {
   }) => {
     try {
       sessionStorage.setItem('msp_browser_session_active', 'true');
+      localStorage.setItem('msp_browser_session_active', 'true');
     } catch {}
     setCurrentUser(result.user);
     const session = StorageService.getAuthSession();
@@ -715,6 +717,7 @@ export default function App() {
     sessionManager.stopHeartbeat();
     try {
       sessionStorage.removeItem('msp_browser_session_active');
+      localStorage.removeItem('msp_browser_session_active');
     } catch {}
 
     // Attempt non-blocking backup if account is connected

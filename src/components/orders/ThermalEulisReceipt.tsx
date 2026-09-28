@@ -33,7 +33,7 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
       className={`mx-auto bg-white text-black select-text ${
         isMini
           ? 'w-[48mm] max-w-[48mm] p-1 text-[8px] leading-tight font-sans'
-          : 'w-[72mm] max-w-[72mm] p-2 text-[9px] leading-tight font-sans'
+          : 'w-[70mm] max-w-[70mm] p-1.5 text-[9px] leading-tight font-sans'
       }`}
       style={{ color: '#000000', wordBreak: 'break-word', boxSizing: 'border-box' }}
     >
