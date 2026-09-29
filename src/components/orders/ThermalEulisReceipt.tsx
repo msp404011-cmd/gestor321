@@ -2,6 +2,7 @@ import React from 'react';
 import { ServiceOrder, CompanySettings, EulisDispatchInfo } from '../../types';
 import { StorageService } from '../../services/storage';
 import { formatDate } from '../../services/formatters';
+import { PatternLock } from './PatternLock';
 
 interface ThermalEulisReceiptProps {
   order: ServiceOrder;
@@ -19,6 +20,7 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
   if (!order) return null;
 
   const isMini = paperFormat === '50mm' || paperFormat === '58mm';
+  const isReadyOrDelivered = order.status === 'PRONTO' || order.status === 'CONCLUIDO' || order.status === 'ENTREGUE';
 
   // Look up customer full details if available
   const customer = order.customerId
@@ -32,10 +34,10 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
     <div
       className={`mx-auto bg-white text-black select-text ${
         isMini
-          ? 'w-[48mm] max-w-[48mm] p-1 text-[8px] leading-tight font-sans'
-          : 'w-[70mm] max-w-[70mm] p-1.5 text-[9px] leading-tight font-sans'
+          ? 'w-full max-w-[48mm] p-1 text-[8px] leading-tight font-sans'
+          : 'w-full max-w-[72mm] p-1 text-[9px] leading-tight font-sans'
       }`}
-      style={{ color: '#000000', wordBreak: 'break-word', boxSizing: 'border-box' }}
+      style={{ color: '#000000', wordBreak: 'break-word', boxSizing: 'border-box', margin: '0 auto' }}
     >
       {/* 1. BRAND / LOGO HEADER (Same as standard OS) */}
       <div className="text-center">
@@ -118,16 +120,24 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
             <span className="font-mono text-[7.5px] font-semibold break-all">{order.imei || order.serialNumber}</span>
           </div>
         )}
-        {order.passwordPin && (
+        {!isReadyOrDelivered && order.passwordPin && (
           <div className="flex">
             <span className={`${isMini ? 'w-16' : 'w-20'} shrink-0 font-bold text-slate-700`}>Senha/PIN:</span>
             <span className="font-mono font-bold bg-slate-100 px-1">{order.passwordPin}</span>
           </div>
         )}
-        {order.passwordPattern && order.passwordPattern.length > 0 && (
-          <div className="flex">
-            <span className={`${isMini ? 'w-16' : 'w-20'} shrink-0 font-bold text-slate-700`}>Padrão:</span>
-            <span className="font-mono font-bold text-[8.5px]">Seq: {order.passwordPattern.join(' ➔ ')}</span>
+        {!isReadyOrDelivered && order.passwordPattern && order.passwordPattern.length > 0 && (
+          <div className="pt-1 mt-1 border-t border-dotted border-slate-300 flex flex-col items-center bg-slate-50 p-1.5 rounded">
+            <span className="text-[7.5px] font-black uppercase text-slate-800 mb-1">Padrão de Desenho:</span>
+            <PatternLock
+              value={order.passwordPattern}
+              readOnly={true}
+              size={70}
+              theme="light"
+            />
+            <span className="text-[7.5px] font-mono font-bold text-slate-900 mt-1">
+              Seq: {order.passwordPattern.join(' ➔ ')}
+            </span>
           </div>
         )}
       </div>

@@ -35,6 +35,8 @@ export interface SupplierPurchaseItem {
   isReturned?: boolean;
   returnedAt?: string | null;
   returnReason?: string;
+  isReceived?: boolean;
+  receivedAt?: string | null;
 }
 
 interface SupplierPurchasesViewProps {
@@ -50,6 +52,7 @@ interface SupplierPurchasesViewProps {
   onUpdateSupplierInfo: (supplier: RegisteredSupplier) => Promise<void>;
   onDeleteSupplier: (supplierId: string) => Promise<void>;
   onToggleReturn?: (purchaseId: string, isReturned: boolean, returnReason?: string) => void;
+  onToggleReceived?: (purchaseId: string, isReceived: boolean) => void;
 }
 
 export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({ 
@@ -64,7 +67,8 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   onAddSupplier,
   onUpdateSupplierInfo,
   onDeleteSupplier,
-  onToggleReturn
+  onToggleReturn,
+  onToggleReceived
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('ALL');
@@ -72,6 +76,23 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<RegisteredSupplier | null>(null);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+
+  // Conference modal state for generating debt report for supplier
+  const [conferenceModal, setConferenceModal] = useState<{
+    isOpen: boolean;
+    supplierName: string;
+    supplierInfo?: RegisteredSupplier;
+    dateGroups: any[];
+    pendingItems: SupplierPurchaseItem[];
+    copiedText: boolean;
+  }>({
+    isOpen: false,
+    supplierName: '',
+    supplierInfo: undefined,
+    dateGroups: [],
+    pendingItems: [],
+    copiedText: false
+  });
 
   // Return modal state
   const [returnModal, setReturnModal] = useState<{
@@ -371,7 +392,133 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     return items.filter(i => !!i.isReturned).length;
   }, [items]);
 
-  // Debts grouped by supplier for DEBITOS view (ignora peças devolvidas)
+  // Debts grouped by supplier AND divided by date for DEBITOS view (ignora peças devolvidas)
+  const debtsBySupplierAndDate = useMemo(() => {
+    const pendingItems = items.filter(i => i.paymentStatus === 'Pendente' && !i.isReturned);
+    const searchLower = searchTerm.trim().toLowerCase();
+
+    const filteredPending = pendingItems.filter(item => {
+      const matchesSupplier = supplierFilter === 'ALL' || item.supplierName === supplierFilter;
+      if (!matchesSupplier) return false;
+
+      if (!searchLower) return true;
+
+      const dateObj = getDateKeyAndLabels(item.createdAt);
+      const fullSearchText = `${item.title || ''} ${item.typeName || ''} ${item.supplierName || ''} ${item.marca || ''} ${item.modelo || ''} ${item.cor || ''} ${item.qualidade || ''} ${item.estrutura || ''} ${dateObj.displayDate} ${dateObj.weekday}`;
+      return fullSearchText.toLowerCase().includes(searchLower);
+    });
+
+    const supplierMap = new Map<string, {
+      supplierName: string;
+      supplierInfo?: RegisteredSupplier;
+      total: number;
+      totalReceived: number;
+      totalMissing: number;
+      count: number;
+      countReceived: number;
+      countMissing: number;
+      dateMap: Map<string, {
+        dateKey: string;
+        displayDate: string;
+        weekday: string;
+        dayBadge?: string;
+        dateTotal: number;
+        dateTotalReceived: number;
+        dateTotalMissing: number;
+        dateCount: number;
+        dateCountReceived: number;
+        dateCountMissing: number;
+        items: SupplierPurchaseItem[];
+      }>;
+    }>();
+
+    filteredPending.forEach(item => {
+      const supName = item.supplierName?.trim() || 'Fornecedor Desconhecido';
+      if (!supplierMap.has(supName)) {
+        const foundSupplierInfo = allSuppliersList.find(s => s.name.trim().toLowerCase() === supName.toLowerCase());
+        supplierMap.set(supName, {
+          supplierName: supName,
+          supplierInfo: foundSupplierInfo,
+          total: 0,
+          totalReceived: 0,
+          totalMissing: 0,
+          count: 0,
+          countReceived: 0,
+          countMissing: 0,
+          dateMap: new Map(),
+        });
+      }
+
+      const supGroup = supplierMap.get(supName)!;
+      const itemQty = Number(item.quantity) || 1;
+      const itemSubtotal = (Number(item.price) || 0) * itemQty;
+      const isItemReceived = !!item.isReceived;
+
+      supGroup.total += itemSubtotal;
+      supGroup.count += itemQty;
+
+      if (isItemReceived) {
+        supGroup.totalReceived += itemSubtotal;
+        supGroup.countReceived += itemQty;
+      } else {
+        supGroup.totalMissing += itemSubtotal;
+        supGroup.countMissing += itemQty;
+      }
+
+      const { dateKey, displayDate, weekday, dayBadge } = getDateKeyAndLabels(item.createdAt);
+      if (!supGroup.dateMap.has(dateKey)) {
+        supGroup.dateMap.set(dateKey, {
+          dateKey,
+          displayDate,
+          weekday,
+          dayBadge,
+          dateTotal: 0,
+          dateTotalReceived: 0,
+          dateTotalMissing: 0,
+          dateCount: 0,
+          dateCountReceived: 0,
+          dateCountMissing: 0,
+          items: [],
+        });
+      }
+
+      const dGroup = supGroup.dateMap.get(dateKey)!;
+      dGroup.dateTotal += itemSubtotal;
+      dGroup.dateCount += itemQty;
+
+      if (isItemReceived) {
+        dGroup.dateTotalReceived += itemSubtotal;
+        dGroup.dateCountReceived += itemQty;
+      } else {
+        dGroup.dateTotalMissing += itemSubtotal;
+        dGroup.dateCountMissing += itemQty;
+      }
+
+      dGroup.items.push(item);
+    });
+
+    return Array.from(supplierMap.values()).map(sup => {
+      const sortedDates = Array.from(sup.dateMap.values()).sort((a, b) => {
+        if (a.dateKey === 'sem_data') return 1;
+        if (b.dateKey === 'sem_data') return -1;
+        return b.dateKey.localeCompare(a.dateKey);
+      });
+
+      return {
+        supplierName: sup.supplierName,
+        supplierInfo: sup.supplierInfo,
+        total: sup.total,
+        totalReceived: sup.totalReceived,
+        totalMissing: sup.totalMissing,
+        count: sup.count,
+        countReceived: sup.countReceived,
+        countMissing: sup.countMissing,
+        dateGroups: sortedDates,
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [items, searchTerm, supplierFilter, allSuppliersList]);
+
+  // Debts grouped by supplier for DEBITOS summary header (ignora peças devolvidas)
   const debtsBySupplier = useMemo(() => {
     const groups: Record<string, { total: number; count: number; items: SupplierPurchaseItem[] }> = {};
     items
@@ -387,6 +534,14 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       });
     return groups;
   }, [items]);
+
+  // Quick action: Pay all pieces for a specific date group
+  const handlePayDateGroup = (dateItems: SupplierPurchaseItem[]) => {
+    if (!dateItems || dateItems.length === 0) return;
+    dateItems.forEach(item => {
+      onUpdateStatus(item.purchaseId, 'Pago');
+    });
+  };
 
   // Handle open Supplier Modal
   const handleOpenAddSupplier = () => {
@@ -564,6 +719,109 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     return text;
   };
 
+  // FORMAT COMPLETO DE CONFERÊNCIA DE DÉBITO SOLICITADO PELO USUÁRIO:
+  // - Topo: RELATÓRIO DE CONFERÊNCIA DE DÉBITOS + DO DIA ... AO DIA ...
+  // - Separado mais embaixo: VALOR TOTAL + QUANTIDADE DE PEÇAS
+  // - Separado mais embaixo: Lista de peças por data com ordens, estruturas e valores
+  // - Peças devolvidas: Mostra apenas que foi devolvida
+  // - SEM status de recebido/não recebido
+  // - No fim: Pergunta se está certo o débito
+  const formatSupplierConferenceWhatsAppText = (
+    supplierName: string,
+    supplierInfo?: RegisteredSupplier,
+    dateGroups?: {
+      dateKey: string;
+      displayDate: string;
+      weekday: string;
+      dateTotal: number;
+      dateCount: number;
+      items: SupplierPurchaseItem[];
+    }[],
+    allSupplierPendingItems?: SupplierPurchaseItem[]
+  ): string => {
+    const itemsToUse = allSupplierPendingItems || [];
+    // Apenas itens em débito ativos (não devolvidos) contam para o valor total e contagem
+    const activePendingItems = itemsToUse.filter(p => p.paymentStatus === 'Pendente' && !p.isReturned);
+
+    let grandTotal = 0;
+    let totalPiecesCount = 0;
+
+    activePendingItems.forEach(item => {
+      const qty = Number(item.quantity) || 1;
+      const sub = (Number(item.price) || 0) * qty;
+      grandTotal += sub;
+      totalPiecesCount += qty;
+    });
+
+    // Período: DO DIA mais antigo AO DIA mais recente
+    let oldestDate = '';
+    let newestDate = '';
+    if (dateGroups && dateGroups.length > 0) {
+      const validDates = dateGroups.map(dg => dg.displayDate).filter(Boolean);
+      if (validDates.length > 0) {
+        newestDate = validDates[0];
+        oldestDate = validDates[validDates.length - 1];
+      }
+    }
+
+    let periodStr = '';
+    if (oldestDate && newestDate && oldestDate !== newestDate) {
+      periodStr = `DO DIA ${oldestDate} AO DIA ${newestDate}`;
+    } else if (newestDate) {
+      periodStr = `DO DIA ${newestDate} AO DIA ${newestDate}`;
+    } else {
+      const today = new Date().toLocaleDateString('pt-BR');
+      periodStr = `DO DIA ${today} AO DIA ${today}`;
+    }
+
+    let text = `📋 *RELATÓRIO DE CONFERÊNCIA DE DÉBITOS*\n`;
+    text += `🏢 *Fornecedor:* ${supplierName}\n`;
+    text += `📅 *Período:* ${periodStr}\n\n`;
+
+    text += `-----------------------------------\n`;
+    text += `💰 *VALOR TOTAL: R$ ${grandTotal.toFixed(2).replace('.', ',')}*\n`;
+    text += `📦 *QUANTIDADE DE PEÇAS: ${totalPiecesCount}*\n`;
+    text += `-----------------------------------\n\n`;
+
+    text += `📋 *DETALHAMENTO DE PEÇAS E PEDIDOS:*\n\n`;
+
+    if (dateGroups && dateGroups.length > 0) {
+      dateGroups.forEach(dg => {
+        const weekdayStr = dg.weekday ? ` (${dg.weekday})` : '';
+        text += `📅 *DIA: ${dg.displayDate}${weekdayStr}*\n`;
+
+        dg.items.forEach((item, idx) => {
+          const typePrefix = item.typeName ? `${item.typeName} ` : '';
+          const qty = Number(item.quantity) || 1;
+          const unitPrice = Number(item.price) || 0;
+          const sub = unitPrice * qty;
+
+          text += `  Ordem ${idx + 1}: 📱 ${typePrefix}${item.title}\n`;
+          if (item.marca || item.modelo) text += `   🏷️ Aparelho: ${item.marca || ''} ${item.modelo || ''}\n`;
+          if (item.estrutura) text += `   ⭕ Estrutura: ${item.estrutura}\n`;
+          if (item.qualidade) text += `   ⚡ Qualidade: ${item.qualidade}\n`;
+          if (item.cor) text += `   🎨 Cor: ${item.cor}\n`;
+          text += `   💵 Valor: R$ ${sub.toFixed(2).replace('.', ',')} (${qty}x R$ ${unitPrice.toFixed(2).replace('.', ',')})\n`;
+
+          if (item.isReturned) {
+            text += `   ⚠️ [ DEVOLVIDA ]\n`;
+            if (item.returnReason) text += `   📝 Motivo: ${item.returnReason}\n`;
+          }
+          text += `\n`;
+        });
+      });
+      text += `-----------------------------------\n`;
+    }
+
+    if (supplierInfo?.pixKey) {
+      text += `💳 *Chave PIX:* ${supplierInfo.pixKey}\n\n`;
+    }
+
+    text += `Por gentileza, confirma se está certo o débito?`;
+
+    return text;
+  };
+
   // FORMAT AVISO INDIVIDUAL DE DEVOLUÇÃO
   const formatSinglePieceReturnWhatsApp = (
     supplierName: string, 
@@ -729,40 +987,40 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       )}
 
       {subTab === 'DEBITOS' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-          <div className="bg-[#161B2B] rounded-xl border border-amber-500/30 p-4 flex items-center gap-3 shadow-lg">
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-              <DollarSign className="w-6 h-6" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 shrink-0">
+          <div className="bg-[#161B2B] rounded-lg border border-amber-500/30 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg shrink-0">
+              <DollarSign className="w-4 h-4" />
             </div>
-            <div>
-              <div className="text-2xl font-black text-amber-400">
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-black text-amber-400 truncate">
                 R$ {totalPendingAmount.toFixed(2).replace('.', ',')}
               </div>
-              <div className="text-xs text-slate-400 uppercase font-bold">Total em Débito (A Prazo)</div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Total em Débito (A Prazo)</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-4 flex items-center gap-3 shadow-lg">
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
-              <Package className="w-6 h-6" />
+          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0">
+              <Package className="w-4 h-4" />
             </div>
-            <div>
-              <div className="text-2xl font-black text-white">
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-black text-white truncate">
                 {items.filter(i => i.paymentStatus === 'Pendente').reduce((acc, i) => acc + (Number(i.quantity) || 1), 0)}
               </div>
-              <div className="text-xs text-slate-400 uppercase font-bold">Peças Aguardando Pagamento</div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Peças Aguardando Pagamento</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-4 flex items-center gap-3 shadow-lg">
-            <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
-              <Truck className="w-6 h-6" />
+          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-1.5 bg-purple-500/10 text-purple-400 rounded-lg shrink-0">
+              <Truck className="w-4 h-4" />
             </div>
-            <div>
-              <div className="text-2xl font-black text-purple-400">
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-black text-purple-400 truncate">
                 {Object.keys(debtsBySupplier).length}
               </div>
-              <div className="text-xs text-slate-400 uppercase font-bold">Fornecedores com Débito Aberto</div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Fornecedores com Débito</div>
             </div>
           </div>
         </div>
@@ -1480,84 +1738,440 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       )}
 
       {/* ------------------------------------------------------------- */}
-      {/* ABA 3 & 4: HISTÓRICO & DÉBITOS LIST VIEW */}
+      {/* ABA 4: DÉBITO COM FORNECEDORES (CARDS COM VALOR TOTAL E DIVIDIDO POR DATA) */}
       {/* ------------------------------------------------------------- */}
-      {subTab !== 'FORNECEDOR' && (
-        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16">
-          {subTab === 'DEBITOS' && Object.keys(debtsBySupplier).length > 0 && (
-            <div className="mb-4 bg-[#161B2B] p-4 rounded-xl border border-amber-500/20">
-              <div className="text-xs font-black uppercase text-amber-400 mb-3 flex items-center gap-2">
-                <DollarSign className="w-4 h-4" /> Resumo de Débito por Fornecedor
+      {subTab === 'DEBITOS' && (
+        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16 space-y-6">
+          {debtsBySupplierAndDate.length === 0 ? (
+            <div className="bg-[#161B2B] border border-slate-800 rounded-2xl p-12 text-center shadow-xl flex flex-col items-center justify-center">
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-950/40">
+                <CheckCircle2 className="w-8 h-8" />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                {Object.entries(debtsBySupplier).map(([supName, data]: [string, { total: number; count: number; items: SupplierPurchaseItem[] }]) => (
+              <h3 className="text-lg font-black text-white mb-2">
+                Nenhum Débito Pendente com Fornecedores!
+              </h3>
+              <p className="text-slate-400 max-w-sm mx-auto text-xs leading-relaxed">
+                Parabéns! Todas as compras de peças e pedidos com fornecedores estão 100% quitados e em dia.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {debtsBySupplierAndDate.map((sup) => {
+                const supplierInfo = sup.supplierInfo;
+                const pixKey = supplierInfo?.pixKey || '';
+                const phone = supplierInfo?.phone || '';
+                const cleanPhone = phone.replace(/\D/g, '');
+
+                return (
                   <div 
-                    key={supName} 
-                    className="bg-[#121828] border border-amber-500/20 rounded-xl p-3.5 flex flex-col justify-between gap-2 shadow-sm hover:border-amber-500/40 transition-all"
+                    key={sup.supplierName}
+                    className="bg-[#13192B] border-2 border-amber-500/30 hover:border-amber-500/50 rounded-xl p-3.5 sm:p-4 shadow-xl transition-all"
                   >
-                    <div>
-                      <div className="font-black text-white text-xs truncate flex items-center gap-1.5">
-                        <Truck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        {supName}
+                    {/* -------------------------------------------------- */}
+                    {/* CABEÇALHO DO CARD DE DÉBITO COMPACTO (TUDO SUBIDO) */}
+                    {/* -------------------------------------------------- */}
+                    <div className="pb-3 border-b border-slate-800/80 space-y-2.5">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        {/* Lado Esquerdo: Identificação do Fornecedor */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-purple-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md shrink-0">
+                            <Truck className="w-5 h-5" />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-base sm:text-lg font-black text-white truncate">
+                                {sup.supplierName}
+                              </h3>
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                {sup.count} {sup.count === 1 ? 'peça a prazo' : 'peças a prazo'}
+                              </span>
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                {sup.dateGroups.length} {sup.dateGroups.length === 1 ? 'data' : 'datas'}
+                              </span>
+                            </div>
+
+                            {/* Contatos / Chave PIX */}
+                            <div className="flex items-center gap-2 flex-wrap mt-1 text-xs">
+                              {pixKey && (
+                                <div className="flex items-center gap-1 bg-[#0B1221] px-2 py-0.5 rounded-md border border-slate-800 text-slate-300">
+                                  <Copy className="w-3 h-3 text-indigo-400 shrink-0" />
+                                  <span className="font-mono text-[10px] truncate max-w-[140px] sm:max-w-[200px]">
+                                    PIX: {pixKey}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyPix(pixKey, `pix_${sup.supplierName}`)}
+                                    className="ml-1 text-[10px] font-black text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer shrink-0"
+                                  >
+                                    {copiedPixId === `pix_${sup.supplierName}` ? (
+                                      <span className="text-emerald-400 flex items-center gap-0.5">
+                                        <CheckCheck className="w-3 h-3" /> Copiado!
+                                      </span>
+                                    ) : (
+                                      'Copiar'
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {phone && (
+                                <div className="flex items-center gap-1 bg-[#0B1221] px-2 py-0.5 rounded-md border border-slate-800 text-slate-300">
+                                  <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                                  <span className="text-[10px] font-medium">{phone}</span>
+                                  {cleanPhone && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const text = `Olá ${sup.supplierName}! Estou verificando nossos pedidos em aberto no valor total de R$ ${sup.total.toFixed(2).replace('.', ',')} (${sup.count} peças).`;
+                                        openWhatsAppMessageSafely(cleanPhone, text);
+                                      }}
+                                      className="ml-1 text-[10px] font-black text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer flex items-center gap-0.5"
+                                    >
+                                      <MessageSquare className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {supplierInfo && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditSupplier(supplierInfo)}
+                                  className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Edit3 className="w-3 h-3" /> Editar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lado Direito: Ações de Texto p/ Conferência e Quitar Tudo */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const pendingItems = sup.dateGroups.flatMap(g => g.items);
+                              setConferenceModal({
+                                isOpen: true,
+                                supplierName: sup.supplierName,
+                                supplierInfo: sup.supplierInfo,
+                                dateGroups: sup.dateGroups,
+                                pendingItems: pendingItems,
+                                copiedText: false
+                              });
+                            }}
+                            className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1.5 shrink-0 border border-indigo-400/30"
+                            title="Gerar texto estruturado para conferência de débito dividido por data"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-200" />
+                            <span>Texto p/ Conferência</span>
+                          </button>
+
+                          {onBulkPayForSupplier && (
+                            <button
+                              type="button"
+                              onClick={() => onBulkPayForSupplier(sup.supplierName)}
+                              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1.5 shrink-0"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Quitar Débito Total
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-amber-400 font-black text-sm mt-1">
-                        R$ {data.total.toFixed(2).replace('.', ',')}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {data.count} {data.count === 1 ? 'peça pendente' : 'peças pendentes'}
+
+                      {/* -------------------------------------------------- */}
+                      {/* RESUMO DE RECEBIMENTO ELEVADO (COMPACTO EM 1 FAIXA) */}
+                      {/* -------------------------------------------------- */}
+                      <div className="grid grid-cols-3 gap-2 p-2 bg-[#0B1221] rounded-xl border border-amber-500/20">
+                        {/* TOTAL GERAL */}
+                        <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-[#13192B]/90 border border-amber-500/30 min-w-0">
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-black uppercase text-amber-300 block truncate">
+                              💰 Total Geral
+                            </span>
+                            <span className="text-xs sm:text-sm font-black text-amber-400 block truncate">
+                              R$ {sup.total.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 font-black px-1.5 py-0.5 rounded border border-amber-500/30 shrink-0 hidden sm:inline">
+                            {sup.count} pcs
+                          </span>
+                        </div>
+
+                        {/* TOTAL RECEBIDO */}
+                        <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-[#13192B]/90 border border-emerald-500/30 min-w-0">
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-black uppercase text-emerald-400 block truncate">
+                              ✅ Já Recebido
+                            </span>
+                            <span className="text-xs sm:text-sm font-black text-emerald-400 block truncate">
+                              R$ {sup.totalReceived.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-black px-1.5 py-0.5 rounded border border-emerald-500/30 shrink-0 hidden sm:inline">
+                            {sup.countReceived}/{sup.count} pcs
+                          </span>
+                        </div>
+
+                        {/* O QUE FALTA */}
+                        <div className="flex items-center justify-between px-2.5 py-1 rounded-lg bg-[#13192B]/90 border border-rose-500/30 min-w-0">
+                          <div className="min-w-0">
+                            <span className="text-[9px] font-black uppercase text-rose-400 block truncate">
+                              ⏳ Falta Receber
+                            </span>
+                            <span className="text-xs sm:text-sm font-black text-rose-400 block truncate">
+                              R$ {sup.totalMissing.toFixed(2).replace('.', ',')}
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-rose-500/20 text-rose-300 font-black px-1.5 py-0.5 rounded border border-rose-500/30 shrink-0 hidden sm:inline">
+                            {sup.countMissing}/{sup.count} pcs
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    {onBulkPayForSupplier && (
-                      <button
-                        onClick={() => onBulkPayForSupplier(supName)}
-                        className="w-full mt-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
-                      >
-                        <Check className="w-3 h-3" /> Quitar Débito
-                      </button>
-                    )}
+
+                    {/* -------------------------------------------------- */}
+                    {/* SEÇÃO: PEDIDOS DIVIDIDOS POR DATA (SUBIDO) */}
+                    {/* -------------------------------------------------- */}
+                    <div className="mt-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-amber-400" /> 
+                          Pedidos Divididos por Data ({sup.dateGroups.length} {sup.dateGroups.length === 1 ? 'dia' : 'dias'})
+                        </span>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {sup.dateGroups.map((dGroup) => (
+                          <div 
+                            key={dGroup.dateKey}
+                            className="bg-[#0B1221] border border-slate-800/90 rounded-xl overflow-hidden shadow-md"
+                          >
+                            {/* Barra de Cabeçalho da Data com Subtotal do Dia e Quitar Dia */}
+                            <div className="p-2 sm:p-2.5 bg-gradient-to-r from-[#0E172A] via-[#111C33] to-[#0E172A] border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400">
+                                  <Calendar className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs sm:text-sm font-black text-white">
+                                      {dGroup.displayDate}
+                                    </span>
+                                    {dGroup.weekday && (
+                                      <span className="text-[11px] text-slate-400 capitalize font-medium">
+                                        ({dGroup.weekday})
+                                      </span>
+                                    )}
+                                    {dGroup.dayBadge && (
+                                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-950/80 text-cyan-300 border border-cyan-700/60">
+                                        {dGroup.dayBadge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400">
+                                    {dGroup.dateCount} {dGroup.dateCount === 1 ? 'peça pedida nesta data' : 'peças pedidas nesta data'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="text-right">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400 block">
+                                    Subtotal do Dia
+                                  </span>
+                                  <span className="text-sm sm:text-base font-black text-amber-400">
+                                    R$ {dGroup.dateTotal.toFixed(2).replace('.', ',')}
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handlePayDateGroup(dGroup.items)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                                  title={`Quitar todas as peças de ${dGroup.displayDate}`}
+                                >
+                                  <Check className="w-3 h-3" /> Quitar Dia (R$ {dGroup.dateTotal.toFixed(2).replace('.', ',')})
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Lista de Peças Pedidas nesta Data */}
+                            <div className="divide-y divide-slate-800/60">
+                              {dGroup.items.map((item) => {
+                                const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+                                const timeStr = item.createdAt && !isNaN(new Date(item.createdAt).getTime())
+                                  ? new Date(item.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                                  : '';
+
+                                return (
+                                  <div 
+                                    key={item.purchaseId}
+                                    className="p-2 sm:p-2.5 hover:bg-slate-900/40 transition-colors flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5"
+                                  >
+                                    {/* Detalhes da Peça */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
+                                          {item.typeName || 'Peça'}
+                                        </span>
+                                        <h5 className="text-xs sm:text-sm font-black text-white truncate" title={item.title}>
+                                          {item.title}
+                                        </h5>
+                                        {timeStr && (
+                                          <span className="text-[10px] text-slate-500 flex items-center gap-1 font-mono">
+                                            <Clock className="w-3 h-3" /> {timeStr}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Tags de Marca, Modelo, Qualidade e Cor */}
+                                      <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
+                                        {(item.marca || item.modelo) && (
+                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                            <strong className="text-slate-400">Aparelho:</strong> {item.marca || ''} {item.modelo || ''}
+                                          </span>
+                                        )}
+                                        {item.qualidade && (
+                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                            <strong className="text-slate-400">Qualidade:</strong> {item.qualidade}
+                                          </span>
+                                        )}
+                                        {item.cor && (
+                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                            <strong className="text-slate-400">Cor:</strong> {item.cor}
+                                          </span>
+                                        )}
+                                        {item.estrutura && (
+                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                            <strong className="text-slate-400">Estrutura:</strong> {item.estrutura}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Valores e Ações Individuais */}
+                                    <div className="flex items-center justify-between md:justify-end gap-2.5 w-full md:w-auto shrink-0 pt-1.5 md:pt-0 border-t md:border-t-0 border-slate-800/80">
+                                      <div className="text-left md:text-right">
+                                        <div className="text-xs sm:text-sm font-black text-amber-400">
+                                          R$ {itemTotal.toFixed(2).replace('.', ',')}
+                                        </div>
+                                        <div className="text-[10px] text-slate-500">
+                                          {item.quantity}x R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <button
+                                          type="button"
+                                          onClick={() => onToggleReceived && onToggleReceived(item.purchaseId, !item.isReceived)}
+                                          className={`px-2 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 border ${
+                                            item.isReceived
+                                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                                              : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                                          }`}
+                                          title={item.isReceived ? 'Clique para marcar como NÃO RECEBIDO' : 'Clique para marcar como JÁ RECEBI'}
+                                        >
+                                          {item.isReceived ? (
+                                            <>
+                                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Já Recebi
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Clock className="w-3.5 h-3.5 text-amber-400" /> Não Recebi
+                                            </>
+                                          )}
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => onUpdateStatus(item.purchaseId, 'Pago')}
+                                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                                          title="Dar baixa e marcar esta peça como Paga"
+                                        >
+                                          <Check className="w-3.5 h-3.5" /> Pagar Peça
+                                        </button>
+
+                                        {onToggleReturn && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setReturnModal({
+                                                isOpen: true,
+                                                piece: item,
+                                                supplierName: sup.supplierName,
+                                                supplierPhone: phone,
+                                                reason: 'Defeito de fábrica'
+                                              });
+                                            }}
+                                            className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                            title="Devolver peça com defeito/garantia"
+                                          >
+                                            <RotateCcw className="w-3.5 h-3.5" /> Devolver
+                                          </button>
+                                        )}
+
+                                        <button 
+                                          type="button"
+                                          onClick={() => onDelete(item.purchaseId)}
+                                          className="p-1 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                          title="Excluir peça"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
+        </div>
+      )}
 
+      {/* ------------------------------------------------------------- */}
+      {/* ABA 3: HISTÓRICO 12 MESES (PEÇAS PAGAS) */}
+      {/* ------------------------------------------------------------- */}
+      {subTab === 'HISTORICO' && (
+        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16">
           {filteredItems.length === 0 ? (
             <div className="bg-[#161B2B] border border-slate-800 rounded-2xl p-12 text-center shadow-xl flex flex-col items-center justify-center">
               <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                {subTab === 'HISTORICO' ? (
-                  <Clock className="w-8 h-8 text-slate-600" />
-                ) : (
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                )}
+                <Clock className="w-8 h-8 text-slate-600" />
               </div>
               <h3 className="text-lg font-bold text-white mb-2">
-                {subTab === 'HISTORICO' ? 'Nenhum histórico encontrado' : 'Nenhum débito pendente! Tudo quitado.'}
+                Nenhum Histórico Encontrado
               </h3>
               <p className="text-slate-400 max-w-sm mx-auto text-xs">
-                {subTab === 'HISTORICO'
-                  ? 'Quando você marcar peças como "Pago" na aba Fornecedor ou Débito, elas serão arquivadas aqui por 12 meses.'
-                  : 'Parabéns! Todas as compras com fornecedores estão com pagamento em dia.'}
+                Quando você marcar peças como "Pago" na aba Fornecedor ou Débito, elas serão arquivadas aqui por 12 meses.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredItems.map((item) => {
                 const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
-                const isPaid = item.paymentStatus === 'Pago';
 
                 return (
                   <div 
                     key={item.purchaseId}
-                    className={`bg-[#161B2B] rounded-xl border p-4 transition-all flex flex-col justify-between gap-3 shadow-md hover:shadow-lg ${
-                      isPaid ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
-                    }`}
+                    className="bg-[#161B2B] rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition-all flex flex-col justify-between gap-3 shadow-md hover:shadow-lg"
                   >
                     <div>
                       {/* Header */}
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                          <div className={`p-2 rounded-lg shrink-0 ${isPaid ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                            {isPaid ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                          <div className="p-2 rounded-lg shrink-0 bg-emerald-500/10 text-emerald-500">
+                            <CheckCircle2 className="w-5 h-5" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1581,7 +2195,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                         {/* Price & Delete */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <div className="text-right">
-                            <div className={`text-xs font-black ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            <div className="text-xs font-black text-emerald-400">
                               R$ {itemTotal.toFixed(2).replace('.', ',')}
                             </div>
                             <div className="text-[10px] text-slate-500">
@@ -1628,34 +2242,19 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                     {/* Footer & Status Controls */}
                     <div className="flex items-center justify-between pt-1 gap-2">
                       <div>
-                        {isPaid ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                            PAGO {item.paidAt && !isNaN(new Date(item.paidAt).getTime()) ? `EM ${new Date(item.paidAt).toLocaleDateString()}` : ''}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
-                            A PRAZO (EM DÉBITO)
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                          PAGO {item.paidAt && !isNaN(new Date(item.paidAt).getTime()) ? `EM ${new Date(item.paidAt).toLocaleDateString()}` : ''}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        {isPaid ? (
-                          <button
-                            onClick={() => onUpdateStatus(item.purchaseId, 'Pendente')}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                            title="Reverter status para A Prazo"
-                          >
-                            <RefreshCw className="w-3 h-3" /> Reverter p/ A Prazo
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => onUpdateStatus(item.purchaseId, 'Pago')}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
-                          >
-                            <Check className="w-3.5 h-3.5" /> ⚡ PAGAR NA HORA
-                          </button>
-                        )}
+                        <button
+                          onClick={() => onUpdateStatus(item.purchaseId, 'Pendente')}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                          title="Reverter status para A Prazo"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Reverter p/ A Prazo
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2243,6 +2842,114 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL DE CONFERÊNCIA DE DÉBITO PARA FORNECEDOR (GERAÇÃO DE TEXTO) */}
+      {/* ------------------------------------------------------------- */}
+      {conferenceModal.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161B2B] rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col border border-slate-700/50 overflow-hidden max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#0B1221]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 border border-purple-500/30">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    Relatório de Conferência de Débito ({conferenceModal.supplierName})
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Total em débito dividido por datas e com status de recebimento
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setConferenceModal(prev => ({ ...prev, isOpen: false }))}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Textarea */}
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+              <div className="bg-[#0B1221] p-3 rounded-xl border border-indigo-500/30 text-xs text-slate-300">
+                <p className="font-bold text-white mb-1">
+                  💡 Texto pronto para conferência!
+                </p>
+                <p className="text-slate-400 text-[11px]">
+                  O texto abaixo inicia com o <strong>total geral devido</strong>, a situação de recebimento (quanto já recebeu e quanto falta), as <strong>datas e dias da semana respectivos</strong> do débito, e a lista de peças pedidas divididas por data.
+                </p>
+              </div>
+
+              {(() => {
+                const fullText = formatSupplierConferenceWhatsAppText(
+                  conferenceModal.supplierName,
+                  conferenceModal.supplierInfo,
+                  conferenceModal.dateGroups,
+                  conferenceModal.pendingItems
+                );
+
+                return (
+                  <div className="space-y-3">
+                    <textarea 
+                      readOnly
+                      rows={12}
+                      value={fullText}
+                      className="w-full bg-[#080D18] border border-slate-700/80 rounded-2xl p-4 text-xs font-mono text-emerald-300 leading-relaxed focus:outline-none select-all custom-scrollbar shadow-inner"
+                    />
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(fullText);
+                            }
+                          } catch (_) {}
+                          setConferenceModal(prev => ({ ...prev, copiedText: true }));
+                          setTimeout(() => {
+                            setConferenceModal(prev => ({ ...prev, copiedText: false }));
+                          }, 2500);
+                        }}
+                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                      >
+                        {conferenceModal.copiedText ? (
+                          <>
+                            <CheckCheck className="w-4 h-4 text-emerald-300" />
+                            <span className="text-emerald-300">Copiado com Sucesso!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copiar Texto Completo</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const phone = conferenceModal.supplierInfo?.phone || '';
+                          openWhatsAppMessageSafely(phone, fullText);
+                        }}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Enviar via WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -740,6 +740,35 @@ export const SupplierOrdersManagement: React.FC = () => {
       showToast('Devolução cancelada. Peça voltou a ser contabilizada normalmente.', 'success');
     }
   };
+
+  const handleToggleReceivedPurchase = async (purchaseId: string, isReceived: boolean) => {
+    const userEmail = getUserAccountEmail();
+    const now = new Date().toISOString();
+    const updated = supplierPurchases.map(item => {
+      if (item.purchaseId === purchaseId) {
+        return {
+          ...item,
+          isReceived,
+          receivedAt: isReceived ? now : null
+        };
+      }
+      return item;
+    });
+
+    await savePurchasesLocallyAndRemote(updated, async () => {
+      const docRef = doc(db, `accounts/${userEmail}/supplier_purchases`, purchaseId);
+      await updateDoc(docRef, {
+        isReceived,
+        receivedAt: isReceived ? now : null
+      });
+    });
+
+    if (isReceived) {
+      showToast('Peça marcada como RECEBIDA com sucesso!', 'success');
+    } else {
+      showToast('Peça marcada como NÃO RECEBIDA (Pendente).', 'success');
+    }
+  };
   const handleUpdatePaymentStatus = async (purchaseId: string, status: 'Pago' | 'Pendente') => {
     const userEmail = getUserAccountEmail();
     const paidAtTime = status === 'Pago' ? new Date().toISOString() : null;
@@ -1632,61 +1661,61 @@ export const SupplierOrdersManagement: React.FC = () => {
       )}
 
       {/* Main Header */}
-      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-lg">
-            <Truck className="w-6 h-6" />
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-md">
+            <Truck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-white tracking-tight">Fornecedor & Pedidos</h1>
+              <h1 className="text-xl font-black text-white tracking-tight">Fornecedor & Pedidos</h1>
               <CloudEngineBadge />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-400 mt-0">
               Aponte peças, envie para fornecedores, acompanhe débitos e histórico de 12 meses.
             </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-3 flex-wrap w-full xl:w-auto justify-end">
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2 px-3.5 flex items-center gap-2.5">
-            <div className="p-1.5 bg-purple-500/10 text-purple-400 rounded-lg"><Box className="w-4 h-4"/></div>
+        <div className="flex items-center gap-2 flex-wrap w-full xl:w-auto justify-end">
+          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
+            <div className="p-1 bg-purple-500/10 text-purple-400 rounded-md"><Box className="w-3.5 h-3.5"/></div>
             <div>
-              <div className="text-sm font-black text-white">{groups.length}</div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold">Pedidos</div>
+              <div className="text-xs font-black text-white">{groups.length}</div>
+              <div className="text-[8px] text-slate-400 uppercase font-bold">Pedidos</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2 px-3.5 flex items-center gap-2.5">
-            <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg"><Truck className="w-4 h-4"/></div>
+          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
+            <div className="p-1 bg-amber-500/10 text-amber-400 rounded-md"><Truck className="w-3.5 h-3.5"/></div>
             <div>
-              <div className="text-sm font-black text-amber-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length}</div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold">Peças em Débito</div>
+              <div className="text-xs font-black text-amber-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length}</div>
+              <div className="text-[8px] text-slate-400 uppercase font-bold">Peças em Débito</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2 px-3.5 flex items-center gap-2.5">
-            <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg"><Clock className="w-4 h-4"/></div>
+          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md"><Clock className="w-3.5 h-3.5"/></div>
             <div>
-              <div className="text-sm font-black text-emerald-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pago').length}</div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold">Pagas (12m)</div>
+              <div className="text-xs font-black text-emerald-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pago').length}</div>
+              <div className="text-[8px] text-slate-400 uppercase font-bold">Pagas (12m)</div>
             </div>
           </div>
 
           <button 
             onClick={() => setIsSettingsModalOpen(true)}
-            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer border border-slate-700"
+            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
             title="Configurar Categorias e Campos (Tela, Bateria, DOC, Outros, Qualidades, Tecnologias, Cores)"
           >
-            <Settings className="w-4 h-4 text-indigo-400" />
+            <Settings className="w-3.5 h-3.5 text-indigo-400" />
             <span>Configurações</span>
           </button>
 
           <button 
             onClick={() => handleOpenModal()}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-500/20"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/20"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Novo Pedido</span>
           </button>
         </div>
@@ -2092,6 +2121,7 @@ export const SupplierOrdersManagement: React.FC = () => {
           onUpdateSupplierInfo={handleUpdateSupplierInfo}
           onDeleteSupplier={handleDeleteSupplier}
           onToggleReturn={handleToggleReturnPurchase}
+          onToggleReceived={handleToggleReceivedPurchase}
         />
       )}
 

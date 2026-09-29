@@ -83,13 +83,22 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   }, [isOpen, mode, order?.status, company.osDefaultPaperFormat]);
 
   useEffect(() => {
-    if (isOpen) {
-      setDispatchInfo(initialDispatch);
-      setIsSavedInOrder(false);
-    }
-  }, [isOpen, initialDispatch]);
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        handlePrint();
+      } else if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, paperFormat, printType, order]);
 
   if (!isOpen || !order) return null;
+
+  const isReadyOrDelivered = order.status === 'PRONTO' || order.status === 'CONCLUIDO' || order.status === 'ENTREGUE';
 
   // Recuperar dados mais recentes do cliente
   const customer = order.customerId
@@ -191,6 +200,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
     const container = document.getElementById('printable-order-container');
     if (!container) {
       window.print();
+      onClose();
       return;
     }
 
@@ -202,14 +212,12 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 
       const printFrame = document.createElement('iframe');
       printFrame.id = 'receipt-print-iframe';
-      // Chromium requires real dimensions and DOM presence to calculate print layout!
-      // Sizing viewport matching paper format prevents Chrome from shifting/centering on a 1024px canvas!
       printFrame.style.position = 'fixed';
       printFrame.style.left = '-9999px';
       printFrame.style.top = '0';
       const iframePixelWidth = paperFormat === 'a4' ? '794px' : paperFormat === '80mm' ? '302px' : '220px';
       printFrame.style.width = iframePixelWidth;
-      printFrame.style.height = '1200px';
+      printFrame.style.height = '1000px';
       printFrame.style.border = '0';
       printFrame.style.zIndex = '-9999';
       document.body.appendChild(printFrame);
@@ -217,10 +225,10 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
       if (!frameDoc) {
         window.print();
+        onClose();
         return;
       }
 
-      // Collect all document styles BUT filter out any modal print styles that set visibility: hidden
       const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
         .filter((el) => {
           const content = el.innerHTML || '';
@@ -230,12 +238,9 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
         .join('\n');
 
       const contentHtml = container.innerHTML;
-      // For Elgin i9 80mm: roll is 80mm, receipt width is 70mm centered with 5mm margins.
-      // Zero clipping on left or right edges!
-      const printWidth = paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%';
+      const printWidth = paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%';
       const pageMargin = paperFormat === 'a4' ? '8mm' : '0mm';
       const pageSize = paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto';
-      const bodyWidth = paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm';
 
       frameDoc.open();
       frameDoc.write(`
@@ -271,12 +276,12 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 padding: 0 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
-                width: ${bodyWidth} !important;
-                max-width: ${bodyWidth} !important;
-                min-width: ${bodyWidth} !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                display: block !important;
+                text-align: center !important;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
                 visibility: visible !important;
-                display: block !important;
               }
               body * {
                 visibility: visible !important;
@@ -285,17 +290,15 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 width: ${printWidth} !important;
                 max-width: ${printWidth} !important;
                 min-width: ${printWidth} !important;
-                margin-left: auto !important;
-                margin-right: auto !important;
-                margin-top: 0 !important;
-                margin-bottom: 0 !important;
-                padding: 0 !important;
+                margin: 0 auto !important;
+                padding: ${paperFormat === 'a4' ? '4mm' : '1mm 0'} !important;
                 background: #ffffff !important;
                 color: #000000 !important;
                 box-sizing: border-box !important;
                 display: block !important;
                 visibility: visible !important;
                 overflow: visible !important;
+                text-align: left !important;
               }
               .no-print {
                 display: none !important;
@@ -314,46 +317,31 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       const triggerPrint = () => {
         try {
           if (printFrame.contentWindow) {
-            printFrame.contentWindow.onafterprint = () => {
-              onClose();
-            };
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+          } else {
+            window.print();
           }
-          printFrame.contentWindow?.focus();
-          printFrame.contentWindow?.print();
         } catch {
           window.print();
-        } finally {
-          // Fechar automaticamente a tela de impressão após disparar para a Elgin i9 / impressora
-          setTimeout(() => {
-            onClose();
-          }, 350);
         }
       };
 
-      const images = Array.from(frameDoc.images || []);
-      if (images.length > 0) {
-        let loadedCount = 0;
-        const total = images.length;
-        const checkDone = () => {
-          loadedCount++;
-          if (loadedCount >= total) {
-            setTimeout(triggerPrint, 150);
-          }
-        };
-        images.forEach((img) => {
-          if (img.complete) {
-            checkDone();
-          } else {
-            img.onload = checkDone;
-            img.onerror = checkDone;
-          }
-        });
-        setTimeout(triggerPrint, 500);
-      } else {
-        setTimeout(triggerPrint, 250);
-      }
+      // Disparar impressão imediatamente
+      setTimeout(triggerPrint, 80);
+      
+      // Fechar modal imediatamente como solicitado pelo usuário
+      setTimeout(() => {
+        onClose();
+        setTimeout(() => {
+          try {
+            printFrame.remove();
+          } catch (_) {}
+        }, 2500);
+      }, 120);
     } catch {
       window.print();
+      onClose();
     }
   };
 
@@ -493,9 +481,18 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             <div className="flex items-center bg-slate-800 p-0.5 sm:p-1 rounded-xl text-[10px] sm:text-xs font-bold text-slate-300 border border-slate-700 max-w-full overflow-x-auto">
               <button
                 type="button"
+                onClick={() => setPrintType('receipt')}
+                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  printType === 'receipt' ? 'bg-blue-600 text-white shadow-sm font-black' : 'hover:text-white hover:bg-slate-700'
+                }`}
+              >
+                Recibo / Garantia
+              </button>
+              <button
+                type="button"
                 onClick={() => setPrintType('entrance')}
                 className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  printType === 'entrance' ? 'bg-blue-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-700'
+                  printType === 'entrance' ? 'bg-blue-600 text-white shadow-sm font-black' : 'hover:text-white hover:bg-slate-700'
                 }`}
               >
                 Entrada
@@ -504,19 +501,10 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                 type="button"
                 onClick={() => setPrintType('internal')}
                 className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  printType === 'internal' ? 'bg-blue-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-700'
+                  printType === 'internal' ? 'bg-blue-600 text-white shadow-sm font-black' : 'hover:text-white hover:bg-slate-700'
                 }`}
               >
                 Via Bancada
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrintType('receipt')}
-                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  printType === 'receipt' ? 'bg-blue-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-700'
-                }`}
-              >
-                Recibo / Garantia
               </button>
               <button
                 type="button"
@@ -532,13 +520,23 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               </button>
             </div>
 
-            {/* 2. Paper Format Selector (A4, 80mm, 50mm) */}
+            {/* 2. Paper Format Selector (80mm Padrão, A4, 50mm) */}
             <div className="flex items-center bg-slate-950 p-0.5 sm:p-1 rounded-xl text-[10px] sm:text-xs font-bold text-slate-300 border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPaperFormat('80mm')}
+                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  paperFormat === '80mm' ? 'bg-emerald-600 text-white shadow-sm font-black' : 'hover:text-white hover:bg-slate-800'
+                }`}
+                title="Impressora Térmica 80mm (Padrão Elgin i9 / POS-80)"
+              >
+                🧾 80mm (Elgin i9)
+              </button>
               <button
                 type="button"
                 onClick={() => setPaperFormat('a4')}
                 className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  paperFormat === 'a4' ? 'bg-emerald-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-800'
+                  paperFormat === 'a4' ? 'bg-emerald-600 text-white shadow-sm font-black' : 'hover:text-white hover:bg-slate-800'
                 }`}
                 title="Impressora A4 Padrão"
               >
@@ -546,20 +544,10 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setPaperFormat('80mm')}
-                className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  paperFormat === '80mm' ? 'bg-emerald-600 text-white shadow-sm' : 'hover:text-white hover:bg-slate-800'
-                }`}
-                title="Impressora Térmica 80mm (Otimizada Elgin i9)"
-              >
-                🧾 80mm (Elgin i9)
-              </button>
-              <button
-                type="button"
                 onClick={() => setPaperFormat('50mm')}
                 className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   paperFormat === '50mm' || paperFormat === '58mm'
-                    ? 'bg-emerald-600 text-white shadow-sm'
+                    ? 'bg-emerald-600 text-white shadow-sm font-black'
                     : 'hover:text-white hover:bg-slate-800'
                 }`}
                 title="Impressora Térmica 50mm / 58mm"
@@ -568,20 +556,22 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               </button>
             </div>
 
-            {/* Print & Close */}
+            {/* 3. Direct Print & Close Button */}
             <button
               type="button"
               onClick={handlePrint}
-              className="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer shrink-0 ml-auto sm:ml-0"
+              className="px-4 py-2 sm:px-5 sm:py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-950/40 cursor-pointer shrink-0 ml-auto sm:ml-0"
+              title="Disparar impressão e fechar tela (Atalho: Ctrl+P ou Enter)"
             >
-              <Printer className="w-4 h-4" />
-              <span>IMPRIMIR</span>
+              <Printer className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              <span>⚡ IMPRIMIR & FECHAR</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
               className="hidden sm:block p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              title="Fechar (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1146,28 +1136,30 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                         {order.serialNumber && (
                           <p className="text-slate-600 font-mono">Nº Série: {order.serialNumber}</p>
                         )}
-                        <div className="mt-1.5">
-                          {order.passwordPattern && order.passwordPattern.length > 0 ? (
-                            <div className="border border-slate-300 rounded p-2 bg-slate-50 inline-flex flex-col items-center">
-                              <span className="text-[10px] font-bold text-slate-800 uppercase block mb-1">
-                                Padrão de Desenho:
-                              </span>
-                              <PatternLock
-                                value={order.passwordPattern}
-                                readOnly={true}
-                                size={85}
-                                theme="light"
-                              />
-                              <span className="text-[10px] font-mono font-bold text-blue-700 mt-1">
-                                Seq: {order.passwordPattern.join(' ➔ ')}
-                              </span>
-                            </div>
-                          ) : order.passwordPin ? (
-                            <p className="text-slate-900 font-bold bg-amber-100 px-2 py-1 rounded inline-block">
-                              Senha / PIN: {order.passwordPin}
-                            </p>
-                          ) : null}
-                        </div>
+                        {!isReadyOrDelivered && (
+                          <div className="mt-1.5">
+                            {order.passwordPattern && order.passwordPattern.length > 0 ? (
+                              <div className="border border-slate-300 rounded p-2 bg-slate-50 inline-flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-800 uppercase block mb-1">
+                                  Padrão de Desenho:
+                                </span>
+                                <PatternLock
+                                  value={order.passwordPattern}
+                                  readOnly={true}
+                                  size={85}
+                                  theme="light"
+                                />
+                                <span className="text-[10px] font-mono font-bold text-blue-700 mt-1">
+                                  Seq: {order.passwordPattern.join(' ➔ ')}
+                                </span>
+                              </div>
+                            ) : order.passwordPin ? (
+                              <p className="text-slate-900 font-bold bg-amber-100 px-2 py-1 rounded inline-block">
+                                Senha / PIN: {order.passwordPin}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     </div>
 
