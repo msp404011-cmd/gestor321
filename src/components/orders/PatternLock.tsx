@@ -115,18 +115,44 @@ export const PatternLock: React.FC<PatternLockProps> = ({
     const from = DOT_COORDS[value[i]];
     const to = DOT_COORDS[value[i + 1]];
     if (from && to) {
+      const midX = (from.x + to.x) / 2;
+      const midY = (from.y + to.y) / 2;
+      const stepNum = i + 1;
+
       lines.push(
-        <line
-          key={`line-${i}`}
-          x1={from.x}
-          y1={from.y}
-          x2={to.x}
-          y2={to.y}
-          stroke={isDark ? '#06b6d4' : '#2563eb'}
-          strokeWidth="4.5"
-          strokeLinecap="round"
-          className="transition-all duration-150"
-        />
+        <g key={`line-group-${i}`}>
+          <line
+            key={`line-${i}`}
+            x1={from.x}
+            y1={from.y}
+            x2={to.x}
+            y2={to.y}
+            stroke={isDark ? '#06b6d4' : '#2563eb'}
+            strokeWidth="4.5"
+            strokeLinecap="round"
+            className="transition-all duration-150"
+          />
+          {/* Number on the connecting line (risquinho) starting at 1 to the end */}
+          <circle
+            cx={midX}
+            cy={midY}
+            r="8"
+            fill={isDark ? '#08152e' : '#ffffff'}
+            stroke={isDark ? '#22d3ee' : '#2563eb'}
+            strokeWidth="2"
+          />
+          <text
+            x={midX}
+            y={midY + 3}
+            textAnchor="middle"
+            fontSize="8.5"
+            fontWeight="900"
+            fontFamily="monospace"
+            fill={isDark ? '#22d3ee' : '#1d4ed8'}
+          >
+            {stepNum}
+          </text>
+        </g>
       );
     }
   }
