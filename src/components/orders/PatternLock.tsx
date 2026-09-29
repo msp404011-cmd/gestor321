@@ -127,8 +127,8 @@ export const PatternLock: React.FC<PatternLockProps> = ({
             y1={from.y}
             x2={to.x}
             y2={to.y}
-            stroke={isDark ? '#06b6d4' : '#2563eb'}
-            strokeWidth="4.5"
+            stroke={isDark ? '#06b6d4' : '#000000'}
+            strokeWidth="6"
             strokeLinecap="round"
             className="transition-all duration-150"
           />
@@ -136,19 +136,19 @@ export const PatternLock: React.FC<PatternLockProps> = ({
           <circle
             cx={midX}
             cy={midY}
-            r="8"
+            r="9"
             fill={isDark ? '#08152e' : '#ffffff'}
-            stroke={isDark ? '#22d3ee' : '#2563eb'}
-            strokeWidth="2"
+            stroke={isDark ? '#22d3ee' : '#000000'}
+            strokeWidth="2.5"
           />
           <text
             x={midX}
-            y={midY + 3}
+            y={midY + 3.5}
             textAnchor="middle"
-            fontSize="8.5"
+            fontSize="9"
             fontWeight="900"
             fontFamily="monospace"
-            fill={isDark ? '#22d3ee' : '#1d4ed8'}
+            fill={isDark ? '#22d3ee' : '#000000'}
           >
             {stepNum}
           </text>
@@ -223,10 +223,10 @@ export const PatternLock: React.FC<PatternLockProps> = ({
                   <circle
                     cx={coord.x}
                     cy={coord.y}
-                    r="15"
+                    r="16"
                     fill="none"
-                    stroke={isDark ? '#22d3ee' : '#2563eb'}
-                    strokeWidth="2.5"
+                    stroke={isDark ? '#22d3ee' : '#000000'}
+                    strokeWidth="3"
                     className="animate-pulse"
                   />
                 )}
@@ -235,15 +235,15 @@ export const PatternLock: React.FC<PatternLockProps> = ({
                 <circle
                   cx={coord.x}
                   cy={coord.y}
-                  r={isSelected ? 10 : 6}
+                  r={isSelected ? 11 : 7}
                   fill={
                     isSelected
                       ? isDark
                         ? '#06b6d4'
-                        : '#2563eb'
+                        : '#000000'
                       : isDark
                       ? '#475569'
-                      : '#94a3b8'
+                      : '#334155'
                   }
                   className="transition-all duration-150"
                 />
@@ -269,11 +269,11 @@ export const PatternLock: React.FC<PatternLockProps> = ({
                     x={coord.x}
                     y={coord.y + 3}
                     textAnchor="middle"
-                    fontSize="8"
+                    fontSize="8.5"
                     fontWeight="bold"
                     fontFamily="monospace"
-                    fill={isDark ? '#64748b' : '#94a3b8'}
-                    opacity="0.6"
+                    fill={isDark ? '#64748b' : '#334155'}
+                    opacity="1"
                   >
                     {num}
                   </text>
