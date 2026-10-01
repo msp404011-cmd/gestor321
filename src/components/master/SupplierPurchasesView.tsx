@@ -226,10 +226,17 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       const raw = localStorage.getItem('msp_purch_est_opts');
       if (raw) {
         const arr = JSON.parse(raw);
-        if (Array.isArray(arr) && arr.length > 0) return arr;
+        if (Array.isArray(arr) && arr.length > 0) {
+          const hasC = arr.some(a => a.trim().toUpperCase() === 'C/ ARO');
+          const hasS = arr.some(a => a.trim().toUpperCase() === 'S/ ARO');
+          const merged = [...arr];
+          if (!hasC) merged.unshift('C/ ARO');
+          if (!hasS) merged.splice(1, 0, 'S/ ARO');
+          return merged;
+        }
       }
     } catch(e){}
-    return ['Com Aro', 'Sem Aro'];
+    return ['C/ ARO', 'S/ ARO', 'Com Aro', 'Sem Aro'];
   });
 
   const [qualidadeOpts, setQualidadeOpts] = useState<string[]>(() => {
@@ -664,12 +671,20 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       
       groupItems.forEach((item) => {
         const typePrefix = item.typeName ? `${item.typeName} ` : '';
-        text += `${globalIndex}. 📱 ${typePrefix}${item.title}\n`;
+        let cleanTitle = (item.title || '').trim();
+        if (item.typeName && cleanTitle.toLowerCase().startsWith(item.typeName.toLowerCase() + ' ')) {
+          cleanTitle = cleanTitle.slice(item.typeName.length + 1).trim();
+        }
+
+        const estUpper = (item.estrutura || '').trim().toUpperCase();
+        const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+        text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
         
-        if (item.marca) text += `🏷️ ${item.marca}\n`;
-        if (item.modelo) text += `📱 ${item.modelo}\n`;
-        if (item.estrutura) text += `⭕ ${item.estrutura}\n`;
-        if (item.qualidade) text += `⚡ ${item.qualidade}\n`;
+        if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
+        if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
+        if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
+        if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
         if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
         
         const sub = (Number(item.price) || 0) * (Number(item.quantity) || 1);
@@ -701,10 +716,13 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       text += `🔄 *PEÇAS PARA DEVOLUÇÃO (${returnedPieces.length}):*\n`;
       returnedPieces.forEach((item, rIdx) => {
         const typePrefix = item.typeName ? `${item.typeName} ` : '';
-        text += `${rIdx + 1}. 📱 ${typePrefix}${item.title}\n`;
+        const estUpper = (item.estrutura || '').trim().toUpperCase();
+        const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+        text += `${rIdx + 1}. 📱 ${typePrefix}${item.title}${estBadge}\n`;
         if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
         if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
-        if (item.estrutura) text += `⭕ Estrutura: ${item.estrutura}\n`;
+        if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
         if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
         if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
         text += `🔢 Qtd: ${item.quantity}x | R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
@@ -796,9 +814,12 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
           const unitPrice = Number(item.price) || 0;
           const sub = unitPrice * qty;
 
-          text += `  Ordem ${idx + 1}: 📱 ${typePrefix}${item.title}\n`;
+          const estUpper = (item.estrutura || '').trim().toUpperCase();
+          const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+          text += `  Ordem ${idx + 1}: 📱 ${typePrefix}${item.title}${estBadge}\n`;
           if (item.marca || item.modelo) text += `   🏷️ Aparelho: ${item.marca || ''} ${item.modelo || ''}\n`;
-          if (item.estrutura) text += `   ⭕ Estrutura: ${item.estrutura}\n`;
+          if (estUpper) text += `   ⭕ Estrutura: ${estUpper}\n`;
           if (item.qualidade) text += `   ⚡ Qualidade: ${item.qualidade}\n`;
           if (item.cor) text += `   🎨 Cor: ${item.cor}\n`;
           text += `   💵 Valor: R$ ${sub.toFixed(2).replace('.', ',')} (${qty}x R$ ${unitPrice.toFixed(2).replace('.', ',')})\n`;
@@ -835,10 +856,13 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     text += `📅 Data: ${dateStr}\n`;
     text += `-----------------------------------\n`;
     const typePrefix = piece.typeName ? `${piece.typeName} ` : '';
-    text += `📱 ${typePrefix}${piece.title}\n`;
+    const estUpper = (piece.estrutura || '').trim().toUpperCase();
+    const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+    text += `📱 ${typePrefix}${piece.title}${estBadge}\n`;
     if (piece.marca) text += `🏷️ Marca: ${piece.marca}\n`;
     if (piece.modelo) text += `📱 Modelo: ${piece.modelo}\n`;
-    if (piece.estrutura) text += `⭕ Estrutura: ${piece.estrutura}\n`;
+    if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
     if (piece.qualidade) text += `⚡ Qualidade: ${piece.qualidade}\n`;
     if (piece.cor) text += `🎨 Cor: ${piece.cor}\n`;
     text += `🔢 Quantidade: ${piece.quantity}x\n`;
@@ -2540,16 +2564,59 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                  <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura (Com Aro, Sem Aro...)</label>
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-2">
+                  <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura (C/ Aro, S/ Aro...)</label>
+
+                  {/* Quick Direct Buttons: C/ ARO vs S/ ARO */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewItemForm(prev => {
+                        const isCurrentlyCAro = (prev.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'com aro';
+                        return { ...prev, estrutura: isCurrentlyCAro ? '' : 'C/ ARO' };
+                      })}
+                      className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                        (newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                          : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>⭕ C/ ARO</span>
+                      {((newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro') && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewItemForm(prev => {
+                        const isCurrentlySAro = (prev.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'sem aro';
+                        return { ...prev, estrutura: isCurrentlySAro ? '' : 'S/ ARO' };
+                      })}
+                      className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                        (newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                          : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>⭕ S/ ARO</span>
+                      {((newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro') && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+                  </div>
+
                   <div className="flex items-center gap-1 flex-wrap">
                     {estruturaOpts.map(eOpt => {
-                      const isSelected = newItemForm.estrutura === eOpt;
+                      const isSelected = (newItemForm.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase();
                       return (
                         <div key={eOpt} className="inline-flex items-center">
                           <button
                             type="button"
-                            onClick={() => setNewItemForm(prev => ({ ...prev, estrutura: prev.estrutura === eOpt ? '' : eOpt }))}
+                            onClick={() => setNewItemForm(prev => ({ 
+                              ...prev, 
+                              estrutura: (prev.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase() ? '' : eOpt 
+                            }))}
                             className={`px-2.5 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
                               isSelected ? 'bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400' : 'bg-slate-800 text-slate-300 hover:text-white'
                             }`}

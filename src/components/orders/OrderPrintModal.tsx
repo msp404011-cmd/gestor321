@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../service
 import { PatternLock } from './PatternLock';
 import { ThermalOrderReceipt } from './ThermalOrderReceipt';
 import { ThermalEulisReceipt } from './ThermalEulisReceipt';
+import { formatTechnicalChecklistSummary } from './OrderTechnicalChecklistSection';
 
 interface OrderPrintModalProps {
   isOpen: boolean;
@@ -1185,6 +1186,28 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                           {order.physicalState}
                         </div>
                       )}
+
+                      {(() => {
+                        const chkSummary = formatTechnicalChecklistSummary(order.technicalChecklist);
+                        if (chkSummary.length === 0) return null;
+                        return (
+                          <div className="border border-emerald-200 bg-emerald-50/40 rounded-lg p-2 text-[11px] text-emerald-950">
+                            <span className="font-bold text-emerald-900 block mb-0.5 uppercase tracking-wide text-[10px]">
+                              Checklist Técnico de Entrada (Testes do Aparelho):
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {chkSummary.map((item, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-block px-1.5 py-0.5 rounded bg-white border border-emerald-300 text-[10px] font-semibold"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {order.technicalDiagnosis && printType !== 'entrance' && (
                         <div className="border border-slate-200 rounded-lg p-2.5 bg-blue-50/40">

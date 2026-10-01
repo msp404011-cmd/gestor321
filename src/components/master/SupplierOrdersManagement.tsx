@@ -4,7 +4,7 @@ import {
   Plus, Edit2, Trash2, Check, ShoppingCart, 
   MessageSquare, MoreVertical, Search, Send, Settings, X, Box, DollarSign, Copy, Calendar, Filter,
   ChevronDown, ChevronUp, Truck, Clock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ExternalLink,
-  Building2, Layers, Sliders
+  Building2, Layers, Sliders, Wrench
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
@@ -12,6 +12,7 @@ import { StorageService, setRamItem, getRamItem } from '../../services/storage';
 import { getTenantId } from '../../services/firestoreService';
 import { CloudEngineBadge } from '../common/CloudEngineBadge';
 import { SupplierPurchaseItem, SupplierPurchasesView, RegisteredSupplier } from './SupplierPurchasesView';
+import { TechnicianServicesView } from './TechnicianServicesView';
 
 export interface SupplierOrderItem {
   id: string;
@@ -85,6 +86,22 @@ const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
   { id: 'sup_mechanic', name: 'MECHANIC', phone: '', pixKey: '', obs: 'Fornecedor de Peças e Ferramentas', createdAt: new Date().toISOString() }
 ];
 
+export const ensureDefaultEstruturaOptions = (existing?: FieldOption[]): FieldOption[] => {
+  const baseDefaults: FieldOption[] = [
+    { id: 'opt_c_aro', value: 'C/ ARO' },
+    { id: 'opt_s_aro', value: 'S/ ARO' },
+    { id: 'opt_com_aro', value: 'Com Aro' },
+    { id: 'opt_sem_aro', value: 'Sem Aro' }
+  ];
+  if (!existing || existing.length === 0) return baseDefaults;
+  const hasCAro = existing.some(o => o.value.trim().toUpperCase() === 'C/ ARO');
+  const hasSAro = existing.some(o => o.value.trim().toUpperCase() === 'S/ ARO');
+  const result = [...existing];
+  if (!hasCAro) result.unshift({ id: 'opt_c_aro', value: 'C/ ARO' });
+  if (!hasSAro) result.splice(1, 0, { id: 'opt_s_aro', value: 'S/ ARO' });
+  return result;
+};
+
 export const SupplierOrdersManagement: React.FC = () => {
   // Safe initial state loaded synchronously from RAM store or localStorage
   const [groups, setGroups] = useState<SupplierOrderGroup[]>(() => {
@@ -142,9 +159,7 @@ export const SupplierOrdersManagement: React.FC = () => {
           fields: { ...t.fields, showEstrutura: true },
           options: {
             ...t.options,
-            estrutura: (t.options?.estrutura && t.options.estrutura.length > 0)
-              ? t.options.estrutura
-              : [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }]
+            estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
           }
         }))
       };
@@ -159,7 +174,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Xiaomi' }, { id: '4', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'DIAMONDS' }, { id: '2', value: 'CHINA GOLD PRO' }, { id: '3', value: 'Original' }, { id: '4', value: 'Premium' }],
             tecnologia: [{ id: '1', value: 'INCELL' }, { id: '2', value: 'OLED' }, { id: '3', value: 'AMOLED' }, { id: '4', value: 'IPS' }],
-            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
+            estrutura: ensureDefaultEstruturaOptions([]),
             cor: [{ id: '1', value: 'Preto' }, { id: '2', value: 'Branco' }, { id: '3', value: 'Azul' }, { id: '4', value: 'Dourado' }, { id: '5', value: 'Grafite' }]
           }
         },
@@ -171,7 +186,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Xiaomi' }, { id: '4', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original' }, { id: '2', value: 'Gold' }, { id: '3', value: 'Prime' }],
             tecnologia: [],
-            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
+            estrutura: ensureDefaultEstruturaOptions([]),
             cor: []
           }
         },
@@ -183,7 +198,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original Carga Rápida' }, { id: '2', value: 'Prime' }],
             tecnologia: [],
-            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
+            estrutura: ensureDefaultEstruturaOptions([]),
             cor: [{ id: '1', value: 'Preto' }]
           }
         },
@@ -195,7 +210,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             marca: [{ id: '1', value: 'Geral' }],
             qualidade: [{ id: '1', value: 'Padrão' }],
             tecnologia: [],
-            estrutura: [{ id: '1', value: 'Com Aro' }, { id: '2', value: 'Sem Aro' }],
+            estrutura: ensureDefaultEstruturaOptions([]),
             cor: []
           }
         }
@@ -209,7 +224,7 @@ export const SupplierOrdersManagement: React.FC = () => {
   const [newCategoryNameInput, setNewCategoryNameInput] = useState('');
   const [newOptionInput, setNewOptionInput] = useState<{ field: 'qualidade' | 'tecnologia' | 'estrutura' | 'cor' | 'marca'; value: string }>({ field: 'qualidade', value: '' });
 
-  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS'>('PEDIDOS');
+  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS' | 'SERVICOS'>('PEDIDOS');
 
   const [currentItem, setCurrentItem] = useState<Partial<SupplierOrderItem>>({
     title: '', typeName: 'Tela', marca: '', modelo: '', estrutura: '', qualidade: '', tecnologia: '', cor: '', quantity: 1, price: 0
@@ -387,9 +402,23 @@ export const SupplierOrdersManagement: React.FC = () => {
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
       if (!isSubscribed) return;
       if (docSnap.exists()) {
-        const data = docSnap.data() as SupplierFieldSettings;
-        setFieldSettings(data);
-        setRamItem('msp_supplier_field_settings_v4', data);
+        const rawData = docSnap.data() as SupplierFieldSettings;
+        const sanitized: SupplierFieldSettings = {
+          ...rawData,
+          templates: (rawData.templates || []).map(t => ({
+            ...t,
+            fields: {
+              ...t.fields,
+              showEstrutura: true
+            },
+            options: {
+              ...t.options,
+              estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
+            }
+          }))
+        };
+        setFieldSettings(sanitized);
+        setRamItem('msp_supplier_field_settings_v4', sanitized);
       }
     }, (err) => {
       console.warn('Settings snapshot notice:', err.message);
@@ -921,6 +950,9 @@ export const SupplierOrdersManagement: React.FC = () => {
     if (!finalTitle && (rawModelo || rawMarca)) {
       finalTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
     }
+    if (!finalTitle && currentItem.estrutura) {
+      finalTitle = `${currentCategory} ${currentItem.estrutura}`.trim();
+    }
 
     if (!finalTitle) {
       showToast('Preencha a descrição ou modelo da peça.', 'error');
@@ -933,7 +965,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       typeName: currentCategory,
       marca: rawMarca || '',
       modelo: rawModelo || '',
-      estrutura: currentItem.estrutura || '',
+      estrutura: (currentItem.estrutura || '').trim(),
       qualidade: currentItem.qualidade || '',
       tecnologia: currentItem.tecnologia || '',
       cor: currentItem.cor || '',
@@ -971,7 +1003,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     const userEmail = getUserAccountEmail();
 
     try {
-      // Auto-include any piece currently typed in the form that wasn't added via the button yet
+      // Auto-include any piece currently typed or marked in the form that wasn't added via the button yet
       let itemsToSave = [...formData.items];
       const currentCategory = currentItem.typeName || 'Tela';
       const rawTitle = currentItem.title?.trim();
@@ -982,14 +1014,14 @@ export const SupplierOrdersManagement: React.FC = () => {
         pendingTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
       }
 
-      if (pendingTitle || (Number(currentItem.price) > 0 && (rawModelo || rawMarca || currentItem.qualidade))) {
+      if (pendingTitle || currentItem.estrutura || (Number(currentItem.price) > 0 && (rawModelo || rawMarca || currentItem.qualidade))) {
         const autoPiece: SupplierOrderItem = {
           id: Date.now().toString(),
-          title: pendingTitle || `${currentCategory} Diversos`,
+          title: pendingTitle || `${currentCategory} ${currentItem.estrutura || 'Diversos'}`,
           typeName: currentCategory,
           marca: rawMarca || '',
           modelo: rawModelo || '',
-          estrutura: currentItem.estrutura || '',
+          estrutura: (currentItem.estrutura || '').trim(),
           qualidade: currentItem.qualidade || '',
           tecnologia: currentItem.tecnologia || '',
           cor: currentItem.cor || '',
@@ -1150,12 +1182,21 @@ export const SupplierOrdersManagement: React.FC = () => {
       
       groupItems.forEach((item) => {
         const typePrefix = item.typeName ? `${item.typeName} ` : '';
-        text += `${globalIndex}. 📱 ${typePrefix}${item.title}\n`;
+        let cleanTitle = (item.title || '').trim();
+        if (item.typeName && cleanTitle.toLowerCase().startsWith(item.typeName.toLowerCase() + ' ')) {
+          cleanTitle = cleanTitle.slice(item.typeName.length + 1).trim();
+        }
+
+        const estUpper = (item.estrutura || '').trim().toUpperCase();
+        const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+        text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
         
-        if (item.marca) text += `🏷️ ${item.marca} \n`;
-        if (item.modelo) text += `📱 ${item.modelo}\n`;
-        if (item.estrutura) text += `⭕ ${item.estrutura}\n`;
-        if (item.qualidade) text += `⚡ ${item.qualidade}\n`;
+        if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
+        if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
+        if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
+        if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
+        if (item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
         if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
         
         if (withPrice && (Number(item.price) || 0) > 0) {
@@ -1604,9 +1645,14 @@ export const SupplierOrdersManagement: React.FC = () => {
                     className="w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-indigo-500 cursor-pointer"
                   />
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-xs font-bold truncate">
-                      {item.typeName && <span className="text-indigo-400 mr-1">{item.typeName}</span>}
-                      {item.title}
+                    <div className="text-xs font-bold truncate flex items-center gap-1.5 flex-wrap">
+                      {item.typeName && <span className="text-indigo-400">{item.typeName}</span>}
+                      <span>{item.title}</span>
+                      {item.estrutura && (
+                        <span className="text-purple-300 font-black px-1.5 py-0.5 bg-purple-500/20 rounded border border-purple-500/40 text-[10px]">
+                          ⭕ {item.estrutura}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
                       {item.marca} {item.modelo} - x{item.quantity} (R$ {((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(0)})
@@ -1770,6 +1816,18 @@ export const SupplierOrdersManagement: React.FC = () => {
           >
             <DollarSign className="w-3.5 h-3.5" />
             <span>4. Débito com Fornecedor ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSubTab('SERVICOS')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'SERVICOS' 
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>5. Serviços</span>
           </button>
         </div>
 
@@ -2015,7 +2073,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                                         {item.modelo && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold">Mod: {item.modelo}</span>}
                                         {item.qualidade && <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-black">{item.qualidade}</span>}
                                         {item.tecnologia && <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-black">{item.tecnologia}</span>}
-                                        {item.estrutura && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{item.estrutura}</span>}
+                                        {item.estrutura && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-black">⭕ {item.estrutura}</span>}
                                         {item.cor && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cor: {item.cor}</span>}
                                         {itemDateLabel && <span className="text-slate-500 ml-auto">📅 {itemDateLabel}</span>}
                                       </div>
@@ -2106,6 +2164,9 @@ export const SupplierOrdersManagement: React.FC = () => {
             </div>
           </div>
         )
+      ) : activeSubTab === 'SERVICOS' ? (
+        /* ABA 5: SERVIÇOS DE TÉCNICOS & REPASSES */
+        <TechnicianServicesView />
       ) : (
         /* ABA 2, 3, 4: FORNECEDOR, HISTÓRICO, DÉBITOS */
         <SupplierPurchasesView 
@@ -2568,18 +2629,62 @@ export const SupplierOrdersManagement: React.FC = () => {
                         {/* Estrutura & Cor Row */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {fields.showEstrutura && (
-                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                              <label className="text-[9px] font-black text-purple-400 uppercase tracking-wider block">
-                                Estrutura (Com Aro, Sem Aro...)
+                            <div className="bg-[#121827] p-2.5 rounded-xl border border-slate-800 space-y-2">
+                              <label className="text-[10px] font-black text-purple-400 uppercase tracking-wider block">
+                                Estrutura (C/ Aro, S/ Aro...)
                               </label>
+
+                              {/* Quick Direct Buttons: C/ ARO vs S/ ARO */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentItem(prev => {
+                                    const isCurrentlyCAro = (prev.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'com aro';
+                                    return { ...prev, estrutura: isCurrentlyCAro ? '' : 'C/ ARO' };
+                                  })}
+                                  className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                    (currentItem.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (currentItem.estrutura || '').trim().toLowerCase() === 'com aro'
+                                      ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                                      : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                                  }`}
+                                >
+                                  <span>⭕ C/ ARO</span>
+                                  {((currentItem.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (currentItem.estrutura || '').trim().toLowerCase() === 'com aro') && (
+                                    <Check className="w-4 h-4 text-white" />
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentItem(prev => {
+                                    const isCurrentlySAro = (prev.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'sem aro';
+                                    return { ...prev, estrutura: isCurrentlySAro ? '' : 'S/ ARO' };
+                                  })}
+                                  className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                                    (currentItem.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (currentItem.estrutura || '').trim().toLowerCase() === 'sem aro'
+                                      ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                                      : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                                  }`}
+                                >
+                                  <span>⭕ S/ ARO</span>
+                                  {((currentItem.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (currentItem.estrutura || '').trim().toLowerCase() === 'sem aro') && (
+                                    <Check className="w-4 h-4 text-white" />
+                                  )}
+                                </button>
+                              </div>
+
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {options.estrutura?.map(eOpt => {
-                                  const isSelected = currentItem.estrutura === eOpt.value;
+                                  const isSelected = (currentItem.estrutura || '').trim().toUpperCase() === eOpt.value.trim().toUpperCase() ||
+                                    (currentItem.estrutura || '').trim().toLowerCase() === eOpt.value.trim().toLowerCase();
                                   return (
                                     <div key={eOpt.id} className="inline-flex items-center shadow-sm">
                                       <button
                                         type="button"
-                                        onClick={() => setCurrentItem(prev => ({ ...prev, estrutura: prev.estrutura === eOpt.value ? '' : eOpt.value }))}
+                                        onClick={() => setCurrentItem(prev => ({ 
+                                          ...prev, 
+                                          estrutura: (prev.estrutura || '').trim().toUpperCase() === eOpt.value.trim().toUpperCase() ? '' : eOpt.value 
+                                        }))}
                                         className={`px-2.5 py-1 rounded-l-lg text-xs font-black transition-all cursor-pointer ${
                                           isSelected
                                             ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 scale-105 ring-2 ring-purple-400 font-black'
@@ -2608,7 +2713,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                               <div className="flex items-center gap-1 mt-1">
                                 <input
                                   type="text"
-                                  placeholder="+ Nova estrutura..."
+                                  placeholder="+ Nova estrutura (Ex: C/ ARO)..."
                                   value={quickAddInput.estrutura || ''}
                                   onChange={e => setQuickAddInput(prev => ({ ...prev, estrutura: e.target.value }))}
                                   onKeyDown={e => {
@@ -2629,10 +2734,10 @@ export const SupplierOrdersManagement: React.FC = () => {
                               </div>
                               <input
                                 type="text"
-                                placeholder="Digite outra estrutura..."
+                                placeholder="Ou digite outra estrutura..."
                                 value={currentItem.estrutura || ''}
                                 onChange={e => setCurrentItem({ ...currentItem, estrutura: e.target.value })}
-                                className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:border-purple-500 outline-none"
+                                className="w-full bg-[#161B2B] border border-slate-800 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 focus:border-purple-500 outline-none"
                               />
                             </div>
                           )}
@@ -2760,12 +2865,43 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <div key={item.id} className="flex justify-between items-center bg-[#161B2B] p-2 rounded-lg border border-slate-800 text-xs">
                           <div className="truncate pr-2">
                             <span className="font-bold text-white block">{item.title}</span>
-                            <span className="text-[10px] text-slate-400 block">{item.marca} {item.modelo} {item.qualidade}</span>
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {item.marca && <span>{item.marca}</span>}
+                              {item.modelo && <span>{item.modelo}</span>}
+                              {item.qualidade && <span>• {item.qualidade}</span>}
+                              {item.estrutura && (
+                                <span className="text-purple-300 font-bold px-1.5 py-0.2 bg-purple-500/20 rounded border border-purple-500/30">
+                                  ⭕ {item.estrutura}
+                                </span>
+                              )}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-emerald-400 font-bold">
                               {item.quantity}x R${(Number(item.price) || 0).toFixed(0)}
                             </span>
+                            <button
+                              type="button"
+                              title="Editar esta peça no formulário"
+                              onClick={() => {
+                                setCurrentItem({
+                                  title: item.title,
+                                  typeName: item.typeName,
+                                  marca: item.marca,
+                                  modelo: item.modelo,
+                                  estrutura: item.estrutura,
+                                  qualidade: item.qualidade,
+                                  tecnologia: item.tecnologia,
+                                  cor: item.cor,
+                                  quantity: item.quantity,
+                                  price: item.price
+                                });
+                                handleRemoveItemFromForm(item.id);
+                              }}
+                              className="p-1 text-slate-400 hover:text-indigo-400 cursor-pointer"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleRemoveItemFromForm(item.id)}

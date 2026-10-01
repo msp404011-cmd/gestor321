@@ -328,6 +328,9 @@ export interface ServiceOrder {
     others?: { present: boolean; details?: string };
   };
 
+  // Checklist técnico completo de testes do aparelho
+  technicalChecklist?: DeviceTechnicalChecklist;
+
   // Defeito e diagnóstico
   clientDefect: string;
   technicalDiagnosis: string;
@@ -391,6 +394,33 @@ export interface EulisDispatchInfo {
   dispatchNotes?: string; // Observação / recado exclusivo para C/ Eulis
   dispatchedAt?: string;
   dispatchedBy?: string;
+}
+
+export interface DeviceTechnicalChecklist {
+  ligar?: 'SIM' | 'NAO' | 'DIFICULDADE' | string;
+  toqueTela?: 'SIM' | 'NAO' | 'MAU_TOQUE' | string;
+  flash?: 'SIM' | 'NAO' | string;
+  wifi?: 'SIM' | 'NAO' | string;
+  cameraFrontal?: 'SIM' | 'NAO' | 'DETALHES' | string;
+  cameraFrontalObs?: string;
+  cameraTraseira?: 'SIM' | 'NAO' | 'DETALHES' | string;
+  cameraTraseiraObs?: string;
+  microfone?: 'SIM' | 'NAO' | 'DETALHES' | string;
+  microfoneObs?: string;
+  audio?: 'SIM' | 'NAO' | 'DETALHES' | string;
+  audioObs?: string;
+  volumeMais?: 'SIM' | 'NAO' | 'DIFICULDADE' | string;
+  volumeMenos?: 'SIM' | 'NAO' | 'DIFICULDADE' | string;
+  biometriaPresenca?: 'TEM' | 'NAO_TEM' | string;
+  biometriaStatus?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'DIFICULDADE' | string;
+  botaoAuxiliarPresenca?: 'TEM' | 'NAO_TEM' | string;
+  botaoAuxiliarStatus?: 'FUNCIONA' | 'NAO_FUNCIONA' | string;
+  gavetaChip?: 'SIM' | 'NAO' | 'PROBLEMA' | string;
+  cartaoMemoria?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  chip1?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  chip2?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  sinalArea?: 'SIM' | 'NAO' | string;
+  observacoes?: string;
 }
 
 export type ProductCategory = string;

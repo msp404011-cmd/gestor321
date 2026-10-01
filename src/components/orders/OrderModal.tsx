@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   Unlock,
+  CheckSquare,
 } from 'lucide-react';
 import {
   ServiceOrder,
@@ -22,6 +23,7 @@ import {
   CustomPaymentMethodItem,
   CustomOSStatusItem,
   Product,
+  DeviceTechnicalChecklist,
 } from '../../types';
 import { StorageService, isAccessoryForDeviceType } from '../../services/storage';
 import { formatCurrency, cleanPhoneForWhatsApp } from '../../services/formatters';
@@ -29,6 +31,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { OrderClientDeviceSection } from './OrderClientDeviceSection';
 import { OrderProblemAccessoriesSection } from './OrderProblemAccessoriesSection';
 import { OrderPartsFinancialSection } from './OrderPartsFinancialSection';
+import { OrderTechnicalChecklistSection } from './OrderTechnicalChecklistSection';
 import { CustomerModal } from '../customers/CustomerModal';
 import { ProductModal } from '../products/ProductModal';
 import { filterAndSortCustomers } from '../../utils/searchUtils';
@@ -143,6 +146,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   // Dynamic Accessories Checklist State
   const [customAccMap, setCustomAccMap] = useState<Record<string, { present: boolean; details: string }>>({});
+
+  // Technical Tests Checklist State & Column 2 Tab
+  const [technicalChecklist, setTechnicalChecklist] = useState<DeviceTechnicalChecklist>({});
+  const [col2Tab, setCol2Tab] = useState<'PROBLEMA' | 'CHECKLIST'>('PROBLEMA');
 
   // Problems & Services
   const [clientDefect, setClientDefect] = useState('');
@@ -338,6 +345,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         if (chk.others?.present) initialMap['acc-others'] = { present: true, details: chk.others.details || '' };
       }
       setCustomAccMap(initialMap);
+      setTechnicalChecklist(orderToEdit.technicalChecklist || {});
+      setCol2Tab('PROBLEMA');
     } else {
       // NEW ORDER - Fresh state
       setSelectedCustomer(defaultCustomer || null);
@@ -389,6 +398,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         freshMap[acc.id] = { present: false, details: '' };
       });
       setCustomAccMap(freshMap);
+      setTechnicalChecklist({});
+      setCol2Tab('PROBLEMA');
     }
 
     setError('');
@@ -752,6 +763,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         passwordPattern: passwordType === 'PATTERN' && patternNodes.length > 0 ? patternNodes : undefined,
         accessories: compiledAccessories,
         checklistAccessories: checklistObj as any,
+        technicalChecklist: technicalChecklist,
         physicalCondition: hasNoDamages ? 'Sem avarias aparentes' : (physicalState.trim() || 'Avarias relatadas'),
         physicalState: hasNoDamages ? 'Sem avarias aparentes' : (physicalState.trim() || 'Avarias relatadas'),
         clientDefect: finalClientDefect,
@@ -821,6 +833,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const whatsappClean = selectedCustomer
     ? cleanPhoneForWhatsApp(selectedCustomer.whatsapp || selectedCustomer.phone)
     : '';
+
+  const checklistFilledCount = useMemo(() => {
+    return [
+      technicalChecklist.ligar,
+      technicalChecklist.toqueTela,
+      technicalChecklist.flash,
+      technicalChecklist.wifi,
+      technicalChecklist.cameraFrontal,
+      technicalChecklist.cameraTraseira,
+      technicalChecklist.microfone,
+      technicalChecklist.audio,
+      technicalChecklist.volumeMais,
+      technicalChecklist.volumeMenos,
+      technicalChecklist.biometriaPresenca,
+      technicalChecklist.botaoAuxiliarPresenca,
+      technicalChecklist.gavetaChip,
+      technicalChecklist.cartaoMemoria,
+      technicalChecklist.chip1,
+      technicalChecklist.chip2,
+      technicalChecklist.sinalArea,
+    ].filter(Boolean).length;
+  }, [technicalChecklist]);
 
   if (!isOpen) return null;
 
@@ -916,27 +950,91 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             setPatternNote={setPatternNote}
           />
 
-          {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS */}
-          <OrderProblemAccessoriesSection
-            isDark={isDark}
-            clientDefect={clientDefect}
-            setClientDefect={setClientDefect}
-            serviceToBeDone={serviceToBeDone}
-            setServiceToBeDone={setServiceToBeDone}
-            showServicePicker={showServicePicker}
-            setShowServicePicker={setShowServicePicker}
-            quickServices={QUICK_SERVICES}
-            deviceType={deviceType}
-            customAccessories={customAccessories}
-            customAccMap={customAccMap}
-            setCustomAccMap={setCustomAccMap}
-            onSelectQuickService={(sName, price) => {
-              setServiceToBeDone(sName);
-              if (!isPriceUnlocked && customTotalPrice === null) {
-                setCustomTotalPrice(price);
-              }
-            }}
-          />
+          {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS vs CHECKLIST TÉCNICO */}
+          <div className="flex flex-col h-full min-h-0 overflow-hidden">
+            {/* Column 2 Sub-Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCol2Tab('PROBLEMA')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  col2Tab === 'PROBLEMA'
+                    ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.4)]'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <span>Defeito & Acessórios</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCol2Tab('CHECKLIST')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  col2Tab === 'CHECKLIST'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Checklist Técnico</span>
+                {checklistFilledCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
+                    {checklistFilledCount}/17
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {col2Tab === 'PROBLEMA' ? (
+                <div className="flex flex-col h-full min-h-0 space-y-1.5">
+                  {/* Quick trigger banner to switch to technical checklist */}
+                  <button
+                    type="button"
+                    onClick={() => setCol2Tab('CHECKLIST')}
+                    className="w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-emerald-950/80 via-[#071922] to-cyan-950/80 border border-emerald-500/40 hover:border-emerald-400 text-emerald-300 hover:text-white text-xs font-black flex items-center justify-between cursor-pointer transition-all shadow-sm shrink-0"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <CheckSquare className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      <span>📋 Preencher Checklist Técnico do Aparelho</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500/40 font-bold">
+                      {checklistFilledCount > 0 ? `${checklistFilledCount}/17 preenchidos` : 'Abrir testes (17 botões)'}
+                    </span>
+                  </button>
+
+                  <div className="flex-1 min-h-0">
+                    <OrderProblemAccessoriesSection
+                      isDark={isDark}
+                      clientDefect={clientDefect}
+                      setClientDefect={setClientDefect}
+                      serviceToBeDone={serviceToBeDone}
+                      setServiceToBeDone={setServiceToBeDone}
+                      showServicePicker={showServicePicker}
+                      setShowServicePicker={setShowServicePicker}
+                      quickServices={QUICK_SERVICES}
+                      deviceType={deviceType}
+                      customAccessories={customAccessories}
+                      customAccMap={customAccMap}
+                      setCustomAccMap={setCustomAccMap}
+                      onSelectQuickService={(sName, price) => {
+                        setServiceToBeDone(sName);
+                        if (!isPriceUnlocked && customTotalPrice === null) {
+                          setCustomTotalPrice(price);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <OrderTechnicalChecklistSection
+                  isDark={isDark}
+                  checklist={technicalChecklist}
+                  onChange={setTechnicalChecklist}
+                />
+              )}
+            </div>
+          </div>
 
           {/* COLUMN 3: PEÇAS, VALORES & PAGAMENTO */}
           <OrderPartsFinancialSection

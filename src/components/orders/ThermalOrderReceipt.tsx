@@ -3,6 +3,7 @@ import { ServiceOrder, CompanySettings } from '../../types';
 import { StorageService } from '../../services/storage';
 import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../services/formatters';
 import { PatternLock } from './PatternLock';
+import { formatTechnicalChecklistSummary } from './OrderTechnicalChecklistSection';
 
 interface ThermalOrderReceiptProps {
   order: ServiceOrder;
@@ -313,6 +314,23 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
           ].filter(Boolean).join('\n')) || 'Sem observações adicionais.'}
         </div>
       </div>
+
+      {/* CHECKLIST TÉCNICO DE ENTRADA */}
+      {(() => {
+        const chkSummary = formatTechnicalChecklistSummary(order.technicalChecklist);
+        if (chkSummary.length === 0) return null;
+        return (
+          <div className={`my-1.5 text-left ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} pt-1 border-t border-slate-300`}>
+            <span className="font-bold block mb-0.5 uppercase">Checklist Técnico (Entrada):</span>
+            <div
+              className={`px-1.5 py-1 ${isMini ? 'text-[7px]' : 'text-[8px]'} leading-tight whitespace-pre-line`}
+              style={{ border: '1px solid #000000' }}
+            >
+              {chkSummary.join(' | ')}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 7. PROBLEM & LAUDO TÉCNICO */}
       <div className={`my-1.5 text-left ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} space-y-1`}>

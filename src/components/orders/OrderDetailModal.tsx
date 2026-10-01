@@ -38,8 +38,9 @@ import {
   MapPin,
   Phone,
   Camera,
+  CheckSquare,
 } from 'lucide-react';
-import { ServiceOrder, OrderStatus, PaymentMethod, OrderPartItem, Product } from '../../types';
+import { ServiceOrder, OrderStatus, PaymentMethod, OrderPartItem, Product, DeviceTechnicalChecklist } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   formatCurrency,
@@ -56,6 +57,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { PatternLock } from './PatternLock';
 import { OrderDeliveryModal } from './OrderDeliveryModal';
 import { ProductModal } from '../products/ProductModal';
+import {
+  OrderTechnicalChecklistSection,
+  formatTechnicalChecklistSummary,
+} from './OrderTechnicalChecklistSection';
 
 interface OrderDetailModalProps {
   isOpen: boolean;
@@ -80,11 +85,15 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   // Local Reactive Order State (keeps status and items updated in real time)
   const [currentOrder, setCurrentOrder] = useState<ServiceOrder | null>(order || null);
+  const [isEditingChecklist, setIsEditingChecklist] = useState(false);
+  const [localChecklist, setLocalChecklist] = useState<DeviceTechnicalChecklist>(order?.technicalChecklist || {});
 
   useEffect(() => {
     if (order) {
       const fresh = StorageService.getOrderById(order.id) || order;
       setCurrentOrder(fresh);
+      setLocalChecklist(fresh.technicalChecklist || {});
+      setIsEditingChecklist(false);
     }
   }, [order?.id, isOpen]);
 
@@ -94,10 +103,13 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       const fresh = StorageService.getOrderById(order.id);
       if (fresh) {
         setCurrentOrder(fresh);
+        if (!isEditingChecklist) {
+          setLocalChecklist(fresh.technicalChecklist || {});
+        }
       }
     });
     return unsub;
-  }, [order?.id]);
+  }, [order?.id, isEditingChecklist]);
 
   // Interactive Parts & Service State
   const [localParts, setLocalParts] = useState<OrderPartItem[]>([]);
@@ -612,6 +624,21 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     showToast('Valores e peças salvos com sucesso na OS!');
   };
 
+  const handleSaveChecklist = (updatedChecklist: DeviceTechnicalChecklist) => {
+    const current = currentOrder || order;
+    if (!current) return;
+    const updated: ServiceOrder = {
+      ...current,
+      technicalChecklist: updatedChecklist,
+      updatedAt: new Date().toISOString(),
+    };
+    StorageService.saveOrder(updated);
+    setCurrentOrder(updated);
+    setLocalChecklist(updatedChecklist);
+    setIsEditingChecklist(false);
+    showToast('Checklist técnico salvo com sucesso!');
+  };
+
   // WhatsApp formatted message
   const cleanPhone = cleanPhoneForWhatsApp(order.customerPhone);
   const company = StorageService.getCompanySettings();
@@ -848,6 +875,190 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
                 {targetOrder.clientDefect || 'Nenhum defeito detalhado informado pelo cliente.'}
               </p>
+            </div>
+
+            {/* CHECKLIST TÉCNICO DO APARELHO */}
+            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                    <CheckSquare className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-slate-300 font-extrabold text-xs uppercase tracking-wider">
+                    Checklist Técnico do Aparelho
+                  </span>
+                  {(() => {
+                    const chk = targetOrder.technicalChecklist;
+                    if (!chk) return null;
+                    const c = [
+                      chk.ligar,
+                      chk.toqueTela,
+                      chk.flash,
+                      chk.wifi,
+                      chk.cameraFrontal,
+                      chk.cameraTraseira,
+                      chk.microfone,
+                      chk.audio,
+                      chk.volumeMais,
+                      chk.volumeMenos,
+                      chk.biometriaPresenca,
+                      chk.botaoAuxiliarPresenca,
+                      chk.gavetaChip,
+                      chk.cartaoMemoria,
+                      chk.chip1,
+                      chk.chip2,
+                      chk.sinalArea,
+                    ].filter(Boolean).length;
+                    return (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
+                        {c}/17 testados
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {!isEditingChecklist ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalChecklist(targetOrder.technicalChecklist || {});
+                      setIsEditingChecklist(true);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 hover:text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    <Edit2 className="w-3 h-3 text-emerald-400" />
+                    <span>{targetOrder.technicalChecklist ? 'Alterar Checklist' : 'Preencher Checklist'}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingChecklist(false)}
+                      className="px-2 py-1 text-[11px] font-bold text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveChecklist(localChecklist)}
+                      className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm cursor-pointer transition-all"
+                    >
+                      Salvar Checklist
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isEditingChecklist ? (
+                <div className="pt-2 animate-in fade-in space-y-2">
+                  <div className="max-h-[380px] overflow-y-auto rounded-xl border border-slate-700/80">
+                    <OrderTechnicalChecklistSection
+                      isDark={isDark}
+                      checklist={localChecklist}
+                      onChange={setLocalChecklist}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingChecklist(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveChecklist(localChecklist)}
+                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md cursor-pointer transition-all"
+                    >
+                      Salvar Alterações do Checklist
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                (() => {
+                  const summary = formatTechnicalChecklistSummary(targetOrder.technicalChecklist);
+                  if (summary.length === 0) {
+                    return (
+                      <div className="p-3 rounded-xl bg-[#07132a]/60 border border-slate-800 text-center space-y-1.5">
+                        <p className="text-xs text-slate-400">
+                          Nenhum teste de checklist registrado para este aparelho.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocalChecklist({});
+                            setIsEditingChecklist(true);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/50 text-emerald-300 hover:text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Preencher Checklist Agora</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex flex-wrap gap-1.5">
+                        {summary
+                          .filter((s) => !s.startsWith('Obs:'))
+                          .map((line, idx) => {
+                            const isPositive =
+                              line.includes(': SIM') ||
+                              line.includes(': FUNCIONA') ||
+                              line.includes(': DÁ ÁREA') ||
+                              line.includes(': TEM (FUNCIONA');
+                            const isNegative =
+                              line.includes(': NÃO') ||
+                              line.includes(': NÃO FUNCIONA') ||
+                              line.includes(': NÃO DÁ ÁREA') ||
+                              line.includes(': NÃO TEM');
+                            const isWarning =
+                              line.includes('DIFICULDADE') ||
+                              line.includes('MAU TOQUE') ||
+                              line.includes('DETALHE') ||
+                              line.includes('PROBLEMA');
+
+                            let pillColor =
+                              'bg-slate-800 text-slate-300 border-slate-700';
+                            if (isPositive) {
+                              pillColor =
+                                'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-xs';
+                            } else if (isNegative) {
+                              pillColor =
+                                'bg-rose-950/70 text-rose-300 border-rose-500/50 shadow-xs';
+                            } else if (isWarning) {
+                              pillColor =
+                                'bg-amber-950/70 text-amber-300 border-amber-500/50 shadow-xs';
+                            }
+
+                            return (
+                              <span
+                                key={idx}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold border leading-none ${pillColor}`}
+                              >
+                                {line}
+                              </span>
+                            );
+                          })}
+                      </div>
+
+                      {targetOrder.technicalChecklist?.observacoes && (
+                        <div className="p-2 rounded-xl bg-[#07132a] border border-slate-800 text-xs text-slate-300">
+                          <span className="font-bold text-cyan-400 block mb-0.5">
+                            Observações do Checklist:
+                          </span>
+                          <p className="whitespace-pre-line leading-relaxed">
+                            {targetOrder.technicalChecklist.observacoes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
             </div>
 
             {/* 4. Serviço executado */}
@@ -1324,7 +1535,20 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         isOpen={showDeliveryModal}
         order={targetOrder}
         onClose={() => setShowDeliveryModal(false)}
-        onSuccess={() => setShowDeliveryModal(false)}
+        onSuccess={(updatedOrder, receivable) => {
+          setShowDeliveryModal(false);
+          if (updatedOrder) {
+            setCurrentOrder(updatedOrder);
+          } else if (targetOrder?.id) {
+            const fresh = StorageService.getOrderById(targetOrder.id);
+            if (fresh) setCurrentOrder(fresh);
+          }
+          showToast(
+            receivable
+              ? 'OS entregue a prazo e vinculada à Ala dos Fiados com sucesso!'
+              : 'OS concluída e entregue com sucesso!'
+          );
+        }}
       />
 
       {/* Manager Password Prompt Modal */}

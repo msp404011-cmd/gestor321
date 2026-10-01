@@ -77,9 +77,9 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
   // Mode: 'FULL' (À Vista / Múltiplo) or 'CREDIT' (A Prazo)
   const [deliveryMode, setDeliveryMode] = useState<'FULL' | 'CREDIT'>('FULL');
 
-  // Default payment rows: Start with empty amount so input has NO zero prefilled!
+  // Default payment rows: Start with full total pre-filled so 1-click confirmation works seamlessly!
   const [paymentRows, setPaymentRows] = useState<PaymentRow[]>(() => [
-    { id: 'drow-1', method: 'PIX', amount: '' },
+    { id: 'drow-1', method: 'PIX', amount: totalAmount > 0 ? String(totalAmount) : '' },
   ]);
 
   // Reset rows when order or total amount changes
@@ -96,13 +96,13 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
           amount: p.amount ? String(p.amount) : '',
         }))
       );
-    } else if (order?.paymentMethod && order.paymentMethod !== 'A_PRAZO' && order.paymentStatus === 'PAGO') {
+    } else if (order?.paymentMethod && order.paymentMethod !== 'A_PRAZO') {
       setPaymentRows([
-        { id: 'drow-1', method: order.paymentMethod, amount: String(totalAmount) },
+        { id: 'drow-1', method: order.paymentMethod, amount: totalAmount > 0 ? String(totalAmount) : '' },
       ]);
     } else {
       setPaymentRows([
-        { id: 'drow-1', method: (order?.paymentMethod as any) || 'PIX', amount: '' },
+        { id: 'drow-1', method: 'PIX', amount: totalAmount > 0 ? String(totalAmount) : '' },
       ]);
     }
     setIsCompleted(false);
@@ -203,12 +203,19 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
       }
 
       if (deliveryMode === 'FULL') {
-        const activeSplits = paymentRows
+        let activeSplits = paymentRows
           .filter((r) => Number(r.amount) > 0)
           .map((r) => ({
             paymentMethod: r.method,
             amount: Number(r.amount),
           }));
+
+        if (activeSplits.length === 0 && totalAmount > 0 && paymentRows.length > 0) {
+          activeSplits = [{
+            paymentMethod: paymentRows[0].method || 'PIX',
+            amount: totalAmount,
+          }];
+        }
 
         if (activeSplits.length === 0) {
           setError('Por favor, informe ao menos uma forma de pagamento com valor maior que R$ 0,00.');
@@ -216,9 +223,10 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
           return;
         }
 
-        if (Math.abs(diffPaid) > 0.01 && sumPaid < totalAmount) {
+        const effectiveSumPaid = activeSplits.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+        if (Math.abs(totalAmount - effectiveSumPaid) > 0.01 && effectiveSumPaid < totalAmount) {
           setError(
-            `A soma dos pagamentos (${formatCurrency(sumPaid)}) é menor que o valor total da OS (${formatCurrency(totalAmount)}). Ajuste os valores ou selecione 'A Prazo'.`
+            `A soma dos pagamentos (${formatCurrency(effectiveSumPaid)}) é menor que o valor total da OS (${formatCurrency(totalAmount)}). Ajuste os valores ou selecione 'A Prazo'.`
           );
           setLoading(false);
           return;
@@ -239,7 +247,7 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
         onSuccess(updated);
       } else {
         // Entregar A Prazo / Fiado
-        if (downPayment < 0 || downPayment > totalAmount) {
+        if (downPayment < 0 || (Number(downPayment) > totalAmount && totalAmount > 0)) {
           setError('O valor de entrada não pode ser negativo nem maior que o total da OS.');
           setLoading(false);
           return;
@@ -247,8 +255,9 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
 
         const result = StorageService.deliverOrderOnCredit({
           orderId: order.id,
+          totalAmount: totalAmount,
           downPayment: Number(downPayment) || 0,
-          downPaymentMethod: downPayment > 0 ? downPaymentMethod : undefined,
+          downPaymentMethod: Number(downPayment) > 0 ? downPaymentMethod : undefined,
           dueDate,
           notes: creditNotes,
           userName: currentUser?.name,

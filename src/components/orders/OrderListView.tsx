@@ -1964,7 +1964,10 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         isOpen={!!orderForDelivery}
         order={orderForDelivery}
         onClose={() => setOrderForDelivery(null)}
-        onSuccess={() => setOrderForDelivery(null)}
+        onSuccess={(updatedOrder) => {
+          setOrderForDelivery(null);
+          setOrders(StorageService.getOrders());
+        }}
       />
 
       {/* Archive / Location Selection Modal */}

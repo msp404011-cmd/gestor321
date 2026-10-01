@@ -1452,6 +1452,19 @@ export const StorageService = {
     const user = this.getCurrentUser();
     const idx = orders.findIndex((o) => o.id === order.id);
 
+    // Compute robust totalPrice if not set or zero but has items/labor
+    const partsSum = (order.items && order.items.length > 0)
+      ? order.items.reduce((acc, it) => acc + (Number(it.totalPrice || it.total) || (Number(it.unitPrice) * (it.quantity || 1))), 0)
+      : (order.parts && order.parts.length > 0)
+      ? order.parts.reduce((acc, p) => acc + (Number(p.totalPrice || p.total) || (Number(p.unitPrice) * (p.quantity || 1))), 0)
+      : (Number(order.partsPrice) || 0);
+    const labor = Number(order.laborPrice) || 0;
+    const discount = Number(order.discount) || 0;
+    const computedTotal = Math.max(0, partsSum + labor - discount);
+    if (order.totalPrice === undefined || order.totalPrice === null || (order.totalPrice === 0 && (partsSum > 0 || labor > 0))) {
+      order.totalPrice = computedTotal;
+    }
+
     if (idx >= 0) {
       const prev = orders[idx];
       orders[idx] = order;
@@ -1459,16 +1472,66 @@ export const StorageService = {
 
       // If status changed to PRONTA or ENTREGUE, handle cash / receivables
       if (prev.status !== order.status) {
+        if (!order.statusHistory) order.statusHistory = [];
         order.statusHistory.push({
           status: order.status,
           changedAt: new Date().toISOString(),
-          changedBy: user.name,
+          changedBy: user?.name || 'Administrador',
           notes: `Status alterado de ${prev.status} para ${order.status}`,
         });
       }
     } else {
       orders.unshift(order);
       this.logAction(`Nova OS criada: #${order.orderNumber}`, `Cliente: ${order.customerName}, Aparelho: ${order.brand} ${order.model}`);
+    }
+
+    // Handle A Prazo / Fiado sync
+    const isCreditPayment = order.paymentMethod === 'A_PRAZO' || (order.paymentMethod as string) === 'FIADO';
+    if (isCreditPayment) {
+      const receivables = this.getReceivables();
+      const existingIdx = receivables.findIndex(
+        (r) => r.referenceId === order.id || r.referenceNumber === `OS #${order.orderNumber}`
+      );
+      const totalOrderAmount = Number(order.totalPrice) || computedTotal;
+      const downPay = (order.payments || []).reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const remaining = Math.max(0, totalOrderAmount - downPay);
+
+      if (existingIdx >= 0) {
+        const existing = receivables[existingIdx];
+        existing.customerName = order.customerName;
+        existing.customerPhone = order.customerPhone;
+        existing.deviceInfo = `${order.brand || ''} ${order.model || ''}`.trim() || 'Aparelho';
+        existing.originalAmount = totalOrderAmount;
+        existing.remainingAmount = remaining;
+        existing.amount = remaining;
+        existing.status = remaining === 0 ? 'PAGO' : (downPay > 0 ? 'PARCIAL' : 'PENDENTE');
+        existing.updatedAt = new Date().toISOString();
+        setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+        FirestoreSyncService.saveReceivable(existing);
+      } else if (remaining > 0 || totalOrderAmount > 0) {
+        const newRec: AccountReceivable = {
+          id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+          customerId: order.customerId,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          originType: 'ORDEM_SERVICO',
+          referenceNumber: `OS #${order.orderNumber}`,
+          referenceId: order.id,
+          amount: remaining,
+          originalAmount: totalOrderAmount,
+          paidAmount: downPay,
+          remainingAmount: remaining,
+          deviceInfo: `${order.brand || ''} ${order.model || ''}`.trim() || 'Aparelho',
+          serviceDescription: order.performedService || order.requestedService || order.clientDefect || 'Serviço técnico',
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: remaining === 0 ? 'PAGO' : (downPay > 0 ? 'PARCIAL' : 'PENDENTE'),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        receivables.unshift(newRec);
+        setItem(STORAGE_KEYS.RECEIVABLES, receivables);
+        FirestoreSyncService.saveReceivable(newRec);
+      }
     }
 
     setItem(STORAGE_KEYS.ORDERS, orders);
@@ -2316,6 +2379,7 @@ export const StorageService = {
 
   deliverOrderOnCredit(params: {
     orderId: string;
+    totalAmount?: number;
     downPayment?: number;
     downPaymentMethod?: PaymentMethod;
     dueDate?: string;
@@ -2328,7 +2392,19 @@ export const StorageService = {
 
     const user = this.getCurrentUser();
     const userName = params.userName || user?.name || 'Operador';
-    const totalPrice = Number(order.totalPrice) || 0;
+    
+    // Calculate total price properly
+    const partsSum = (order.items && order.items.length > 0)
+      ? order.items.reduce((acc, it) => acc + (Number(it.totalPrice || it.total) || (Number(it.unitPrice) * (it.quantity || 1))), 0)
+      : (order.parts && order.parts.length > 0)
+      ? order.parts.reduce((acc, p) => acc + (Number(p.totalPrice || p.total) || (Number(p.unitPrice) * (p.quantity || 1))), 0)
+      : (Number(order.partsPrice) || 0);
+    const labor = Number(order.laborPrice) || 0;
+    const discount = Number(order.discount) || 0;
+    const computedTotal = Math.max(0, partsSum + labor - discount);
+    const rawTotal = typeof order.totalPrice === 'number' && !isNaN(order.totalPrice) && order.totalPrice > 0 ? order.totalPrice : computedTotal;
+    const totalPrice = params.totalAmount !== undefined && params.totalAmount > 0 ? params.totalAmount : (rawTotal > 0 ? rawTotal : computedTotal);
+
     const downPayment = Math.max(0, Math.min(totalPrice, Number(params.downPayment) || 0));
     const remainingAmount = Math.max(0, totalPrice - downPayment);
     const dueDate = params.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -2345,10 +2421,14 @@ export const StorageService = {
       });
     }
 
-    // 2. Create the Receivable record
+    // 2. Create or Update the Receivable record
     const receivables = this.getReceivables();
+    const existingRecIdx = receivables.findIndex(
+      (r) => r.referenceId === order.id || r.referenceNumber === `OS #${order.orderNumber}`
+    );
+
     const receivable: AccountReceivable = {
-      id: 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      id: existingRecIdx >= 0 ? receivables[existingRecIdx].id : 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       customerId: order.customerId,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
@@ -2364,7 +2444,7 @@ export const StorageService = {
       deviceInfo: `${order.brand || ''} ${order.model || ''}`.trim() || 'Aparelho',
       serviceDescription: order.performedService || order.requestedService || order.clientDefect || 'Serviço técnico',
       dueDate,
-      status: remainingAmount === 0 ? 'PAGO' : 'PENDENTE',
+      status: remainingAmount === 0 ? 'PAGO' : (downPayment > 0 ? 'PARCIAL' : 'PENDENTE'),
       payments:
         downPayment > 0
           ? [
@@ -2380,19 +2460,33 @@ export const StorageService = {
           : [],
       paidAt: remainingAmount === 0 ? new Date().toISOString() : undefined,
       notes: params.notes,
-      createdAt: new Date().toISOString(),
+      createdAt: existingRecIdx >= 0 ? receivables[existingRecIdx].createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    receivables.unshift(receivable);
+    if (existingRecIdx >= 0) {
+      receivables[existingRecIdx] = receivable;
+    } else {
+      receivables.unshift(receivable);
+    }
     setItem(STORAGE_KEYS.RECEIVABLES, receivables);
     FirestoreSyncService.saveReceivable(receivable);
 
     // 3. Update Order status to ENTREGUE
     order.status = 'ENTREGUE';
+    order.totalPrice = totalPrice;
     order.deliveredAt = new Date().toISOString();
-    order.paymentMethod = downPayment > 0 ? params.downPaymentMethod : 'A_PRAZO';
-    order.paymentStatus = remainingAmount === 0 ? 'PAGO' : downPayment > 0 ? 'PARCIAL' : 'PENDENTE';
+    order.paymentMethod = 'A_PRAZO';
+    order.paymentStatus = remainingAmount === 0 ? 'PAGO' : (downPayment > 0 ? 'PARCIAL' : 'PENDENTE');
+    if (downPayment > 0) {
+      order.payments = [
+        {
+          paymentMethod: params.downPaymentMethod || 'DINHEIRO',
+          amount: downPayment,
+          date: new Date().toISOString(),
+        },
+      ];
+    }
 
     if (!order.statusHistory) order.statusHistory = [];
     order.statusHistory.push({
@@ -2403,6 +2497,7 @@ export const StorageService = {
     });
 
     setItem(STORAGE_KEYS.ORDERS, orders);
+    FirestoreSyncService.saveOrder(order);
     this.logAction(
       `OS #${order.orderNumber} entregue A PRAZO para ${order.customerName}`,
       `Total: R$ ${totalPrice.toFixed(2)}, Entrada: R$ ${downPayment.toFixed(2)}, Saldo A Prazo: R$ ${remainingAmount.toFixed(2)}`
