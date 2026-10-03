@@ -1560,21 +1560,21 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-700/40">
-                      <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-700/40 gap-2">
+                      <div className="flex items-center justify-between sm:justify-start">
                         <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">Valor:</span>
-                        <span className="font-black text-sm text-emerald-400">{formatCurrency(os.totalPrice)}</span>
+                        <span className="font-black text-sm text-emerald-400 font-mono">{formatCurrency(os.totalPrice)}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {waLink && (
                           <a
                             href={waLink}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs flex items-center gap-1"
+                            className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all"
                           >
-                            <MessageCircle className="w-3.5 h-3.5" />
+                            <MessageCircle className="w-3.5 h-3.5 shrink-0" />
                             <span>WhatsApp</span>
                           </a>
                         )}
@@ -1584,9 +1584,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                             e.stopPropagation();
                             onOpenPrint(os);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs flex items-center gap-1 cursor-pointer"
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                         >
-                          <Printer className="w-3.5 h-3.5" />
+                          <Printer className="w-3.5 h-3.5 shrink-0" />
                           <span>Imprimir</span>
                         </button>
                         <button
@@ -1595,9 +1595,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                             e.stopPropagation();
                             setOrderToDelete(os);
                           }}
-                          className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
                           <span>Excluir</span>
                         </button>
                       </div>

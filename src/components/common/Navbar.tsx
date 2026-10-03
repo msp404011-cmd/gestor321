@@ -110,23 +110,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header
-      className={`h-14 sm:h-16 border-b-2 flex items-center justify-between px-2.5 sm:px-6 lg:px-8 sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors ${
+      className={`h-13 sm:h-16 border-b-2 flex items-center justify-between px-2 sm:px-5 lg:px-8 sticky top-0 z-30 shrink-0 backdrop-blur-md transition-colors safe-top ${
         isDark
           ? 'bg-[#070b14]/95 border-slate-800 text-slate-100'
           : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
       }`}
     >
       {/* Left side: Mobile Toggle + Search Bar */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-xl min-w-0 mr-2">
+      <div className="flex items-center gap-1.5 sm:gap-3 flex-1 max-w-xl min-w-0 mr-1 sm:mr-3">
         <button
           type="button"
           onClick={handleMobileMenu}
-          className={`p-2 rounded-xl lg:hidden transition-colors shrink-0 ${
+          className={`w-10 h-10 min-w-[40px] min-h-[40px] rounded-xl lg:hidden flex items-center justify-center transition-colors shrink-0 cursor-pointer active:scale-95 ${
             isDark
-              ? 'text-slate-300 hover:text-white hover:bg-slate-800/60 bg-slate-900/60 border border-slate-800'
+              ? 'text-slate-300 hover:text-white hover:bg-slate-800/80 bg-slate-900/80 border border-slate-800'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-slate-100 border border-slate-200'
           }`}
-          title="Menu Principal"
+          title="Abrir Menu Principal"
+          aria-label="Abrir Menu Principal"
         >
           <Menu className="w-5 h-5 text-cyan-400" />
         </button>
@@ -142,7 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <span className={`truncate text-[11px] sm:text-xs ${isDark ? 'text-slate-400 group-hover:text-slate-300' : 'text-slate-600'}`}>
-              <span className="sm:hidden">Pesquisar...</span>
+              <span className="sm:hidden">Buscar no sistema...</span>
               <span className="hidden sm:inline">Pesquisar clientes, OS, produtos, IMEI...</span>
             </span>
             <span
@@ -158,17 +159,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Right side: Notifications, WhatsApp, Theme Toggle & User Profile */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
         {/* Notifications Icon with Glowing Red Counter Badge */}
         <button
           type="button"
           onClick={onOpenNotifications}
-          className={`relative p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer ${
+          className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
             isDark
               ? 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
           title="Alertas e Notificações"
+          aria-label="Alertas e Notificações"
         >
           <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
           {calculatedUnread > 0 && (
@@ -182,8 +184,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={handleWhatsApp}
-          className="hidden sm:flex p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-xl transition-colors cursor-pointer drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+          className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 items-center justify-center text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-xl transition-colors cursor-pointer drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
           title="Abrir WhatsApp"
+          aria-label="Abrir WhatsApp"
         >
           <MessageCircle className="w-5 h-5" />
         </button>
@@ -192,12 +195,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={toggleTheme}
-          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer border ${
+          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border active:scale-95 ${
             isDark
               ? 'text-amber-400 hover:bg-slate-800/80 border-slate-700 bg-slate-900/60 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
               : 'text-blue-600 hover:bg-slate-200 border-slate-300 bg-white shadow-xs'
           }`}
           title={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
+          aria-label={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
         >
           {isDark ? <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />}
         </button>

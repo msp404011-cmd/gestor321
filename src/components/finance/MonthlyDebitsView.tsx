@@ -151,6 +151,19 @@ export function MonthlyDebitsView() {
   const [expandedDebits, setExpandedDebits] = useState<Record<string, boolean>>({});
   const [expandedPayables, setExpandedPayables] = useState<Record<string, boolean>>({});
 
+  // Delete Confirmation Modal State
+  const [deleteConfirmState, setDeleteConfirmState] = useState<{
+    isOpen: boolean;
+    id: string;
+    name: string;
+    type: 'DEBIT' | 'PAYABLE';
+  }>({
+    isOpen: false,
+    id: '',
+    name: '',
+    type: 'DEBIT',
+  });
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const confettiEngineRef = useRef<ConfettiEngine | null>(null);
 
@@ -230,6 +243,59 @@ export function MonthlyDebitsView() {
     } else {
       return 'PENDING_THIS_MONTH';
     }
+  };
+
+  // Smart helper to parse due day from any user input (Ex: "Todo dia 10", "15", "2026-10-15")
+  const parseDueDay = (dueDateStr: string): number => {
+    if (!dueDateStr) return 10;
+    if (/^\d{4}-\d{2}-\d{2}/.test(dueDateStr)) {
+      const d = new Date(dueDateStr);
+      if (!isNaN(d.getTime())) return d.getDate();
+    }
+    const digits = dueDateStr.replace(/\D/g, '');
+    if (digits) {
+      const val = parseInt(digits, 10);
+      if (val >= 1 && val <= 31) return val;
+    }
+    return 10;
+  };
+
+  // Helper to check if a MonthlyDebit is overdue / atrasado
+  const isDebitOverdue = (debit: MonthlyDebit): boolean => {
+    if (debit.paidInstallments >= debit.installmentsCount) return false;
+
+    const currentMonthStatus = getStatusForCurrentMonth(debit);
+    if (currentMonthStatus === 'FUTURE') return false;
+
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueDay = parseDueDay(debit.dueDate);
+
+    const startMonthStr = debit.startMonth || currentMonthYear;
+    const [startY, startM] = startMonthStr.split('-').map(Number);
+    const [currY, currM] = currentMonthYear.split('-').map(Number);
+    const elapsedMonths = (currY - startY) * 12 + (currM - startM);
+
+    if (debit.paidInstallments < elapsedMonths) {
+      return true; // Previous month installment unpaid
+    }
+
+    if (currentMonthStatus === 'PENDING_THIS_MONTH' && todayDay > dueDay) {
+      return true; // Current month due day passed
+    }
+
+    return false;
+  };
+
+  // Helper to check if AccountsPayable is overdue
+  const isPayableOverdue = (payable: AccountsPayable): boolean => {
+    if (payable.currentBalance <= 0) return false;
+
+    const today = new Date();
+    const todayDay = today.getDate();
+    const dueDay = parseDueDay(payable.dueDate);
+
+    return todayDay > dueDay;
   };
 
   // Bi-directional calculations handlers for MonthlyDebits Form
@@ -405,9 +471,41 @@ export function MonthlyDebitsView() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Tem certeza que deseja excluir o débito "${name}"?`)) {
+    setDeleteConfirmState({
+      isOpen: true,
+      id,
+      name,
+      type: 'DEBIT',
+    });
+  };
+
+  const handleDeletePayable = (id: string, name: string) => {
+    setDeleteConfirmState({
+      isOpen: true,
+      id,
+      name,
+      type: 'PAYABLE',
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    const { id, type } = deleteConfirmState;
+    if (!id) return;
+
+    if (type === 'DEBIT') {
       StorageService.deleteMonthlyDebit(id);
+      setDebits(StorageService.getMonthlyDebits());
+    } else {
+      StorageService.deleteAccountsPayable(id);
+      setPayables(StorageService.getAccountsPayable());
     }
+
+    setDeleteConfirmState({
+      isOpen: false,
+      id: '',
+      name: '',
+      type: 'DEBIT',
+    });
   };
 
   const handleBaixa = (debit: MonthlyDebit, event: React.MouseEvent<HTMLButtonElement>) => {
@@ -495,10 +593,23 @@ export function MonthlyDebitsView() {
     }
   };
 
-  const handleDeletePayable = (id: string, name: string) => {
-    if (window.confirm(`Excluir a conta "${name}" e todo seu histórico de lançamentos?`)) {
-      StorageService.deleteAccountsPayable(id);
-    }
+  const handleDeletePayableTransaction = (payable: AccountsPayable, txId: string) => {
+    const targetTx = payable.transactions.find((t) => t.id === txId);
+    if (!targetTx) return;
+
+    const filteredTx = payable.transactions.filter((t) => t.id !== txId);
+    // Recalculate balance
+    const delta = targetTx.type === 'DEBIT' ? -targetTx.amount : targetTx.amount;
+    const newBalance = Math.max(0, payable.currentBalance + delta);
+
+    const updatedPayable: AccountsPayable = {
+      ...payable,
+      currentBalance: newBalance,
+      transactions: filteredTx,
+    };
+
+    StorageService.saveAccountsPayable(updatedPayable);
+    setPayables(StorageService.getAccountsPayable());
   };
 
   const toggleExpandPayable = (id: string) => {
@@ -728,29 +839,45 @@ export function MonthlyDebitsView() {
                 const isFullyPaid = debit.paidInstallments >= debit.installmentsCount;
                 const currentMonthStatus = getStatusForCurrentMonth(debit);
                 const isPaidThisMonth = currentMonthStatus === 'PAID_THIS_MONTH' || isFullyPaid;
+                const isOverdue = isDebitOverdue(debit);
 
                 const isExpanded = expandedDebits[debit.id] || false;
 
                 return (
                   <div 
                     key={debit.id}
-                    className={`relative overflow-hidden rounded-3xl border-2 bg-[#040814] flex flex-col justify-between shadow-lg hover:shadow-2xl transition-all duration-300 ${
+                    className={`relative overflow-hidden rounded-3xl border-2 flex flex-col justify-between shadow-lg hover:shadow-2xl transition-all duration-300 ${
                       isFullyPaid 
-                        ? 'border-emerald-500/40 hover:border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
-                        : isPaidThisMonth 
-                          ? 'border-blue-500/40 hover:border-blue-500/60 shadow-[0_0_15px_rgba(59,130,246,0.05)]' 
-                          : 'border-pink-500/30 hover:border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.05)]'
+                        ? 'bg-[#040814] border-emerald-500/40 hover:border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                        : isOverdue
+                          ? 'bg-gradient-to-b from-[#280B10] via-[#12071A] to-[#040814] border-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.45)] ring-1 ring-orange-500'
+                          : isPaidThisMonth 
+                            ? 'bg-[#040814] border-blue-500/40 hover:border-blue-500/60 shadow-[0_0_15px_rgba(59,130,246,0.05)]' 
+                            : 'bg-[#040814] border-pink-500/30 hover:border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.05)]'
                     }`}
                   >
                     <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${
                       isFullyPaid 
                         ? 'from-emerald-500 to-teal-400' 
-                        : isPaidThisMonth 
-                          ? 'from-blue-500 to-cyan-400' 
-                          : 'from-pink-500 to-purple-500'
+                        : isOverdue
+                          ? 'from-rose-600 via-orange-500 to-amber-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                          : isPaidThisMonth 
+                            ? 'from-blue-500 to-cyan-400' 
+                            : 'from-pink-500 to-purple-500'
                     }`} />
 
                     <div className="p-5 space-y-4">
+                      {/* FLAMING OVERDUE ALERT BANNER */}
+                      {isOverdue && (
+                        <div className="bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center justify-between gap-1 shadow-lg animate-pulse">
+                          <span className="flex items-center gap-1.5 uppercase tracking-wide text-[10px] sm:text-xs">
+                            🔥 PARCELA VENCIDA / EM ATRASO!
+                          </span>
+                          <span className="text-[9px] bg-black/40 px-2 py-0.5 rounded font-mono">
+                            QUITAR AGORA
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="text-base font-black text-slate-100 truncate leading-tight tracking-wide uppercase">
@@ -850,6 +977,11 @@ export function MonthlyDebitsView() {
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/50 uppercase tracking-wider flex items-center gap-1">
                             <Check className="w-3 h-3" />
                             <span>Pago</span>
+                          </span>
+                        ) : isOverdue ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white border border-rose-400 uppercase tracking-wider flex items-center gap-1 shadow-md animate-pulse">
+                            <BadgeAlert className="w-3 h-3" />
+                            <span>🔥 Vencida</span>
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-pink-500/20 text-pink-400 border border-pink-500/50 uppercase tracking-wider flex items-center gap-1 animate-pulse">
@@ -1042,25 +1174,41 @@ export function MonthlyDebitsView() {
               {payables.map((payable) => {
                 const isExpanded = expandedPayables[payable.id] || false;
                 const isTxFormOpen = activePayableIdForTx === payable.id;
+                const isOverdue = isPayableOverdue(payable);
 
                 return (
                   <div 
                     key={payable.id}
-                    className={`relative overflow-hidden rounded-3xl border-2 bg-[#040814] flex flex-col justify-between shadow-lg hover:shadow-2xl transition-all duration-300 ${
+                    className={`relative overflow-hidden rounded-3xl border-2 flex flex-col justify-between shadow-lg hover:shadow-2xl transition-all duration-300 ${
                       payable.currentBalance <= 0 
-                        ? 'border-emerald-500/40 hover:border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
-                        : 'border-cyan-500/30 hover:border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.05)]'
+                        ? 'bg-[#040814] border-emerald-500/40 hover:border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.05)]' 
+                        : isOverdue
+                          ? 'bg-gradient-to-b from-[#280B10] via-[#12071A] to-[#040814] border-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.45)] ring-1 ring-orange-500'
+                          : 'bg-[#040814] border-cyan-500/30 hover:border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.05)]'
                     }`}
                   >
                     {/* Visual bar header */}
                     <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${
                       payable.currentBalance <= 0 
                         ? 'from-emerald-500 to-teal-400' 
-                        : 'from-cyan-500 to-indigo-500'
+                        : isOverdue
+                          ? 'from-rose-600 via-orange-500 to-amber-500 shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                          : 'from-cyan-500 to-indigo-500'
                     }`} />
 
                     {/* Ficha Information */}
                     <div className="p-5 space-y-4 flex-1">
+                      {/* FLAMING OVERDUE ALERT BANNER */}
+                      {isOverdue && (
+                        <div className="bg-gradient-to-r from-rose-600 via-orange-600 to-amber-600 text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center justify-between gap-1 shadow-lg animate-pulse mb-3">
+                          <span className="flex items-center gap-1.5 uppercase tracking-wide text-[10px] sm:text-xs">
+                            🔥 CONTA VENCIDA / EM ATRASO!
+                          </span>
+                          <span className="text-[9px] bg-black/40 px-2 py-0.5 rounded font-mono">
+                            QUITAR AGORA
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="text-base font-black text-slate-100 truncate leading-tight tracking-wide uppercase">
@@ -1226,11 +1374,21 @@ export function MonthlyDebitsView() {
                                     {new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 </div>
-                                <span className={`font-black ${
-                                  tx.type === 'DEBIT' ? 'text-red-400' : 'text-emerald-400'
-                                }`}>
-                                  {tx.type === 'DEBIT' ? '+' : '-'}{formatCurrency(tx.amount)}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-black ${
+                                    tx.type === 'DEBIT' ? 'text-red-400' : 'text-emerald-400'
+                                  }`}>
+                                    {tx.type === 'DEBIT' ? '+' : '-'}{formatCurrency(tx.amount)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePayableTransaction(payable, tx.id)}
+                                    className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                    title="Remover este lançamento"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1475,6 +1633,50 @@ export function MonthlyDebitsView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CONFIRMAR EXCLUSÃO DE DEBITO OU CONTA */}
+      {deleteConfirmState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md overflow-hidden border-2 border-red-500/40 bg-[#040815] rounded-3xl shadow-[0_0_40px_rgba(239,68,68,0.3)] animate-scale-up p-6 space-y-5 text-center">
+            <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+              <Trash2 className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black uppercase text-white tracking-wide">
+                Confirmar Exclusão
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tem certeza que deseja excluir <strong className="text-red-400">"{deleteConfirmState.name}"</strong>?
+              </p>
+              <p className="text-[11px] text-slate-500 italic">
+                {deleteConfirmState.type === 'DEBIT'
+                  ? 'Esta ação removerá o débito mensal e seu histórico de parcelas.'
+                  : 'Esta ação removerá a conta e todos os lançamentos registrados.'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setDeleteConfirmState({ isOpen: false, id: '', name: '', type: 'DEBIT' })
+                }
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-black uppercase tracking-wider shadow-lg hover:shadow-red-500/30 hover:scale-102 active:scale-95 transition-all cursor-pointer"
+              >
+                Sim, Excluir
+              </button>
+            </div>
           </div>
         </div>
       )}

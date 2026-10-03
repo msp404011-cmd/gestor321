@@ -17,7 +17,6 @@ import {
   LogIn,
   CheckCircle2,
   HelpCircle,
-  KeyRound,
   ArrowRight,
   RefreshCw,
   Phone,
@@ -43,7 +42,7 @@ interface LoginViewProps {
   }) => void;
 }
 
-type AuthMode = 'login' | 'register' | 'forgot_password';
+type AuthMode = 'login' | 'register';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { isDark, toggleTheme } = useTheme();
@@ -65,12 +64,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
-
-  // Form Fields - Forgot Password / Direct Reset
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetNewPassword, setResetNewPassword] = useState('');
-  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [selectedTrialPlan, setSelectedTrialPlan] = useState<'PDV_VENDAS' | 'ASSISTENCIA' | 'REVENDA'>('ASSISTENCIA');
 
   // Auto-login after version update reload
   useEffect(() => {
@@ -275,7 +269,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           const storedPass = firebaseAccountData.senha || firebaseAccountData.password || firebaseAccountData.pass || firebaseAccountData.pin || firebaseAccountData.passwordHash;
           const isPassCorrect = storedPass && (storedPass === pass || storedPass === trimmedPass);
           if (!isPassCorrect) {
-            throw new Error('Senha incorreta. Verifique sua senha ou utilize a recuperação de acesso.');
+            throw new Error('Senha incorreta. Verifique sua senha digitada.');
           }
         } else {
           try {
@@ -372,6 +366,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         password: regPassword,
         phone: regPhone,
         uid: uid,
+        planType: selectedTrialPlan,
       });
 
       setSuccessMsg('🎉 Conta criada com sucesso! 7 dias grátis ativados.');
@@ -394,48 +389,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // 3. Submit Reset Password
-  const handleResetPasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    if (!resetEmail.trim() || !resetEmail.includes('@')) {
-      setError('Informe o e-mail cadastrado da sua conta.');
-      return;
-    }
-
-    if (resetNewPassword.length < 4) {
-      setError('A nova senha deve ter pelo menos 4 caracteres.');
-      return;
-    }
-
-    if (resetNewPassword !== resetConfirmPassword) {
-      setError('As novas senhas não coincidem.');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      StorageService.resetPasswordDirect({
-        email: resetEmail,
-        newPassword: resetNewPassword,
-      });
-
-      setSuccessMsg('Senha alterada com sucesso! Você já pode entrar com sua nova senha.');
-      setTimeout(() => {
-        setLoginEmail(resetEmail);
-        setLoginPassword(resetNewPassword);
-        setMode('login');
-        setIsLoading(false);
-      }, 1200);
-    } catch (err: any) {
-      setError(err.message || 'Erro ao redefinir senha.');
-      setIsLoading(false);
-    }
-  };
-
-  // 4. Demo Login Access
+  // Demo Login Access
   const handleDemoLogin = () => {
     setIsLoading(true);
     try {
@@ -487,20 +441,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             title={isDark ? 'Modo Claro' : 'Modo Escuro'}
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-
-          <button
-            type="button"
-            id="btn-login-demo-top"
-            onClick={handleDemoLogin}
-            className={`hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-              isDark
-                ? 'bg-slate-900/60 hover:bg-slate-800 text-slate-300 border-slate-700'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-xs'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Acesso Demonstrativo</span>
           </button>
         </div>
       </header>
@@ -592,45 +532,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
             <div className="space-y-5 relative z-10">
               {/* Tabs Switcher: Entrar / Criar Conta */}
-              {mode !== 'forgot_password' && (
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#030712] rounded-2xl border border-slate-800">
-                  <button
-                    type="button"
-                    id="tab-btn-login"
-                    onClick={() => {
-                      setMode('login');
-                      setError(null);
-                      setSuccessMsg(null);
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      mode === 'login'
-                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Entrar</span>
-                  </button>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#030712] rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  id="tab-btn-login"
+                  onClick={() => {
+                    setMode('login');
+                    setError(null);
+                    setSuccessMsg(null);
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    mode === 'login'
+                      ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Entrar</span>
+                </button>
 
-                  <button
-                    type="button"
-                    id="tab-btn-register"
-                    onClick={() => {
-                      setMode('register');
-                      setError(null);
-                      setSuccessMsg(null);
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      mode === 'register'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/30'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Criar Conta</span>
-                  </button>
-                </div>
-              )}
+                <button
+                  type="button"
+                  id="tab-btn-register"
+                  onClick={() => {
+                    setMode('register');
+                    setError(null);
+                    setSuccessMsg(null);
+                  }}
+                  className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    mode === 'register'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Criar Conta</span>
+                </button>
+              </div>
 
               {/* Title & Badge */}
               <div className="text-center space-y-1.5">
@@ -642,14 +580,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 )}
 
                 <h3 className="text-2xl font-black tracking-tight text-white dark:text-white">
-                  {mode === 'login' && 'Acessar Minha Conta'}
-                  {mode === 'register' && 'Cadastrar Assistência'}
-                  {mode === 'forgot_password' && 'Redefinir Minha Senha'}
+                  {mode === 'login' ? 'Acessar Minha Conta' : 'Cadastrar Assistência'}
                 </h3>
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {mode === 'login' && 'Digite seu e-mail e senha para entrar no sistema.'}
-                  {mode === 'register' && 'Preencha os dados da sua loja para iniciar seu teste grátis.'}
-                  {mode === 'forgot_password' && 'Digite seu e-mail e defina uma nova senha de acesso.'}
+                  {mode === 'login'
+                    ? 'Digite seu e-mail e senha para entrar no sistema.'
+                    : 'Preencha os dados da sua loja para iniciar seu teste grátis.'}
                 </p>
               </div>
 
@@ -689,25 +625,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   </div>
 
                   <div className="space-y-1 text-left">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Senha:</span>
-                      </label>
-                      <button
-                        type="button"
-                        id="btn-forgot-password-link"
-                        onClick={() => {
-                          setMode('forgot_password');
-                          setError(null);
-                          setSuccessMsg(null);
-                          setResetEmail(loginEmail);
-                        }}
-                        className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer"
-                      >
-                        Esqueci minha senha
-                      </button>
-                    </div>
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Senha:</span>
+                    </label>
 
                     <div className="relative">
                       <input
@@ -852,6 +773,68 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     </div>
                   </div>
 
+                  <div className="space-y-1.5 text-left pt-1">
+                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Selecione uma das 3 Opções de Teste de 7 Dias:</span>
+                    </label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrialPlan('PDV_VENDAS')}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                          selectedTrialPlan === 'PDV_VENDAS'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white font-bold ring-2 ring-emerald-500/40'
+                            : 'bg-[#030712] border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-black text-emerald-400">1. Teste de 7 Dias — Apenas PDV</div>
+                          <div className="text-[10px] text-slate-400">Focado em Frente de Caixa, Vendas e Estoque.</div>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${selectedTrialPlan === 'PDV_VENDAS' ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-slate-700'}`}>
+                          {selectedTrialPlan === 'PDV_VENDAS' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrialPlan('ASSISTENCIA')}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                          selectedTrialPlan === 'ASSISTENCIA'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white font-bold ring-2 ring-emerald-500/40'
+                            : 'bg-[#030712] border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-black text-emerald-400">2. Teste de 7 Dias — Menos Revenda</div>
+                          <div className="text-[10px] text-slate-400">Assistência técnica completa, OS, PDV e Peças.</div>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${selectedTrialPlan === 'ASSISTENCIA' ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-slate-700'}`}>
+                          {selectedTrialPlan === 'ASSISTENCIA' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrialPlan('REVENDA')}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                          selectedTrialPlan === 'REVENDA'
+                            ? 'bg-emerald-500/20 border-emerald-400 text-white font-bold ring-2 ring-emerald-500/40'
+                            : 'bg-[#030712] border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-black text-emerald-400">3. Teste de 7 Dias — Completo</div>
+                          <div className="text-[10px] text-slate-400">Todos os módulos (Assistência + Revenda/Atacado).</div>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${selectedTrialPlan === 'REVENDA' ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-slate-700'}`}>
+                          {selectedTrialPlan === 'REVENDA' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
                     <button
                       type="button"
@@ -885,121 +868,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 </form>
               )}
 
-              {/* --- 3. FORM DE REDEFINIÇÃO DE SENHA DIRETA --- */}
-              {mode === 'forgot_password' && (
-                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-                  <div className="space-y-1 text-left">
-                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-purple-400" />
-                      <span>E-mail da sua conta:</span>
-                    </label>
-                    <input
-                      type="email"
-                      id="input-reset-email"
-                      required
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="ex: contato@minhaloja.com"
-                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-sans font-medium text-white focus:outline-none transition-colors not-italic"
-                    />
-                  </div>
-
-                  <div className="space-y-1 text-left">
-                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Nova Senha:</span>
-                    </label>
-                    <input
-                      type={showResetPassword ? 'text' : 'password'}
-                      id="input-reset-new-password"
-                      required
-                      value={resetNewPassword}
-                      onChange={(e) => setResetNewPassword(e.target.value)}
-                      placeholder="Digite a nova senha (mínimo 4 dígitos)"
-                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <div className="space-y-1 text-left">
-                    <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Confirmar Nova Senha:</span>
-                    </label>
-                    <input
-                      type={showResetPassword ? 'text' : 'password'}
-                      id="input-reset-confirm-password"
-                      required
-                      value={resetConfirmPassword}
-                      onChange={(e) => setResetConfirmPassword(e.target.value)}
-                      placeholder="Repita a nova senha"
-                      className="w-full px-3.5 py-2.5 bg-[#030712] border border-slate-700 focus:border-purple-400 rounded-xl text-sm font-medium text-white focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    id="btn-submit-reset-password"
-                    disabled={isLoading}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98 disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Redefinindo Senha...</span>
-                      </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        <span>Salvar Nova Senha</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('login');
-                        setError(null);
-                        setSuccessMsg(null);
-                      }}
-                      className="text-xs text-slate-400 hover:text-white cursor-pointer font-bold"
-                    >
-                      ← Voltar para a tela de Login
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Demo Mode Action Divider */}
-              <div className="relative py-1 flex items-center justify-center">
-                <div className={`w-full border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`} />
-                <span className={`px-3 text-[10px] font-bold uppercase tracking-wider absolute ${
-                  isDark ? 'bg-[#060d1f] text-slate-500' : 'bg-white text-slate-400'
-                }`}>
-                  Ou experimente agora
-                </span>
-              </div>
-
-              {/* Secondary Demo / Test Button */}
-              <button
-                type="button"
-                id="btn-login-demo-main"
-                onClick={handleDemoLogin}
-                disabled={isLoading}
-                className={`w-full py-3 px-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border ${
-                  isDark
-                    ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-600'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Entrar como Demonstrativo / Teste</span>
-                <ArrowRight className="w-3.5 h-3.5 opacity-60" />
-              </button>
-
               {/* Security & Guarantee Info */}
-              <div className="pt-2 border-t border-slate-800/60 space-y-1.5 text-[11px] text-slate-400">
+              <div className="pt-3 border-t border-slate-800/60 space-y-1.5 text-[11px] text-slate-400">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                   <span>Acesso individual e banco de dados 100% isolado por loja.</span>

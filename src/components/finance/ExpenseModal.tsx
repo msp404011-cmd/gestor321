@@ -152,7 +152,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className={`w-full max-w-2xl rounded-2xl border shadow-2xl relative my-auto overflow-hidden transition-all ${
+      <div className={`w-full max-w-2xl rounded-2xl border shadow-2xl relative my-auto overflow-hidden transition-all max-h-[92dvh] flex flex-col ${
         isDark ? 'bg-[#081226] border-blue-900/80 text-white' : 'bg-white border-slate-200 text-slate-900'
       }`}>
         {/* Header */}
@@ -468,12 +468,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-2 border-t border-blue-900/60 flex items-center justify-end gap-2.5">
+          <div className="pt-2 border-t border-blue-900/60 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 safe-bottom">
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                isDark ? 'text-slate-300 hover:bg-blue-900/40' : 'text-slate-700 hover:bg-slate-100'
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-[42px] flex items-center justify-center ${
+                isDark ? 'text-slate-300 hover:bg-blue-900/40 bg-slate-800' : 'text-slate-700 hover:bg-slate-100 bg-slate-200'
               }`}
             >
               Cancelar
@@ -481,7 +481,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02]"
+              className="px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02] min-h-[42px]"
             >
               <Save className="w-3.5 h-3.5" />
               <span>Salvar Despesa</span>

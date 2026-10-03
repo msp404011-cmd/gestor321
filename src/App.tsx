@@ -46,6 +46,7 @@ const CameraPackageManagement = lazy(() => import('./components/master/CameraPac
 const SupplierOrdersManagement = lazy(() => import('./components/master/SupplierOrdersManagement').then(m => ({ default: m.SupplierOrdersManagement })));
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
 const MessageBudgetsView = lazy(() => import('./components/master/MessageBudgetsView').then(m => ({ default: m.MessageBudgetsView })));
+const DailyTasksView = lazy(() => import('./components/master/DailyTasksView').then(m => ({ default: m.DailyTasksView })));
 const GlobalSearchModal = lazy(() => import('./components/common/GlobalSearchModal').then(m => ({ default: m.GlobalSearchModal })));
 const NotificationDrawer = lazy(() => import('./components/common/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
 
@@ -87,6 +88,7 @@ export default function App() {
     if (['COMPATIBILITY', 'COMPATIBILIDADE'].includes(h)) return 'COMPATIBILITY';
     if (['RESELLERS', 'REVENDEDORES'].includes(h)) return 'RESELLERS';
     if (['MESSAGE_BUDGETS', 'ORCAMENTOS', 'MENSAGENS', 'ORCAMENTO_MENSAGENS'].includes(h)) return 'MESSAGE_BUDGETS';
+    if (['TASKS', 'TAREFAS', 'TAREFA', 'TAREFAS_DIARIAS'].includes(h)) return 'TASKS';
     if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
     return null;
   };
@@ -923,6 +925,10 @@ export default function App() {
               />
             )}
 
+            {activeTab === 'TASKS' && (
+              <DailyTasksView />
+            )}
+
             {activeTab === 'RECEIVABLES' && (
               <ReceivablesView
                 onOpenOrder={(orderId) => {
@@ -979,8 +985,8 @@ export default function App() {
 
         {/* Mobile Bottom Navigation Bar */}
         {activeTab !== 'POS' && (
-          <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 h-15 sm:h-16 border-t flex items-center justify-around px-1 sm:px-2 safe-bottom backdrop-blur-lg transition-colors ${
-            isDark ? 'bg-[#070b14]/90 border-slate-800 text-slate-300' : 'bg-white/90 border-slate-200 text-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]'
+          <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 h-14 sm:h-16 border-t flex items-center justify-around px-1 sm:px-2 safe-bottom backdrop-blur-lg transition-colors ${
+            isDark ? 'bg-[#070b14]/95 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-700 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]'
           }`}>
             {[
               { id: 'DASHBOARD', label: 'Início', icon: LayoutDashboard },
@@ -1003,20 +1009,36 @@ export default function App() {
                       setActiveTab(item.id as NavigationTab);
                     }
                   }}
-                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all cursor-pointer relative ${
+                  className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all cursor-pointer relative active:scale-95 ${
                     isActive
                       ? 'text-cyan-400 font-extrabold'
                       : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900'
                   }`}
+                  aria-label={item.label}
                 >
                   {isActive && (
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
                   )}
-                  <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'text-cyan-400 scale-110 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : ''}`} />
-                  <span className="text-[10px] tracking-tight truncate max-w-full">{item.label}</span>
+                  <Icon className={`w-4.5 h-4.5 sm:w-5 sm:h-5 mb-0.5 transition-transform ${isActive ? 'text-cyan-400 scale-110 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)]' : ''}`} />
+                  <span className="text-[9px] sm:text-[10px] tracking-tight truncate max-w-full font-bold">{item.label}</span>
                 </button>
               );
             })}
+
+            {/* Menu trigger button for all other sections (Financeiro, Relatórios, Config, etc.) */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all cursor-pointer relative active:scale-95 ${
+                isMobileMenuOpen
+                  ? 'text-cyan-400 font-extrabold'
+                  : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-900'
+              }`}
+              aria-label="Mais opções e setores"
+            >
+              <RefreshCw className="w-4.5 h-4.5 sm:w-5 sm:h-5 mb-0.5" />
+              <span className="text-[9px] sm:text-[10px] tracking-tight truncate max-w-full font-bold">Mais</span>
+            </button>
           </nav>
         )}
       </div>

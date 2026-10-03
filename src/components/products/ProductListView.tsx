@@ -834,11 +834,11 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                   </div>
 
                   {/* Bottom: Action Buttons */}
-                  <div className="flex items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-blue-950/60">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 mt-2.5 pt-2 border-t border-blue-950/60">
                     <button
                       type="button"
                       onClick={() => setProductToAdjust(p)}
-                      className="px-2.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-cyan-300 border border-blue-500/40 font-bold text-xs flex items-center gap-1 transition-all"
+                      className="min-h-[36px] px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-cyan-300 border border-blue-500/40 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                     >
                       <ArrowUpDown className="w-3.5 h-3.5" />
                       <span>Ajustar Estoque</span>
@@ -848,7 +848,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onEditProduct(p)}
-                        className={`p-1.5 rounded-xl border text-xs transition-colors ${
+                        className={`min-h-[36px] min-w-[36px] p-2 rounded-xl border text-xs transition-colors flex items-center justify-center cursor-pointer active:scale-95 ${
                           isDark ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' : 'bg-white border-slate-300 text-slate-700'
                         }`}
                         title="Editar Produto"
@@ -859,7 +859,7 @@ export const ProductListView: React.FC<ProductListViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setProductToDelete(p)}
-                        className="p-1.5 rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 hover:text-rose-200 transition-colors"
+                        className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 hover:text-rose-200 transition-colors flex items-center justify-center cursor-pointer active:scale-95"
                         title="Excluir Produto"
                       >
                         <Trash2 className="w-4 h-4" />

@@ -1463,17 +1463,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
                               type="button"
                               onClick={() => setExpenseToPay(exp)}
-                              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 shadow-sm transition-all ${
+                              className={`min-h-[36px] px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer ${
                                 exp.status === 'PAGO'
                                   ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/80'
                                   : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                               }`}
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                               <span>{exp.status === 'PAGO' ? 'Pago' : 'Quitar'}</span>
                             </button>
                             <button
@@ -1482,14 +1482,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
                                 setExpenseToEdit(exp);
                                 setIsExpenseModalOpen(true);
                               }}
-                              className="p-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 text-xs"
+                              className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold active:scale-95 cursor-pointer"
                             >
                               Editar
                             </button>
                             <button
                               type="button"
                               onClick={() => setExpenseToDelete(exp)}
-                              className="p-1.5 rounded-xl border border-rose-900/60 bg-rose-950/40 text-rose-400 text-xs"
+                              className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-rose-900/60 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 text-xs flex items-center justify-center active:scale-95 cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

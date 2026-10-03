@@ -143,8 +143,116 @@ export const SupplierOrdersManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     title: 'Novo Pedido',
     whatsapp: '',
+    createdAt: new Date().toISOString().split('T')[0],
     items: [] as SupplierOrderItem[]
   });
+
+  // State for directly editing a piece in Tab 1 (Meus Pedidos)
+  const [editingCardItem, setEditingCardItem] = useState<{ groupId: string; item: SupplierOrderItem } | null>(null);
+  const [editingCardItemForm, setEditingCardItemForm] = useState<{
+    title: string;
+    typeName: string;
+    marca: string;
+    modelo: string;
+    estrutura: string;
+    qualidade: string;
+    tecnologia: string;
+    cor: string;
+    quantity: number;
+    price: number;
+    createdAt: string;
+  }>({
+    title: '',
+    typeName: 'Tela',
+    marca: '',
+    modelo: '',
+    estrutura: '',
+    qualidade: '',
+    tecnologia: '',
+    cor: '',
+    quantity: 1,
+    price: 0,
+    createdAt: new Date().toISOString().split('T')[0]
+  });
+
+  const handleOpenEditCardItem = (groupId: string, item: SupplierOrderItem) => {
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (item.createdAt) {
+      if (item.createdAt.includes('T')) {
+        dateStr = item.createdAt.split('T')[0];
+      } else {
+        const parsed = new Date(item.createdAt);
+        if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
+      }
+    }
+    setEditingCardItem({ groupId, item });
+    setEditingCardItemForm({
+      title: item.title || '',
+      typeName: item.typeName || 'Tela',
+      marca: item.marca || '',
+      modelo: item.modelo || '',
+      estrutura: item.estrutura || '',
+      qualidade: item.qualidade || '',
+      tecnologia: item.tecnologia || '',
+      cor: item.cor || '',
+      quantity: Number(item.quantity) || 1,
+      price: Number(item.price) || 0,
+      createdAt: dateStr
+    });
+  };
+
+  const handleSaveEditCardItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCardItem) return;
+
+    const { groupId, item } = editingCardItem;
+    const finalCreatedAt = editingCardItemForm.createdAt
+      ? (editingCardItemForm.createdAt.includes('T') ? editingCardItemForm.createdAt : `${editingCardItemForm.createdAt}T12:00:00.000Z`)
+      : (item.createdAt || new Date().toISOString());
+
+    const updatedItem: SupplierOrderItem = {
+      ...item,
+      title: editingCardItemForm.title.trim() || `${editingCardItemForm.typeName} ${editingCardItemForm.modelo || ''}`.trim() || 'Peça',
+      typeName: editingCardItemForm.typeName,
+      marca: editingCardItemForm.marca.trim(),
+      modelo: editingCardItemForm.modelo.trim(),
+      estrutura: editingCardItemForm.estrutura.trim(),
+      qualidade: editingCardItemForm.qualidade.trim(),
+      tecnologia: editingCardItemForm.tecnologia.trim(),
+      cor: editingCardItemForm.cor.trim(),
+      quantity: Math.max(1, Number(editingCardItemForm.quantity) || 1),
+      price: Math.max(0, Number(editingCardItemForm.price) || 0),
+      createdAt: finalCreatedAt
+    };
+
+    const targetGroup = groups.find(g => g.id === groupId);
+    if (!targetGroup) return;
+
+    const updatedItems = (targetGroup.items || []).map(i => i.id === item.id ? updatedItem : i);
+    const updatedList = groups.map(g => g.id === groupId ? { ...g, items: updatedItems } : g);
+
+    setGroups(updatedList);
+    setRamItem(STORAGE_KEY_GROUPS, updatedList);
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList));
+    } catch (_) {}
+
+    try {
+      const userEmail = getUserAccountEmail();
+      const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, groupId);
+      await updateDoc(docRef, { items: updatedItems });
+
+      if (userEmail === 'mmspmartins62@gmail.com') {
+        try {
+          const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', groupId);
+          await updateDoc(secRef, { items: updatedItems });
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    showToast('Peça do pedido atualizada com sucesso!', 'success');
+    setEditingCardItem(null);
+  };
 
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [cardCategoryFilter, setCardCategoryFilter] = useState<Record<string, string>>({});
@@ -830,6 +938,23 @@ export const SupplierOrdersManagement: React.FC = () => {
     }
   };
 
+  const handleUpdatePurchaseItem = async (updatedItem: SupplierPurchaseItem) => {
+    const userEmail = getUserAccountEmail();
+    const updated = supplierPurchases.map(item => {
+      if (item.purchaseId === updatedItem.purchaseId) {
+        return updatedItem;
+      }
+      return item;
+    });
+
+    await savePurchasesLocallyAndRemote(updated, async () => {
+      const docRef = doc(db, `accounts/${userEmail}/supplier_purchases`, updatedItem.purchaseId);
+      await updateDoc(docRef, { ...updatedItem });
+    });
+
+    showToast('Peça / Pedido atualizado com sucesso!', 'success');
+  };
+
   const handleUpdatePurchaseSupplier = async (purchaseId: string, newSupplierName: string) => {
     const userEmail = getUserAccountEmail();
     const updated = supplierPurchases.map(item => {
@@ -915,10 +1040,20 @@ export const SupplierOrdersManagement: React.FC = () => {
   // -------------------------------------------------------------
   const handleOpenModal = (group?: SupplierOrderGroup) => {
     if (group) {
+      let dateStr = new Date().toISOString().split('T')[0];
+      if (group.createdAt) {
+        if (group.createdAt.includes('T')) {
+          dateStr = group.createdAt.split('T')[0];
+        } else {
+          const parsed = new Date(group.createdAt);
+          if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
+        }
+      }
       setEditingGroup(group);
       setFormData({
         title: group.title || 'Pedido',
         whatsapp: group.whatsapp || '',
+        createdAt: dateStr,
         items: group.items || []
       });
     } else {
@@ -926,6 +1061,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       setFormData({
         title: `Pedido ${groups.length + 1}`,
         whatsapp: '',
+        createdAt: new Date().toISOString().split('T')[0],
         items: []
       });
     }
@@ -1032,6 +1168,10 @@ export const SupplierOrdersManagement: React.FC = () => {
         itemsToSave.push(autoPiece);
       }
 
+      const finalDate = formData.createdAt
+        ? (formData.createdAt.includes('T') ? formData.createdAt : `${formData.createdAt}T12:00:00.000Z`)
+        : new Date().toISOString();
+
       if (editingGroup) {
         const updatedList = groups.map(g => {
           if (g.id === editingGroup.id) {
@@ -1039,6 +1179,7 @@ export const SupplierOrdersManagement: React.FC = () => {
               ...g,
               title: groupTitle,
               whatsapp: formData.whatsapp.trim(),
+              createdAt: finalDate,
               items: itemsToSave
             };
           }
@@ -1054,6 +1195,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         await updateDoc(docRef, {
           title: groupTitle,
           whatsapp: formData.whatsapp.trim(),
+          createdAt: finalDate,
           items: itemsToSave
         });
 
@@ -1063,6 +1205,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             await updateDoc(secRef, {
               title: groupTitle,
               whatsapp: formData.whatsapp.trim(),
+              createdAt: finalDate,
               items: itemsToSave
             });
           } catch (_) {}
@@ -1076,7 +1219,7 @@ export const SupplierOrdersManagement: React.FC = () => {
           title: groupTitle,
           whatsapp: formData.whatsapp.trim(),
           items: itemsToSave,
-          createdAt: new Date().toISOString(),
+          createdAt: finalDate,
           status: 'Em aberto'
         };
 
@@ -1285,7 +1428,7 @@ export const SupplierOrdersManagement: React.FC = () => {
   }, [groups, selectedItems]);
 
   return (
-    <div className="h-screen flex flex-col space-y-4 p-4 font-sans text-slate-300 overflow-hidden bg-[#0B1221]">
+    <div className="min-h-screen md:h-screen flex flex-col space-y-3 sm:space-y-4 p-2.5 sm:p-4 font-sans text-slate-300 md:overflow-hidden bg-[#0B1221]">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[999] px-4 py-3 rounded-xl font-bold shadow-2xl animate-in slide-in-from-top-2 flex items-center gap-2 ${
@@ -1707,75 +1850,98 @@ export const SupplierOrdersManagement: React.FC = () => {
       )}
 
       {/* Main Header */}
-      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2.5 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-md">
-            <Truck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-white tracking-tight">Fornecedor & Pedidos</h1>
-              <CloudEngineBadge />
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2 sm:gap-2.5 shrink-0">
+        <div className="flex items-center justify-between w-full xl:w-auto gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-md shrink-0">
+              <Truck className="w-5 h-5" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-0">
-              Aponte peças, envie para fornecedores, acompanhe débitos e histórico de 12 meses.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">Fornecedor & Pedidos</h1>
+                <CloudEngineBadge />
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0 hidden sm:block">
+                Aponte peças, envie para fornecedores, acompanhe débitos e histórico de 12 meses.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 xl:hidden">
+            <button 
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
+              title="Configurações"
+            >
+              <Settings className="w-4 h-4 text-indigo-400" />
+            </button>
+            <button 
+              onClick={() => handleOpenModal()}
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Pedido</span>
+            </button>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 flex-wrap w-full xl:w-auto justify-end">
-          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
-            <div className="p-1 bg-purple-500/10 text-purple-400 rounded-md"><Box className="w-3.5 h-3.5"/></div>
-            <div>
-              <div className="text-xs font-black text-white">{groups.length}</div>
-              <div className="text-[8px] text-slate-400 uppercase font-bold">Pedidos</div>
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full xl:w-auto justify-between xl:justify-end">
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full xl:w-auto">
+            <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-1.5 px-2 sm:px-2.5 flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 bg-purple-500/10 text-purple-400 rounded-lg shrink-0"><Box className="w-3.5 h-3.5"/></div>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-white truncate">{groups.length}</div>
+                <div className="text-[8px] text-slate-400 uppercase font-bold truncate">Pedidos</div>
+              </div>
+            </div>
+
+            <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-1.5 px-2 sm:px-2.5 flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 bg-amber-500/10 text-amber-400 rounded-lg shrink-0"><Truck className="w-3.5 h-3.5"/></div>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-amber-400 truncate">{supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length}</div>
+                <div className="text-[8px] text-slate-400 uppercase font-bold truncate">Débitos</div>
+              </div>
+            </div>
+
+            <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-1.5 px-2 sm:px-2.5 flex items-center gap-1.5 sm:gap-2">
+              <div className="p-1 bg-emerald-500/10 text-emerald-400 rounded-lg shrink-0"><Clock className="w-3.5 h-3.5"/></div>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-emerald-400 truncate">{supplierPurchases.filter(p => p.paymentStatus === 'Pago').length}</div>
+                <div className="text-[8px] text-slate-400 uppercase font-bold truncate">Pagas 12m</div>
+              </div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
-            <div className="p-1 bg-amber-500/10 text-amber-400 rounded-md"><Truck className="w-3.5 h-3.5"/></div>
-            <div>
-              <div className="text-xs font-black text-amber-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length}</div>
-              <div className="text-[8px] text-slate-400 uppercase font-bold">Peças em Débito</div>
-            </div>
+          <div className="hidden xl:flex items-center gap-2">
+            <button 
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+              title="Configurar Categorias e Campos"
+            >
+              <Settings className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Configurações</span>
+            </button>
+
+            <button 
+              onClick={() => handleOpenModal()}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/20"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Novo Pedido</span>
+            </button>
           </div>
-
-          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-1.5 px-2.5 flex items-center gap-2">
-            <div className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md"><Clock className="w-3.5 h-3.5"/></div>
-            <div>
-              <div className="text-xs font-black text-emerald-400">{supplierPurchases.filter(p => p.paymentStatus === 'Pago').length}</div>
-              <div className="text-[8px] text-slate-400 uppercase font-bold">Pagas (12m)</div>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
-            title="Configurar Categorias e Campos (Tela, Bateria, DOC, Outros, Qualidades, Tecnologias, Cores)"
-          >
-            <Settings className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Configurações</span>
-          </button>
-
-          <button 
-            onClick={() => handleOpenModal()}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/20"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Novo Pedido</span>
-          </button>
         </div>
       </div>
       
-      {/* Subtabs Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#161B2B] p-2.5 rounded-xl border border-slate-800 shrink-0">
-        <div className="flex gap-1.5 flex-wrap">
+      {/* Subtabs Bar (Horizontal swipeable on mobile, clear buttons) */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 sm:gap-3 bg-[#161B2B] p-2 sm:p-2.5 rounded-2xl border border-slate-800 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar flex-nowrap sm:flex-wrap pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0">
           <button 
             onClick={() => setActiveSubTab('PEDIDOS')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'PEDIDOS' 
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5" />
@@ -1784,10 +1950,10 @@ export const SupplierOrdersManagement: React.FC = () => {
           
           <button 
             onClick={() => setActiveSubTab('FORNECEDOR')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'FORNECEDOR' 
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
             }`}
           >
             <Truck className="w-3.5 h-3.5" />
@@ -1796,34 +1962,34 @@ export const SupplierOrdersManagement: React.FC = () => {
 
           <button 
             onClick={() => setActiveSubTab('HISTORICO')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'HISTORICO' 
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>3. Histórico 12 Meses ({supplierPurchases.filter(p => p.paymentStatus === 'Pago').length})</span>
+            <span>3. Histórico 12m ({supplierPurchases.filter(p => p.paymentStatus === 'Pago').length})</span>
           </button>
 
           <button 
             onClick={() => setActiveSubTab('DEBITOS')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'DEBITOS' 
                 ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>4. Débito com Fornecedor ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
+            <span>4. Débitos ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
           </button>
 
           <button 
             onClick={() => setActiveSubTab('SERVICOS')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'SERVICOS' 
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
             }`}
           >
             <Wrench className="w-3.5 h-3.5" />
@@ -1840,7 +2006,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                 placeholder="Buscar pedido ou peça..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#0B1221] border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#0B1221] border border-slate-700 rounded-xl pl-8 pr-3 py-2 sm:py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
@@ -1870,8 +2036,8 @@ export const SupplierOrdersManagement: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-24">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-48 sm:pb-28">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
               {filteredGroups.map(group => {
                 const groupItems = group.items || [];
                 const groupTotal = groupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
@@ -1888,16 +2054,16 @@ export const SupplierOrdersManagement: React.FC = () => {
                 const categoriesInGroup = Array.from(new Set(groupItems.map(i => i.typeName || 'Outros')));
 
                 return (
-                  <div key={group.id} className="bg-[#161B2B] rounded-2xl border border-slate-800 p-3.5 flex flex-col justify-between shadow-xl hover:border-slate-700 transition-all">
+                  <div key={group.id} className="bg-[#161B2B] rounded-2xl border border-slate-800 p-3 sm:p-3.5 flex flex-col justify-between shadow-xl hover:border-slate-700 transition-all">
                     <div>
-                      {/* Card Header & Curtain Toggle (Always visible when card is closed) */}
+                      {/* Card Header & Curtain Toggle */}
                       <div className="flex justify-between items-start mb-2">
                         <div 
                           className="cursor-pointer group flex-1 pr-2"
                           onClick={() => setExpandedCards(prev => ({ ...prev, [group.id]: !isExpanded }))}
                         >
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-black text-white truncate max-w-[170px] group-hover:text-indigo-400 transition-colors" title={group.title}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-black text-white truncate max-w-[200px] group-hover:text-indigo-400 transition-colors" title={group.title}>
                               {group.title}
                             </h3>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
@@ -1907,7 +2073,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                           </div>
                           
                           {/* Outside Summary Row: Total Value & Total Pieces */}
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 flex-wrap">
                             <span className="text-[10px] text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-indigo-400" />
                               {group.createdAt && !isNaN(new Date(group.createdAt).getTime())
@@ -1931,13 +2097,13 @@ export const SupplierOrdersManagement: React.FC = () => {
                               e.stopPropagation();
                               setOpenDropdownId(openDropdownId === group.id ? null : group.id);
                             }}
-                            className="text-slate-500 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-slate-800"
+                            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-2 rounded-xl hover:bg-slate-800"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
                           
                           {openDropdownId === group.id && (
-                            <div className="absolute right-0 top-full mt-1 w-36 bg-[#0B1221] border border-slate-700 rounded-lg shadow-xl overflow-hidden z-20 animate-in fade-in">
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-[#0B1221] border border-slate-700 rounded-xl shadow-xl overflow-hidden z-20 animate-in fade-in">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1975,10 +2141,10 @@ export const SupplierOrdersManagement: React.FC = () => {
                           >
                             {/* Category Filter Pills inside Curtain */}
                             {categoriesInGroup.length > 0 && (
-                              <div className="flex items-center gap-1 mb-2.5 overflow-x-auto custom-scrollbar pb-1">
+                              <div className="flex items-center gap-1 mb-2.5 overflow-x-auto no-scrollbar pb-1">
                                 <button
                                   onClick={() => setCardCategoryFilter(prev => ({ ...prev, [group.id]: 'TODAS' }))}
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black cursor-pointer transition-all ${
+                                  className={`px-2.5 py-1 rounded-xl text-[10px] font-black cursor-pointer transition-all whitespace-nowrap shrink-0 ${
                                     activeCategoryFilter === 'TODAS'
                                       ? 'bg-indigo-600 text-white shadow-sm'
                                       : 'bg-slate-800/80 text-slate-400 hover:text-white'
@@ -1993,7 +2159,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                                     <button
                                       key={tmpl.id}
                                       onClick={() => setCardCategoryFilter(prev => ({ ...prev, [group.id]: tmpl.name }))}
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 ${
+                                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1 whitespace-nowrap shrink-0 ${
                                         activeCategoryFilter.toLowerCase() === tmpl.name.toLowerCase()
                                           ? 'bg-purple-600 text-white shadow-sm'
                                           : 'bg-slate-800/80 text-slate-400 hover:text-white'
@@ -2008,7 +2174,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                             )}
 
                             {/* Items List inside curtain */}
-                            <div className="space-y-1.5 mb-3 overflow-y-auto max-h-[220px] custom-scrollbar bg-[#0B1221] p-2 rounded-xl border border-slate-800/80">
+                            <div className="space-y-2 mb-3 overflow-y-auto max-h-[300px] sm:max-h-[220px] custom-scrollbar bg-[#0B1221] p-2 rounded-2xl border border-slate-800/80">
                               {displayedItems.length === 0 ? (
                                 <div className="text-xs text-slate-500 text-center py-4 italic">Nenhuma peça nesta categoria.</div>
                               ) : (
@@ -2017,58 +2183,37 @@ export const SupplierOrdersManagement: React.FC = () => {
                                   const itemDateLabel = itemDate && !isNaN(itemDate.getTime()) ? itemDate.toLocaleDateString('pt-BR') : '';
 
                                   return (
-                                    <div key={item.id} className="flex flex-col gap-1 py-2 px-2 border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors rounded-lg bg-[#121827]">
-                                      <div className="flex items-center justify-between gap-1.5">
-                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div key={item.id} className="flex flex-col gap-1.5 py-2 px-2.5 border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors rounded-xl bg-[#121827]">
+                                      <div className="flex items-start sm:items-center justify-between gap-1.5">
+                                        <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                                           <input 
                                             type="checkbox" 
                                             checked={!!selectedItems[item.id]} 
                                             onChange={() => setSelectedItems(prev => ({...prev, [item.id]: !prev[item.id]}))}
-                                            className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 checked:bg-indigo-500 cursor-pointer shrink-0"
+                                            className="mt-0.5 sm:mt-0 w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-indigo-500 cursor-pointer shrink-0"
                                           />
                                           <div className="truncate min-w-0 flex-1">
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                               <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                                                 {item.typeName || 'Peça'}
                                               </span>
-                                              <span className="font-bold text-white text-xs truncate">
+                                              <span className="font-bold text-white text-xs sm:text-sm truncate">
                                                 {item.title}
                                               </span>
                                             </div>
                                           </div>
                                         </div>
 
-                                        <div className="flex items-center gap-1.5 shrink-0 pl-1">
-                                          <div className="text-right">
-                                            <span className="text-[11px] font-black text-emerald-400 block">
-                                              R$ {((Number(item.quantity) || 1) * (Number(item.price) || 0)).toFixed(0)}
-                                            </span>
-                                            <span className="text-[9px] text-slate-500 block">x{item.quantity}</span>
-                                          </div>
-
-                                          {/* Send single item button */}
-                                          <button 
-                                            onClick={() => handleOpenSendToSupplier([{ item, groupTitle: group.title, groupCreatedAt: group.createdAt }])}
-                                            className="px-1.5 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                                            title="Mandar esta peça para o Card do Fornecedor"
-                                          >
-                                            <Truck className="w-3 h-3 text-purple-400" />
-                                            <span className="text-[9px] font-black hidden sm:inline">Mandar</span>
-                                          </button>
-
-                                          {/* WhatsApp single item */}
-                                          <button 
-                                            onClick={() => setSendModal({ isOpen: true, group, itemsToSend: [item], selectedItemIds: [item.id] })}
-                                            className="p-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all cursor-pointer"
-                                            title="Enviar pelo WhatsApp"
-                                          >
-                                            <Send className="w-3 h-3" />
-                                          </button>
+                                        <div className="text-right shrink-0 pl-1">
+                                          <span className="text-xs sm:text-sm font-black text-emerald-400 block">
+                                            R$ {((Number(item.quantity) || 1) * (Number(item.price) || 0)).toFixed(2).replace('.', ',')}
+                                          </span>
+                                          <span className="text-[10px] text-slate-400 block font-medium">x{item.quantity} (R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')})</span>
                                         </div>
                                       </div>
 
                                       {/* Tags Detail Row (Marca, Modelo, Qualidade, Tecnologia, Estrutura, Cor) */}
-                                      <div className="flex items-center gap-1.5 flex-wrap text-[9px] text-slate-400 pl-5 pt-0.5">
+                                      <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-400 pl-6 pt-0.5">
                                         {item.marca && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Marca: {item.marca}</span>}
                                         {item.modelo && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold">Mod: {item.modelo}</span>}
                                         {item.qualidade && <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-black">{item.qualidade}</span>}
@@ -2076,6 +2221,39 @@ export const SupplierOrdersManagement: React.FC = () => {
                                         {item.estrutura && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-black">⭕ {item.estrutura}</span>}
                                         {item.cor && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cor: {item.cor}</span>}
                                         {itemDateLabel && <span className="text-slate-500 ml-auto">📅 {itemDateLabel}</span>}
+                                      </div>
+
+                                      {/* Item Action Buttons Bar (Comfortable touch targets on mobile) */}
+                                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-800/40 mt-1">
+                                        <button 
+                                          type="button"
+                                          onClick={() => handleOpenEditCardItem(group.id, item)}
+                                          className="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                          title="Editar dados desta peça (data, valor, modelo, etc.)"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                          <span>Editar</span>
+                                        </button>
+
+                                        <button 
+                                          type="button"
+                                          onClick={() => handleOpenSendToSupplier([{ item, groupTitle: group.title, groupCreatedAt: group.createdAt }])}
+                                          className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold shrink-0"
+                                          title="Mandar esta peça para o Card do Fornecedor"
+                                        >
+                                          <Truck className="w-3 h-3 text-purple-400" />
+                                          <span>Mandar</span>
+                                        </button>
+
+                                        <button 
+                                          type="button"
+                                          onClick={() => setSendModal({ isOpen: true, group, itemsToSend: [item], selectedItemIds: [item.id] })}
+                                          className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                          title="Enviar pelo WhatsApp"
+                                        >
+                                          <Send className="w-3 h-3" />
+                                          <span>WhatsApp</span>
+                                        </button>
                                       </div>
                                     </div>
                                   );
@@ -2094,17 +2272,17 @@ export const SupplierOrdersManagement: React.FC = () => {
                             {selectedInThisGroup.length > 0 && (
                               <button 
                                 onClick={() => handleOpenSendToSupplier(selectedInThisGroup.map(i => ({ item: i, groupTitle: group.title, groupCreatedAt: group.createdAt })))}
-                                className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-purple-600/20"
+                                className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-purple-600/20"
                               >
-                                <Truck className="w-3.5 h-3.5" /> Mover Selecionadas deste Pedido ({selectedInThisGroup.length})
+                                <Truck className="w-3.5 h-3.5" /> Mover Selecionadas ({selectedInThisGroup.length})
                               </button>
                             )}
 
                             <button 
                               onClick={() => handleOpenSendToSupplier(groupItems.map(i => ({ item: i, groupTitle: group.title, groupCreatedAt: group.createdAt })))}
-                              className="w-full py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              className="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                             >
-                              <Truck className="w-3.5 h-3.5" /> Mover TODAS deste Pedido p/ Card Fornecedor ({groupItems.length})
+                              <Truck className="w-3.5 h-3.5" /> Mover TODAS p/ Fornecedor ({groupItems.length})
                             </button>
                           </div>
                         );
@@ -2113,16 +2291,16 @@ export const SupplierOrdersManagement: React.FC = () => {
 
                     {/* Card Footer & Total */}
                     <div>
-                      <div className="flex justify-between items-center py-2 border-t border-slate-800/80 mb-3">
-                        <span className="text-[11px] font-bold text-slate-400">Total do Pedido:</span>
-                        <span className="text-sm font-black text-emerald-400">R$ {groupTotal.toFixed(2).replace('.', ',')}</span>
+                      <div className="flex justify-between items-center py-2 border-t border-slate-800/80 mb-2.5">
+                        <span className="text-xs font-bold text-slate-400">Total do Pedido:</span>
+                        <span className="text-base font-black text-emerald-400">R$ {groupTotal.toFixed(2).replace('.', ',')}</span>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-1.5 mt-1">
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                         <button
                           type="button"
                           onClick={() => handleOpenModal(group)}
-                          className="py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          className="py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
                           title="Adicionar ou Colocar Produto/Peça neste Pedido"
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -2136,7 +2314,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                             handleOpenSendToSupplier(groupItems.map(i => ({ item: i, groupTitle: group.title, groupCreatedAt: group.createdAt })));
                           }}
                           disabled={groupItems.length === 0}
-                          className="py-2 bg-purple-600/20 hover:bg-purple-600/30 disabled:bg-slate-800 disabled:text-slate-600 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          className="py-2.5 bg-purple-600/20 hover:bg-purple-600/30 disabled:bg-slate-800 disabled:text-slate-600 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
                           title="Apontar / Mandar estas peças para o Card do Fornecedor"
                         >
                           <Truck className="w-3.5 h-3.5" />
@@ -2150,7 +2328,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                             setSendModal({ isOpen: true, group, itemsToSend: groupItems, selectedItemIds: groupItems.map(i => i.id) });
                           }}
                           disabled={groupItems.length === 0}
-                          className="py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                          className="py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
                           title="Enviar Mensagem de Pedido via WhatsApp"
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -2176,6 +2354,7 @@ export const SupplierOrdersManagement: React.FC = () => {
           onUpdateSupplier={handleUpdatePurchaseSupplier}
           onDelete={handleDeletePurchase} 
           onAddPurchaseItem={handleAddManualPurchase}
+          onUpdatePurchaseItem={handleUpdatePurchaseItem}
           onBulkPayForSupplier={handleBulkPayForSupplier}
           suppliers={suppliers}
           onAddSupplier={handleAddSupplier}
@@ -2186,10 +2365,10 @@ export const SupplierOrdersManagement: React.FC = () => {
         />
       )}
 
-      {/* Bottom Action Bar for ABA 1 (Meus Pedidos) */}
+      {/* Bottom Action Bar for ABA 1 (Meus Pedidos) - Hidden on Mobile to avoid screen overlap */}
       {activeSubTab === 'PEDIDOS' && (
-        <div className="fixed bottom-0 left-0 right-0 bg-[#0B1221] border-t border-slate-800 p-3 px-6 flex flex-wrap items-center justify-between gap-3 z-40 shadow-2xl">
-          <div className="flex items-center gap-4">
+        <div className="hidden md:flex fixed bottom-0 left-0 right-0 bg-[#0B1221]/95 backdrop-blur-md border-t border-slate-800 p-2.5 sm:p-3 px-3 sm:px-6 items-center justify-between gap-2.5 sm:gap-3 z-40 shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between sm:justify-start gap-3">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-300 cursor-pointer">
               <input 
                 type="checkbox" 
@@ -2205,16 +2384,16 @@ export const SupplierOrdersManagement: React.FC = () => {
                 }}
                 className="w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-indigo-500 cursor-pointer"
               />
-              <span>Selecionar Todas as Peças ({totalPiecesCount})</span>
+              <span className="truncate">Selecionar Todas ({totalPiecesCount})</span>
             </label>
             {selectedCount > 0 && (
-              <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+              <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20 shrink-0">
                 {selectedCount} selecionada{selectedCount > 1 ? 's' : ''}
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2">
             <button 
               onClick={() => {
                 const selectedList = groups.flatMap(g => 
@@ -2224,9 +2403,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                 handleOpenSendToSupplier(selectedList);
               }}
               disabled={selectedCount === 0}
-              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-purple-600/20"
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-purple-600/20"
             >
-              <Truck className="w-4 h-4" /> Mover Selecionados p/ Card do Fornecedor ({selectedCount})
+              <Truck className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Mover ({selectedCount})</span>
             </button>
 
             <button 
@@ -2238,9 +2417,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                 handleOpenSendToSupplier(allList);
               }}
               disabled={totalPiecesCount === 0}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
             >
-              <Truck className="w-4 h-4" /> Mover TODOS p/ Card do Fornecedor ({totalPiecesCount})
+              <Truck className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Mover TODOS</span>
             </button>
 
             <button 
@@ -2250,9 +2429,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                 setSendModal({ isOpen: true, group: null, itemsToSend: marked, selectedItemIds: marked.map(i => i.id) });
               }}
               disabled={selectedCount === 0}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-600/20"
+              className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-600/20"
             >
-              <Send className="w-4 h-4" /> WhatsApp ({selectedCount})
+              <Send className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">WhatsApp</span>
             </button>
 
             {selectedCount > 0 && (
@@ -2263,9 +2442,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                     onConfirm: () => handleBulkDeleteSelectedItems()
                   });
                 }}
-                className="px-3 py-2 bg-rose-950/30 hover:bg-rose-900/50 text-rose-400 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-3 py-2 bg-rose-950/30 hover:bg-rose-900/50 text-rose-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Excluir ({selectedCount})
+                <Trash2 className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Excluir ({selectedCount})</span>
               </button>
             )}
           </div>
@@ -2300,18 +2479,30 @@ export const SupplierOrdersManagement: React.FC = () => {
                 
                 {/* Order Details */}
                 <div className="bg-[#0B1221] p-4 rounded-2xl border border-slate-800 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1 sm:col-span-1">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome / Fornecedor do Pedido *</label>
                       <input
                         type="text"
                         placeholder="Ex: Fornecedor Peças Centro"
                         value={formData.title}
                         onChange={e => setFormData({...formData, title: e.target.value})}
-                        className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 outline-none"
+                        className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-indigo-500 outline-none"
                       />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 sm:col-span-1">
+                      <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> Data do Pedido *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.createdAt}
+                        onChange={e => setFormData({...formData, createdAt: e.target.value})}
+                        className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-indigo-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-1">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">WhatsApp (Opcional)</label>
                       <input
                         type="text"
@@ -3499,6 +3690,305 @@ export const SupplierOrdersManagement: React.FC = () => {
                 <Check className="w-4 h-4" /> Salvar Configurações
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: EDITAR PEÇA DO PEDIDO EM MEUS PEDIDOS (TAB 1) */}
+      {editingCardItem && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161B2B] border border-slate-700 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#0B1221] shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-xl">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Editar Peça do Pedido</h3>
+                  <p className="text-xs text-slate-400">Altere a data, valor, quantidade, modelo e todos os dados</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingCardItem(null)}
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-full cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSaveEditCardItem} className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+              {/* Data da Peça & Categoria */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Data da Peça *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editingCardItemForm.createdAt}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, createdAt: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                    Categoria da Peça
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {fieldSettings.templates.map(tmpl => {
+                      const isSel = (editingCardItemForm.typeName || 'Tela').toLowerCase() === tmpl.name.toLowerCase();
+                      return (
+                        <button
+                          key={tmpl.id}
+                          type="button"
+                          onClick={() => setEditingCardItemForm({ ...editingCardItemForm, typeName: tmpl.name })}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                            isSel
+                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {tmpl.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Descrição / Nome */}
+              <div className="bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800 space-y-1">
+                <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                  Descrição / Nome da Peça *
+                </label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="Ex: Tela Display Frente Complete, Bateria Original..."
+                  value={editingCardItemForm.title}
+                  onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, title: e.target.value })}
+                  className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                />
+              </div>
+
+              {/* Marca & Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Marca / Fabricante</label>
+                  <input
+                    type="text"
+                    placeholder="Apple, Samsung, Xiaomi, Motorola..."
+                    value={editingCardItemForm.marca}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, marca: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap pt-1">
+                    {['Apple', 'Samsung', 'Xiaomi', 'Motorola', 'Realme'].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, marca: m }))}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                          (editingCardItemForm.marca || '').toLowerCase() === m.toLowerCase()
+                            ? 'bg-indigo-600 text-white font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Modelo do Aparelho</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: iPhone 11, S20 FE, Redmi Note 10..."
+                    value={editingCardItemForm.modelo}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, modelo: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Estrutura, Qualidade & Tecnologia */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCardItemForm(prev => ({
+                        ...prev,
+                        estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
+                      }))}
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                        (editingCardItemForm.estrutura || '').toUpperCase() === 'C/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      C/ ARO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCardItemForm(prev => ({
+                        ...prev,
+                        estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
+                      }))}
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                        (editingCardItemForm.estrutura || '').toUpperCase() === 'S/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      S/ ARO
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Outra estrutura..."
+                    value={editingCardItemForm.estrutura}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, estrutura: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
+                  <input
+                    type="text"
+                    placeholder="Original, Gold Pro, Incell..."
+                    value={editingCardItemForm.qualidade}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, qualidade: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['DIAMONDS', 'Original', 'Gold Pro', 'Premium'].map(q => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, qualidade: q }))}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                          (editingCardItemForm.qualidade || '').toLowerCase() === q.toLowerCase()
+                            ? 'bg-amber-500 text-slate-950 font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-cyan-400 uppercase">Tecnologia</label>
+                  <input
+                    type="text"
+                    placeholder="INCELL, OLED, AMOLED..."
+                    value={editingCardItemForm.tecnologia}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, tecnologia: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['INCELL', 'OLED', 'AMOLED', 'IPS'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, tecnologia: t }))}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                          (editingCardItemForm.tecnologia || '').toLowerCase() === t.toLowerCase()
+                            ? 'bg-cyan-500 text-slate-950 font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cor, Quantidade & Preço Unitário (VALOR) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
+                  <input
+                    type="text"
+                    placeholder="Preto, Branco, Azul..."
+                    value={editingCardItemForm.cor}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, cor: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap pt-1">
+                    {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, cor: c }))}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                          (editingCardItemForm.cor || '').toLowerCase() === c.toLowerCase()
+                            ? 'bg-indigo-600 text-white font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Quantidade</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    value={editingCardItemForm.quantity}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-emerald-400 uppercase flex items-center justify-between">
+                    <span>Preço Unitário (R$) *</span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      Total: R$ {((Number(editingCardItemForm.quantity) || 1) * (Number(editingCardItemForm.price) || 0)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editingCardItemForm.price}
+                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, price: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-[#161B2B] border border-emerald-500/50 rounded-xl px-3 py-2 text-sm font-black text-emerald-300 focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+
+              {/* Bottom Footer Actions */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingCardItem(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-600/30 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" /> Salvar Alterações na Peça
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

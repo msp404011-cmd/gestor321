@@ -32,6 +32,7 @@ import {
   X,
   MessageSquareText,
   MessageCircle,
+  CheckSquare,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -263,6 +264,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: openOrdersCount > 0 ? openOrdersCount : 13,
           badgeType: 'count-blue' as const,
         },
+        ...(isSuper
+          ? [
+              {
+                id: 'TASKS',
+                title: 'Tarefas',
+                subtitle: 'Tarefas diárias e compras',
+                icon: CheckSquare,
+                badge: 'SUPER',
+                badgeType: 'master-orange' as const,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -600,7 +613,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onMouseLeave={() => {
           if (isCollapsed) setIsHovered(false);
         }}
-        className={`fixed top-0 left-0 z-40 h-screen border-r-2 flex flex-col transition-all duration-300 ease-in-out shrink-0 ${
+        className={`fixed top-0 left-0 z-50 h-screen border-r-2 flex flex-col transition-all duration-300 ease-in-out shrink-0 ${
           isDark
             ? 'bg-[#030712] border-blue-950 text-slate-100 shadow-[0_0_30px_rgba(0,0,0,0.8)]'
             : 'bg-[#f8fafc] border-slate-300 text-slate-800 shadow-xl'
@@ -612,7 +625,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* TOP HEADER: MENU PRINCIPAL & COLLAPSE BUTTON */}
         <div
-          className={`p-3 border-b-2 shrink-0 select-none flex items-center justify-between min-h-[64px] transition-colors ${
+          className={`p-3 border-b-2 shrink-0 select-none flex items-center justify-between min-h-[60px] sm:min-h-[64px] transition-colors ${
             isDark ? 'border-blue-950/80 bg-[#040916]' : 'border-slate-200 bg-white'
           }`}
         >
@@ -644,10 +657,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     type="button"
                     onClick={onCloseMobile}
-                    className="w-7 h-7 rounded-xl border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white flex items-center justify-center lg:hidden cursor-pointer shrink-0"
+                    className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-xl border border-slate-700 bg-slate-800/90 text-slate-300 hover:text-white flex items-center justify-center lg:hidden cursor-pointer shrink-0 active:scale-95"
                     title="Fechar menu lateral"
+                    aria-label="Fechar menu lateral"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 )}
 
@@ -782,8 +796,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => (item.action ? item.action() : handleSelect(item.id))}
-                          className={`w-full p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-left group ${
+                          onClick={() => {
+                            if (item.action) {
+                              item.action();
+                              if (onCloseMobile) onCloseMobile();
+                            } else {
+                              handleSelect(item.id);
+                            }
+                          }}
+                          className={`w-full p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-left group active:scale-[0.99] ${
                             isActive
                               ? 'border-cyan-400 bg-blue-600/30 text-white shadow-[0_0_12px_rgba(6,182,212,0.4)]'
                               : 'border-white/5 bg-black/40 hover:bg-white/5 hover:border-white/20 text-slate-200'

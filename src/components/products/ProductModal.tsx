@@ -258,11 +258,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-6xl bg-[#060e1d] border border-blue-900/80 rounded-2xl shadow-[0_0_50px_rgba(3,105,161,0.25)] text-slate-100 flex flex-col max-h-[96vh] overflow-hidden"
+        className="relative w-full max-w-6xl bg-[#060e1d] border-0 sm:border border-blue-900/80 rounded-none sm:rounded-2xl shadow-[0_0_50px_rgba(3,105,161,0.25)] text-slate-100 flex flex-col h-full sm:h-auto max-h-full sm:max-h-[96vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* TOP HEADER BAR */}
@@ -906,7 +906,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </div>
 
         {/* FOOTER BAR */}
-        <div className="bg-[#040a16] border-t border-blue-900/70 px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+        <div className="bg-[#040a16] border-t border-blue-900/70 px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0 safe-bottom">
           {/* Left Switch: Continuar Cadastrando */}
           <div className="flex items-center gap-2.5">
             <label className="relative inline-flex items-center cursor-pointer">
@@ -929,7 +929,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-transparent hover:bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5"
+              className="flex-1 sm:flex-none px-4 py-2 bg-transparent hover:bg-slate-800/80 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center justify-center gap-1.5 min-h-[42px]"
             >
               <X className="w-3.5 h-3.5 text-slate-400" />
               <span>Cancelar</span>
@@ -938,7 +938,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <button
               type="button"
               onClick={() => handleSubmit()}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer flex items-center gap-1.5"
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer flex items-center justify-center gap-1.5 min-h-[42px]"
             >
               <Check className="w-3.5 h-3.5 stroke-[3]" />
               <span>{productToEdit ? 'Atualizar Produto' : 'Cadastrar Produto'}</span>

@@ -29,6 +29,7 @@ import {
   MonthlyDebitPayment,
   AccountsPayable,
   AccountsPayableTransaction,
+  DailyTaskCard,
 } from '../types';
 import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
 import { FirestoreSyncService } from './firestoreService';
@@ -86,6 +87,7 @@ export const STORAGE_KEYS = {
   COMPATIBILITY_CARDS: 'msp_compatibility_cards_v1',
   MONTHLY_DEBITS: 'msp_monthly_debits_v1',
   ACCOUNTS_PAYABLE: 'msp_accounts_payable_v1',
+  DAILY_TASKS: 'msp_daily_tasks_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -3177,6 +3179,7 @@ export const StorageService = {
     securityQuestion?: string;
     securityAnswer?: string;
     uid?: string;
+    planType?: PlanType;
   }): {
     user: Employee;
     plan: SubscriptionPlanInfo;
@@ -3259,14 +3262,22 @@ export const StorageService = {
     }
     this.setCurrentUser(adminEmp);
 
-    // 4. Activate 7-day Free Trial
+    // 4. Activate 7-day Free Trial with chosen plan type
     const trialExpiry = new Date();
     trialExpiry.setDate(trialExpiry.getDate() + 7);
     const expiryStr = trialExpiry.toISOString().split('T')[0];
 
+    const selectedType = params.planType || 'ASSISTENCIA';
+    let planNameDesc = 'Teste de 7 Dias - Com Tudo Menos Revenda';
+    if (selectedType === 'PDV_VENDAS') {
+      planNameDesc = 'Teste de 7 Dias - Apenas PDV';
+    } else if (selectedType === 'REVENDA') {
+      planNameDesc = 'Teste de 7 Dias - Completo';
+    }
+
     const trialPlan: SubscriptionPlanInfo = {
-      planType: 'TRIAL',
-      planName: 'Teste Grátis (7 Dias)',
+      planType: selectedType,
+      planName: planNameDesc,
       planPrice: 0,
       billingCycle: 'monthly',
       billingPeriod: 'MENSAL',
@@ -3276,8 +3287,8 @@ export const StorageService = {
       accountEmail: cleanEmail,
       autoRenew: false,
       contractNumber: `MSP-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
-      paymentMethod: 'Teste Grátis de Boas-Vindas (7 Dias)',
-      notes: 'Período de avaliação de 7 dias com todos os módulos liberados.',
+      paymentMethod: 'Teste Grátis (7 Dias)',
+      notes: `Período de teste de 7 dias (${planNameDesc}).`,
       startDate: new Date().toISOString().split('T')[0],
       isTrial: true,
       trialDaysRemaining: 7,
@@ -3538,7 +3549,7 @@ export const StorageService = {
     }
 
     if (account.passwordHash && account.passwordHash !== params.password) {
-      throw new Error('Senha incorreta. Verifique sua senha ou use a recuperação de acesso.');
+      throw new Error('Senha incorreta. Verifique sua senha digitada.');
     }
 
     // Set active auth session immediately so subsequent operations use this tenant scope
@@ -4737,6 +4748,7 @@ export const StorageService = {
       this.logAction(`Novo débito mensal cadastrado: ${debit.name} (R$ ${debit.totalAmount.toFixed(2)})`);
     }
     setItem(STORAGE_KEYS.MONTHLY_DEBITS, list);
+    notifyListeners();
     FirestoreSyncService.saveMonthlyDebit(debit);
     return debit;
   },
@@ -4746,6 +4758,7 @@ export const StorageService = {
     const target = list.find((d) => d.id === id);
     const filtered = list.filter((d) => d.id !== id);
     setItem(STORAGE_KEYS.MONTHLY_DEBITS, filtered);
+    notifyListeners();
     FirestoreSyncService.deleteMonthlyDebit(id);
     if (target) {
       this.logAction(`Débito mensal excluído: ${target.name}`);
@@ -4768,6 +4781,7 @@ export const StorageService = {
       this.logAction(`Nova conta a pagar criada: ${account.name} (Saldo: R$ ${account.currentBalance.toFixed(2)})`);
     }
     setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, list);
+    notifyListeners();
     FirestoreSyncService.saveAccountsPayable(account);
     return account;
   },
@@ -4777,9 +4791,46 @@ export const StorageService = {
     const target = list.find((a) => a.id === id);
     const filtered = list.filter((a) => a.id !== id);
     setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, filtered);
+    notifyListeners();
     FirestoreSyncService.deleteAccountsPayable(id);
     if (target) {
       this.logAction(`Conta a pagar excluída: ${target.name}`);
+    }
+  },
+
+  // Daily Tasks (Tarefas Diárias)
+  getDailyTasks(): DailyTaskCard[] {
+    return getItem<DailyTaskCard[]>(STORAGE_KEYS.DAILY_TASKS, []);
+  },
+
+  saveDailyTasks(tasks: DailyTaskCard[]): void {
+    setItem(STORAGE_KEYS.DAILY_TASKS, tasks);
+    notifyListeners();
+  },
+
+  saveDailyTask(task: DailyTaskCard): DailyTaskCard {
+    const list = this.getDailyTasks();
+    const idx = list.findIndex((t) => t.id === task.id);
+    if (idx >= 0) {
+      list[idx] = task;
+      this.logAction(`Tarefa atualizada: ${task.title}`);
+    } else {
+      list.unshift(task);
+      this.logAction(`Nova tarefa criada: ${task.title}`);
+    }
+    setItem(STORAGE_KEYS.DAILY_TASKS, list);
+    notifyListeners();
+    return task;
+  },
+
+  deleteDailyTask(id: string): void {
+    const list = this.getDailyTasks();
+    const target = list.find((t) => t.id === id);
+    const filtered = list.filter((t) => t.id !== id);
+    setItem(STORAGE_KEYS.DAILY_TASKS, filtered);
+    notifyListeners();
+    if (target) {
+      this.logAction(`Tarefa excluída: ${target.title}`);
     }
   },
 };

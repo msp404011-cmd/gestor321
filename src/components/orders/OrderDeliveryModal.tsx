@@ -747,11 +747,11 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
               )}
 
               {/* Botões de Ação */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-700/60">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-700/60 safe-bottom">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors"
+                  className="order-2 sm:order-1 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors min-h-[42px] flex items-center justify-center cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -759,7 +759,7 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                   type="button"
                   onClick={handleConfirm}
                   disabled={loading}
-                  className="px-5 py-2 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-teal-900/30 flex items-center gap-1.5 transition-all"
+                  className="order-1 sm:order-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-teal-900/30 flex items-center justify-center gap-1.5 transition-all min-h-[42px] cursor-pointer"
                 >
                   {loading ? (
                     'Processando...'

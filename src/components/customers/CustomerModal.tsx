@@ -326,7 +326,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[1360px] max-h-[98vh] rounded-3xl border-2 border-blue-600/50 shadow-[0_0_50px_rgba(37,99,235,0.3)] bg-[#040a18] text-white flex flex-col overflow-hidden transition-all animate-in zoom-in-95 duration-150 cursor-default"
+        className="relative w-full max-w-[1360px] h-full sm:h-auto max-h-full sm:max-h-[98vh] rounded-none sm:rounded-3xl border-0 sm:border-2 border-blue-600/50 shadow-[0_0_50px_rgba(37,99,235,0.3)] bg-[#040a18] text-white flex flex-col overflow-hidden transition-all animate-in zoom-in-95 duration-150 cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* HEADER BAR */}
@@ -1027,29 +1027,29 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           </div>
 
           {/* BOTTOM FOOTER BAR */}
-          <div className="pt-2 mt-2 border-t border-blue-900/40 flex flex-col sm:flex-row items-center justify-between gap-2 bg-[#040a18] shrink-0">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-300 cursor-pointer select-none">
+          <div className="pt-2 sm:pt-3 mt-2 border-t border-blue-900/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-[#040a18] shrink-0 safe-bottom">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-300 cursor-pointer select-none py-1">
               <input
                 type="checkbox"
                 checked={saveAndAddAnother}
                 onChange={(e) => setSaveAndAddAnother(e.target.checked)}
-                className="w-3.5 h-3.5 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
+                className="w-4 h-4 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
               />
-              <span>Salvar e já cadastrar outro cliente</span>
+              <span className="text-[11px] sm:text-xs">Salvar e já cadastrar outro cliente</span>
             </label>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 justify-end">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-1.5 rounded-xl border border-slate-700 bg-[#08152e] hover:bg-[#0c1e40] text-slate-300 hover:text-white font-black text-xs transition-colors cursor-pointer"
+                className="flex-1 sm:flex-none px-4 py-2 rounded-xl border border-slate-700 bg-[#08152e] hover:bg-[#0c1e40] text-slate-300 hover:text-white font-black text-xs transition-colors cursor-pointer min-h-[42px] flex items-center justify-center"
               >
                 ✕ Cancelar
               </button>
 
               <button
                 type="submit"
-                className="px-5 py-1.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center gap-1.5 transition-all cursor-pointer"
+                className="flex-1 sm:flex-none px-5 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center justify-center gap-1.5 transition-all cursor-pointer min-h-[42px]"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{customerToEdit ? 'Salvar Alterações' : 'Cadastrar Cliente'}</span>

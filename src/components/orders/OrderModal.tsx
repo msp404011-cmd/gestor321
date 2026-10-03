@@ -1092,50 +1092,52 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         </div>
 
         {/* Bottom Action Footer Bar */}
-        <div className="px-4 py-2.5 sm:px-5 sm:py-3 border-t border-blue-900/40 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#061026]">
-          <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0 flex-wrap">
-            <span className="font-bold text-white">
+        <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-t border-blue-900/40 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 bg-[#061026] safe-bottom">
+          <div className="flex items-center justify-between sm:justify-start gap-2 text-xs text-slate-300 min-w-0 flex-wrap">
+            <span className="font-bold text-white truncate max-w-[140px] sm:max-w-none">
               {selectedCustomer ? selectedCustomer.name : 'Cliente não selecionado'}
             </span>
-            <span className="text-slate-500">•</span>
-            <span className="text-slate-400">
+            <span className="text-slate-500 hidden sm:inline">•</span>
+            <span className="text-slate-400 truncate max-w-[120px] sm:max-w-none hidden sm:inline">
               {brand && model ? `${brand} ${model}` : 'Sem aparelho'}
             </span>
             <span className="text-slate-500">•</span>
-            <span className="font-black text-emerald-400">
+            <span className="font-black text-emerald-400 font-mono text-sm sm:text-xs">
               Total: {formatCurrency(finalOrderTotal)}
             </span>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between sm:justify-end gap-2 shrink-0">
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none py-1">
               <input
                 type="checkbox"
                 checked={printAfterCreate}
                 onChange={(e) => setPrintAfterCreate(e.target.checked)}
                 className="w-4 h-4 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
               />
-              <span>Imprimir comprovante</span>
+              <span className="text-[11px] sm:text-xs">Imprimir comprovante</span>
             </label>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-slate-700 bg-[#08152e] hover:bg-[#0c1e40] text-slate-300 hover:text-white font-black text-xs transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
+            <div className="flex items-center gap-2 flex-1 sm:flex-none justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 sm:flex-none px-3.5 sm:px-5 py-2.5 rounded-xl border border-slate-700 bg-[#08152e] hover:bg-[#0c1e40] text-slate-300 hover:text-white font-black text-xs transition-colors cursor-pointer min-h-[42px] flex items-center justify-center"
+              >
+                Cancelar
+              </button>
 
-            <button
-              type="button"
-              onClick={() => handleSubmit()}
-              className="px-6 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>
-                {orderToEdit ? 'Salvar Alterações' : 'Criar Ordem de Serviço'}
-              </span>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center justify-center gap-2 transition-all cursor-pointer min-h-[42px]"
+              >
+                <Check className="w-4 h-4" />
+                <span>
+                  {orderToEdit ? 'Salvar Alterações' : 'Criar Ordem de Serviço'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

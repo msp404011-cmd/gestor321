@@ -1775,8 +1775,8 @@ export const PosView: React.FC<PosViewProps> = ({
 
       {/* 1. CHECKOUT / FINALIZAR VENDA MODAL (F1) */}
       {isCheckoutModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="bg-[#08152e] border-2 border-cyan-500/50 rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-[0_0_40px_rgba(6,182,212,0.3)]">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 animate-in fade-in duration-200">
+          <div className="bg-[#08152e] border-2 border-cyan-500/50 rounded-2xl max-w-lg w-full p-3.5 sm:p-5 space-y-3.5 shadow-[0_0_40px_rgba(6,182,212,0.3)] max-h-[92dvh] overflow-y-auto custom-scrollbar">
             
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-blue-900/60 pb-3">

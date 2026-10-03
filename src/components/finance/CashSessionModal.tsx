@@ -123,7 +123,7 @@ export const CashSessionModal: React.FC<CashSessionModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`relative w-full max-w-4xl rounded-3xl border overflow-hidden flex flex-col my-auto transition-all animate-in zoom-in-95 duration-150 ${
+        className={`relative w-full max-w-4xl rounded-2xl sm:rounded-3xl border overflow-hidden flex flex-col my-auto max-h-[92dvh] transition-all animate-in zoom-in-95 duration-150 ${
           isDark
             ? 'bg-[#071326] border-blue-800/80 shadow-[0_0_50px_rgba(15,23,42,0.9)] text-white'
             : 'bg-white border-slate-200 shadow-2xl text-slate-900'
@@ -525,11 +525,11 @@ export const CashSessionModal: React.FC<CashSessionModalProps> = ({
           )}
 
           {/* Bottom Action Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-blue-900/50">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-3 border-t border-blue-900/50 safe-bottom">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2.5 rounded-xl text-xs font-bold bg-[#0d1f3d] border border-blue-900/80 text-slate-300 hover:text-white hover:bg-blue-900/40 transition-all flex items-center gap-2 cursor-pointer"
+              className="order-2 sm:order-1 px-6 py-2.5 rounded-xl text-xs font-bold bg-[#0d1f3d] border border-blue-900/80 text-slate-300 hover:text-white hover:bg-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
             >
               <X className="w-4 h-4 text-slate-400" />
               <span>Cancelar</span>
@@ -537,7 +537,7 @@ export const CashSessionModal: React.FC<CashSessionModalProps> = ({
 
             <button
               type="submit"
-              className="px-7 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 cursor-pointer"
+              className="order-1 sm:order-2 px-7 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
             >
               <Check className="w-4 h-4 text-white" />
               <span>

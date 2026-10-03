@@ -46,6 +46,7 @@ interface SupplierPurchasesViewProps {
   onUpdateSupplier: (id: string, newSupplierName: string) => void;
   onDelete: (id: string) => void;
   onAddPurchaseItem: (item: Omit<SupplierPurchaseItem, 'purchaseId'>) => void;
+  onUpdatePurchaseItem?: (updatedItem: SupplierPurchaseItem) => Promise<void> | void;
   onBulkPayForSupplier?: (supplierName: string) => void;
   suppliers: RegisteredSupplier[];
   onAddSupplier: (supplier: Omit<RegisteredSupplier, 'id' | 'createdAt'>) => Promise<void>;
@@ -62,6 +63,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   onUpdateSupplier, 
   onDelete, 
   onAddPurchaseItem,
+  onUpdatePurchaseItem,
   onBulkPayForSupplier,
   suppliers,
   onAddSupplier,
@@ -76,6 +78,115 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<RegisteredSupplier | null>(null);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+
+  // Editing piece/order state across all tabs (Data, Valor, Todos os Dados)
+  const [editingPiece, setEditingPiece] = useState<SupplierPurchaseItem | null>(null);
+  const [editingPieceForm, setEditingPieceForm] = useState<{
+    title: string;
+    typeName: string;
+    marca: string;
+    modelo: string;
+    estrutura: string;
+    qualidade: string;
+    cor: string;
+    quantity: number;
+    price: number;
+    supplierName: string;
+    paymentStatus: 'Pendente' | 'Pago';
+    createdAt: string;
+    isReceived: boolean;
+    isReturned: boolean;
+    returnReason: string;
+  }>({
+    title: '',
+    typeName: 'Tela',
+    marca: '',
+    modelo: '',
+    estrutura: '',
+    qualidade: '',
+    cor: '',
+    quantity: 1,
+    price: 0,
+    supplierName: '',
+    paymentStatus: 'Pendente',
+    createdAt: new Date().toISOString().split('T')[0],
+    isReceived: false,
+    isReturned: false,
+    returnReason: ''
+  });
+
+  const handleOpenEditPieceModal = (piece: SupplierPurchaseItem) => {
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (piece.createdAt) {
+      if (piece.createdAt.includes('T')) {
+        dateStr = piece.createdAt.split('T')[0];
+      } else {
+        const parsed = new Date(piece.createdAt);
+        if (!isNaN(parsed.getTime())) {
+          dateStr = parsed.toISOString().split('T')[0];
+        }
+      }
+    }
+    setEditingPiece(piece);
+    setEditingPieceForm({
+      title: piece.title || '',
+      typeName: piece.typeName || 'Tela',
+      marca: piece.marca || '',
+      modelo: piece.modelo || '',
+      estrutura: piece.estrutura || '',
+      qualidade: piece.qualidade || '',
+      cor: piece.cor || '',
+      quantity: Number(piece.quantity) || 1,
+      price: Number(piece.price) || 0,
+      supplierName: piece.supplierName || '',
+      paymentStatus: piece.paymentStatus || 'Pendente',
+      createdAt: dateStr,
+      isReceived: !!piece.isReceived,
+      isReturned: !!piece.isReturned,
+      returnReason: piece.returnReason || ''
+    });
+  };
+
+  const handleSaveEditedPiece = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPiece) return;
+
+    let finalCreatedAt = editingPiece.createdAt;
+    if (editingPieceForm.createdAt) {
+      if (editingPieceForm.createdAt.includes('T')) {
+        finalCreatedAt = editingPieceForm.createdAt;
+      } else {
+        finalCreatedAt = `${editingPieceForm.createdAt}T12:00:00.000Z`;
+      }
+    }
+
+    const updated: SupplierPurchaseItem = {
+      ...editingPiece,
+      title: editingPieceForm.title.trim() || `${editingPieceForm.typeName} ${editingPieceForm.modelo || ''}`.trim() || 'Peça',
+      typeName: editingPieceForm.typeName || 'Tela',
+      marca: editingPieceForm.marca.trim(),
+      modelo: editingPieceForm.modelo.trim(),
+      estrutura: editingPieceForm.estrutura.trim(),
+      qualidade: editingPieceForm.qualidade.trim(),
+      cor: editingPieceForm.cor.trim(),
+      quantity: Math.max(1, Number(editingPieceForm.quantity) || 1),
+      price: Math.max(0, Number(editingPieceForm.price) || 0),
+      supplierName: editingPieceForm.supplierName.trim() || editingPiece.supplierName,
+      paymentStatus: editingPieceForm.paymentStatus,
+      paidAt: editingPieceForm.paymentStatus === 'Pago' ? (editingPiece.paidAt || new Date().toISOString()) : null,
+      createdAt: finalCreatedAt,
+      isReceived: editingPieceForm.isReceived,
+      receivedAt: editingPieceForm.isReceived ? (editingPiece.receivedAt || new Date().toISOString()) : null,
+      isReturned: editingPieceForm.isReturned,
+      returnedAt: editingPieceForm.isReturned ? (editingPiece.returnedAt || new Date().toISOString()) : null,
+      returnReason: editingPieceForm.returnReason.trim()
+    };
+
+    if (onUpdatePurchaseItem) {
+      onUpdatePurchaseItem(updated);
+    }
+    setEditingPiece(null);
+  };
 
   // Conference modal state for generating debt report for supplier
   const [conferenceModal, setConferenceModal] = useState<{
@@ -981,39 +1092,39 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+    <div className="flex-1 flex flex-col space-y-3 sm:space-y-4 overflow-hidden">
       {/* ------------------------------------------------------------- */}
       {/* TOP BANNERS FOR HISTÓRICO & DÉBITOS */}
       {/* ------------------------------------------------------------- */}
       {subTab === 'HISTORICO' && (
-        <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900 border border-indigo-500/30 p-4 rounded-xl flex items-center justify-between shrink-0 shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+        <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900 border border-indigo-500/30 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 shrink-0 shadow-lg">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-2 sm:p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30 shrink-0">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                Histórico de Compras Pagas (Janela Rotativa de 12 Meses)
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/30">
+              <h3 className="text-xs sm:text-sm font-black text-white flex items-center gap-2 flex-wrap">
+                <span>Histórico de Compras Pagas (12 Meses)</span>
+                <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30">
                   Auto-limpeza ativa
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Peças marcadas como pagas na hora ou quitadas a prazo ficam arquivadas aqui por 12 meses. O sistema remove automaticamente registros anteriores a 1 ano.
+              <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
+                Peças marcadas como pagas na hora ou quitadas a prazo ficam arquivadas por 12 meses.
               </p>
             </div>
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-xs text-slate-400 uppercase font-bold">Total Pago (12m)</div>
-            <div className="text-xl font-black text-emerald-400">R$ {totalPaidAmount.toFixed(2).replace('.', ',')}</div>
+          <div className="text-left sm:text-right shrink-0 bg-[#0B1221]/60 sm:bg-transparent p-2 sm:p-0 rounded-xl w-full sm:w-auto flex items-center sm:block justify-between border sm:border-0 border-slate-800">
+            <div className="text-[10px] text-slate-400 uppercase font-bold">Total Pago (12m)</div>
+            <div className="text-base sm:text-xl font-black text-emerald-400">R$ {totalPaidAmount.toFixed(2).replace('.', ',')}</div>
           </div>
         </div>
       )}
 
       {subTab === 'DEBITOS' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 shrink-0">
-          <div className="bg-[#161B2B] rounded-lg border border-amber-500/30 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg shrink-0">
+          <div className="bg-[#161B2B] rounded-xl border border-amber-500/30 p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl shrink-0">
               <DollarSign className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -1024,8 +1135,8 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0">
+          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl shrink-0">
               <Package className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -1036,8 +1147,8 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-lg border border-slate-800 p-2 sm:p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-1.5 bg-purple-500/10 text-purple-400 rounded-lg shrink-0">
+          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl shrink-0">
               <Truck className="w-4 h-4" />
             </div>
             <div className="min-w-0">
@@ -1053,8 +1164,8 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       {/* ------------------------------------------------------------- */}
       {/* SEARCH / ACTION BAR */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center bg-[#161B2B] p-3 rounded-xl border border-slate-800 shrink-0">
-        <div className="flex items-center gap-2 flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-between items-stretch sm:items-center bg-[#161B2B] p-2.5 sm:p-3 rounded-2xl border border-slate-800 shrink-0">
+        <div className="flex items-center gap-2 flex-1 w-full sm:max-w-md">
           <div className="relative w-full">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
@@ -1062,27 +1173,27 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por peça, marca, modelo ou fornecedor..."
-              className="w-full bg-[#0B1221] border border-slate-700/80 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-[#0B1221] border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
             />
           </div>
           {searchTerm && (
             <button 
               onClick={() => setSearchTerm('')}
-              className="text-xs text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded cursor-pointer"
+              className="text-xs text-slate-400 hover:text-white px-2.5 py-2 bg-slate-800 rounded-xl cursor-pointer shrink-0 font-bold"
             >
               Limpar
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
           {/* Filter by supplier */}
-          <div className="flex items-center gap-1.5 bg-[#0B1221] border border-slate-700/80 px-2.5 py-1.5 rounded-lg">
-            <Truck className="w-3.5 h-3.5 text-slate-400" />
+          <div className="flex items-center gap-1.5 bg-[#0B1221] border border-slate-700/80 px-2.5 py-2 rounded-xl flex-1 sm:flex-none">
+            <Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={supplierFilter}
               onChange={(e) => setSupplierFilter(e.target.value)}
-              className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-white focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-[#161B2B]">Todos os Fornecedores</option>
               {allSuppliersList.map(s => (
@@ -1093,12 +1204,12 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
 
           {/* SubTab 2 actions: + Cadastrar Fornecedor & + Apontar Peça */}
           {subTab === 'FORNECEDOR' && (
-            <>
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button
                 onClick={handleOpenAddSupplier}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
+                className="flex-1 sm:flex-none px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
               >
-                <UserPlus className="w-4 h-4" /> + Cadastrar Fornecedor
+                <UserPlus className="w-4 h-4" /> <span className="truncate">+ Cadastrar Fornecedor</span>
               </button>
 
               <button
@@ -1109,11 +1220,11 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                   }));
                   setIsAddPieceModalOpen(true);
                 }}
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> + Apontar Peça
+                <Plus className="w-4 h-4" /> <span className="truncate">+ Apontar Peça</span>
               </button>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1393,12 +1504,12 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                               {pendingPieces.length > 0 && onBulkPayForSupplier ? (
                                 <button
                                   onClick={() => onBulkPayForSupplier(supplier.name)}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                                  className="w-full sm:w-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
                                 >
                                   <Check className="w-3.5 h-3.5" /> Quitar Todas a Prazo ({pendingPieces.length})
                                 </button>
                               ) : (
-                                <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                <div className="text-xs text-emerald-400 font-bold flex items-center gap-1">
                                   <CheckCircle2 className="w-3.5 h-3.5" /> Nenhum débito em aberto
                                 </div>
                               )}
@@ -1408,20 +1519,20 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                   setNewItemForm(prev => ({ ...prev, supplierName: supplier.name }));
                                   setIsAddPieceModalOpen(true);
                                 }}
-                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all border border-slate-700"
+                                className="w-full sm:w-auto px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all border border-slate-700"
                               >
                                 <Plus className="w-3.5 h-3.5 text-indigo-400" /> Apontar Peça Neste Card
                               </button>
                             </div>
 
                             {/* Pieces Filter Tabs + Accordion Curtain Bulk Controls */}
-                            <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-800/60 flex-wrap">
-                              <div className="flex items-center gap-1 flex-nowrap overflow-x-auto max-w-full pb-0.5">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-800/60">
+                              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full pb-1 sm:pb-0">
                                 <button
                                   onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'ALL' }))}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                     currentCardFilter === 'ALL'
-                                      ? 'bg-indigo-600 text-white'
+                                      ? 'bg-indigo-600 text-white shadow-sm'
                                       : 'bg-slate-800 text-slate-400 hover:text-white'
                                   }`}
                                 >
@@ -1429,9 +1540,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                 </button>
                                 <button
                                   onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'PENDENTE' }))}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                     currentCardFilter === 'PENDENTE'
-                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
                                       : 'bg-slate-800 text-slate-400 hover:text-amber-400'
                                   }`}
                                 >
@@ -1439,9 +1550,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                 </button>
                                 <button
                                   onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'PAGO' }))}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                     currentCardFilter === 'PAGO'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
                                       : 'bg-slate-800 text-slate-400 hover:text-emerald-400'
                                   }`}
                                 >
@@ -1449,9 +1560,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                 </button>
                                 <button
                                   onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'DEVOLUCAO' }))}
-                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                     currentCardFilter === 'DEVOLUCAO'
-                                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
                                       : 'bg-slate-800 text-slate-400 hover:text-rose-400'
                                   }`}
                                 >
@@ -1460,20 +1571,20 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                               </div>
 
                               {dateKeys.length > 0 && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1.5 justify-end">
                                   <button
                                     onClick={() => setAllCurtainsForSupplier(supplier.id, dateKeys, true)}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                     title="Descer todas as cortinas de datas deste card"
                                   >
-                                    <ChevronDown className="w-3 h-3 text-indigo-400" /> Abrir Cortinas
+                                    <ChevronDown className="w-3.5 h-3.5 text-indigo-400" /> Abrir Cortinas
                                   </button>
                                   <button
                                     onClick={() => setAllCurtainsForSupplier(supplier.id, dateKeys, false)}
-                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                     title="Recolher todas as cortinas de datas deste card"
                                   >
-                                    <ChevronUp className="w-3 h-3 text-slate-400" /> Recolher Cortinas
+                                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> Recolher Cortinas
                                   </button>
                                 </div>
                               )}
@@ -1484,9 +1595,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
 
                       {/* DATE GROUP ACCORDION CURTAINS (DIVIDIDO POR DATA) */}
                       {!isCardCollapsed && (
-                        <div className="space-y-3 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="space-y-3 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
                           {dateGroups.length === 0 ? (
-                            <div className="text-center py-6 text-slate-500 text-xs bg-[#0B1221] rounded-xl border border-slate-800">
+                            <div className="text-center py-6 text-slate-500 text-xs bg-[#0B1221] rounded-2xl border border-slate-800">
                               Nenhuma peça encontrada neste status para este fornecedor.
                             </div>
                           ) : (
@@ -1498,20 +1609,20 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                               return (
                                 <div 
                                   key={group.dateKey}
-                                  className="rounded-xl border border-slate-800/90 overflow-hidden bg-[#0B1221] transition-all shadow-sm hover:border-slate-700"
+                                  className="rounded-2xl border border-slate-800/90 overflow-hidden bg-[#0B1221] transition-all shadow-sm hover:border-slate-700"
                                 >
                                   {/* CURTAIN HEADER (Click to open / close like a curtain) */}
                                   <button
                                     type="button"
                                     onClick={() => toggleCurtain(curtainKey)}
-                                    className={`w-full p-3 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer border-b ${
+                                    className={`w-full p-2.5 sm:p-3 transition-colors flex items-center justify-between gap-2.5 text-left cursor-pointer border-b ${
                                       isCurtainOpen 
                                         ? 'bg-gradient-to-r from-slate-900 via-[#111A2E] to-slate-900 border-indigo-500/30' 
                                         : 'bg-[#0E1524] hover:bg-slate-850 border-slate-800/60'
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                      <div className={`p-2 rounded-lg border shrink-0 ${
+                                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                                      <div className={`p-1.5 sm:p-2 rounded-xl border shrink-0 ${
                                         isCurtainOpen 
                                           ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' 
                                           : 'bg-slate-800 text-slate-400 border-slate-700'
@@ -1519,9 +1630,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                         <Calendar className="w-4 h-4" />
                                       </div>
 
-                                      <div className="min-w-0">
+                                      <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="text-xs font-black text-white">
+                                          <span className="text-xs sm:text-sm font-black text-white">
                                             {group.displayDate}
                                           </span>
                                           {group.dayBadge && (
@@ -1530,7 +1641,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                             </span>
                                           )}
                                           {group.weekday && (
-                                            <span className="text-[10px] text-slate-400 font-medium">
+                                            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
                                               • {group.weekday}
                                             </span>
                                           )}
@@ -1560,10 +1671,10 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                     </div>
 
                                     {/* VALOR DELE (Desta data) & Curtain Toggle Indicator */}
-                                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                                       <div className="text-right">
-                                        <span className="text-[9px] uppercase font-bold text-slate-400 block">
-                                          VALOR DELE
+                                        <span className="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 block">
+                                          VALOR
                                         </span>
                                         <span className="text-xs sm:text-sm font-black text-indigo-300 block">
                                           R$ {group.subtotal.toFixed(2).replace('.', ',')}
@@ -1581,9 +1692,9 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                     </div>
                                   </button>
 
-                                  {/* CURTAIN BODY (Descida como cortina ao clicar) */}
+                                  {/* CURTAIN BODY */}
                                   {isCurtainOpen && (
-                                    <div className="p-3 space-y-2 bg-[#090E1A]/80 border-t border-slate-800/40">
+                                    <div className="p-2.5 sm:p-3 space-y-2 bg-[#090E1A]/80 border-t border-slate-800/40">
                                       {group.pieces.map(piece => {
                                         const isReturned = !!piece.isReturned;
                                         const isPaid = piece.paymentStatus === 'Pago' && !isReturned;
@@ -1606,7 +1717,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 uppercase">
                                                     {piece.typeName || 'Peça'}
                                                   </span>
-                                                  <span className="font-black text-xs text-white truncate" title={piece.title}>
+                                                  <span className="font-black text-xs sm:text-sm text-white truncate" title={piece.title}>
                                                     {piece.title}
                                                   </span>
                                                 </div>
@@ -1621,7 +1732,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                               </div>
 
                                               <div className="text-right shrink-0">
-                                                <div className={`text-xs font-black ${
+                                                <div className={`text-xs sm:text-sm font-black ${
                                                   isReturned 
                                                     ? 'line-through text-slate-500' 
                                                     : isPaid 
@@ -1640,8 +1751,8 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                               </div>
                                             </div>
 
-                                            {/* Piece Controls: Status Badge + Return Actions */}
-                                            <div className="flex items-center justify-between pt-1 border-t border-slate-800/50 flex-wrap gap-1">
+                                            {/* Piece Controls: Status Badge + Return Actions (Wrap-friendly on mobile) */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-1.5 border-t border-slate-800/50 gap-2">
                                               <div>
                                                 {isReturned ? (
                                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/30">
@@ -1658,23 +1769,22 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                                 )}
                                               </div>
 
-                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                                                 {isReturned ? (
                                                   <>
-                                                    {/* OPÇÃO DE ENVIAR AO FORNECEDOR QUE ELA VAI SER DEVOLVIDA */}
                                                     <button
                                                       onClick={() => handleSendSinglePieceReturn(supplier.phone || '', supplier.name, piece)}
-                                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                                      title="Enviar aviso de devolução no WhatsApp do fornecedor"
+                                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                                      title="Enviar aviso de devolução no WhatsApp"
                                                     >
-                                                      <Send className="w-3 h-3" /> Enviar ao Fornecedor
+                                                      <Send className="w-3 h-3" /> WhatsApp
                                                     </button>
                                                     <button
                                                       onClick={() => onToggleReturn && onToggleReturn(piece.purchaseId, false)}
-                                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                                       title="Cancelar devolução e voltar a contabilizar a peça"
                                                     >
-                                                      <Undo2 className="w-3 h-3" /> Reativar Peça
+                                                      <Undo2 className="w-3 h-3" /> Reativar
                                                     </button>
                                                   </>
                                                 ) : (
@@ -1682,35 +1792,43 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                                     {isPaid ? (
                                                       <button
                                                         onClick={() => onUpdateStatus(piece.purchaseId, 'Pendente')}
-                                                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                                         title="Reverter para A Prazo (Débito)"
                                                       >
-                                                        <RefreshCw className="w-3 h-3" /> Reverter p/ A Prazo
+                                                        <RefreshCw className="w-3 h-3" /> Reverter
                                                       </button>
                                                     ) : (
                                                       <button
                                                         onClick={() => onUpdateStatus(piece.purchaseId, 'Pago')}
-                                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-600/20"
+                                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-600/20"
                                                         title="Pagar na Hora (Vai p/ Histórico)"
                                                       >
-                                                        <Check className="w-3 h-3" /> ⚡ Pagar na Hora
+                                                        <Check className="w-3 h-3" /> ⚡ Pagar
                                                       </button>
                                                     )}
 
-                                                    {/* BOTÃO DE DEVOLUÇÃO */}
                                                     <button
                                                       onClick={() => handleOpenReturnModal(piece, supplier.name, supplier.phone || '')}
-                                                      className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                                      title="Marcar peça para devolução (o valor não será mais contabilizado)"
+                                                      className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                      title="Marcar peça para devolução"
                                                     >
-                                                      <RotateCcw className="w-3 h-3 text-rose-400" /> Devolução
+                                                      <RotateCcw className="w-3 h-3 text-rose-400" /> Devolver
                                                     </button>
                                                   </>
                                                 )}
 
                                                 <button
+                                                  type="button"
+                                                  onClick={() => handleOpenEditPieceModal(piece)}
+                                                  className="p-1.5 text-slate-300 hover:text-indigo-400 hover:bg-indigo-500/15 rounded-lg cursor-pointer transition-all bg-slate-800/80 border border-slate-700"
+                                                  title="Editar todos os dados da peça"
+                                                >
+                                                  <Edit3 className="w-3.5 h-3.5" />
+                                                </button>
+
+                                                <button
                                                   onClick={() => onDelete(piece.purchaseId)}
-                                                  className="p-1 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded cursor-pointer transition-all"
+                                                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg cursor-pointer transition-all bg-slate-800/80 border border-slate-700"
                                                   title="Excluir peça"
                                                 >
                                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1722,11 +1840,11 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                       })}
 
                                       {/* Curtain Footer: Extrato Desta Data + Quitar Peças Desta Data */}
-                                      <div className="pt-2 flex items-center justify-between flex-wrap gap-2 border-t border-slate-800/60 mt-2">
+                                      <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t border-slate-800/60 mt-2">
                                         <button
                                           onClick={() => handleSendExtratoWhatsApp(supplier.phone || '', supplier.name, group.pieces, group.displayDate)}
-                                          className="px-3 py-1.5 bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-                                          title="Enviar extrato de conferência desta data para o fornecedor no WhatsApp"
+                                          className="px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                                          title="Enviar extrato de conferência desta data no WhatsApp"
                                         >
                                           <Send className="w-3.5 h-3.5 text-emerald-400" /> Extrato Desta Data (WhatsApp)
                                         </button>
@@ -1738,10 +1856,10 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                                 .filter(p => p.paymentStatus === 'Pendente' && !p.isReturned)
                                                 .forEach(p => onUpdateStatus(p.purchaseId, 'Pago'));
                                             }}
-                                            className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                                            className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                                             title="Quitar todas as peças a prazo desta data específica"
                                           >
-                                            <Check className="w-3.5 h-3.5" /> Quitar Peças Desta Data (R$ {group.pendingSubtotal.toFixed(2).replace('.', ',')})
+                                            <Check className="w-3.5 h-3.5" /> Quitar Dia (R$ {group.pendingSubtotal.toFixed(2).replace('.', ',')})
                                           </button>
                                         )}
                                       </div>
@@ -1791,6 +1909,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                     key={sup.supplierName}
                     className="bg-[#13192B] border-2 border-amber-500/30 hover:border-amber-500/50 rounded-xl p-3.5 sm:p-4 shadow-xl transition-all"
                   >
+
                     {/* -------------------------------------------------- */}
                     {/* CABEÇALHO DO CARD DE DÉBITO COMPACTO (TUDO SUBIDO) */}
                     {/* -------------------------------------------------- */}
@@ -2137,6 +2256,15 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                           </button>
                                         )}
 
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditPieceModal(item)}
+                                          className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all cursor-pointer"
+                                          title="Editar todos os dados da peça (data, valor, modelo, etc.)"
+                                        >
+                                          <Edit3 className="w-3.5 h-3.5" />
+                                        </button>
+
                                         <button 
                                           type="button"
                                           onClick={() => onDelete(item.purchaseId)}
@@ -2226,6 +2354,14 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                               {item.quantity}x R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')}
                             </div>
                           </div>
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEditPieceModal(item)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all cursor-pointer"
+                            title="Editar todos os dados da peça (data, valor, modelo, etc.)"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
                           <button 
                             onClick={() => onDelete(item.purchaseId)}
                             className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
@@ -3018,6 +3154,400 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL: EDITAR PEÇA / PEDIDO DE FORNECEDOR (DATA, VALOR E TODOS OS DADOS) */}
+      {editingPiece && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161B2B] border border-slate-700 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#0B1221] shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Editar Peça / Pedido de Fornecedor</h3>
+                  <p className="text-xs text-slate-400">Altere a data, valor, fornecedor, modelo e todos os dados</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingPiece(null)}
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-full cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSaveEditedPiece} className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
+              {/* Data da Compra / Pedido & Fornecedor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Data do Pedido / Compra *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editingPieceForm.createdAt}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, createdAt: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5" /> Fornecedor *
+                  </label>
+                  <select
+                    value={editingPieceForm.supplierName}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, supplierName: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                  >
+                    <option value="">Selecione o fornecedor...</option>
+                    {allSuppliersList.map(s => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Categoria & Nome / Descrição */}
+              <div className="space-y-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                    Categoria da Peça
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {['Tela', 'Bateria', 'DOC / Conector', 'Placa', 'Câmera', 'Carcaça', 'Acessórios', 'Outros'].map(cat => {
+                      const isSel = (editingPieceForm.typeName || '').toLowerCase() === cat.toLowerCase();
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setEditingPieceForm({ ...editingPieceForm, typeName: cat })}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                            isSel
+                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                    Descrição / Nome da Peça *
+                  </label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="Ex: Tela Display Frente Complete, Bateria Original..."
+                    value={editingPieceForm.title}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, title: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Marca & Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Marca / Fabricante</label>
+                  <input
+                    type="text"
+                    placeholder="Apple, Samsung, Xiaomi, Motorola..."
+                    value={editingPieceForm.marca}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, marca: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap pt-1">
+                    {['Apple', 'Samsung', 'Xiaomi', 'Motorola', 'Realme'].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setEditingPieceForm(prev => ({ ...prev, marca: m }))}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                          editingPieceForm.marca.toLowerCase() === m.toLowerCase()
+                            ? 'bg-indigo-600 text-white font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Modelo do Aparelho</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: iPhone 11, S20 FE, Redmi Note 10..."
+                    value={editingPieceForm.modelo}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, modelo: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Estrutura, Qualidade & Cor */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm(prev => ({
+                        ...prev,
+                        estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
+                      }))}
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                        (editingPieceForm.estrutura || '').toUpperCase() === 'C/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      C/ ARO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm(prev => ({
+                        ...prev,
+                        estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
+                      }))}
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                        (editingPieceForm.estrutura || '').toUpperCase() === 'S/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      S/ ARO
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Outra estrutura..."
+                    value={editingPieceForm.estrutura}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, estrutura: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
+                  <input
+                    type="text"
+                    placeholder="Original, Gold Pro, Incell..."
+                    value={editingPieceForm.qualidade}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, qualidade: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['Original', 'China Gold', 'Incell', 'OLED'].map(q => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setEditingPieceForm(prev => ({ ...prev, qualidade: q }))}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                          editingPieceForm.qualidade.toLowerCase() === q.toLowerCase()
+                            ? 'bg-amber-500 text-slate-950 font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
+                  <input
+                    type="text"
+                    placeholder="Preto, Branco, Azul..."
+                    value={editingPieceForm.cor}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, cor: e.target.value })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setEditingPieceForm(prev => ({ ...prev, cor: c }))}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                          editingPieceForm.cor.toLowerCase() === c.toLowerCase()
+                            ? 'bg-indigo-600 text-white font-black'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quantidade & Preço Unitário (VALOR) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-slate-300 uppercase">Quantidade</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    value={editingPieceForm.quantity}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-emerald-400 uppercase flex items-center justify-between">
+                    <span>Preço Unitário (R$) *</span>
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      Subtotal: R$ {((Number(editingPieceForm.quantity) || 1) * (Number(editingPieceForm.price) || 0)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editingPieceForm.price}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, price: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-[#161B2B] border border-emerald-500/50 rounded-xl px-3 py-2 text-sm font-black text-emerald-300 focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+              </div>
+
+              {/* Status de Pagamento & Recebimento & Devolução */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-black text-slate-300 uppercase">Pagamento</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, paymentStatus: 'Pendente' })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        editingPieceForm.paymentStatus === 'Pendente'
+                          ? 'border-amber-500 bg-amber-500/20 text-amber-400 shadow-md shadow-amber-500/10'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3" /> A Prazo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, paymentStatus: 'Pago' })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        editingPieceForm.paymentStatus === 'Pago'
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-md shadow-emerald-500/10'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Pago
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-black text-slate-300 uppercase">Recebimento</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, isReceived: false })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        !editingPieceForm.isReceived
+                          ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Clock className="w-3 h-3" /> Falta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, isReceived: true })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        editingPieceForm.isReceived
+                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-md shadow-emerald-500/10'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Check className="w-3 h-3" /> Recebido
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-black text-rose-400 uppercase">Devolução</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, isReturned: false, returnReason: '' })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        !editingPieceForm.isReturned
+                          ? 'border-slate-600 bg-slate-800 text-slate-200'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Normal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPieceForm({ ...editingPieceForm, isReturned: true, returnReason: editingPieceForm.returnReason || 'Defeito de fábrica' })}
+                      className={`p-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        editingPieceForm.isReturned
+                          ? 'border-rose-500 bg-rose-500/20 text-rose-300 shadow-md shadow-rose-500/10'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:text-rose-400'
+                      }`}
+                    >
+                      <RotateCcw className="w-3 h-3" /> Devolvida
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {editingPieceForm.isReturned && (
+                <div className="space-y-1 bg-rose-950/20 p-3 rounded-2xl border border-rose-500/30 animate-in fade-in">
+                  <label className="block text-xs font-black text-rose-400 uppercase">
+                    Motivo da Devolução
+                  </label>
+                  <input
+                    type="text"
+                    value={editingPieceForm.returnReason}
+                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, returnReason: e.target.value })}
+                    placeholder="Ex: Touch falhando, defeito de fábrica, peça incompatível..."
+                    className="w-full bg-[#161B2B] border border-rose-500/50 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-400"
+                  />
+                </div>
+              )}
+
+              {/* Bottom Footer Actions */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingPiece(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-indigo-600/30 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" /> Salvar Alterações
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

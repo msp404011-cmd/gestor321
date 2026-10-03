@@ -1876,32 +1876,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
         {/* Button 1: Nova OS */}
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <button
             type="button"
             onClick={handleNovaOS}
-            className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+            className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
               isDark
                 ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 border-2 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.55)] hover:shadow-[0_0_28px_rgba(59,130,246,0.8)]'
                 : 'bg-[#e8f1ff] border border-blue-200/90 shadow-2xs hover:shadow-md hover:bg-[#deebff]'
             }`}
           >
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
               isDark
                 ? 'bg-blue-800/70 border border-blue-300/80 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
                 : 'bg-[#0066ff] shadow-sm'
             }`}>
               <Plus className="w-4 h-4" />
             </div>
-            <div className="min-w-0">
-              <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+            <div className="min-w-0 flex-1">
+              <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
                 isDark ? 'text-white' : 'text-[#0a2540]'
               }`}>
                 Nova OS
               </span>
-              <span className={`text-[10px] block truncate whitespace-nowrap ${
+              <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
                 isDark ? 'text-blue-100' : 'text-blue-700 font-medium'
               }`}>
                 Reg. equipamento
@@ -1914,26 +1914,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleNovaVenda}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-500 border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.55)] hover:shadow-[0_0_28px_rgba(16,185,129,0.8)]'
               : 'bg-[#e6f8f3] border border-emerald-200/90 shadow-2xs hover:shadow-md hover:bg-[#d8f5ec]'
           }`}
         >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
             isDark
               ? 'bg-emerald-800/70 border border-emerald-300/80 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
               : 'bg-[#00c896] shadow-sm'
           }`}>
             <ShoppingCart className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
               isDark ? 'text-white' : 'text-[#053b2d]'
             }`}>
               Nova Venda
             </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
+            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
               isDark ? 'text-emerald-100' : 'text-emerald-700 font-medium'
             }`}>
               PDV da loja
@@ -1945,26 +1945,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleNovoCliente}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-purple-500 border-2 border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.55)] hover:shadow-[0_0_28px_rgba(168,85,247,0.8)]'
               : 'bg-[#f3ebff] border border-purple-200/90 shadow-2xs hover:shadow-md hover:bg-[#ebd9ff]'
           }`}
         >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
             isDark
               ? 'bg-purple-800/70 border border-purple-300/80 shadow-[0_0_10px_rgba(168,85,247,0.5)]'
               : 'bg-[#9043f6] shadow-sm'
           }`}>
             <UserPlus className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
               isDark ? 'text-white' : 'text-[#2e0962]'
             }`}>
               Novo Cliente
             </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
+            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
               isDark ? 'text-purple-100' : 'text-purple-700 font-medium'
             }`}>
               Cadastrar cliente
@@ -1976,26 +1976,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleEntradaEstoque}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-500 border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.55)] hover:shadow-[0_0_28px_rgba(245,158,11,0.8)]'
               : 'bg-[#fff3e6] border border-amber-200/90 shadow-2xs hover:shadow-md hover:bg-[#ffe6cc]'
           }`}
         >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
             isDark
               ? 'bg-amber-800/70 border border-amber-300/80 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
               : 'bg-[#ff8800] shadow-sm'
           }`}>
             <Box className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
               isDark ? 'text-white' : 'text-[#522900]'
             }`}>
               Entrada Estoque
             </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
+            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
               isDark ? 'text-amber-100' : 'text-amber-700 font-medium'
             }`}>
               Add produtos
@@ -2007,26 +2007,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleAbrirCaixa}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-r from-rose-700 via-rose-600 to-rose-500 border-2 border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.55)] hover:shadow-[0_0_28px_rgba(244,63,94,0.8)]'
               : 'bg-[#ffeef2] border border-rose-200/90 shadow-2xs hover:shadow-md hover:bg-[#ffdce4]'
           }`}
         >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
             isDark
               ? 'bg-rose-800/70 border border-rose-300/80 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
               : 'bg-[#ff2d55] shadow-sm'
           }`}>
             <Wallet className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
               isDark ? 'text-white' : 'text-[#570014]'
             }`}>
               {isCashOpen ? 'Caixa Aberto' : 'Abrir Caixa'}
             </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
+            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
               isDark ? 'text-rose-100' : 'text-rose-700 font-medium'
             }`}>
               Movimentação
@@ -2038,26 +2038,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleRelatorios}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-r from-cyan-700 via-teal-600 to-teal-500 border-2 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.55)] hover:shadow-[0_0_28px_rgba(6,182,212,0.8)]'
               : 'bg-[#e6f7ff] border border-cyan-200/90 shadow-2xs hover:shadow-md hover:bg-[#d4f2ff]'
           }`}
         >
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
             isDark
               ? 'bg-cyan-800/70 border border-cyan-300/80 shadow-[0_0_10px_rgba(6,182,212,0.5)]'
               : 'bg-[#00b2fe] shadow-sm'
           }`}>
             <BarChart3 className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <span className={`text-xs font-bold block truncate whitespace-nowrap leading-tight ${
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
               isDark ? 'text-white' : 'text-[#003c57]'
             }`}>
               Relatórios
             </span>
-            <span className={`text-[10px] block truncate whitespace-nowrap ${
+            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
               isDark ? 'text-cyan-100' : 'text-cyan-700 font-medium'
             }`}>
               Resultados
@@ -2067,11 +2067,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </section>
 
       {/* 3. TOP 5 3D KPI METRIC CARDS WITH EXACT COLORS, DIVISIONS & 3D ICONS */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
         {/* Card 1: Faturamento Hoje (Green 3D Glass) */}
         <div
           onClick={() => onNavigate('CASH')}
-          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-br from-[#06241a] via-[#081f18] to-[#04130f] border-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.65)] hover:border-emerald-400'
               : 'bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border-emerald-400 shadow-sm hover:shadow-md'
@@ -2079,26 +2079,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title="Ver movimentações e fluxo do Caixa de hoje"
         >
           <div className="flex items-center justify-between gap-1 mb-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               FATURAMENTO HOJE
             </span>
-            <span className={`border rounded-full px-1.5 py-0.2 text-[9px] font-bold whitespace-nowrap shrink-0 ${
+            <span className={`border rounded-full px-1.5 py-0.2 text-[8px] sm:text-[9px] font-bold whitespace-nowrap shrink-0 ${
               growthPercentage >= 0 
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.4)]' 
                 : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
             }`}>
-              {growthPercentage >= 0 ? `↑ +${growthPercentage}%` : `↓ ${growthPercentage}%`}
+              {growthPercentage >= 0 ? `+${growthPercentage}%` : `${growthPercentage}%`}
             </span>
           </div>
-          <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <AnimatedCountNumber value={todaySalesTotal} prefix="R$ " decimals={2} />
           </div>
-          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-emerald-500/30 text-[10px]">
+          <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-emerald-500/30 text-[9px] sm:text-[10px]">
             <span className="text-emerald-400 font-semibold whitespace-nowrap truncate">
-              ↑ {todaySalesCount} {todaySalesCount === 1 ? 'venda realizada' : 'vendas realizadas'}
+              {todaySalesCount} {todaySalesCount === 1 ? 'venda' : 'vendas'}
             </span>
-            <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]">
-              <span className="text-xs">💰</span>
+            <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]">
+              <span className="text-[10px] sm:text-xs">💰</span>
             </div>
           </div>
         </div>
@@ -2106,7 +2106,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 2: Faturamento Mês (Cyan/Blue 3D Glass) */}
         <div
           onClick={() => onNavigate('FINANCE')}
-          className={`rounded-2xl p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-br from-[#07203a] via-[#061a30] to-[#041020] border-cyan-500 shadow-[0_0_22px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.65)] hover:border-cyan-400'
               : 'bg-gradient-to-br from-cyan-50 via-white to-blue-50/50 border-cyan-400 shadow-sm hover:shadow-md'
@@ -2114,22 +2114,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           title="Ver Gestão Financeira Completa"
         >
           <div className="flex items-center justify-between gap-1 mb-1">
-            <span className={`text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               FATURAMENTO MÊS
             </span>
-            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded-full px-1.5 py-0.2 text-[9px] font-bold whitespace-nowrap shrink-0 shadow-[0_0_6px_rgba(6,182,212,0.4)]">
-              ↑ Mensal
+            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded-full px-1.5 py-0.2 text-[8px] sm:text-[9px] font-bold whitespace-nowrap shrink-0 shadow-[0_0_6px_rgba(6,182,212,0.4)]">
+              Mensal
             </span>
           </div>
-          <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <AnimatedCountNumber value={monthRevenueTotal} prefix="R$ " decimals={2} />
           </div>
-          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-cyan-500/30 text-[10px]">
+          <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-cyan-500/30 text-[9px] sm:text-[10px]">
             <span className="text-cyan-400 font-medium whitespace-nowrap truncate">
-              ↑ {sales.length + orders.filter(o => o.status === 'ENTREGUE').length} vendas e serviços
+              {sales.length + orders.filter(o => o.status === 'ENTREGUE').length} vendas/OS
             </span>
-            <div className="w-5 h-5 rounded-full bg-cyan-500/20 border border-cyan-500/60 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.5)]">
-              <span className="text-xs">📊</span>
+            <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-cyan-500/20 border border-cyan-500/60 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.5)]">
+              <span className="text-[10px] sm:text-xs">📊</span>
             </div>
           </div>
         </div>
@@ -2138,75 +2138,75 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <div
             onClick={() => onNavigate('ORDERS')}
-            className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
+            className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
               isDark
                 ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_35px_rgba(168,85,247,0.65)] hover:border-purple-400'
                 : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
-              <Wrench className="w-5 h-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
+              <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className={`text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 ORDENS DE SERVIÇO
               </span>
-              <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 <AnimatedCountNumber value={statusCounts.total} />
               </div>
-              <span className="text-purple-300 text-[10px] font-medium block whitespace-nowrap truncate">
+              <span className="text-purple-300 text-[9px] sm:text-[10px] font-medium block whitespace-nowrap truncate">
                 {statusCounts.emManutencao} em andamento
               </span>
             </div>
           </div>
         )}
 
-        {/* Card 5: Estoque Baixo (Red/Crimson 3D Glass) */}
+        {/* Card 4: Estoque Baixo (Red/Crimson 3D Glass) */}
         <div
           onClick={() => onNavigate('PRODUCTS')}
-          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-br from-[#300c17] via-[#240811] to-[#170409] border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.35)] hover:shadow-[0_0_35px_rgba(244,63,94,0.65)] hover:border-rose-400'
               : 'bg-gradient-to-br from-rose-50 via-white to-rose-50/50 border-rose-400 shadow-sm hover:shadow-md'
           }`}
         >
-          <div className="p-2.5 rounded-xl bg-rose-500/30 border border-rose-400/70 text-rose-300 shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.5)]">
-            <Package className="w-5 h-5" />
+          <div className="p-2 sm:p-2.5 rounded-xl bg-rose-500/30 border border-rose-400/70 text-rose-300 shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.5)]">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] font-bold text-rose-300 uppercase tracking-wider block whitespace-nowrap truncate">
+            <span className="text-[9px] sm:text-[10px] font-bold text-rose-300 uppercase tracking-wider block whitespace-nowrap truncate">
               ESTOQUE BAIXO
             </span>
-            <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <AnimatedCountNumber value={lowStockCount} />
             </div>
-            <span className="text-rose-300 text-[10px] font-medium block whitespace-nowrap truncate">
+            <span className="text-rose-300 text-[9px] sm:text-[10px] font-medium block whitespace-nowrap truncate">
               produtos em alerta
             </span>
           </div>
         </div>
 
-        {/* Card 6: Clientes (Teal 3D Glass) */}
+        {/* Card 5: Clientes (Teal 3D Glass) */}
         <div
           onClick={() => onNavigate('CUSTOMERS')}
-          className={`rounded-2xl p-3 border-2 flex items-center gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
             isDark
               ? 'bg-gradient-to-br from-[#062429] via-[#051b1f] to-[#031114] border-teal-400 shadow-[0_0_22px_rgba(20,184,166,0.35)] hover:shadow-[0_0_35px_rgba(20,184,166,0.65)] hover:border-teal-300'
               : 'bg-gradient-to-br from-teal-50 via-white to-teal-50/50 border-teal-400 shadow-sm hover:shadow-md'
           }`}
         >
-          <div className="p-2.5 rounded-xl bg-teal-500/30 border border-teal-400/70 text-teal-300 shrink-0 shadow-[0_0_12px_rgba(20,184,166,0.5)]">
-            <Users className="w-5 h-5" />
+          <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/30 border border-teal-400/70 text-teal-300 shrink-0 shadow-[0_0_12px_rgba(20,184,166,0.5)]">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-[10px] font-bold text-teal-300 uppercase tracking-wider block whitespace-nowrap truncate">
+            <span className="text-[9px] sm:text-[10px] font-bold text-teal-300 uppercase tracking-wider block whitespace-nowrap truncate">
               CLIENTES
             </span>
-            <div className={`text-lg sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <AnimatedCountNumber value={customerCount} />
             </div>
-            <span className="text-teal-300 text-[10px] font-semibold block whitespace-nowrap truncate">
-              {customerCount === 1 ? 'cliente cadastrado' : 'clientes cadastrados'}
+            <span className="text-teal-300 text-[9px] sm:text-[10px] font-semibold block whitespace-nowrap truncate">
+              {customerCount === 1 ? 'cliente' : 'clientes'} cadastrados
             </span>
           </div>
         </div>
@@ -2283,7 +2283,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className={`border-b text-[10px] uppercase font-bold ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
@@ -2330,6 +2331,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card List (App-like on phones without horizontal scroll) */}
+            <div className="block md:hidden space-y-2 mt-1">
+              {recentOrders.length === 0 ? (
+                <div className="py-5 text-center text-xs text-slate-400">
+                  Nenhuma ordem de serviço registrada no momento.
+                </div>
+              ) : (
+                recentOrders.slice(0, 5).map((ord) => (
+                  <div
+                    key={ord.id}
+                    onClick={() => onNavigate('ORDERS')}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col gap-1.5 active:scale-[0.99] ${
+                      isDark ? 'bg-[#091224] border-slate-800 hover:border-cyan-500/60' : 'bg-slate-50 border-slate-200 hover:border-blue-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="font-black text-xs text-blue-400">#{ord.orderNumber}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${ord.statusBadgeClass}`}>
+                        {ord.statusLabel}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0 flex-1 truncate">
+                        <p className={`font-bold truncate text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>{ord.customerName}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{ord.device}</p>
+                      </div>
+                      <span className="font-black text-xs text-emerald-400 font-mono shrink-0">
+                        {formatCurrency(ord.totalPrice)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

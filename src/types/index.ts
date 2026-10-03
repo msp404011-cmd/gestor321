@@ -10,6 +10,7 @@ export type NavigationTab =
   | 'CUSTOMERS'
   | 'DEVICES'
   | 'ORDERS'
+  | 'TASKS'
   | 'POS'
   | 'PRODUCTS'
   | 'PURCHASES'
@@ -22,6 +23,27 @@ export type NavigationTab =
   | 'COMPATIBILITY'
   | 'SETTINGS'
   | 'MONTHLY_DEBITS';
+
+export interface DailyTaskSubItem {
+  id: string;
+  text: string;
+  isCompleted: boolean;
+}
+
+export interface DailyTaskCard {
+  id: string;
+  title: string; // Ex: Card 1, Limpeza de bancada, Insumos...
+  description?: string; // O que precisa fazer / Observações
+  items?: DailyTaskSubItem[]; // Lista de tarefas individuais no card
+  needsPurchase?: boolean; // Precisa de compra?
+  purchaseDescription?: string; // O que precisa comprar
+  purchaseValue?: number; // Valor da compra (R$)
+  isCompleted: boolean; // Se foi feito
+  completedAt?: string; // Data de conclusão
+  createdAt: string; // Data de criação
+  updatedAt: string;
+  priority?: 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE';
+}
 
 export interface BudgetCard {
   id: string;
@@ -734,7 +756,7 @@ export interface AccountReceivable {
   deviceInfo?: string; // Aparelho vinculado (Ex: Samsung Galaxy A54)
   serviceDescription?: string; // Serviço ou descrição
   dueDate: string;
-  status: 'PENDENTE' | 'PAGO' | 'ATRASADO' | 'CANCELADO';
+  status: 'PENDENTE' | 'PAGO' | 'ATRASADO' | 'CANCELADO' | 'PARCIAL';
   paymentMethod?: PaymentMethod;
   payments?: ReceivablePayment[];
   paidAt?: string;

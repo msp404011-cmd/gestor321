@@ -135,7 +135,8 @@ export const TechnicianServicesView: React.FC = () => {
   const [cardForm, setCardForm] = useState({
     technicianName: '',
     technicianPhone: '',
-    notes: ''
+    notes: '',
+    createdAt: new Date().toISOString().split('T')[0]
   });
 
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -149,7 +150,8 @@ export const TechnicianServicesView: React.FC = () => {
     isCompleted: false,
     repasseValue: '',
     obs: '',
-    clientPhone: ''
+    clientPhone: '',
+    createdAt: new Date().toISOString().split('T')[0]
   });
 
   // WhatsApp Send Modal
@@ -263,17 +265,28 @@ export const TechnicianServicesView: React.FC = () => {
     setCardForm({
       technicianName: '',
       technicianPhone: '',
-      notes: ''
+      notes: '',
+      createdAt: new Date().toISOString().split('T')[0]
     });
     setIsCardModalOpen(true);
   };
 
   const handleOpenEditCard = (card: TechnicianCard) => {
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (card.createdAt) {
+      if (card.createdAt.includes('T')) {
+        dateStr = card.createdAt.split('T')[0];
+      } else {
+        const parsed = new Date(card.createdAt);
+        if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
+      }
+    }
     setEditingCard(card);
     setCardForm({
       technicianName: card.technicianName || '',
       technicianPhone: card.technicianPhone || '',
-      notes: card.notes || ''
+      notes: card.notes || '',
+      createdAt: dateStr
     });
     setIsCardModalOpen(true);
   };
@@ -287,6 +300,9 @@ export const TechnicianServicesView: React.FC = () => {
     }
 
     const userEmail = getUserAccountEmail();
+    const finalCreatedAt = cardForm.createdAt
+      ? (cardForm.createdAt.includes('T') ? cardForm.createdAt : `${cardForm.createdAt}T12:00:00.000Z`)
+      : (editingCard?.createdAt || new Date().toISOString());
 
     if (editingCard) {
       const updated = cards.map(c => {
@@ -295,7 +311,8 @@ export const TechnicianServicesView: React.FC = () => {
             ...c,
             technicianName: name,
             technicianPhone: cardForm.technicianPhone.trim(),
-            notes: cardForm.notes.trim()
+            notes: cardForm.notes.trim(),
+            createdAt: finalCreatedAt
           };
         }
         return c;
@@ -306,7 +323,8 @@ export const TechnicianServicesView: React.FC = () => {
         await setDoc(docRef, {
           technicianName: name,
           technicianPhone: cardForm.technicianPhone.trim(),
-          notes: cardForm.notes.trim()
+          notes: cardForm.notes.trim(),
+          createdAt: finalCreatedAt
         }, { merge: true });
       });
 
@@ -318,7 +336,7 @@ export const TechnicianServicesView: React.FC = () => {
         technicianName: name,
         technicianPhone: cardForm.technicianPhone.trim(),
         notes: cardForm.notes.trim(),
-        createdAt: new Date().toISOString(),
+        createdAt: finalCreatedAt,
         services: []
       };
 
@@ -370,12 +388,22 @@ export const TechnicianServicesView: React.FC = () => {
       isCompleted: false,
       repasseValue: '',
       obs: '',
-      clientPhone: ''
+      clientPhone: '',
+      createdAt: new Date().toISOString().split('T')[0]
     });
     setIsServiceModalOpen(true);
   };
 
   const handleOpenEditService = (cardId: string, service: TechnicianServiceItem) => {
+    let dateStr = new Date().toISOString().split('T')[0];
+    if (service.createdAt) {
+      if (service.createdAt.includes('T')) {
+        dateStr = service.createdAt.split('T')[0];
+      } else {
+        const parsed = new Date(service.createdAt);
+        if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
+      }
+    }
     setTargetCardIdForService(cardId);
     setEditingService(service);
     setServiceForm({
@@ -386,7 +414,8 @@ export const TechnicianServicesView: React.FC = () => {
       isCompleted: Boolean(service.isCompleted),
       repasseValue: service.repasseValue ? String(service.repasseValue) : '',
       obs: service.obs || '',
-      clientPhone: service.clientPhone || ''
+      clientPhone: service.clientPhone || '',
+      createdAt: dateStr
     });
     setIsServiceModalOpen(true);
   };
@@ -419,6 +448,9 @@ export const TechnicianServicesView: React.FC = () => {
     const repVal = parseFloat(serviceForm.repasseValue.replace(',', '.')) || 0;
     const userEmail = getUserAccountEmail();
     const now = new Date().toISOString();
+    const finalCreatedAt = serviceForm.createdAt
+      ? (serviceForm.createdAt.includes('T') ? serviceForm.createdAt : `${serviceForm.createdAt}T12:00:00.000Z`)
+      : (editingService?.createdAt || now);
 
     const targetCard = cards.find(c => c.id === targetCardIdForService);
     if (!targetCard) return;
@@ -440,6 +472,7 @@ export const TechnicianServicesView: React.FC = () => {
             repasseValue: repVal,
             obs: serviceForm.obs.trim(),
             clientPhone: serviceForm.clientPhone.trim(),
+            createdAt: finalCreatedAt,
             completedAt: isNowCompleted ? (wasCompleted ? s.completedAt : now) : null
           };
         }
@@ -456,7 +489,7 @@ export const TechnicianServicesView: React.FC = () => {
         repasseValue: repVal,
         obs: serviceForm.obs.trim(),
         clientPhone: serviceForm.clientPhone.trim(),
-        createdAt: now,
+        createdAt: finalCreatedAt,
         completedAt: serviceForm.isCompleted ? now : null
       };
       updatedServices = [...targetCard.services, newService];
@@ -812,14 +845,14 @@ export const TechnicianServicesView: React.FC = () => {
       </div>
 
       {/* Control Bar: Search, Filters and New Card/Service Buttons */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 bg-[#161B2B] p-2 rounded-xl border border-slate-800 shrink-0">
+      <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2 bg-[#161B2B] p-2 sm:p-2.5 rounded-xl border border-slate-800 shrink-0">
         <div className="flex items-center gap-2 flex-1 flex-wrap">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text" 
-              placeholder="Buscar por cliente, aparelho, serviço, local ou técnico..." 
+              placeholder="Buscar cliente, aparelho, serviço, local..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-[#0B1221] border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
@@ -827,10 +860,10 @@ export const TechnicianServicesView: React.FC = () => {
           </div>
 
           {/* Filter Status */}
-          <div className="flex items-center bg-[#0B1221] p-1 rounded-lg border border-slate-800 text-xs">
+          <div className="flex items-center bg-[#0B1221] p-1 rounded-lg border border-slate-800 text-xs shrink-0">
             <button
               onClick={() => setFilterStatus('TODOS')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
                 filterStatus === 'TODOS' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -838,7 +871,7 @@ export const TechnicianServicesView: React.FC = () => {
             </button>
             <button
               onClick={() => setFilterStatus('PENDENTES')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 filterStatus === 'PENDENTES' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -846,7 +879,7 @@ export const TechnicianServicesView: React.FC = () => {
             </button>
             <button
               onClick={() => setFilterStatus('CONCLUIDOS')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 filterStatus === 'CONCLUIDOS' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -856,21 +889,21 @@ export const TechnicianServicesView: React.FC = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full lg:w-auto">
           <button
             onClick={() => handleOpenAddService()}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-600/25"
+            className="px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-emerald-600/25"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Adicionar Serviço</span>
+            <span className="truncate">+ Adicionar Serviço</span>
           </button>
 
           <button
             onClick={handleOpenNewCard}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/25"
+            className="px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/25"
           >
             <User className="w-3.5 h-3.5" />
-            <span>+ Novo Card Técnico</span>
+            <span className="truncate">+ Novo Técnico</span>
           </button>
         </div>
       </div>
