@@ -28,6 +28,11 @@ export interface DailyTaskSubItem {
   id: string;
   text: string;
   isCompleted: boolean;
+  priority?: 'URGENTE' | 'ALTA' | 'MEDIA' | 'BAIXA';
+  needsPurchase?: boolean;
+  purchaseDescription?: string;
+  purchaseValue?: number;
+  completedAt?: string;
 }
 
 export interface DailyTaskCard {
