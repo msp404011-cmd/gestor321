@@ -20,10 +20,23 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   History,
-  FileText
+  FileText,
+  Zap,
+  Droplets,
+  Home,
+  ShoppingCart,
+  Wifi,
+  Users,
+  Wrench,
+  Search,
+  Filter,
+  Receipt,
+  X,
+  Building2,
+  Clock
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { MonthlyDebit, MonthlyDebitPayment, AccountsPayable, AccountsPayableTransaction } from '../../types';
+import { MonthlyDebit, MonthlyDebitPayment, AccountsPayable, AccountsPayableTransaction, RealFixedCost } from '../../types';
 import { formatCurrency } from '../../services/formatters';
 
 // Simple Canvas Confetti helper written from scratch for absolute reliability and zero external package dependency
@@ -110,23 +123,37 @@ class ConfettiEngine {
 }
 
 export function MonthlyDebitsView() {
-  const [activeMainTab, setActiveMainTab] = useState<'PARCELADOS' | 'CONTAS_PAGAR'>('PARCELADOS');
+  const [activeMainTab, setActiveMainTab] = useState<'PARCELADOS' | 'CONTAS_PAGAR' | 'CUSTO_FIXO'>('PARCELADOS');
   const [debits, setDebits] = useState<MonthlyDebit[]>([]);
   const [payables, setPayables] = useState<AccountsPayable[]>([]);
+  const [fixedCosts, setFixedCosts] = useState<RealFixedCost[]>([]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPayableModalOpen, setIsPayableModalOpen] = useState(false);
+  const [isFixedCostModalOpen, setIsFixedCostModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // State to edit debit or payable
+  // State to edit debit, payable, or fixed cost
   const [editingDebitId, setEditingDebitId] = useState<string | null>(null);
   const [editingPayableId, setEditingPayableId] = useState<string | null>(null);
+  const [editingFixedCostId, setEditingFixedCostId] = useState<string | null>(null);
 
   // States to add inline Transactions (debits or payments) into AccountsPayable
   const [activePayableIdForTx, setActivePayableIdForTx] = useState<string | null>(null);
   const [payableTxType, setPayableTxType] = useState<'DEBIT' | 'PAYMENT'>('DEBIT');
   const [payableTxAmount, setPayableTxAmount] = useState('');
   const [payableTxDesc, setPayableTxDesc] = useState('');
+
+  // Form State for Custo Fixo Real
+  const [costName, setCostName] = useState('');
+  const [costCategory, setCostCategory] = useState<RealFixedCost['category']>('ENERGIA');
+  const [costAmount, setCostAmount] = useState('');
+  const [costDueDate, setCostDueDate] = useState('');
+  const [costNotes, setCostNotes] = useState('');
+
+  // Filters for Custo Fixo Real
+  const [fixedCostSearch, setFixedCostSearch] = useState('');
+  const [fixedCostCategoryFilter, setFixedCostCategoryFilter] = useState<string>('TODOS');
 
   // Current calendar month-year tracker (formatted as YYYY-MM)
   const currentMonthYear = (() => {
@@ -156,7 +183,7 @@ export function MonthlyDebitsView() {
     isOpen: boolean;
     id: string;
     name: string;
-    type: 'DEBIT' | 'PAYABLE';
+    type: 'DEBIT' | 'PAYABLE' | 'FIXED_COST';
   }>({
     isOpen: false,
     id: '',
@@ -167,14 +194,83 @@ export function MonthlyDebitsView() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const confettiEngineRef = useRef<ConfettiEngine | null>(null);
 
+  // Helper function to seed initial default fixed costs if list is empty
+  const ensureDefaultFixedCosts = () => {
+    let costs = StorageService.getRealFixedCosts();
+    if (costs.length === 0) {
+      const defaultItems: RealFixedCost[] = [
+        {
+          id: 'fc-luz',
+          name: 'Luz / Energia Elétrica',
+          category: 'ENERGIA',
+          amount: 380.00,
+          dueDate: 'Dia 10',
+          notes: 'Conta mensal da distribuidora de energia',
+          isPaidThisMonth: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'fc-aluguel',
+          name: 'Aluguel do Imóvel / Loja',
+          category: 'ALUGUEL',
+          amount: 1800.00,
+          dueDate: 'Dia 05',
+          notes: 'Aluguel comercial ponto principal',
+          isPaidThisMonth: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'fc-agua',
+          name: 'Água e Saneamento',
+          category: 'AGUA',
+          amount: 120.00,
+          dueDate: 'Dia 15',
+          notes: 'Consumo de água da loja',
+          isPaidThisMonth: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'fc-internet',
+          name: 'Internet Fibra Óptica',
+          category: 'INTERNET',
+          amount: 149.90,
+          dueDate: 'Dia 20',
+          notes: 'Link dedicado de internet',
+          isPaidThisMonth: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'fc-mercado',
+          name: 'Mercado / Copa & Suprimentos',
+          category: 'MERCADO',
+          amount: 300.00,
+          dueDate: 'Semanal / Mensal',
+          notes: 'Café, produtos de limpeza e itens para funcionários',
+          isPaidThisMonth: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+      StorageService.saveRealFixedCosts(defaultItems);
+      costs = defaultItems;
+    }
+    setFixedCosts(costs);
+  };
+
   // Load and subscribe to storage
   useEffect(() => {
     setDebits(StorageService.getMonthlyDebits());
     setPayables(StorageService.getAccountsPayable());
+    ensureDefaultFixedCosts();
     
     const unsubscribe = StorageService.subscribe(() => {
       setDebits(StorageService.getMonthlyDebits());
       setPayables(StorageService.getAccountsPayable());
+      setFixedCosts(StorageService.getRealFixedCosts());
     });
     return unsubscribe;
   }, []);
@@ -397,6 +493,107 @@ export function MonthlyDebitsView() {
     };
   })();
 
+  // Stats Calculations for Custo Fixo Real Tab
+  const fixedCostStats = (() => {
+    let sumTotal = 0;
+    let sumPaid = 0;
+    let sumPending = 0;
+
+    fixedCosts.forEach((c) => {
+      sumTotal += c.amount;
+      if (c.isPaidThisMonth) {
+        sumPaid += c.amount;
+      } else {
+        sumPending += c.amount;
+      }
+    });
+
+    return {
+      sumTotal,
+      sumPaid,
+      sumPending,
+      count: fixedCosts.length,
+      dailyAverage: sumTotal > 0 ? sumTotal / 30 : 0,
+    };
+  })();
+
+  // Filtered Fixed Costs
+  const filteredFixedCosts = fixedCosts.filter((cost) => {
+    const matchesSearch = cost.name.toLowerCase().includes(fixedCostSearch.toLowerCase()) ||
+      (cost.notes && cost.notes.toLowerCase().includes(fixedCostSearch.toLowerCase()));
+    const matchesCategory = fixedCostCategoryFilter === 'TODOS' || cost.category === fixedCostCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const getCategoryIcon = (category: RealFixedCost['category']) => {
+    switch (category) {
+      case 'ENERGIA':
+        return <Zap className="w-4 h-4 text-amber-400" />;
+      case 'AGUA':
+        return <Droplets className="w-4 h-4 text-cyan-400" />;
+      case 'ALUGUEL':
+        return <Home className="w-4 h-4 text-indigo-400" />;
+      case 'MERCADO':
+        return <ShoppingCart className="w-4 h-4 text-emerald-400" />;
+      case 'INTERNET':
+        return <Wifi className="w-4 h-4 text-purple-400" />;
+      case 'SISTEMAS':
+        return <FileText className="w-4 h-4 text-blue-400" />;
+      case 'FOLHA':
+        return <Users className="w-4 h-4 text-rose-400" />;
+      case 'MANUTENCAO':
+        return <Wrench className="w-4 h-4 text-orange-400" />;
+      default:
+        return <Receipt className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  const getCategoryBadgeClass = (category: RealFixedCost['category']) => {
+    switch (category) {
+      case 'ENERGIA':
+        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      case 'AGUA':
+        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+      case 'ALUGUEL':
+        return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30';
+      case 'MERCADO':
+        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+      case 'INTERNET':
+        return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+      case 'SISTEMAS':
+        return 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+      case 'FOLHA':
+        return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+      case 'MANUTENCAO':
+        return 'bg-orange-500/15 text-orange-300 border-orange-500/30';
+      default:
+        return 'bg-slate-800 text-slate-300 border-slate-700';
+    }
+  };
+
+  const getCategoryLabel = (category: RealFixedCost['category']) => {
+    switch (category) {
+      case 'ENERGIA':
+        return 'Luz / Energia';
+      case 'AGUA':
+        return 'Água & Saneamento';
+      case 'ALUGUEL':
+        return 'Aluguel do Imóvel';
+      case 'MERCADO':
+        return 'Mercado & Copa';
+      case 'INTERNET':
+        return 'Internet & Fone';
+      case 'SISTEMAS':
+        return 'Sistemas & Software';
+      case 'FOLHA':
+        return 'Folha & Pró-labore';
+      case 'MANUTENCAO':
+        return 'Manutenção Geral';
+      default:
+        return 'Outros Custos';
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !totalAmount || !installmentsCount || !installmentAmount || !dueDate) {
@@ -488,6 +685,15 @@ export function MonthlyDebitsView() {
     });
   };
 
+  const handleDeleteFixedCost = (id: string, name: string) => {
+    setDeleteConfirmState({
+      isOpen: true,
+      id,
+      name,
+      type: 'FIXED_COST',
+    });
+  };
+
   const handleConfirmDelete = () => {
     const { id, type } = deleteConfirmState;
     if (!id) return;
@@ -495,9 +701,12 @@ export function MonthlyDebitsView() {
     if (type === 'DEBIT') {
       StorageService.deleteMonthlyDebit(id);
       setDebits(StorageService.getMonthlyDebits());
-    } else {
+    } else if (type === 'PAYABLE') {
       StorageService.deleteAccountsPayable(id);
       setPayables(StorageService.getAccountsPayable());
+    } else if (type === 'FIXED_COST') {
+      StorageService.deleteRealFixedCost(id);
+      setFixedCosts(StorageService.getRealFixedCosts());
     }
 
     setDeleteConfirmState({
@@ -506,6 +715,85 @@ export function MonthlyDebitsView() {
       name: '',
       type: 'DEBIT',
     });
+  };
+
+  // --- CUSTO FIXO REAL ACTIONS ---
+  const handleOpenAddFixedCost = (categoryPreset?: RealFixedCost['category'], namePreset?: string) => {
+    setCostName(namePreset || '');
+    setCostCategory(categoryPreset || 'ENERGIA');
+    setCostAmount('');
+    setCostDueDate('Dia 10');
+    setCostNotes('');
+    setEditingFixedCostId(null);
+    setIsFixedCostModalOpen(true);
+  };
+
+  const handleOpenEditFixedCost = (cost: RealFixedCost) => {
+    setCostName(cost.name);
+    setCostCategory(cost.category);
+    setCostAmount(cost.amount.toString());
+    setCostDueDate(cost.dueDate);
+    setCostNotes(cost.notes || '');
+    setEditingFixedCostId(cost.id);
+    setIsFixedCostModalOpen(true);
+  };
+
+  const handleCloseFixedCostModal = () => {
+    setCostName('');
+    setCostCategory('ENERGIA');
+    setCostAmount('');
+    setCostDueDate('');
+    setCostNotes('');
+    setEditingFixedCostId(null);
+    setIsFixedCostModalOpen(false);
+  };
+
+  const handleSubmitFixedCost = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amtNum = parseFloat(costAmount);
+    if (!costName.trim() || isNaN(amtNum) || amtNum <= 0) return;
+
+    if (editingFixedCostId) {
+      const existing = fixedCosts.find(c => c.id === editingFixedCostId);
+      if (existing) {
+        const updated: RealFixedCost = {
+          ...existing,
+          name: costName.trim(),
+          category: costCategory,
+          amount: amtNum,
+          dueDate: costDueDate.trim() || 'Dia 10',
+          notes: costNotes.trim() || undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        StorageService.saveRealFixedCost(updated);
+      }
+    } else {
+      const newCost: RealFixedCost = {
+        id: 'fix-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        name: costName.trim(),
+        category: costCategory,
+        amount: amtNum,
+        dueDate: costDueDate.trim() || 'Dia 10',
+        notes: costNotes.trim() || undefined,
+        isPaidThisMonth: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      StorageService.saveRealFixedCost(newCost);
+    }
+
+    setFixedCosts(StorageService.getRealFixedCosts());
+    handleCloseFixedCostModal();
+  };
+
+  const toggleFixedCostPaidStatus = (cost: RealFixedCost) => {
+    const updated: RealFixedCost = {
+      ...cost,
+      isPaidThisMonth: !cost.isPaidThisMonth,
+      updatedAt: new Date().toISOString(),
+    };
+    StorageService.saveRealFixedCost(updated);
+    setFixedCosts(StorageService.getRealFixedCosts());
   };
 
   const handleBaixa = (debit: MonthlyDebit, event: React.MouseEvent<HTMLButtonElement>) => {
@@ -690,12 +978,12 @@ export function MonthlyDebitsView() {
           </div>
         </div>
 
-        {/* TAB SWITCHER */}
-        <div className="p-1 rounded-2xl bg-[#08152e] border border-blue-900/60 flex items-center gap-1 w-full sm:w-auto">
+        {/* TAB SWITCHER (3 ABAS: PARCELADOS, CONTAS A PAGAR, CUSTO FIXO REAL) */}
+        <div className="p-1 rounded-2xl bg-[#08152e] border border-blue-900/60 flex items-center gap-1 w-full md:w-auto overflow-x-auto scrollbar-none">
           <button
             type="button"
             onClick={() => setActiveMainTab('PARCELADOS')}
-            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center ${
+            className={`flex-1 min-w-[120px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 ${
               activeMainTab === 'PARCELADOS'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
@@ -706,13 +994,25 @@ export function MonthlyDebitsView() {
           <button
             type="button"
             onClick={() => setActiveMainTab('CONTAS_PAGAR')}
-            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center ${
+            className={`flex-1 min-w-[120px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 ${
               activeMainTab === 'CONTAS_PAGAR'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Contas a Pagar
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('CUSTO_FIXO')}
+            className={`flex-1 min-w-[130px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 flex items-center justify-center gap-1.5 ${
+              activeMainTab === 'CUSTO_FIXO'
+                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 text-white shadow-md shadow-amber-500/20'
+                : 'text-amber-400/80 hover:text-amber-300'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span>Custo Fixo Real</span>
           </button>
         </div>
       </div>
@@ -1424,6 +1724,311 @@ export function MonthlyDebitsView() {
         </>
       )}
 
+      {/* RENDER TAB 3: CUSTO FIXO REAL */}
+      {activeMainTab === 'CUSTO_FIXO' && (
+        <>
+          {/* STATS BANNER CUSTO FIXO */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {/* Stat 1: Total Custo Fixo */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-amber-500/30 bg-[#0c0802] p-3 sm:p-5 shadow-[0_0_20px_rgba(245,158,11,0.15)] group hover:border-amber-400/50 transition-all">
+              <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-amber-500/5 blur-xl group-hover:scale-125 transition-transform" />
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Custo Fixo Mensal Total</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)] shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-amber-400 block tracking-wide truncate">
+                  {formatCurrency(fixedCostStats.sumTotal)}
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-amber-300/80 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider flex items-center gap-1 truncate">
+                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 animate-spin shrink-0" />
+                  <span className="truncate">Soma das Despesas Recorrentes</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Stat 2: Pago no Mês */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-emerald-500/30 bg-[#021008] p-3 sm:p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
+              <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/5 blur-xl group-hover:scale-125 transition-transform" />
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Já Quitado Mês</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)] shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-emerald-400 block tracking-wide truncate">
+                  {formatCurrency(fixedCostStats.sumPaid)}
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-emerald-400/80 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
+                  {fixedCostStats.sumTotal > 0 ? `${((fixedCostStats.sumPaid / fixedCostStats.sumTotal) * 100).toFixed(0)}% pago` : '0% pago'}
+                </span>
+              </div>
+            </div>
+
+            {/* Stat 3: Pendente Mês */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-rose-500/30 bg-[#120406] p-3 sm:p-5 shadow-[0_0_20px_rgba(244,63,94,0.15)] group hover:border-rose-400/50 transition-all">
+              <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-rose-500/5 blur-xl group-hover:scale-125 transition-transform" />
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Ainda Pendente</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.3)] shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-rose-400 block tracking-wide truncate">
+                  {formatCurrency(fixedCostStats.sumPending)}
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-rose-400/80 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
+                  Falta pagar no mês
+                </span>
+              </div>
+            </div>
+
+            {/* Stat 4: Média Diária Estimada */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-purple-500/30 bg-[#090212] p-3 sm:p-5 shadow-[0_0_20px_rgba(168,85,247,0.15)] group hover:border-purple-400/50 transition-all">
+              <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-purple-500/5 blur-xl group-hover:scale-125 transition-transform" />
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">Custo Diário Médio</span>
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.3)] shrink-0">
+                  <PieChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="mt-2 sm:mt-3">
+                <span className="text-base sm:text-2xl font-black text-purple-300 block tracking-wide truncate">
+                  {formatCurrency(fixedCostStats.dailyAverage)} / dia
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-purple-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
+                  Base 30 dias de trabalho
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* QUICK ATALHOS / PRESETS POPULARES */}
+          <div className="bg-[#091122] border border-amber-500/20 p-3 sm:p-4 rounded-2xl space-y-2">
+            <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider block">
+              ⚡ Atalhos Rápidos para Adicionar Custos Universais:
+            </span>
+            <div className="flex items-center gap-2 flex-wrap text-xs">
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('ENERGIA', 'Conta de Luz / Energia')}
+                className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <Zap className="w-3.5 h-3.5" /> + Luz / Energia
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('ALUGUEL', 'Aluguel do Imóvel')}
+                className="px-2.5 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <Home className="w-3.5 h-3.5" /> + Aluguel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('AGUA', 'Conta de Água')}
+                className="px-2.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <Droplets className="w-3.5 h-3.5" /> + Água
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('INTERNET', 'Internet & Telefone')}
+                className="px-2.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <Wifi className="w-3.5 h-3.5" /> + Internet
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('MERCADO', 'Mercado / Suprimentos')}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <ShoppingCart className="w-3.5 h-3.5" /> + Mercado / Copa
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('SISTEMAS', 'Sistema / Software')}
+                className="px-2.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <FileText className="w-3.5 h-3.5" /> + Software / Sistemas
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost('FOLHA', 'Pró-labore / Folha')}
+                className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 text-[11px]"
+              >
+                <Users className="w-3.5 h-3.5" /> + Folha / Pró-labore
+              </button>
+            </div>
+          </div>
+
+          {/* CONTROLS BAR: SEARCH, FILTER & ADD BUTTON */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#081224] p-3 rounded-2xl border border-slate-800">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* Search */}
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={fixedCostSearch}
+                  onChange={(e) => setFixedCostSearch(e.target.value)}
+                  placeholder="Buscar custo fixo..."
+                  className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
+                />
+              </div>
+
+              {/* Category Filter */}
+              <div className="relative shrink-0">
+                <select
+                  value={fixedCostCategoryFilter}
+                  onChange={(e) => setFixedCostCategoryFilter(e.target.value)}
+                  className="p-2 pr-7 bg-black/40 border border-white/10 rounded-xl text-xs text-amber-300 font-bold focus:outline-hidden appearance-none cursor-pointer"
+                >
+                  <option value="TODOS">Todas Categorias</option>
+                  <option value="ENERGIA">⚡ Luz / Energia</option>
+                  <option value="ALUGUEL">🏠 Aluguel</option>
+                  <option value="AGUA">💧 Água</option>
+                  <option value="INTERNET">📶 Internet</option>
+                  <option value="MERCADO">🛒 Mercado</option>
+                  <option value="SISTEMAS">💻 Sistemas</option>
+                  <option value="FOLHA">👥 Folha</option>
+                  <option value="MANUTENCAO">🔧 Manutenção</option>
+                  <option value="OUTROS">📋 Outros</option>
+                </select>
+                <Filter className="w-3.5 h-3.5 text-amber-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Add Custom Button */}
+            <button
+              type="button"
+              onClick={() => handleOpenAddFixedCost()}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 text-white font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg hover:scale-102 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Custo Fixo</span>
+            </button>
+          </div>
+
+          {/* MAIN GRID OF FIXED COSTS */}
+          {filteredFixedCosts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-amber-500/20 rounded-3xl bg-[#030712]/50 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <Building2 className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-200">Nenhum custo fixo encontrado</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                  Cadastre seus custos fixos mensais (luz, água, aluguel, mercado, etc.) para calcular o valor exato necessário para manter sua estrutura aberta.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenAddFixedCost()}
+                className="px-4 py-2 bg-amber-500/20 border border-amber-500/40 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Adicionar Custo Fixo
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredFixedCosts.map((cost) => (
+                <div
+                  key={cost.id}
+                  className={`relative overflow-hidden rounded-3xl border-2 flex flex-col justify-between p-5 space-y-4 transition-all duration-300 ${
+                    cost.isPaidThisMonth
+                      ? 'bg-[#040c14] border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                      : 'bg-[#0b0816] border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.05)]'
+                  }`}
+                >
+                  <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${
+                    cost.isPaidThisMonth ? 'from-emerald-500 to-teal-400' : 'from-amber-500 via-orange-500 to-red-500'
+                  }`} />
+
+                  {/* Header Row */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-black/40 border border-white/10 shrink-0">
+                        {getCategoryIcon(cost.category)}
+                      </div>
+                      <div className="min-w-0">
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border inline-block ${getCategoryBadgeClass(cost.category)}`}>
+                          {getCategoryLabel(cost.category)}
+                        </span>
+                        <h3 className="text-base font-black text-white truncate leading-tight mt-1">
+                          {cost.name}
+                        </h3>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditFixedCost(cost)}
+                        className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-950 bg-black/30 transition-all cursor-pointer"
+                        title="Editar Custo Fixo"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFixedCost(cost.id, cost.name)}
+                        className="p-1.5 rounded-lg border border-slate-800 text-slate-400 hover:text-red-400 hover:border-red-950 bg-black/30 transition-all cursor-pointer"
+                        title="Excluir Custo Fixo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Amount & Due Date */}
+                  <div className="bg-black/50 border border-white/5 p-3.5 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Valor Mensal</span>
+                      <span className="text-[10px] text-amber-300 font-mono font-bold">Vencimento: {cost.dueDate}</span>
+                    </div>
+                    <span className="text-2xl font-black text-amber-400 block tracking-wide">
+                      {formatCurrency(cost.amount)}
+                    </span>
+                    {cost.notes && (
+                      <p className="text-[11px] text-slate-400 italic pt-1 border-t border-white/5 truncate">
+                        "{cost.notes}"
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Toggle Paid Status */}
+                  <button
+                    type="button"
+                    onClick={() => toggleFixedCostPaidStatus(cost)}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
+                      cost.isPaidThisMonth
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                    }`}
+                  >
+                    {cost.isPaidThisMonth ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Quitado no Mês</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>Marcar como Quitado</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* MODAL 1: DÉBITO PARCELADO (ADD / EDIT) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -1677,6 +2282,120 @@ export function MonthlyDebitsView() {
                 Sim, Excluir
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL 4: CUSTO FIXO REAL (ADD / EDIT) */}
+      {isFixedCostModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg overflow-hidden border-2 border-amber-500/30 bg-[#040815] rounded-3xl shadow-[0_0_40px_rgba(245,158,11,0.25)] animate-scale-up">
+            <div className="p-5 border-b border-white/5 bg-[#0a0818] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-amber-400" />
+                <h2 className="text-sm font-black uppercase tracking-widest text-white">
+                  {editingFixedCostId ? 'Editar Custo Fixo' : 'Adicionar Custo Fixo Real'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseFixedCostModal}
+                className="w-8 h-8 rounded-full border border-white/10 hover:border-white/20 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitFixedCost} className="p-5 space-y-4">
+              {/* Category */}
+              <div className="space-y-1 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Categoria do Custo</label>
+                <select
+                  value={costCategory}
+                  onChange={(e) => setCostCategory(e.target.value as RealFixedCost['category'])}
+                  className="w-full p-3 bg-black border border-white/10 focus:border-amber-500 focus:outline-hidden rounded-xl text-xs text-amber-300 font-bold transition-all cursor-pointer"
+                >
+                  <option value="ENERGIA">⚡ Luz / Energia Elétrica</option>
+                  <option value="AGUA">💧 Água & Saneamento</option>
+                  <option value="ALUGUEL">🏠 Aluguel do Imóvel</option>
+                  <option value="MERCADO">🛒 Mercado / Copa & Alimentação</option>
+                  <option value="INTERNET">📶 Internet & Telefone</option>
+                  <option value="SISTEMAS">💻 Software & Licenças de Sistemas</option>
+                  <option value="FOLHA">👥 Folha / Pró-labore</option>
+                  <option value="MANUTENCAO">🔧 Manutenção Geral & Reparos</option>
+                  <option value="OUTROS">📋 Outras Despesas Fixas</option>
+                </select>
+              </div>
+
+              {/* Name */}
+              <div className="space-y-1 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Descrição / Nome do Custo</label>
+                <input
+                  type="text"
+                  required
+                  value={costName}
+                  onChange={(e) => setCostName(e.target.value)}
+                  placeholder="Ex: Energia Elétrica Loja 1, Internet Fibra, Mercado Mensal"
+                  className="w-full p-3 bg-black border border-white/10 focus:border-amber-500 focus:outline-hidden rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
+                />
+              </div>
+
+              {/* Amount & Due Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Valor Mensal (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={costAmount}
+                    onChange={(e) => setCostAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full p-3 bg-black border border-white/10 focus:border-amber-500 focus:outline-hidden rounded-xl text-xs text-white font-bold placeholder-slate-600 transition-all"
+                  />
+                </div>
+                <div className="space-y-1 text-left">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dia do Vencimento</label>
+                  <input
+                    type="text"
+                    required
+                    value={costDueDate}
+                    onChange={(e) => setCostDueDate(e.target.value)}
+                    placeholder="Ex: Dia 10, Todo dia 05"
+                    className="w-full p-3 bg-black border border-white/10 focus:border-amber-500 focus:outline-hidden rounded-xl text-xs text-white font-medium placeholder-slate-600 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Observações (Opcional)</label>
+                <input
+                  type="text"
+                  value={costNotes}
+                  onChange={(e) => setCostNotes(e.target.value)}
+                  placeholder="Ex: Pagamento via débito automático na conta"
+                  className="w-full p-3 bg-black border border-white/10 focus:border-amber-500 focus:outline-hidden rounded-xl text-xs text-white font-medium placeholder-slate-600 transition-all"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-white/5 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseFixedCostModal}
+                  className="px-4 py-2.5 rounded-xl border border-white/10 hover:border-white/20 text-xs font-bold text-slate-400 transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg hover:scale-102 active:scale-95 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingFixedCostId ? 'Salvar Alterações' : 'Confirmar Custo'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

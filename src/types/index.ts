@@ -101,6 +101,18 @@ export interface AccountsPayable {
   transactions: AccountsPayableTransaction[];
 }
 
+export interface RealFixedCost {
+  id: string;
+  name: string; // Ex: Luz, Energia, Aluguel, Água, Mercado, Internet, Folha, etc.
+  category: 'ENERGIA' | 'AGUA' | 'ALUGUEL' | 'MERCADO' | 'INTERNET' | 'SISTEMAS' | 'FOLHA' | 'MANUTENCAO' | 'OUTROS';
+  amount: number; // Valor mensal em R$
+  dueDate: string; // Ex: "Dia 10", "15"
+  notes?: string;
+  isPaidThisMonth?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CompatibilitySector {
   id: string;
   name: string;

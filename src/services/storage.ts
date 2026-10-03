@@ -30,6 +30,7 @@ import {
   AccountsPayable,
   AccountsPayableTransaction,
   DailyTaskCard,
+  RealFixedCost,
 } from '../types';
 import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
 import { FirestoreSyncService } from './firestoreService';
@@ -88,6 +89,7 @@ export const STORAGE_KEYS = {
   MONTHLY_DEBITS: 'msp_monthly_debits_v1',
   ACCOUNTS_PAYABLE: 'msp_accounts_payable_v1',
   DAILY_TASKS: 'msp_daily_tasks_v1',
+  REAL_FIXED_COSTS: 'msp_real_fixed_costs_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -4831,6 +4833,42 @@ export const StorageService = {
     notifyListeners();
     if (target) {
       this.logAction(`Tarefa excluída: ${target.title}`);
+    }
+  },
+
+  // Custo Fixo Real (Real Fixed Costs)
+  getRealFixedCosts(): RealFixedCost[] {
+    return getItem<RealFixedCost[]>(STORAGE_KEYS.REAL_FIXED_COSTS, []);
+  },
+
+  saveRealFixedCosts(costs: RealFixedCost[]): void {
+    setItem(STORAGE_KEYS.REAL_FIXED_COSTS, costs);
+    notifyListeners();
+  },
+
+  saveRealFixedCost(cost: RealFixedCost): RealFixedCost {
+    const list = this.getRealFixedCosts();
+    const idx = list.findIndex((c) => c.id === cost.id);
+    if (idx >= 0) {
+      list[idx] = cost;
+      this.logAction(`Custo fixo atualizado: ${cost.name} (R$ ${cost.amount.toFixed(2)})`);
+    } else {
+      list.unshift(cost);
+      this.logAction(`Novo custo fixo adicionado: ${cost.name} (R$ ${cost.amount.toFixed(2)})`);
+    }
+    setItem(STORAGE_KEYS.REAL_FIXED_COSTS, list);
+    notifyListeners();
+    return cost;
+  },
+
+  deleteRealFixedCost(id: string): void {
+    const list = this.getRealFixedCosts();
+    const target = list.find((c) => c.id === id);
+    const filtered = list.filter((c) => c.id !== id);
+    setItem(STORAGE_KEYS.REAL_FIXED_COSTS, filtered);
+    notifyListeners();
+    if (target) {
+      this.logAction(`Custo fixo excluído: ${target.name}`);
     }
   },
 };
