@@ -1117,11 +1117,11 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                     )}
 
                     {/* INDIVIDUAL SUB-TASKS / ACTIVITIES LIST (SORTED BY PRIORITY) */}
-                    <div className="space-y-2 mb-2.5">
+                    <div className="space-y-1.5 mb-2">
                       {sortedSubItems.map((subItem) => (
                         <div
                           key={subItem.id}
-                          className={`rounded-xl border-2 p-2 sm:p-2.5 transition-all flex flex-col space-y-2 shadow-xl relative overflow-hidden ${
+                          className={`rounded-xl border-2 p-1.5 sm:p-2 transition-all flex flex-col space-y-1.5 shadow-xl relative overflow-hidden ${
                             subItem.isCompleted
                               ? 'bg-[#091a13] border-emerald-500/80 text-emerald-100 border-l-[6px] border-l-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
                               : subItem.priority === 'URGENTE'
@@ -1175,7 +1175,7 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                           {/* Activity Description Text & Touch Completion Action (High visibility, optimized for phone) */}
                           <div
                             onClick={() => handleToggleSubItem(task.id, subItem.id)}
-                            className="flex items-center justify-between gap-2.5 bg-black/60 hover:bg-black/80 p-2 sm:p-2.5 rounded-lg border border-white/5 cursor-pointer select-none group transition-all"
+                            className="flex items-center justify-between gap-2.5 bg-black/60 hover:bg-black/80 p-1.5 sm:p-2 rounded-lg border border-white/5 cursor-pointer select-none group transition-all"
                           >
                             <div className="flex-1 min-w-0 pr-1">
                               <p
@@ -1222,10 +1222,10 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
 
                           {/* Purchase Highlight for this Activity */}
                           {subItem.needsPurchase && (
-                            <div className="flex items-center justify-between gap-2 bg-indigo-950/90 border border-indigo-500/50 p-2 rounded-lg text-xs mt-0.5 shadow-inner">
-                              <div className="flex items-center gap-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 bg-indigo-950/90 border border-indigo-500/50 p-1.5 rounded-lg text-xs mt-0.5 shadow-inner">
+                              <div className="flex items-center gap-1 min-w-0 flex-1">
                                 <ShoppingBag className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                                <span className="text-[10px] font-black text-indigo-100 truncate">
+                                <span className="text-[10px] font-black text-indigo-100 break-words whitespace-normal">
                                   🛒 Comprar: {subItem.purchaseDescription || 'Item necessário'}
                                 </span>
                               </div>

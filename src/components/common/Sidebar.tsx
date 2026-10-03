@@ -777,8 +777,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   {/* Section Title Header */}
                   <div className="flex items-center gap-1.5 px-0.5 pb-1 border-b border-white/10">
-                    <SectionIcon className="w-3.5 h-3.5 shrink-0" />
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-white">
+                    <SectionIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 shrink-0" />
+                    <h4 className="text-[10px] sm:text-[10.5px] lg:text-xs font-black uppercase tracking-wider text-white">
                       {section.title}
                     </h4>
                   </div>
@@ -804,21 +804,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               handleSelect(item.id);
                             }
                           }}
-                          className={`w-full p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-left group active:scale-[0.99] ${
+                          className={`w-full p-2 sm:p-2.5 lg:p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-left group active:scale-[0.99] ${
                             isActive
                               ? 'border-cyan-400 bg-blue-600/30 text-white shadow-[0_0_12px_rgba(6,182,212,0.4)]'
                               : 'border-white/5 bg-black/40 hover:bg-white/5 hover:border-white/20 text-slate-200'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center text-slate-300 group-hover:text-white shrink-0">
-                              <ItemIcon className="w-3.5 h-3.5" />
+                          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 lg:w-9 lg:h-9 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center text-slate-300 group-hover:text-white shrink-0">
+                              <ItemIcon className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 lg:w-5 lg:h-5" />
                             </div>
                             <div className="min-w-0">
-                              <span className="text-xs font-bold text-white block truncate leading-tight">
+                              <span className="text-xs sm:text-xs lg:text-sm font-bold text-white block truncate leading-tight">
                                 {item.title}
                               </span>
-                              <span className="text-[9px] text-slate-400 block truncate leading-tight">
+                              <span className="text-[9px] sm:text-[9.5px] lg:text-xs text-slate-400 block truncate leading-tight">
                                 {item.subtitle}
                               </span>
                             </div>
@@ -826,7 +826,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                           <div className="flex items-center gap-1.5 shrink-0 ml-1">
                             {renderBadge(item.badge, item.badgeType)}
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
+                            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-4.5 lg:h-4.5 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
                           </div>
                         </button>
                       );

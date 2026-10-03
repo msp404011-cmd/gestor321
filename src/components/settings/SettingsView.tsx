@@ -260,7 +260,10 @@ export const SettingsView: React.FC = () => {
     if (email) {
       setSessionsLoading(true);
       sessionManager.fetchActiveSessions(email).then((sess) => {
-        setCurrentAccountSessions(sess);
+        setCurrentAccountSessions(sess || []);
+      }).catch((err) => {
+        console.error('[SettingsView] Error loading sessions:', err);
+        setCurrentAccountSessions([]);
       }).finally(() => setSessionsLoading(false));
     }
   };
@@ -3192,7 +3195,7 @@ export const SettingsView: React.FC = () => {
               </div>
 
               <div className="space-y-1.5">
-                {currentAccountSessions.map((sess) => (
+                {(currentAccountSessions || []).map((sess) => (
                   <div
                     key={sess.sessionId}
                     className={`flex items-center justify-between p-2 rounded-lg text-xs border ${
@@ -3239,12 +3242,12 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin">
-            {auditLogs.length === 0 ? (
+            {(!auditLogs || auditLogs.length === 0) ? (
               <p className={`text-xs text-center py-6 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 Nenhum registro de auditoria no momento.
               </p>
             ) : (
-              auditLogs.map((log) => (
+              (auditLogs || []).map((log) => (
                 <div
                   key={log.id}
                   className={`p-3 rounded-xl border flex items-center justify-between text-xs gap-3 ${

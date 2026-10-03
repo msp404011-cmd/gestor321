@@ -33,7 +33,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 
   const [printType, setPrintType] = useState<'entrance' | 'internal' | 'receipt' | 'eulis'>(() => {
     if (mode === 'eulis' || isEulisStatus(order?.status)) return 'eulis';
-    return mode;
+    return mode || 'receipt';
   });
 
   const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => {
@@ -79,6 +79,8 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
         setPrintType(mode);
       } else if (isEulisStatus(order?.status)) {
         setPrintType('eulis');
+      } else {
+        setPrintType('receipt');
       }
     }
   }, [isOpen, mode, order?.status, company.osDefaultPaperFormat]);
@@ -231,10 +233,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       }
 
       const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-        .filter((el) => {
-          const content = el.innerHTML || '';
-          return !content.includes('body * {') && !content.includes('visibility: hidden');
-        })
+        .filter((el) => el.id !== 'print-modal-styles')
         .map((el) => el.outerHTML)
         .join('\n');
 
@@ -374,7 +373,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       onClick={onClose}
     >
       {/* Dynamic Print CSS Injection for Exact Paper Sizes */}
-      <style>{`
+      <style id="print-modal-styles">{`
         @media print {
           *, *::before, *::after {
             backdrop-filter: none !important;
