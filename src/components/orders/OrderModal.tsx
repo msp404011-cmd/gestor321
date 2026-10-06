@@ -199,6 +199,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [showManagerPassText, setShowManagerPassText] = useState(false);
   const [managerPassError, setManagerPassError] = useState('');
 
+  // Two-tier part options (1ª Linha vs Premium)
+  const [partPriceFirstLine, setPartPriceFirstLine] = useState<number>(0);
+  const [partPricePremium, setPartPricePremium] = useState<number>(0);
+  const [partTierDescription, setPartTierDescription] = useState<string>('');
+  const [selectedPartTier, setSelectedPartTier] = useState<'FIRST_LINE' | 'PREMIUM' | 'NONE'>('NONE');
+  const [warrantyDays, setWarrantyDays] = useState<number>(90);
+  const [paymentStatus, setPaymentStatus] = useState<string>('PENDENTE');
+
   const searchRef = useRef<HTMLDivElement>(null);
   const partSearchRef = useRef<HTMLDivElement>(null);
 
@@ -220,7 +228,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return customOSStatuses.map((s) => ({
         status: (s.code || s.id) as OrderStatus,
         label: s.label,
-        icon: s.icon || '📌',
+        icon: (s as any).icon || '📌',
       }));
     }
     return STATUS_CHOICES;
@@ -242,22 +250,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     const today = new Date().toISOString().split('T')[0];
 
     if (orderToEdit) {
-      // Load existing order to edit
-      const cust = currentCustomers.find((c) => c.id === orderToEdit.customerId) || null;
+      // Load existing order to edit with full safe fallbacks
+      const cust = orderToEdit.customerId
+        ? currentCustomers.find((c) => c.id === orderToEdit.customerId) || null
+        : null;
       setSelectedCustomer(
         cust || {
-          id: orderToEdit.customerId,
-          name: orderToEdit.customerName,
-          phone: orderToEdit.customerPhone,
-          whatsapp: orderToEdit.customerWhatsapp || orderToEdit.customerPhone,
+          id: orderToEdit.customerId || 'cust-' + Date.now(),
+          name: orderToEdit.customerName || 'Cliente',
+          phone: orderToEdit.customerPhone || '',
+          whatsapp: orderToEdit.customerWhatsapp || orderToEdit.customerPhone || '',
           document: orderToEdit.customerDocument || '',
           email: '',
           address: '',
           city: '',
-          createdAt: orderToEdit.createdAt,
+          createdAt: orderToEdit.createdAt || new Date().toISOString(),
         }
       );
-      setCustomerSearch(orderToEdit.customerName);
+      setCustomerSearch(orderToEdit.customerName || '');
       setPickupType((orderToEdit.pickupType as any) || (orderToEdit.authorizedPickupName ? 'THIRD_PARTY' : 'OWNER_ONLY'));
       setAuthorizedPickupName(orderToEdit.authorizedPickupName || '');
       setAuthorizedPickupPhone(orderToEdit.authorizedPickupPhone || '');
@@ -293,28 +303,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         setDeliveryDate('');
       }
 
-      const loadedParts: OrderPartItem[] =
-        orderToEdit.parts ||
-        (orderToEdit.items ? (orderToEdit.items.filter((i) => i.type === 'PECA') as OrderPartItem[]) : []) ||
-        [];
+      const loadedParts: OrderPartItem[] = Array.isArray(orderToEdit.parts) && orderToEdit.parts.length > 0
+        ? orderToEdit.parts
+        : Array.isArray(orderToEdit.items)
+        ? (orderToEdit.items.filter((i) => i.type === 'PECA') as OrderPartItem[])
+        : [];
       setParts(loadedParts);
-      const initialPartsTotal = loadedParts.reduce(
-        (acc, p) => acc + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
-        0
-      );
       setDiscount(orderToEdit.discount || 0);
-      const existingGross = (orderToEdit.totalPrice || 0) + (orderToEdit.discount || 0);
-      if (existingGross !== initialPartsTotal || initialPartsTotal === 0) {
-        setCustomTotalPrice(existingGross);
-      } else {
-        setCustomTotalPrice(null);
-      }
+
+      const existingLabor = orderToEdit.laborPrice !== undefined
+        ? Number(orderToEdit.laborPrice)
+        : Math.max(0, (orderToEdit.totalPrice || 0) + (orderToEdit.discount || 0) - loadedParts.reduce((acc, p) => acc + (p.totalPrice || p.total || (p.quantity || 1) * (p.unitPrice || 0) - (p.discount || 0)), 0));
+      setCustomTotalPrice(existingLabor);
 
       setInitialStatus(orderToEdit.status || 'ORCAMENTO');
       setArchivedLocation(orderToEdit.archivedLocation || '');
       setPaymentMethod(orderToEdit.paymentMethod || 'Não informado');
+      setPartPriceFirstLine(orderToEdit.partPriceFirstLine || 0);
+      setPartPricePremium(orderToEdit.partPricePremium || 0);
+      setPartTierDescription(orderToEdit.partTierDescription || '');
+      setSelectedPartTier(orderToEdit.selectedPartTier || 'NONE');
+      setWarrantyDays(orderToEdit.warrantyDays || 90);
+      setPaymentStatus(orderToEdit.paymentStatus || 'PENDENTE');
 
-      if (orderToEdit.passwordPattern && orderToEdit.passwordPattern.length > 0) {
+      if (orderToEdit.passwordPattern && Array.isArray(orderToEdit.passwordPattern) && orderToEdit.passwordPattern.length > 0) {
         setPasswordType('PATTERN');
         setPatternNodes(orderToEdit.passwordPattern);
         setPasswordPin('');
@@ -331,7 +343,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
       // Populate Accessories from checklist or text
       const initialMap: Record<string, { present: boolean; details: string }> = {};
-      loadedAccessories.forEach((acc) => {
+      (loadedAccessories || []).forEach((acc) => {
         initialMap[acc.id] = { present: false, details: '' };
       });
 
@@ -385,6 +397,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setInitialStatus('ORCAMENTO');
       setArchivedLocation('');
       setParts([]);
+      setPartPriceFirstLine(0);
+      setPartPricePremium(0);
+      setPartTierDescription('');
+      setSelectedPartTier('NONE');
       setDiscount(0);
       setCustomTotalPrice(null);
       setIsPriceUnlocked(false);
@@ -573,11 +589,18 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setParts(updated);
   };
 
+  const selectedTierPartPrice =
+    selectedPartTier === 'FIRST_LINE'
+      ? (Number(partPriceFirstLine) || 0)
+      : selectedPartTier === 'PREMIUM'
+      ? (Number(partPricePremium) || 0)
+      : 0;
+
   // Calculations for Parts and Totals
   const partsTotal = parts.reduce(
     (sum, p) => sum + (p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0)),
     0
-  );
+  ) + selectedTierPartPrice;
   const laborPriceVal = customTotalPrice !== null ? customTotalPrice : 0;
   const effectiveBasePrice = laborPriceVal;
   const totalGross = laborPriceVal + partsTotal;
@@ -710,7 +733,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             {
               status: initialStatus,
               updatedAt: new Date().toISOString(),
-              updatedBy: currentUser.name || 'Atendente',
+              updatedBy: currentUser?.name || 'Atendente',
               notes: 'Ordem de serviço aberta no sistema.',
             },
           ];
@@ -741,6 +764,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         details: customAccMap['acc-others']?.details?.trim() || '',
       };
 
+      const selectedTierPartItem: OrderPartItem | null =
+        selectedPartTier !== 'NONE' && selectedTierPartPrice > 0
+          ? {
+              id: `part-tier-${Date.now()}`,
+              type: 'PECA',
+              name: `${partTierDescription.trim() || 'Peça'} (${selectedPartTier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+              productName: `${partTierDescription.trim() || 'Peça'} (${selectedPartTier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+              quantity: 1,
+              unitPrice: selectedTierPartPrice,
+              discount: 0,
+              total: selectedTierPartPrice,
+              totalPrice: selectedTierPartPrice,
+            }
+          : null;
+
+      const combinedParts = selectedTierPartItem ? [...parts, selectedTierPartItem] : parts;
+
       const finalOrder: ServiceOrder = {
         id: orderToEdit ? orderToEdit.id : 'os-' + Date.now(),
         orderNumber: nextNum,
@@ -770,7 +810,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         technicalDiagnosis: serviceToBeDone.trim(),
         requestedService: serviceToBeDone.trim(),
         performedService: serviceToBeDone.trim(),
-        items: parts.map((p) => ({
+        // Opções de Peça (1ª Linha vs Premium)
+        partPriceFirstLine: Number(partPriceFirstLine) || 0,
+        partPricePremium: Number(partPricePremium) || 0,
+        selectedPartTier: selectedPartTier,
+        partTierDescription: partTierDescription.trim() || undefined,
+        items: combinedParts.map((p) => ({
           ...p,
           id: p.id || `part-${Date.now()}`,
           name: p.name || p.productName || 'Peça Utilizada',
@@ -782,7 +827,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           total: p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0),
           totalPrice: p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0),
         })),
-        parts: parts.map((p) => ({
+        parts: combinedParts.map((p) => ({
           ...p,
           total: p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0),
           totalPrice: p.totalPrice || p.total || p.quantity * p.unitPrice - (p.discount || 0),
@@ -797,15 +842,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             : (finalOrderTotal === 0 ? 'OUTRO' : undefined),
         paymentStatus: finalOrderTotal === 0
           ? 'PAGO'
-          : (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE'),
+          : (paymentStatus || (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE')) as any,
         status: initialStatus,
-        archivedLocation: (initialStatus === 'ARQUIVADO' || archivedLocation.trim()) ? (archivedLocation.trim() || undefined) : undefined,
-        deliveredAt: (initialStatus === 'ENTREGUE' || initialStatus === 'CONCLUIDO')
+        archivedLocation: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || archivedLocation.trim()) ? (archivedLocation.trim() || undefined) : undefined,
+        deliveredAt: (initialStatus === 'ENTREGUE' || (initialStatus as string)?.toUpperCase()?.includes('ENTREG') || (initialStatus as string) === 'CONCLUIDO')
           ? (orderToEdit?.deliveredAt || new Date().toISOString())
           : orderToEdit?.deliveredAt,
-        technicianName: currentUser.name,
-        attendantName: currentUser.name,
-        warrantyDays: 90,
+        technicianName: orderToEdit?.technicianName || currentUser?.name || 'Técnico Responsável',
+        attendantName: orderToEdit?.attendantName || currentUser?.name || 'Atendente',
+        warrantyDays: warrantyDays || 90,
         estimatedCompletionDate:
           !isDeliveryOptional && deliveryDate ? new Date(deliveryDate).toISOString() : undefined,
         createdAt: orderToEdit ? orderToEdit.createdAt : new Date().toISOString(),
@@ -1088,6 +1133,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             statusChoices={dynamicStatusChoices}
             archivedLocation={archivedLocation}
             setArchivedLocation={setArchivedLocation}
+            partPriceFirstLine={partPriceFirstLine}
+            setPartPriceFirstLine={setPartPriceFirstLine}
+            partPricePremium={partPricePremium}
+            setPartPricePremium={setPartPricePremium}
+            partTierDescription={partTierDescription}
+            setPartTierDescription={setPartTierDescription}
+            selectedPartTier={selectedPartTier}
+            setSelectedPartTier={setSelectedPartTier}
+            warrantyDays={warrantyDays}
+            setWarrantyDays={setWarrantyDays}
+            paymentStatus={paymentStatus}
+            setPaymentStatus={setPaymentStatus}
+            customerPhone={whatsappClean || selectedCustomer?.phone || ''}
+            orderSummaryForCopy={{
+              orderNumber: nextOrderNumber,
+              customerName: selectedCustomer?.name,
+              brand: brand,
+              model: model,
+              clientDefect: clientDefect,
+              laborPrice: laborPriceVal,
+              warrantyDays: warrantyDays,
+            }}
           />
         </div>
 

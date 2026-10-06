@@ -170,7 +170,8 @@ const AddProductsToReceivableModal: React.FC<AddProductsToReceivableModalProps> 
     const product = products.find((p) => p.id === selectedProductId);
     if (!product) return;
 
-    const addedAmount = product.salePrice * quantity;
+    const productPrice = product.sellingPrice || (product as any).salePrice || (product as any).price || 0;
+    const addedAmount = productPrice * quantity;
     const newRemaining = (receivable.remainingAmount ?? receivable.amount) + addedAmount;
     const newOriginal = (receivable.originalAmount ?? receivable.amount) + addedAmount;
 
@@ -205,9 +206,12 @@ const AddProductsToReceivableModal: React.FC<AddProductsToReceivableModalProps> 
               className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white"
             >
               <option value="">-- Escolha um produto --</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} - R$ {p.salePrice.toFixed(2)}</option>
-              ))}
+              {products.map((p) => {
+                const prPrice = p.sellingPrice || (p as any).salePrice || (p as any).price || 0;
+                return (
+                  <option key={p.id} value={p.id}>{p.name} - R$ {prPrice.toFixed(2)}</option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -458,7 +462,11 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
         splitPayments: activeSplits,
       });
 
-      setLastPaymentsRecorded(activeSplits);
+      const mappedSplits = activeSplits.map((s) => ({
+        method: s.paymentMethod,
+        amount: Number(s.amount) || 0,
+      }));
+      setLastPaymentsRecorded(mappedSplits);
       setIsCompleted(true);
       onSuccess();
     } catch (err: any) {
@@ -707,6 +715,7 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
   const [selectedReceivableForAddProducts, setSelectedReceivableForAddProducts] = useState<AccountReceivable | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [cardTabMap, setCardTabMap] = useState<Record<string, 'RESUMO' | 'HISTORICO'>>({});
 
   // Exclusão segura de card de fiado (sem window.confirm)
   const [receivableToDelete, setReceivableToDelete] = useState<AccountReceivable | null>(null);
@@ -1248,197 +1257,301 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
 
                 {/* Card Body */}
                 <div className="p-4 space-y-3 flex-1 text-xs">
-                  {/* SEÇÃO: O QUE É A DÍVIDA (Em destaque total no card) */}
-                  <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5 flex-wrap">
-                      <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-                        {rec.originType === 'ORDEM_SERVICO' ? (
-                          <Wrench size={12} className="text-amber-400 shrink-0" />
-                        ) : (
-                          <ShoppingBag size={12} className="text-cyan-400 shrink-0" />
-                        )}
-                        O que é a Dívida:
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        {debtInfo.device && (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 truncate max-w-[180px]"
-                            title={debtInfo.device}
-                          >
-                            <Smartphone size={11} className="shrink-0 text-cyan-400" />
-                            <span className="truncate">{debtInfo.device}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Descrição do serviço / itens */}
-                    <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-750/80">
-                      <p className="text-xs font-semibold text-white leading-relaxed flex items-start gap-1.5">
-                        <span className="text-amber-400 shrink-0 mt-0.5">📌</span>
-                        <span className="text-slate-100">{debtInfo.description}</span>
-                      </p>
-
-                      {debtInfo.defect && debtInfo.defect !== debtInfo.description && (
-                        <p className="text-[11px] text-slate-400 mt-1.5 pt-1.5 border-t border-slate-800 flex items-center gap-1.5">
-                          <span className="text-rose-400 font-semibold shrink-0">Defeito da OS:</span>
-                          <span className="text-slate-300 truncate">{debtInfo.defect}</span>
-                        </p>
-                      )}
-
-                      {debtInfo.notes && (
-                        <p className="text-[10px] text-amber-300/80 mt-1 italic flex items-center gap-1.5">
-                          <span className="font-semibold not-italic text-amber-400">Obs:</span>
-                          <span className="truncate">{debtInfo.notes}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Botão rápido para adicionar mais produtos no card */}
+                  {/* TAB NAVIGATION IN CARD */}
+                  <div className="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-bold">
                     <button
                       type="button"
-                      onClick={() => setSelectedReceivableForAddProducts(rec)}
-                      className="w-full py-2 px-3 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/30 hover:border-cyan-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                      onClick={() => setCardTabMap((prev) => ({ ...prev, [rec.id]: 'RESUMO' }))}
+                      className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        (cardTabMap[rec.id] || 'RESUMO') === 'RESUMO'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
                     >
-                      <PackagePlus size={13} className="text-cyan-400" />
-                      <span>+ Adicionar Mais Produtos a este Fiado</span>
+                      <FileText size={13} />
+                      <span>{isPaid ? 'Card Limpo / Resumo' : 'Débito Atual'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCardTabMap((prev) => ({ ...prev, [rec.id]: 'HISTORICO' }))}
+                      className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        cardTabMap[rec.id] === 'HISTORICO'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-extrabold shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Clock size={13} />
+                      <span>Aba Histórico</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                        {formatCurrency(original)}
+                      </span>
                     </button>
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-400 text-[11px]">Progresso de Amortização</span>
-                      <span className={isPaid ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                        {progressPercent}% abatido
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                      <div
-                        className={`h-full transition-all duration-500 rounded-full ${
-                          isPaid ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-500 to-emerald-500'
-                        }`}
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-                  </div>
+                  {cardTabMap[rec.id] === 'HISTORICO' ? (
+                    /* HISTÓRICO TAB */
+                    <div className="space-y-3 animate-in fade-in duration-150">
+                      {/* SOMA DE TUDO QUE O CLIENTE VAI COMPRANDO */}
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-cyan-500/40 space-y-2">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                            <ShoppingBag size={13} className="text-cyan-400" />
+                            Soma Acumulada de Compras
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold">
+                            Total Histórico
+                          </span>
+                        </div>
 
-                  {/* Values grid: Total, Já Pago, Falta Pagar em uma linha proporcional */}
-                  <div className="grid grid-cols-3 gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center items-center">
-                    <div className="min-w-0 flex flex-col items-center px-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5 whitespace-nowrap">
-                        Total
-                      </span>
-                      <span className="font-bold text-slate-200 text-xs sm:text-sm font-mono truncate w-full" title={formatCurrency(original)}>
-                        {formatCurrency(original)}
-                      </span>
-                    </div>
-
-                    <div className="min-w-0 flex flex-col items-center border-x border-slate-800/80 px-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400/90 block mb-0.5 whitespace-nowrap">
-                        Já Abatido
-                      </span>
-                      <span className="font-bold text-emerald-400 text-xs sm:text-sm font-mono truncate w-full" title={formatCurrency(paid)}>
-                        {formatCurrency(paid)}
-                      </span>
-                    </div>
-
-                    <div className="min-w-0 flex flex-col items-center px-1">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400/90 block mb-0.5 whitespace-nowrap">
-                        Falta Pagar
-                      </span>
-                      <span 
-                        className={`font-extrabold text-xs sm:text-sm font-mono truncate w-full ${
-                          isPaid ? 'text-slate-500' : isOverdue ? 'text-rose-400' : 'text-amber-400'
-                        }`} 
-                        title={formatCurrency(remaining)}
-                      >
-                        {formatCurrency(remaining)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* SEÇÃO: ABATIMENTOS REALIZADOS (Com data certinho e valores detalhados) */}
-                  <div className="rounded-xl bg-slate-950/75 border border-slate-800 p-2.5 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold border-b border-slate-800/70 pb-1">
-                      <div className="flex items-center gap-1.5 text-slate-300">
-                        <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                        <span className="uppercase text-[10px] font-extrabold tracking-wider text-slate-300">
-                          Abatimentos Realizados
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-normal">
-                          ({allPayments.length})
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-extrabold text-emerald-400 font-mono">
-                        {paid > 0 ? `${formatCurrency(paid)} abatido` : 'R$ 0,00'}
-                      </span>
-                    </div>
-
-                    {allPayments.length > 0 ? (
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
-                        {allPayments.map((p, idx) => (
-                          <div
-                            key={p.id || idx}
-                            className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 text-xs hover:border-slate-700 transition-colors"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-slate-200 text-xs">
-                                  {p.label}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                                  {getPaymentMethodLabelLocal(p.paymentMethod)}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 flex-wrap">
-                                <Calendar size={11} className="text-emerald-400 shrink-0" />
-                                <span>Data: <strong className="text-slate-200 font-semibold">{formatDateTime(p.date)}</strong></span>
-                                {p.userName && <span className="text-slate-500 text-[10px]">por {p.userName}</span>}
-                              </div>
-                              {p.notes && (
-                                <p className="text-[10px] text-slate-400 italic mt-0.5 truncate">
-                                  "{p.notes}"
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="shrink-0 text-right">
-                              <span className="font-extrabold text-emerald-400 font-mono text-xs sm:text-sm block">
-                                - {formatCurrency(p.amount)}
-                              </span>
-                              <span className="text-[9px] text-emerald-500/80 font-bold uppercase tracking-wider">
-                                Abatido
-                              </span>
-                            </div>
+                        <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-lg">
+                            <span className="text-[9.5px] uppercase font-bold text-slate-400 block">Total Comprado</span>
+                            <span className="text-xs font-extrabold text-white font-mono">{formatCurrency(original)}</span>
                           </div>
-                        ))}
+                          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-lg">
+                            <span className="text-[9.5px] uppercase font-bold text-emerald-400 block">Total Pago</span>
+                            <span className="text-xs font-extrabold text-emerald-400 font-mono">{formatCurrency(paid)}</span>
+                          </div>
+                          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-lg">
+                            <span className="text-[9.5px] uppercase font-bold text-amber-400 block">Saldo Atual</span>
+                            <span className={`text-xs font-extrabold font-mono ${remaining > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                              {formatCurrency(remaining)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="p-2 rounded-lg bg-slate-900/50 border border-slate-800/80 text-center text-slate-400 text-xs">
-                        <p className="font-medium text-slate-300 text-[11px]">
-                          ⏳ Nenhum abatimento realizado ainda
-                        </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          Débito total de <strong className="text-slate-300">{formatCurrency(original)}</strong> pendente
-                        </p>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Datas de Emissão e Vencimento */}
-                  <div className="flex items-center justify-between text-xs text-slate-400 px-0.5 pt-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Calendar size={13} className={isOverdue ? 'text-rose-400 shrink-0' : 'text-slate-500 shrink-0'} />
-                      <span className="text-slate-400 truncate text-[11px]">
-                        Vencimento: <strong className={isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200 font-semibold'}>{formatDate(rec.dueDate)}</strong>
-                      </span>
+                      {/* ITENS / PRODUTOS COMPRADOS */}
+                      <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold border-b border-slate-800 pb-1">
+                          <span className="text-[10px] uppercase font-extrabold tracking-wider text-amber-400 flex items-center gap-1">
+                            <Package size={12} /> Produtos / Serviços Adquiridos
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">{formatCurrency(original)}</span>
+                        </div>
+                        <div className="p-2 bg-slate-900/90 rounded-lg border border-slate-800 text-xs">
+                          <p className="font-semibold text-slate-100 flex items-start gap-1.5">
+                            <span className="text-amber-400 shrink-0">📌</span>
+                            <span>{debtInfo.description}</span>
+                          </p>
+                          {debtInfo.device && (
+                            <p className="text-[11px] text-cyan-300 mt-1 flex items-center gap-1">
+                              <Smartphone size={11} className="text-cyan-400 shrink-0" />
+                              <span>Equipamento: <strong>{debtInfo.device}</strong></span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* HISTÓRICO COMPLETO DE BAIXAS E PAGAMENTOS */}
+                      <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold border-b border-slate-800 pb-1">
+                          <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Histórico de Pagamentos ({allPayments.length})
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono">{formatCurrency(paid)}</span>
+                        </div>
+
+                        {allPayments.length > 0 ? (
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                            {allPayments.map((p, idx) => (
+                              <div
+                                key={p.id || idx}
+                                className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 text-xs"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-slate-200 text-xs">{p.label}</span>
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                      {getPaymentMethodLabelLocal(p.paymentMethod)}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 flex-wrap">
+                                    <Calendar size={11} className="text-emerald-400 shrink-0" />
+                                    <span>Data: <strong className="text-slate-200 font-semibold">{formatDateTime(p.date)}</strong></span>
+                                    {p.userName && <span className="text-slate-500 text-[10px]">por {p.userName}</span>}
+                                  </div>
+                                  {p.notes && (
+                                    <p className="text-[10px] text-slate-400 italic mt-0.5 truncate">"{p.notes}"</p>
+                                  )}
+                                </div>
+
+                                <div className="shrink-0 text-right">
+                                  <span className="font-extrabold text-emerald-400 font-mono text-xs sm:text-sm block">
+                                    - {formatCurrency(p.amount)}
+                                  </span>
+                                  <span className="text-[9px] text-emerald-500/80 font-bold uppercase tracking-wider">
+                                    Abatido
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-center text-slate-500 text-xs py-2">Nenhum pagamento registrado ainda.</p>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[11px] text-slate-500 shrink-0 ml-2" title="Data em que a dívida foi criada">
-                      Origem: {formatDate(rec.createdAt)}
-                    </span>
-                  </div>
+                  ) : isPaid ? (
+                    /* CARD LIMPO WHEN PAID */
+                    <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 text-center space-y-3 animate-in fade-in duration-150">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
+                        <CheckCircle2 size={22} />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-emerald-300">Fiado Quitado Integralmente</h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Nenhuma pendência financeira em aberto neste card.</p>
+                      </div>
+
+                      {/* Resumo Acumulado de Compras */}
+                      <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 grid grid-cols-2 gap-2 text-left">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Comprado:</span>
+                          <span className="text-xs font-black text-white font-mono">{formatCurrency(original)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-emerald-400 block">Total Pago:</span>
+                          <span className="text-xs font-black text-emerald-400 font-mono">{formatCurrency(paid)}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setCardTabMap((prev) => ({ ...prev, [rec.id]: 'HISTORICO' }))}
+                          className="w-full py-2.5 px-3 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                        >
+                          <Clock size={14} className="text-cyan-400" />
+                          <span>Abrir Aba Histórico do Cliente (Soma de Compras)</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* RESUMO TAB FOR ACTIVE DEBT */
+                    <div className="space-y-3 animate-in fade-in duration-150">
+                      {/* SEÇÃO: O QUE É A DÍVIDA (Em destaque total no card) */}
+                      <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5 flex-wrap">
+                          <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                            {rec.originType === 'ORDEM_SERVICO' ? (
+                              <Wrench size={12} className="text-amber-400 shrink-0" />
+                            ) : (
+                              <ShoppingBag size={12} className="text-cyan-400 shrink-0" />
+                            )}
+                            O que é a Dívida:
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            {debtInfo.device && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 truncate max-w-[180px]"
+                                title={debtInfo.device}
+                              >
+                                <Smartphone size={11} className="shrink-0 text-cyan-400" />
+                                <span className="truncate">{debtInfo.device}</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Descrição do serviço / itens */}
+                        <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-750/80">
+                          <p className="text-xs font-semibold text-white leading-relaxed flex items-start gap-1.5">
+                            <span className="text-amber-400 shrink-0 mt-0.5">📌</span>
+                            <span className="text-slate-100">{debtInfo.description}</span>
+                          </p>
+
+                          {debtInfo.defect && debtInfo.defect !== debtInfo.description && (
+                            <p className="text-[11px] text-slate-400 mt-1.5 pt-1.5 border-t border-slate-800 flex items-center gap-1.5">
+                              <span className="text-rose-400 font-semibold shrink-0">Defeito da OS:</span>
+                              <span className="text-slate-300 truncate">{debtInfo.defect}</span>
+                            </p>
+                          )}
+
+                          {debtInfo.notes && (
+                            <p className="text-[10px] text-amber-300/80 mt-1 italic flex items-center gap-1.5">
+                              <span className="font-semibold not-italic text-amber-400">Obs:</span>
+                              <span className="truncate">{debtInfo.notes}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Botão rápido para adicionar mais produtos no card */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedReceivableForAddProducts(rec)}
+                          className="w-full py-2 px-3 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/30 hover:border-cyan-400 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                        >
+                          <PackagePlus size={13} className="text-cyan-400" />
+                          <span>+ Adicionar Mais Produtos a este Fiado</span>
+                        </button>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-400 text-[11px]">Progresso de Amortização</span>
+                          <span className="text-amber-400 font-bold">
+                            {progressPercent}% abatido
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                          <div
+                            className="h-full transition-all duration-500 rounded-full bg-gradient-to-r from-amber-500 to-emerald-500"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Values grid: Total, Já Pago, Falta Pagar */}
+                      <div className="grid grid-cols-3 gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center items-center">
+                        <div className="min-w-0 flex flex-col items-center px-1">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5 whitespace-nowrap">
+                            Total
+                          </span>
+                          <span className="font-bold text-slate-200 text-xs sm:text-sm font-mono truncate w-full" title={formatCurrency(original)}>
+                            {formatCurrency(original)}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex flex-col items-center border-x border-slate-800/80 px-1">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400/90 block mb-0.5 whitespace-nowrap">
+                            Já Abatido
+                          </span>
+                          <span className="font-bold text-emerald-400 text-xs sm:text-sm font-mono truncate w-full" title={formatCurrency(paid)}>
+                            {formatCurrency(paid)}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 flex flex-col items-center px-1">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400/90 block mb-0.5 whitespace-nowrap">
+                            Falta Pagar
+                          </span>
+                          <span 
+                            className={`font-extrabold text-xs sm:text-sm font-mono truncate w-full ${
+                              isOverdue ? 'text-rose-400' : 'text-amber-400'
+                            }`} 
+                            title={formatCurrency(remaining)}
+                          >
+                            {formatCurrency(remaining)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Datas de Emissão e Vencimento */}
+                      <div className="flex items-center justify-between text-xs text-slate-400 px-0.5 pt-0.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Calendar size={13} className={isOverdue ? 'text-rose-400 shrink-0' : 'text-slate-500 shrink-0'} />
+                          <span className="text-slate-400 truncate text-[11px]">
+                            Vencimento: <strong className={isOverdue ? 'text-rose-400 font-bold' : 'text-slate-200 font-semibold'}>{formatDate(rec.dueDate)}</strong>
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-500 shrink-0 ml-2" title="Data em que a dívida foi criada">
+                          Origem: {formatDate(rec.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Footer Actions: Tudo em uma linha, proporcional e com espaçamento entre eles */}

@@ -22,14 +22,16 @@ import { DeviceTechnicalChecklist } from '../../types';
 
 interface OrderTechnicalChecklistSectionProps {
   isDark?: boolean;
-  checklist: DeviceTechnicalChecklist;
+  checklist?: DeviceTechnicalChecklist;
   onChange: (updated: DeviceTechnicalChecklist) => void;
   compact?: boolean;
 }
 
 export const OrderTechnicalChecklistSection: React.FC<
   OrderTechnicalChecklistSectionProps
-> = ({ isDark = true, checklist, onChange, compact = false }) => {
+> = ({ isDark = true, checklist: incomingChecklist, onChange, compact = false }) => {
+  const checklist: DeviceTechnicalChecklist = incomingChecklist || {};
+
   const updateField = (field: keyof DeviceTechnicalChecklist, val: any) => {
     onChange({
       ...checklist,

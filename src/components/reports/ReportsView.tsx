@@ -381,12 +381,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
     isOpen: boolean;
     title: string;
     description: string;
-    feature: 'ADVANCED_REPORTS' | 'EXPORT_PDF';
+    feature: 'REPORTS' | 'PDF_EXPORT' | 'GENERAL' | 'ORDERS_LIMIT' | 'PRODUCTS_LIMIT';
   }>({
     isOpen: false,
     title: '',
     description: '',
-    feature: 'ADVANCED_REPORTS',
+    feature: 'REPORTS',
   });
 
   useEffect(() => {
@@ -406,7 +406,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
         isOpen: true,
         title: 'Exportação em PDF Bloqueada',
         description: 'A exportação de relatórios em PDF é um recurso Pro.',
-        feature: 'EXPORT_PDF',
+        feature: 'PDF_EXPORT',
       });
       return;
     }

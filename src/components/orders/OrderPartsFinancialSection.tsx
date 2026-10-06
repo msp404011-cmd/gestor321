@@ -11,14 +11,21 @@ import {
   DollarSign,
   Tag,
   Box,
+  CheckCircle2,
+  MessageCircle,
+  Package,
+  Clock,
 } from 'lucide-react';
 import {
   OrderPartItem,
   Product,
   OrderStatus,
   CustomPaymentMethodItem,
+  ServiceOrder,
 } from '../../types';
-import { formatCurrency, getCanonicalStatus } from '../../services/formatters';
+import { formatCurrency, getCanonicalStatus, cleanPhoneForWhatsApp } from '../../services/formatters';
+import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
+import { StorageService } from '../../services/storage';
 
 interface OrderPartsFinancialSectionProps {
   isDark: boolean;
@@ -71,58 +78,117 @@ interface OrderPartsFinancialSectionProps {
   statusChoices: { status: OrderStatus; label: string; icon: string }[];
   archivedLocation?: string;
   setArchivedLocation?: (val: string) => void;
+  // Two-tier part options (1ª Linha vs Premium)
+  partPriceFirstLine?: number;
+  setPartPriceFirstLine?: (val: number) => void;
+  partPricePremium?: number;
+  setPartPricePremium?: (val: number) => void;
+  partTierDescription?: string;
+  setPartTierDescription?: (val: string) => void;
+  selectedPartTier?: 'FIRST_LINE' | 'PREMIUM' | 'NONE';
+  setSelectedPartTier?: (val: 'FIRST_LINE' | 'PREMIUM' | 'NONE') => void;
+  warrantyDays?: number;
+  setWarrantyDays?: (val: number) => void;
+  paymentStatus?: string;
+  setPaymentStatus?: (val: string) => void;
+  customerPhone?: string;
+  orderSummaryForCopy?: {
+    orderNumber?: number;
+    customerName?: string;
+    brand?: string;
+    model?: string;
+    clientDefect?: string;
+    laborPrice?: number;
+    warrantyDays?: number;
+  };
 }
 
 export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProps> = ({
   isDark,
-  parts,
-  partInputMode,
+  parts = [],
+  partInputMode = 'ESTOQUE',
   setPartInputMode,
-  partSearch,
+  partSearch = '',
   setPartSearch,
-  isPartSearchOpen,
+  isPartSearchOpen = false,
   setIsPartSearchOpen,
   partSearchRef,
-  showStockCatalog,
+  showStockCatalog = false,
   setShowStockCatalog,
-  products,
-  filteredProducts,
+  products = [],
+  filteredProducts = [],
   handleAddProductAsPart,
   onOpenNewProductModal,
-  manualPartName,
+  manualPartName = '',
   setManualPartName,
-  manualPartQty,
+  manualPartQty = 1,
   setManualPartQty,
-  manualPartPrice,
+  manualPartPrice = 0,
   setManualPartPrice,
   handleAddManualPart,
   handleUpdatePartQty,
   handleUpdatePartPrice,
   handleRemovePart,
-  partsTotal,
-  effectiveBasePrice,
-  isPriceUnlocked,
-  customTotalPrice,
+  partsTotal = 0,
+  effectiveBasePrice = 0,
+  isPriceUnlocked = false,
+  customTotalPrice = null,
   setCustomTotalPrice,
   setShowManagerAuthModal,
   setManagerPassError,
   setManagerPassInput,
-  discount,
+  discount = 0,
   setDiscount,
-  finalOrderTotal,
-  deliveryDate,
+  finalOrderTotal = 0,
+  deliveryDate = '',
   setDeliveryDate,
-  isDeliveryOptional,
+  isDeliveryOptional = true,
   setIsDeliveryOptional,
-  paymentMethod,
+  paymentMethod = 'Não informado',
   setPaymentMethod,
-  customPaymentMethods,
-  initialStatus,
+  customPaymentMethods = [],
+  initialStatus = 'ORCAMENTO',
   setInitialStatus,
-  statusChoices,
+  statusChoices = [],
   archivedLocation = '',
   setArchivedLocation,
+  partPriceFirstLine = 0,
+  setPartPriceFirstLine,
+  partPricePremium = 0,
+  setPartPricePremium,
+  partTierDescription = '',
+  setPartTierDescription,
+  selectedPartTier = 'NONE',
+  setSelectedPartTier,
+  warrantyDays = 90,
+  setWarrantyDays,
+  paymentStatus = 'PENDENTE',
+  setPaymentStatus,
+  customerPhone = '',
+  orderSummaryForCopy,
 }) => {
+  const [copiedFeedback, React_setCopiedFeedback] = React.useState<string | null>(null);
+
+  const handleCopyBudget = async (type: BudgetCopyType) => {
+    const company = StorageService.getCompanySettings();
+    const mockOrder: Partial<ServiceOrder> = {
+      orderNumber: orderSummaryForCopy?.orderNumber || 0,
+      customerName: orderSummaryForCopy?.customerName || '',
+      brand: orderSummaryForCopy?.brand || '',
+      model: orderSummaryForCopy?.model || '',
+      clientDefect: orderSummaryForCopy?.clientDefect || '',
+      laborPrice: orderSummaryForCopy?.laborPrice !== undefined ? orderSummaryForCopy.laborPrice : effectiveBasePrice,
+      warrantyDays: orderSummaryForCopy?.warrantyDays || 90,
+      partPriceFirstLine: partPriceFirstLine,
+      partPricePremium: partPricePremium,
+      partTierDescription: partTierDescription,
+    };
+    const success = await copyOrderBudgetText(mockOrder, type, company);
+    if (success) {
+      React_setCopiedFeedback(type === 'FIRST_LINE' ? '1ª Linha Copiado!' : type === 'PREMIUM' ? 'Premium Copiado!' : 'Comparativo Copiado!');
+      setTimeout(() => React_setCopiedFeedback(null), 3000);
+    }
+  };
   return (
     <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       {/* 5. PEÇAS - AURORA EMERALD GLOW */}
@@ -441,6 +507,122 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
             </table>
           )}
         </div>
+
+        {/* DOIS VALORES DE PEÇA (1ª LINHA VS PREMIUM) & COPIAR ORÇAMENTO */}
+        <div className="p-2 rounded-xl bg-[#041210] border border-emerald-500/50 space-y-1.5 shrink-0 shadow-inner">
+          <div className="flex items-center justify-between gap-1 flex-wrap">
+            <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
+              ⭐💎 Dois Valores de Peça (1ª Linha / Premium)
+            </span>
+            {copiedFeedback && (
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-white animate-pulse">
+                ✓ {copiedFeedback}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+            <div>
+              <label className="text-[9px] font-bold text-slate-400 block mb-0.5">Nome / Tipo da Peça</label>
+              <input
+                type="text"
+                value={partTierDescription}
+                onChange={(e) => setPartTierDescription && setPartTierDescription(e.target.value)}
+                placeholder="Ex: Tela Frontal, Bateria..."
+                className="w-full px-2 py-1 bg-[#020807] border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
+              />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-bold text-amber-300 block mb-0.5">⭐ Valor 1ª Linha (R$)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={partPriceFirstLine || ''}
+                onChange={(e) => setPartPriceFirstLine && setPartPriceFirstLine(parseFloat(e.target.value) || 0)}
+                placeholder="0,00"
+                className="w-full px-2 py-1 bg-[#020807] border border-amber-500/50 rounded-lg text-xs text-amber-300 font-bold font-mono focus:outline-hidden focus:border-amber-400"
+              />
+            </div>
+
+            <div>
+              <label className="text-[9px] font-bold text-cyan-300 block mb-0.5">💎 Valor Premium (R$)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={partPricePremium || ''}
+                onChange={(e) => setPartPricePremium && setPartPricePremium(parseFloat(e.target.value) || 0)}
+                placeholder="0,00"
+                className="w-full px-2 py-1 bg-[#020807] border border-cyan-500/50 rounded-lg text-xs text-cyan-300 font-bold font-mono focus:outline-hidden focus:border-cyan-400"
+              />
+            </div>
+          </div>
+
+          {/* Qual o cliente optou? */}
+          <div className="pt-1 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-black text-slate-300 uppercase">Cliente optou por:</span>
+              <button
+                type="button"
+                onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'FIRST_LINE' ? 'NONE' : 'FIRST_LINE')}
+                className={`px-2 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                  selectedPartTier === 'FIRST_LINE'
+                    ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                    : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>⭐ 1ª Linha {partPriceFirstLine > 0 ? `(${formatCurrency(partPriceFirstLine)})` : ''}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'PREMIUM' ? 'NONE' : 'PREMIUM')}
+                className={`px-2 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                  selectedPartTier === 'PREMIUM'
+                    ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]'
+                    : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
+                }`}
+              >
+                <span>💎 Premium {partPricePremium > 0 ? `(${formatCurrency(partPricePremium)})` : ''}</span>
+              </button>
+            </div>
+
+            <span className="text-[8.5px] text-slate-400 italic">
+              * Apenas a opção marcada sai na nota/ordem. A não marcada não sai.
+            </span>
+          </div>
+
+          {/* Botões para copiar texto para mandar para o cliente */}
+          <div className="pt-1 border-t border-slate-800/80 flex items-center gap-1 flex-wrap">
+            <span className="text-[9px] font-bold text-slate-400 mr-1">Copiar p/ WhatsApp:</span>
+            <button
+              type="button"
+              onClick={() => handleCopyBudget('FIRST_LINE')}
+              className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
+              title="Copiar mensagem com peça 1ª Linha"
+            >
+              📋 Copiar c/ 1ª Linha
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCopyBudget('PREMIUM')}
+              className="px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
+              title="Copiar mensagem com peça Premium"
+            >
+              📋 Copiar c/ Premium
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCopyBudget('COMPARATIVE')}
+              className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded text-[9.5px] font-black cursor-pointer transition-all active:scale-95 shadow-sm"
+              title="Copiar mensagem comparativa completa com explicação sobre a qualidade da peça Premium ser mais próxima da original"
+            >
+              📋 Copiar Ambas c/ Explicação de Qualidade
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 6. STATUS, PAGAMENTO & VALORES - AURORA BLUE GLOW */}
@@ -541,16 +723,18 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
           </div>
         </div>
 
-        {/* Campo em Alto Destaque de Localização Física do Aparelho Arquivado */}
+        {/* DYNAMIC STATUS ACTION PANELS FOR ARQUIVADO, PRONTO, AND ENTREGUE */}
+
+        {/* 1. PAINEL DE DISPOSITIVO ARQUIVADO */}
         {(initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || getCanonicalStatus(initialStatus as string) === 'ARQUIVADO' || !!archivedLocation) && (
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-[#040c1e] border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-[#040c1e] border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2">
+            <div className="flex items-center justify-between gap-2">
               <label className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Box className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>📍 ONDE O DISPOSITIVO ESTÁ GUARDADO? (LOCAL NO ARQUIVO)</span>
               </label>
               <span className="text-[9.5px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black uppercase">
-                Destaque na Busca
+                Status Arquivado
               </span>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -577,6 +761,159 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                     {tag}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. PAINEL DE APARELHO PRONTO PARA RETIRADA */}
+        {(initialStatus === 'PRONTO' || (initialStatus as string)?.toUpperCase()?.includes('PRONT') || getCanonicalStatus(initialStatus as string) === 'PRONTO') && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-emerald-600/10 to-[#040c1e] border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-emerald-300 font-black text-xs uppercase tracking-wider">
+                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
+                <span>🎉 APARELHO PRONTO PARA RETIRADA!</span>
+              </div>
+              <span className="text-[9.5px] px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black uppercase tracking-wide">
+                Aguardando Cliente
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {/* Garantia Selector */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-black uppercase text-emerald-300">
+                  🛡️ Garantia do Serviço (Dias):
+                </label>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[30, 60, 90, 180, 365].map((dias) => (
+                    <button
+                      key={dias}
+                      type="button"
+                      onClick={() => setWarrantyDays?.(dias)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border transition-all cursor-pointer ${
+                        warrantyDays === dias
+                          ? 'bg-emerald-400 text-slate-950 border-emerald-300 font-black shadow-sm scale-105'
+                          : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      {dias} dias
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ready Notification WhatsApp helper */}
+              <div className="space-y-1 flex flex-col justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const company = StorageService.getCompanySettings();
+                    const rawPhone = customerPhone || orderSummaryForCopy?.customerName || '';
+                    const cleanPhone = cleanPhoneForWhatsApp(rawPhone);
+                    let msg = `👋 Olá, *${orderSummaryForCopy?.customerName || 'Cliente'}*!\n\n`;
+                    msg += `🎉 Seu aparelho (*${orderSummaryForCopy?.brand || ''} ${orderSummaryForCopy?.model || ''}*) está *PRONTO PARA RETIRADA* na *${company.name || 'Assistência Técnica'}*!\n\n`;
+                    msg += `💰 *Valor Total:* ${formatCurrency(finalOrderTotal)}\n`;
+                    msg += `🛡️ *Garantia:* ${warrantyDays} dias\n`;
+                    msg += `📍 *Endereço:* ${company.address || 'Nossa loja'}\n\n`;
+                    msg += `Aguardamos você!`;
+
+                    if (cleanPhone) {
+                      window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                    } else if (navigator.clipboard) {
+                      navigator.clipboard.writeText(msg);
+                      alert('Mensagem "Aparelho Pronto" copiada para a área de transferência!');
+                    }
+                  }}
+                  className="w-full h-8.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Avisar Cliente ("Aparelho Pronto")</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. PAINEL DE CONCLUSÃO E ENTREGA DO DISPOSITIVO */}
+        {(initialStatus === 'ENTREGUE' || (initialStatus as string)?.toUpperCase()?.includes('ENTREG') || (initialStatus as string)?.toUpperCase()?.includes('CONCLU') || getCanonicalStatus(initialStatus as string) === 'ENTREGUE') && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-blue-600/10 to-[#040c1e] border-2 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-cyan-300 font-black text-xs uppercase tracking-wider">
+                <Package className="w-4.5 h-4.5 text-cyan-400 shrink-0" />
+                <span>📦 ENTREGA E QUITAÇÃO DO APARELHO</span>
+              </div>
+              <span className="text-[9.5px] px-2 py-0.5 rounded bg-cyan-400 text-slate-950 font-black uppercase tracking-wide">
+                Finalizar OS
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {/* Forma de Pagamento */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-black uppercase text-cyan-300">
+                  💳 Forma de Pagamento Utilizada:
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPaymentMethod(val);
+                    if (val === 'A_PRAZO') {
+                      setPaymentStatus?.('PENDENTE');
+                    } else if (val !== 'Não informado') {
+                      setPaymentStatus?.('PAGO');
+                    }
+                  }}
+                  className="w-full h-8 px-2.5 bg-[#030918] border border-cyan-500/50 rounded-xl text-xs font-black text-cyan-300 focus:outline-hidden focus:border-cyan-300 shadow-inner cursor-pointer"
+                >
+                  <option value="DINHEIRO">💵 Dinheiro</option>
+                  <option value="PIX">⚡ PIX</option>
+                  <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                  <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                  <option value="A_PRAZO">⏳ A Prazo / Fiado</option>
+                  {customPaymentMethods
+                    .filter((pm) => !['A_PRAZO', 'DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(pm.name))
+                    .map((pm) => (
+                      <option key={pm.id} value={pm.name}>{pm.name}</option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Status do Pagamento (PAGO vs FIADO / A PRAZO) */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-black uppercase text-cyan-300">
+                  💰 Situação Financeira da Entrega:
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStatus?.('PAGO')}
+                    className={`h-8 rounded-xl text-xs font-black border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      paymentStatus === 'PAGO'
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black scale-102'
+                        : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>PAGO / QUITADO</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentStatus?.('PENDENTE');
+                      if (paymentMethod !== 'A_PRAZO') setPaymentMethod('A_PRAZO');
+                    }}
+                    className={`h-8 rounded-xl text-xs font-black border flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      paymentStatus === 'PENDENTE'
+                        ? 'bg-rose-500 text-white border-rose-400 shadow-md font-black scale-102'
+                        : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>FIADO / A PRAZO</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

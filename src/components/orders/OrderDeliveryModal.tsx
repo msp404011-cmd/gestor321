@@ -241,13 +241,18 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
           activeSplits
         );
 
-        setLastPaymentsRecorded(activeSplits);
+        const mappedSplits = activeSplits.map((s) => ({
+          method: s.paymentMethod,
+          amount: Number(s.amount) || 0,
+        }));
+        setLastPaymentsRecorded(mappedSplits);
         const updated = StorageService.getOrders().find((o) => o.id === order.id) || order;
         setIsCompleted(true);
         onSuccess(updated);
       } else {
         // Entregar A Prazo / Fiado
-        if (downPayment < 0 || (Number(downPayment) > totalAmount && totalAmount > 0)) {
+        const numDownPayment = Number(downPayment) || 0;
+        if (numDownPayment < 0 || (numDownPayment > totalAmount && totalAmount > 0)) {
           setError('O valor de entrada não pode ser negativo nem maior que o total da OS.');
           setLoading(false);
           return;
@@ -256,8 +261,8 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
         const result = StorageService.deliverOrderOnCredit({
           orderId: order.id,
           totalAmount: totalAmount,
-          downPayment: Number(downPayment) || 0,
-          downPaymentMethod: Number(downPayment) > 0 ? downPaymentMethod : undefined,
+          downPayment: numDownPayment,
+          downPaymentMethod: numDownPayment > 0 ? downPaymentMethod : undefined,
           dueDate,
           notes: creditNotes,
           userName: currentUser?.name,
@@ -678,7 +683,7 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                         Forma da Entrada:
                       </label>
                       <select
-                        disabled={!downPayment || downPayment <= 0}
+                        disabled={!downPayment || Number(downPayment) <= 0}
                         value={downPaymentMethod}
                         onChange={(e) => setDownPaymentMethod(e.target.value as PaymentMethod)}
                         className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs disabled:opacity-40 focus:outline-none focus:border-amber-500"
@@ -698,10 +703,10 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                       <span>Valor Total da OS:</span>
                       <span className="font-mono text-slate-200">{formatCurrency(totalAmount)}</span>
                     </div>
-                    {downPayment > 0 && (
+                    {Number(downPayment) > 0 && (
                       <div className="flex justify-between text-emerald-400 font-medium">
                         <span>(-) Entrada Abatida Agora ({getPaymentMethodLabel(downPaymentMethod)}):</span>
-                        <span className="font-mono">-{formatCurrency(downPayment)}</span>
+                        <span className="font-mono">-{formatCurrency(Number(downPayment))}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-xs pt-1 border-t border-slate-800 font-bold">

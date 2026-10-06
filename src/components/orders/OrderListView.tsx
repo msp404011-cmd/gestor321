@@ -21,6 +21,7 @@ import {
   Laptop,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Check,
   Calendar,
   Settings,
@@ -32,8 +33,9 @@ import {
   Archive,
   MapPin,
   LayoutGrid,
+  Copy,
 } from 'lucide-react';
-import { ServiceOrder, OrderStatus, CustomOSStatusItem } from '../../types';
+import { ServiceOrder, OrderStatus, CustomOSStatusItem, OrderPartItem } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   formatCurrency,
@@ -93,6 +95,16 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   const [statusMenuOpenForId, setStatusMenuOpenForId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+  const [sendModalOrder, setSendModalOrder] = useState<ServiceOrder | null>(null);
+  const [sendModalMode, setSendModalMode] = useState<'BOTH' | 'PREMIUM' | 'FIRST_LINE'>('BOTH');
+
+  // Top Status Cards Edge-Hover Auto-Scroll & Wheel Refs and States
+  const statusContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeftStatus, setCanScrollLeftStatus] = useState(false);
+  const [canScrollRightStatus, setCanScrollRightStatus] = useState(false);
+  const scrollAnimFrameRef = useRef<number | null>(null);
+  const scrollSpeedRef = useRef<number>(0);
 
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const periodDropdownRef = useRef<HTMLDivElement>(null);
@@ -135,6 +147,107 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     });
     return unsub;
   }, []);
+
+  // Helper to check if status cards container has overflow on left or right
+  const checkStatusScrollPosition = () => {
+    const el = statusContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeftStatus(scrollLeft > 2);
+    setCanScrollRightStatus(scrollLeft + clientWidth < scrollWidth - 2);
+  };
+
+  useEffect(() => {
+    checkStatusScrollPosition();
+    const el = statusContainerRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkStatusScrollPosition);
+      window.addEventListener('resize', checkStatusScrollPosition);
+    }
+    return () => {
+      if (el) el.removeEventListener('scroll', checkStatusScrollPosition);
+      window.removeEventListener('resize', checkStatusScrollPosition);
+    };
+  }, [orders, customOSStatuses]);
+
+  // Horizontal wheel scroll listener for status cards
+  useEffect(() => {
+    const el = statusContainerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY * 1.2;
+        checkStatusScrollPosition();
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  // Edge-hover continuous auto-scroll loop
+  const stopEdgeAutoScroll = () => {
+    if (scrollAnimFrameRef.current !== null) {
+      cancelAnimationFrame(scrollAnimFrameRef.current);
+      scrollAnimFrameRef.current = null;
+    }
+    scrollSpeedRef.current = 0;
+  };
+
+  const startEdgeAutoScroll = (speed: number) => {
+    scrollSpeedRef.current = speed;
+    if (scrollAnimFrameRef.current !== null) return;
+
+    const animateScroll = () => {
+      if (!statusContainerRef.current || scrollSpeedRef.current === 0) {
+        scrollAnimFrameRef.current = null;
+        return;
+      }
+      statusContainerRef.current.scrollLeft += scrollSpeedRef.current;
+      checkStatusScrollPosition();
+      scrollAnimFrameRef.current = requestAnimationFrame(animateScroll);
+    };
+
+    scrollAnimFrameRef.current = requestAnimationFrame(animateScroll);
+  };
+
+  const handleStatusContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const container = statusContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX;
+    const edgeThreshold = 75; // 75px edge hover zone
+
+    const distFromLeft = mouseX - rect.left;
+    const distFromRight = rect.right - mouseX;
+
+    if (distFromLeft > 0 && distFromLeft < edgeThreshold && canScrollLeftStatus) {
+      const intensity = (edgeThreshold - distFromLeft) / edgeThreshold;
+      const speed = -Math.max(3, Math.round(intensity * 14));
+      startEdgeAutoScroll(speed);
+    } else if (distFromRight > 0 && distFromRight < edgeThreshold && canScrollRightStatus) {
+      const intensity = (edgeThreshold - distFromRight) / edgeThreshold;
+      const speed = Math.max(3, Math.round(intensity * 14));
+      startEdgeAutoScroll(speed);
+    } else {
+      stopEdgeAutoScroll();
+    }
+  };
+
+  const handleStatusManualScroll = (direction: 'left' | 'right') => {
+    const el = statusContainerRef.current;
+    if (!el) return;
+    const scrollAmount = Math.max(220, Math.round(el.clientWidth * 0.6));
+    el.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth',
+    });
+  };
 
   const currentUser = StorageService.getCurrentUser();
 
@@ -284,6 +397,180 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     setArchiveLocationInput('');
   };
 
+  // Handler to toggle and apply 1ª Linha or Premium part value directly on OS card
+  const handleSelectPartTierOnOrder = (
+    e: React.MouseEvent,
+    targetOrder: ServiceOrder,
+    tier: 'FIRST_LINE' | 'PREMIUM'
+  ) => {
+    e.stopPropagation();
+    const newTier = targetOrder.selectedPartTier === tier ? 'NONE' : tier;
+    const tierPrice =
+      newTier === 'FIRST_LINE'
+        ? (Number(targetOrder.partPriceFirstLine) || 0)
+        : newTier === 'PREMIUM'
+        ? (Number(targetOrder.partPricePremium) || 0)
+        : 0;
+
+    const baseParts = (targetOrder.parts || []).filter(
+      (p) => !p.id.startsWith('tier-part-') && !p.id.startsWith('part-tier-')
+    );
+
+    const newTierItem: OrderPartItem | null =
+      newTier !== 'NONE' && tierPrice > 0
+        ? {
+            id: `part-tier-${Date.now()}`,
+            type: 'PECA',
+            name: `${targetOrder.partTierDescription || 'Peça'} (${newTier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+            productName: `${targetOrder.partTierDescription || 'Peça'} (${newTier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+            quantity: 1,
+            unitPrice: tierPrice,
+            discount: 0,
+            total: tierPrice,
+            totalPrice: tierPrice,
+          }
+        : null;
+
+    const newParts = newTierItem ? [...baseParts, newTierItem] : baseParts;
+    const newPartsPrice = newParts.reduce((acc, p) => acc + (p.totalPrice || p.total || (p.unitPrice || 0) * (p.quantity || 1)), 0);
+    const newTotal = (Number(targetOrder.laborPrice) || 0) + newPartsPrice - (Number(targetOrder.discount) || 0);
+
+    const updated: ServiceOrder = {
+      ...targetOrder,
+      selectedPartTier: newTier,
+      parts: newParts,
+      items: newParts,
+      partsPrice: newPartsPrice,
+      totalPrice: Math.max(0, newTotal),
+      updatedAt: new Date().toISOString(),
+    };
+    StorageService.saveOrder(updated);
+    setOrders(StorageService.getOrders());
+  };
+
+  // Helper to build formatted message string for the client
+  const buildCustomerMessage = (
+    os: ServiceOrder,
+    mode: 'BOTH' | 'PREMIUM' | 'FIRST_LINE' = 'BOTH'
+  ): string => {
+    const company = StorageService.getCompanySettings();
+    const statusLabel = getOrderStatusLabel(os.status);
+
+    let msg = `👋 Olá, *${os.customerName || 'Cliente'}*!\n\n`;
+    msg += `🏢 Aqui é da *${company.name || 'Assistência Técnica'}*!\n`;
+    msg += `📋 Abaixo estão as informações da sua Ordem de Serviço *#${os.orderNumber}*:\n\n`;
+    msg += `📱 *Aparelho / Equipamento:* ${os.brand || ''} ${os.model || ''}\n`;
+    if (os.clientDefect) {
+      msg += `⚠️ *Defeito Relatado:* ${os.clientDefect}\n`;
+    }
+    if (os.requestedService || os.performedService) {
+      msg += `🛠️ *Serviço:* ${os.requestedService || os.performedService}\n`;
+    }
+    msg += `📌 *Status Atual:* ${statusLabel}\n`;
+
+    const hasFirstLine = Number(os.partPriceFirstLine) > 0;
+    const hasPremium = Number(os.partPricePremium) > 0;
+
+    const showPremium = (mode === 'BOTH' || mode === 'PREMIUM') && hasPremium;
+    const showFirstLine = (mode === 'BOTH' || mode === 'FIRST_LINE') && hasFirstLine;
+
+    if (showPremium || showFirstLine) {
+      msg += `\n─────────────────────────\n`;
+      if (showPremium && showFirstLine) {
+        msg += `💰 *OPÇÕES DE ORÇAMENTO DISPONÍVEIS:*\n\n`;
+      } else {
+        msg += `💰 *INFORMAÇÕES DO ORÇAMENTO:*\n\n`;
+      }
+
+      // 1. PREMIUM FIRST
+      if (showPremium) {
+        const premTotal = Number(os.partPricePremium) + (os.laborPrice || 0) - (os.discount || 0);
+        const isSelected = os.selectedPartTier === 'PREMIUM';
+        msg += `💎 *OPÇÃO PREMIUM:* *${formatCurrency(premTotal)}* ${isSelected ? '✅ (OPÇÃO SELECIONADA)' : ''}\n`;
+        msg += `✨ *Diferencial Premium:* Conta com tecnologia e peças com o desempenho e qualidade mais próximos da original de fábrica, garantindo altíssima durabilidade e acabamento impecável!\n\n`;
+      }
+
+      // 2. PRIMEIRA LINHA SECOND
+      if (showFirstLine) {
+        const flTotal = Number(os.partPriceFirstLine) + (os.laborPrice || 0) - (os.discount || 0);
+        const isSelected = os.selectedPartTier === 'FIRST_LINE';
+        msg += `⭐ *OPÇÃO 1ª LINHA:* *${formatCurrency(flTotal)}* ${isSelected ? '✅ (OPÇÃO SELECIONADA)' : ''}\n`;
+        msg += `💡 *Serviço Econômico:* É um serviço econômico para menor custo, lembrando que são realizadas com peças de menor custo e qualidade inferior em relação à linha Premium.\n\n`;
+      }
+
+      msg += `─────────────────────────\n`;
+      if (showPremium && showFirstLine) {
+        msg += `❓ Por favor, nos informe qual das opções você prefere para darmos andamento!\n`;
+      } else {
+        msg += `❓ Podemos dar andamento no serviço? Por favor, nos confirme sua aprovação!\n`;
+      }
+    } else {
+      let totalToDisplay = os.totalPrice || 0;
+      if (os.selectedPartTier === 'FIRST_LINE' && Number(os.partPriceFirstLine) > 0) {
+        totalToDisplay = Number(os.partPriceFirstLine) + (os.laborPrice || 0) - (os.discount || 0);
+      } else if (os.selectedPartTier === 'PREMIUM' && Number(os.partPricePremium) > 0) {
+        totalToDisplay = Number(os.partPricePremium) + (os.laborPrice || 0) - (os.discount || 0);
+      }
+
+      if (totalToDisplay > 0) {
+        msg += `\n─────────────────────────\n`;
+        msg += `💰 *Valor Total do Serviço:* *${formatCurrency(totalToDisplay)}*\n`;
+        msg += `─────────────────────────\n`;
+        msg += `❓ Podemos dar andamento no serviço? Por favor, nos confirme sua aprovação!\n`;
+      }
+    }
+
+    msg += `\n💬 Qualquer dúvida, estamos à disposição para te atender!`;
+    return msg;
+  };
+
+  // Handler to send OS details / quote to client via WhatsApp
+  const handleSendToClient = (
+    e: React.MouseEvent,
+    os: ServiceOrder,
+    mode: 'BOTH' | 'PREMIUM' | 'FIRST_LINE' = 'BOTH'
+  ) => {
+    e.stopPropagation();
+    const rawPhone = os.customerPhone || os.customerWhatsapp || '';
+    const cleanPhone = cleanPhoneForWhatsApp(rawPhone);
+
+    if (!cleanPhone) {
+      alert('O cliente desta Ordem de Serviço não possui um número de telefone/WhatsApp válido cadastrado.');
+      return;
+    }
+
+    const msg = buildCustomerMessage(os, mode);
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  // Handler to copy formatted customer message to clipboard
+  const handleCopyCustomerMessage = (
+    e: React.MouseEvent,
+    os: ServiceOrder,
+    mode: 'BOTH' | 'PREMIUM' | 'FIRST_LINE' = 'BOTH'
+  ) => {
+    e.stopPropagation();
+    const msg = buildCustomerMessage(os, mode);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).then(() => {
+        setCopiedOrderId(os.id);
+        setTimeout(() => setCopiedOrderId(null), 2500);
+      }).catch(() => {
+        alert('Texto copiado com sucesso!');
+      });
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = msg;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedOrderId(os.id);
+      setTimeout(() => setCopiedOrderId(null), 2500);
+    }
+  };
+
   // Drag and Drop Handlers for Kanban mode
   const handleDragStart = (e: React.DragEvent, orderId: string) => {
     e.dataTransfer.setData('text/plain', orderId);
@@ -325,6 +612,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     const q = search.trim().toLowerCase();
     if (!q) return [];
     return orders.filter((o) => {
+      const statusLabel = getOrderStatusLabel(o.status as string).toLowerCase();
       return (
         o.orderNumber.toString().includes(q) ||
         o.customerName.toLowerCase().includes(q) ||
@@ -334,10 +622,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         (o.imei && o.imei.toLowerCase().includes(q)) ||
         (o.serialNumber && o.serialNumber.toLowerCase().includes(q)) ||
         (o.archivedLocation && o.archivedLocation.toLowerCase().includes(q)) ||
-        o.clientDefect.toLowerCase().includes(q) ||
+        (o.clientDefect && o.clientDefect.toLowerCase().includes(q)) ||
         (o.technicalDiagnosis && o.technicalDiagnosis.toLowerCase().includes(q)) ||
         (o.requestedService && o.requestedService.toLowerCase().includes(q)) ||
-        (o.items && o.items.some((it) => it.name.toLowerCase().includes(q)))
+        (o.performedService && o.performedService.toLowerCase().includes(q)) ||
+        (o.partTierDescription && o.partTierDescription.toLowerCase().includes(q)) ||
+        (o.technicianName && o.technicianName.toLowerCase().includes(q)) ||
+        (o.attendantName && o.attendantName.toLowerCase().includes(q)) ||
+        statusLabel.includes(q) ||
+        (o.items && o.items.some((it) => (it.name || it.productName || '').toLowerCase().includes(q)))
       );
     });
   }, [orders, search]);
@@ -358,17 +651,20 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     return map;
   }, [allMatchingOrders, customOSStatuses]);
 
-  // Filtered orders strictly based on selected preset (no mixing, 100% accurate)
+  // Filtered orders: When searching, searches across ALL statuses seamlessly! When no search, respects selected preset.
   const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const hasSearch = q !== '';
+
     return orders.filter((o) => {
       const canonical = getCanonicalStatus(o.status as string);
 
-      // 1. Status Filter: strictly compare canonical status
-      if (filterPreset !== 'TODAS' && canonical !== filterPreset) {
+      // 1. Status Filter: strictly compare canonical status ONLY when NOT searching
+      if (!hasSearch && filterPreset !== 'TODAS' && canonical !== filterPreset) {
         return false;
       }
 
-      // 2. Period Filter
+      // 2. Period Filter (only when not searching or if specific period is selected)
       if (periodFilter !== 'TODOS') {
         const orderDate = new Date(o.createdAt);
         const today = new Date();
@@ -387,9 +683,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         }
       }
 
-      // 3. Search Query
-      const q = search.trim().toLowerCase();
-      if (!q) return true;
+      // 3. Search Query: matches across all statuses
+      if (!hasSearch) return true;
+      const statusLabel = getOrderStatusLabel(o.status as string).toLowerCase();
       return (
         o.orderNumber.toString().includes(q) ||
         o.customerName.toLowerCase().includes(q) ||
@@ -399,10 +695,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         (o.imei && o.imei.toLowerCase().includes(q)) ||
         (o.serialNumber && o.serialNumber.toLowerCase().includes(q)) ||
         (o.archivedLocation && o.archivedLocation.toLowerCase().includes(q)) ||
-        o.clientDefect.toLowerCase().includes(q) ||
+        (o.clientDefect && o.clientDefect.toLowerCase().includes(q)) ||
         (o.technicalDiagnosis && o.technicalDiagnosis.toLowerCase().includes(q)) ||
         (o.requestedService && o.requestedService.toLowerCase().includes(q)) ||
-        (o.items && o.items.some((it) => it.name.toLowerCase().includes(q)))
+        (o.performedService && o.performedService.toLowerCase().includes(q)) ||
+        (o.partTierDescription && o.partTierDescription.toLowerCase().includes(q)) ||
+        (o.technicianName && o.technicianName.toLowerCase().includes(q)) ||
+        (o.attendantName && o.attendantName.toLowerCase().includes(q)) ||
+        statusLabel.includes(q) ||
+        (o.items && o.items.some((it) => (it.name || it.productName || '').toLowerCase().includes(q)))
       );
     });
   }, [orders, filterPreset, periodFilter, search]);
@@ -609,58 +910,98 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
         </div>
       </div>
 
-      {/* 2. TOP STATUS CARDS (Dynamically mapped for all active OS statuses, proportional auto-shrinking single-line layout) */}
-      <div className="mt-2.5 mb-2.5 flex flex-nowrap items-stretch overflow-x-auto custom-scrollbar gap-2 sm:gap-2.5 pt-1 pb-1.5 w-full">
-        {statusCardsConfig.map((card) => {
-          const isActive = filterPreset === card.id;
-          const badge = card.badgeClasses;
-          return (
+      {/* 2. TOP STATUS CARDS (Dynamically mapped for all active OS statuses, with Edge-Hover Auto-Scroll and Wheel Support) */}
+      <div
+        className="mt-2.5 mb-2.5 relative group/status-container w-full select-none"
+        onMouseMove={handleStatusContainerMouseMove}
+        onMouseLeave={stopEdgeAutoScroll}
+      >
+        {/* Left Scroll Arrow & Gradient Fade */}
+        {canScrollLeftStatus && (
+          <>
+            <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#060c1d] via-[#060c1d]/80 to-transparent z-10 pointer-events-none rounded-l-xl" />
             <button
-              key={card.id}
               type="button"
-              onClick={() => setFilterPreset(filterPreset === card.id ? 'TODAS' : card.id)}
-              className={`p-2 sm:p-2.5 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[88px] sm:min-h-[96px] flex-1 min-w-[110px] sm:min-w-[125px] shrink-0 sm:shrink ${
-                badge.bg
-              } ${badge.border} ${badge.text} ${
-                isActive ? 'ring-2 ring-current shadow-lg scale-[1.02]' : 'hover:scale-[1.01] opacity-90 hover:opacity-100'
-              }`}
+              onClick={() => handleStatusManualScroll('left')}
+              className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/90 text-white border border-slate-700/90 shadow-xl flex items-center justify-center hover:bg-cyan-600 hover:border-cyan-400 hover:scale-110 active:scale-95 transition-all cursor-pointer group-hover/status-container:opacity-100 opacity-80"
+              title="Rolar status para a esquerda"
             >
-              {/* Top: Title (in 2 lines if needed) + Status Icon Box */}
-              <div className="flex items-start justify-between gap-1 w-full min-w-0">
-                <div className="min-w-0 flex-1 truncate">
-                  <span className="text-[10px] sm:text-[11px] font-extrabold block leading-tight truncate">
-                    {card.line1}
-                  </span>
-                  {card.line2 && (
-                    <span className="text-[9px] sm:text-[10px] font-extrabold block leading-tight opacity-90 truncate">
-                      {card.line2}
-                    </span>
-                  )}
-                </div>
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center shrink-0 bg-black/20 border border-white/20">
-                  {card.icon}
-                </div>
-              </div>
-
-              {/* Bottom: Count ("X OS") + Total Value ("R$ X,XX") on ONE visible line with proportional font sizing */}
-              <div className="mt-1.5 pt-1 border-t border-current/20 flex items-center justify-between gap-1 flex-nowrap w-full min-w-0">
-                <div className="flex items-baseline gap-0.5 shrink-0 min-w-0">
-                  <span className="text-xs sm:text-sm font-black leading-none">
-                    {card.count}
-                  </span>
-                  <span className="text-[9px] sm:text-[10px] font-bold uppercase opacity-80">
-                    OS
-                  </span>
-                </div>
-                <div className="flex items-center gap-0.5 shrink min-w-0 overflow-hidden" title={`Valor Total: ${formatCurrency(card.totalAmount)}`}>
-                  <span className="text-[9.5px] sm:text-[11px] font-black font-mono tracking-tighter leading-none whitespace-nowrap truncate">
-                    {formatCurrency(card.totalAmount)}
-                  </span>
-                </div>
-              </div>
+              <ChevronLeft className="w-5 h-5 text-cyan-300" />
             </button>
-          );
-        })}
+          </>
+        )}
+
+        {/* Right Scroll Arrow & Gradient Fade */}
+        {canScrollRightStatus && (
+          <>
+            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#060c1d] via-[#060c1d]/80 to-transparent z-10 pointer-events-none rounded-r-xl" />
+            <button
+              type="button"
+              onClick={() => handleStatusManualScroll('right')}
+              className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-slate-900/90 text-white border border-slate-700/90 shadow-xl flex items-center justify-center hover:bg-cyan-600 hover:border-cyan-400 hover:scale-110 active:scale-95 transition-all cursor-pointer group-hover/status-container:opacity-100 opacity-80"
+              title="Rolar status para a direita"
+            >
+              <ChevronRight className="w-5 h-5 text-cyan-300" />
+            </button>
+          </>
+        )}
+
+        {/* Scrollable Container */}
+        <div
+          ref={statusContainerRef}
+          className="flex flex-nowrap items-stretch overflow-x-auto custom-scrollbar gap-2 sm:gap-2.5 pt-1 pb-1.5 w-full scroll-smooth"
+        >
+          {statusCardsConfig.map((card) => {
+            const isActive = filterPreset === card.id;
+            const badge = card.badgeClasses;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setFilterPreset(filterPreset === card.id ? 'TODAS' : card.id)}
+                className={`p-2 sm:p-2.5 rounded-xl border-2 text-left transition-all duration-150 cursor-pointer flex flex-col justify-between min-h-[88px] sm:min-h-[96px] flex-1 min-w-[110px] sm:min-w-[125px] shrink-0 sm:shrink ${
+                  badge.bg
+                } ${badge.border} ${badge.text} ${
+                  isActive ? 'ring-2 ring-current shadow-lg scale-[1.02]' : 'hover:scale-[1.01] opacity-90 hover:opacity-100'
+                }`}
+              >
+                {/* Top: Title (in 2 lines if needed) + Status Icon Box */}
+                <div className="flex items-start justify-between gap-1 w-full min-w-0">
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="text-[10px] sm:text-[11px] font-extrabold block leading-tight truncate">
+                      {card.line1}
+                    </span>
+                    {card.line2 && (
+                      <span className="text-[9px] sm:text-[10px] font-extrabold block leading-tight opacity-90 truncate">
+                        {card.line2}
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center shrink-0 bg-black/20 border border-white/20">
+                    {card.icon}
+                  </div>
+                </div>
+
+                {/* Bottom: Count ("X OS") + Total Value ("R$ X,XX") on ONE visible line with proportional font sizing */}
+                <div className="mt-1.5 pt-1 border-t border-current/20 flex items-center justify-between gap-1 flex-nowrap w-full min-w-0">
+                  <div className="flex items-baseline gap-0.5 shrink-0 min-w-0">
+                    <span className="text-xs sm:text-sm font-black leading-none">
+                      {card.count}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase opacity-80">
+                      OS
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink min-w-0 overflow-hidden" title={`Valor Total: ${formatCurrency(card.totalAmount)}`}>
+                    <span className="text-[9.5px] sm:text-[11px] font-black font-mono tracking-tighter leading-none whitespace-nowrap truncate">
+                      {formatCurrency(card.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 3. SEARCH & PERIOD FILTER CONTROLS BAR */}
@@ -1094,6 +1435,52 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                       </p>
                     </div>
 
+                    {/* Dual Budget Values (1ª Linha & Premium) - Small, Sleek & Clickable directly on card */}
+                    {(Number(os.partPriceFirstLine) > 0 || Number(os.partPricePremium) > 0) && (
+                      <div className="p-2 rounded-xl bg-[#050b1a] border border-slate-800/90 flex flex-col gap-1 text-xs">
+                        <div className="flex items-center justify-between text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                          <span>Opções de Peça ({os.partTierDescription || 'Peça'}):</span>
+                          <span className="text-[8px] text-slate-500 font-normal italic">Toque para marcar</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {Number(os.partPriceFirstLine) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleSelectPartTierOnOrder(e, os, 'FIRST_LINE')}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center justify-between gap-1 shadow-xs ${
+                                os.selectedPartTier === 'FIRST_LINE'
+                                  ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)] font-black ring-1 ring-amber-300'
+                                  : 'bg-[#030a17] text-amber-300 border-amber-500/40 hover:bg-amber-500/20 hover:border-amber-400'
+                              }`}
+                              title="Clique para marcar/aplicar valor de 1ª Linha nesta OS"
+                            >
+                              <span className="truncate">⭐ 1ª Linha</span>
+                              <span className="font-mono text-[10.5px] shrink-0 font-black">
+                                {formatCurrency(os.partPriceFirstLine || 0)}
+                              </span>
+                            </button>
+                          )}
+                          {Number(os.partPricePremium) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleSelectPartTierOnOrder(e, os, 'PREMIUM')}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center justify-between gap-1 shadow-xs ${
+                                os.selectedPartTier === 'PREMIUM'
+                                  ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.5)] font-black ring-1 ring-cyan-300'
+                                  : 'bg-[#030a17] text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/20 hover:border-cyan-400'
+                              }`}
+                              title="Clique para marcar/aplicar valor Premium nesta OS"
+                            >
+                              <span className="truncate">💎 Premium</span>
+                              <span className="font-mono text-[10.5px] shrink-0 font-black">
+                                {formatCurrency(os.partPricePremium || 0)}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Physical Location in Archive if applicable */}
                     {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
                       <div
@@ -1121,7 +1508,61 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {/* BOTÃO DUPLO MANDAR / COPIAR PRO CLIENTE */}
+                        <div className="inline-flex items-center rounded-xl bg-emerald-600/20 border border-emerald-500/40 p-0.5 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSendModalOrder(os);
+                              setSendModalMode('BOTH');
+                            }}
+                            className="px-2.5 py-1 text-emerald-300 hover:text-white hover:bg-emerald-600/40 text-xs font-bold flex items-center gap-1 rounded-lg transition-all cursor-pointer active:scale-95"
+                            title="Enviar orçamento/resumo da OS para o cliente (Escolha Ambas, Só Premium ou Só 1ª Linha)"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Mandar pro Cliente</span>
+                          </button>
+                          <div className="w-[1px] h-4 bg-emerald-500/30 my-auto mx-0.5" />
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyCustomerMessage(e, os, 'BOTH')}
+                            className={`px-2 py-1 text-xs font-bold flex items-center gap-1 rounded-lg transition-all cursor-pointer active:scale-95 ${
+                              copiedOrderId === os.id
+                                ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                                : 'text-emerald-300 hover:text-white hover:bg-emerald-600/40'
+                            }`}
+                            title="Copiar texto da mensagem da OS para a área de transferência"
+                          >
+                            {copiedOrderId === os.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-slate-950" />
+                                <span className="text-[11px] font-black">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-[11px]">Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* BOTÃO EDITAR DIRETO */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditOrder(os);
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-cyan-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                          title="Editar esta Ordem de Serviço"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Editar</span>
+                        </button>
+
                         {/* OPÇÃO DE IMPRESSÃO EM TODAS AS OSs */}
                         <button
                           type="button"
@@ -1328,7 +1769,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           </div>
                         </td>
 
-                        {/* 4. DEFEITO & SERVIÇO A SER FEITO (Both fully visible in 2 clean lines) */}
+                        {/* 4. DEFEITO & SERVIÇO A SER FEITO (Both fully visible in 2 clean lines + Dual tier badges) */}
                         <td className="py-2.5 px-3 align-middle">
                           <div className="min-w-0">
                             <p className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`} title={os.clientDefect || 'Problema não especificado'}>
@@ -1339,6 +1780,42 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                               <span className="text-[9px] font-bold uppercase text-cyan-500/90 dark:text-cyan-400/90 mr-1">Serviço:</span>
                               {os.requestedService || os.performedService || 'Em análise técnica'}
                             </p>
+
+                            {/* Dual Budget Values (1ª Linha & Premium) Clickable */}
+                            {(Number(os.partPriceFirstLine) > 0 || Number(os.partPricePremium) > 0) && (
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                {Number(os.partPriceFirstLine) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleSelectPartTierOnOrder(e, os, 'FIRST_LINE')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer flex items-center gap-0.5 ${
+                                      os.selectedPartTier === 'FIRST_LINE'
+                                        ? 'bg-amber-600 text-white border-amber-400 font-black shadow-xs ring-1 ring-amber-300'
+                                        : 'bg-[#040c1e] text-amber-300 border-amber-500/40 hover:bg-amber-500/20'
+                                    }`}
+                                    title="Marcar/aplicar valor de 1ª Linha nesta OS"
+                                  >
+                                    <span>⭐ 1ªL: {formatCurrency(os.partPriceFirstLine || 0)}</span>
+                                    {os.selectedPartTier === 'FIRST_LINE' && <Check className="w-2.5 h-2.5" />}
+                                  </button>
+                                )}
+                                {Number(os.partPricePremium) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleSelectPartTierOnOrder(e, os, 'PREMIUM')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer flex items-center gap-0.5 ${
+                                      os.selectedPartTier === 'PREMIUM'
+                                        ? 'bg-cyan-600 text-white border-cyan-400 font-black shadow-xs ring-1 ring-cyan-300'
+                                        : 'bg-[#040c1e] text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/20'
+                                    }`}
+                                    title="Marcar/aplicar valor Premium nesta OS"
+                                  >
+                                    <span>💎 Prem: {formatCurrency(os.partPricePremium || 0)}</span>
+                                    {os.selectedPartTier === 'PREMIUM' && <Check className="w-2.5 h-2.5" />}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -1392,18 +1869,46 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                         {/* 7. ACTIONS / CHEVRON */}
                         <td className="py-2.5 px-3 text-right align-middle whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
-                            {waLink && (
-                              <a
-                                href={waLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                                title="WhatsApp"
-                              >
-                                <MessageCircle className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSendModalOrder(os);
+                                setSendModalMode('BOTH');
+                              }}
+                              className="px-2 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Mandar orçamento/resumo da OS para o cliente (Opção Ambas, Só Premium ou Só 1ª Linha)"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="hidden xl:inline">Mandar pro Cliente</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyCustomerMessage(e, os)}
+                              className={`p-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95 ${
+                                copiedOrderId === os.id
+                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                                  : 'bg-emerald-600/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/20'
+                              }`}
+                              title="Copiar texto da mensagem da OS para a área de transferência"
+                            >
+                              {copiedOrderId === os.id ? (
+                                <Check className="w-3.5 h-3.5 text-slate-950" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditOrder(os);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Editar OS"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1535,6 +2040,43 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                       </p>
                     </div>
 
+                    {/* Dual Budget Values (1ª Linha & Premium) Clickable */}
+                    {(Number(os.partPriceFirstLine) > 0 || Number(os.partPricePremium) > 0) && (
+                      <div className="mb-2 p-1.5 rounded-lg bg-black/40 border border-slate-800 flex flex-col gap-1">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Opções de Peça ({os.partTierDescription || 'Peça'}):</span>
+                        <div className="grid grid-cols-2 gap-1">
+                          {Number(os.partPriceFirstLine) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleSelectPartTierOnOrder(e, os, 'FIRST_LINE')}
+                              className={`px-2 py-1 rounded text-[9.5px] font-black border transition-all cursor-pointer flex items-center justify-between gap-0.5 ${
+                                os.selectedPartTier === 'FIRST_LINE'
+                                  ? 'bg-amber-600 text-white border-amber-400 shadow-xs'
+                                  : 'bg-[#030914] text-amber-300 border-amber-500/40'
+                              }`}
+                            >
+                              <span>⭐ 1ª Linha</span>
+                              <span>{formatCurrency(os.partPriceFirstLine || 0)}</span>
+                            </button>
+                          )}
+                          {Number(os.partPricePremium) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleSelectPartTierOnOrder(e, os, 'PREMIUM')}
+                              className={`px-2 py-1 rounded text-[9.5px] font-black border transition-all cursor-pointer flex items-center justify-between gap-0.5 ${
+                                os.selectedPartTier === 'PREMIUM'
+                                  ? 'bg-cyan-600 text-white border-cyan-400 shadow-xs'
+                                  : 'bg-[#030914] text-cyan-300 border-cyan-500/40'
+                              }`}
+                            >
+                              <span>💎 Premium</span>
+                              <span>{formatCurrency(os.partPricePremium || 0)}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
                       <div className="mb-2">
                         <button
@@ -1566,18 +2108,55 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                         <span className="font-black text-sm text-emerald-400 font-mono">{formatCurrency(os.totalPrice)}</span>
                       </div>
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        {waLink && (
-                          <a
-                            href={waLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all"
+                        <div className="inline-flex items-center rounded-lg bg-emerald-600/20 border border-emerald-500/40 p-0.5 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSendModalOrder(os);
+                              setSendModalMode('BOTH');
+                            }}
+                            className="px-2 py-1 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 rounded-md transition-all cursor-pointer active:scale-95"
+                            title="Mandar orçamento/resumo da OS para o cliente (Escolha Ambas, Só Premium ou Só 1ª Linha)"
                           >
-                            <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>WhatsApp</span>
-                          </a>
-                        )}
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span>Mandar</span>
+                          </button>
+                          <div className="w-[1px] h-3.5 bg-emerald-500/30 my-auto mx-0.5" />
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyCustomerMessage(e, os, 'BOTH')}
+                            className={`px-2 py-1 text-xs font-bold flex items-center gap-1 rounded-md transition-all cursor-pointer active:scale-95 ${
+                              copiedOrderId === os.id
+                                ? 'bg-emerald-500 text-slate-950 font-black'
+                                : 'text-emerald-300 hover:text-white'
+                            }`}
+                            title="Copiar texto da mensagem da OS"
+                          >
+                            {copiedOrderId === os.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-slate-950" />
+                                <span className="text-[10px]">Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-[10px]">Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditOrder(os);
+                          }}
+                          className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                          <span>Editar</span>
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1783,6 +2362,45 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                             <strong className="text-slate-400">Defeito:</strong> {os.clientDefect || 'Não especificado'}
                           </p>
 
+                          {/* Dual Budget Values (1ª Linha & Premium) Clickable */}
+                          {(Number(os.partPriceFirstLine) > 0 || Number(os.partPricePremium) > 0) && (
+                            <div className="mb-2 p-1.5 rounded-lg bg-black/40 border border-slate-800 flex flex-col gap-1">
+                              <span className="text-[8.5px] font-bold text-slate-400 uppercase">Opções ({os.partTierDescription || 'Peça'}):</span>
+                              <div className="grid grid-cols-2 gap-1">
+                                {Number(os.partPriceFirstLine) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleSelectPartTierOnOrder(e, os, 'FIRST_LINE')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer flex items-center justify-between gap-0.5 ${
+                                      os.selectedPartTier === 'FIRST_LINE'
+                                        ? 'bg-amber-600 text-white border-amber-400 font-bold shadow-xs'
+                                        : 'bg-[#030914] text-amber-300 border-amber-500/40 hover:bg-amber-500/20'
+                                    }`}
+                                    title="Marcar 1ª Linha nesta OS"
+                                  >
+                                    <span>⭐ 1ªL</span>
+                                    <span>{formatCurrency(os.partPriceFirstLine || 0)}</span>
+                                  </button>
+                                )}
+                                {Number(os.partPricePremium) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleSelectPartTierOnOrder(e, os, 'PREMIUM')}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer flex items-center justify-between gap-0.5 ${
+                                      os.selectedPartTier === 'PREMIUM'
+                                        ? 'bg-cyan-600 text-white border-cyan-400 font-bold shadow-xs'
+                                        : 'bg-[#030914] text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/20'
+                                    }`}
+                                    title="Marcar Premium nesta OS"
+                                  >
+                                    <span>💎 Prem</span>
+                                    <span>{formatCurrency(os.partPricePremium || 0)}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Archived Location tag if present or status is ARQUIVADO */}
                           {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
                             <button
@@ -1816,6 +2434,38 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                             </span>
 
                             <div className="flex items-center gap-1.5">
+                              {/* Botão Mandar pro Cliente */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSendModalOrder(os);
+                                  setSendModalMode('BOTH');
+                                }}
+                                className="p-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer active:scale-95 flex items-center justify-center"
+                                title="Mandar orçamento/resumo da OS para o cliente (Opção Ambas, Só Premium ou Só 1ª Linha)"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                              </button>
+
+                              {/* Botão Copiar Texto da OS */}
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopyCustomerMessage(e, os, 'BOTH')}
+                                className={`p-1 rounded-lg border transition-all cursor-pointer active:scale-95 flex items-center justify-center ${
+                                  copiedOrderId === os.id
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                                    : 'bg-emerald-600/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/20'
+                                }`}
+                                title="Copiar texto da mensagem da OS para a área de transferência"
+                              >
+                                {copiedOrderId === os.id ? (
+                                  <Check className="w-3.5 h-3.5 text-slate-950" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                                )}
+                              </button>
+
                               {/* Status pill button */}
                               <button
                                 type="button"
@@ -2071,6 +2721,151 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
               >
                 <Check className="w-4 h-4 stroke-[2.5]" />
                 <span>Salvar Localização</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send & Copy Customer Message Modal */}
+      {sendModalOrder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs cursor-pointer animate-in fade-in duration-150"
+          onClick={() => setSendModalOrder(null)}
+        >
+          <div
+            className={`w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl border space-y-4 cursor-default animate-in zoom-in-95 duration-150 ${
+              isDark
+                ? 'bg-[#0a1426] border-emerald-500/50 text-white shadow-[0_0_40px_rgba(16,185,129,0.25)]'
+                : 'bg-white border-emerald-400 text-slate-900 shadow-xl'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-start justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center font-black text-base shrink-0 shadow-inner">
+                  <MessageCircle className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-base leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Enviar Mensagem de Orçamento
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Cliente: <strong>{sendModalOrder.customerName}</strong> • OS #{sendModalOrder.orderNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSendModalOrder(null)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quality Mode Filter Selector Chips */}
+            {(Number(sendModalOrder.partPriceFirstLine) > 0 || Number(sendModalOrder.partPricePremium) > 0) && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-300">
+                  Selecione a Qualidade a Incluir na Mensagem:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Number(sendModalOrder.partPriceFirstLine) > 0 && Number(sendModalOrder.partPricePremium) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSendModalMode('BOTH')}
+                      className={`px-2.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer border flex flex-col items-center justify-center text-center gap-0.5 ${
+                        sendModalMode === 'BOTH'
+                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)] scale-[1.02]'
+                          : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-[12px]">👥 Ambas</span>
+                      <span className="text-[9.5px] opacity-80 font-normal">Premium + 1ªL</span>
+                    </button>
+                  )}
+
+                  {Number(sendModalOrder.partPricePremium) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSendModalMode('PREMIUM')}
+                      className={`px-2.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer border flex flex-col items-center justify-center text-center gap-0.5 ${
+                        sendModalMode === 'PREMIUM'
+                          ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)] scale-[1.02]'
+                          : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-[12px]">💎 Só Premium</span>
+                      <span className="text-[9.5px] opacity-80 font-normal font-mono">
+                        {formatCurrency((sendModalOrder.partPricePremium || 0) + (sendModalOrder.laborPrice || 0) - (sendModalOrder.discount || 0))}
+                      </span>
+                    </button>
+                  )}
+
+                  {Number(sendModalOrder.partPriceFirstLine) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSendModalMode('FIRST_LINE')}
+                      className={`px-2.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer border flex flex-col items-center justify-center text-center gap-0.5 ${
+                        sendModalMode === 'FIRST_LINE'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)] scale-[1.02]'
+                          : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-[12px]">⭐ Só 1ª Linha</span>
+                      <span className="text-[9.5px] opacity-80 font-normal font-mono">
+                        {formatCurrency((sendModalOrder.partPriceFirstLine || 0) + (sendModalOrder.laborPrice || 0) - (sendModalOrder.discount || 0))}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Live Message Preview Box */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                Pré-visualização do Texto da Mensagem:
+              </span>
+              <div className="p-3.5 rounded-xl bg-[#030917] border border-slate-800 text-xs font-mono text-slate-200 whitespace-pre-wrap max-h-56 overflow-y-auto custom-scrollbar select-text leading-relaxed">
+                {buildCustomerMessage(sendModalOrder, sendModalMode)}
+              </div>
+            </div>
+
+            {/* Actions: Send WhatsApp & Copy */}
+            <div className={`pt-3 border-t flex items-center justify-end gap-2.5 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+              <button
+                type="button"
+                onClick={(e) => handleCopyCustomerMessage(e, sendModalOrder, sendModalMode)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                  copiedOrderId === sendModalOrder.id
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-md'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                }`}
+              >
+                {copiedOrderId === sendModalOrder.id ? (
+                  <>
+                    <Check className="w-4 h-4 text-slate-950" />
+                    <span>Texto Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-emerald-400" />
+                    <span>Copiar Texto</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => handleSendToClient(e, sendModalOrder, sendModalMode)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-600/30"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Mandar no WhatsApp</span>
               </button>
             </div>
           </div>

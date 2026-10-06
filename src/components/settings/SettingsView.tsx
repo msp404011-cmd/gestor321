@@ -180,24 +180,27 @@ export const SettingsView: React.FC = () => {
   >('PRINT_TEMPLATE');
   const [previewPaperFormat, setPreviewPaperFormat] = useState<'80mm' | '58mm'>('80mm');
 
-  const [company, setCompany] = useState<CompanySettings>(() => StorageService.getCompanySettings());
+  const [company, setCompany] = useState<CompanySettings>(() => ({
+    ...initialCompanySettings,
+    ...(StorageService.getCompanySettings() || {}),
+  }));
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showManagerPassword, setShowManagerPassword] = useState(false);
 
   // Custom Categories state
-  const [categories, setCategories] = useState<CustomCategory[]>(() => StorageService.getCustomCategories());
+  const [categories, setCategories] = useState<CustomCategory[]>(() => StorageService.getCustomCategories() || []);
   const [newCatName, setNewCatName] = useState('');
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editingCatName, setEditingCatName] = useState('');
 
   // Custom Device Types state
-  const [deviceTypes, setDeviceTypes] = useState<CustomDeviceType[]>(() => StorageService.getCustomDeviceTypes());
+  const [deviceTypes, setDeviceTypes] = useState<CustomDeviceType[]>(() => StorageService.getCustomDeviceTypes() || []);
   const [newDevTypeName, setNewDevTypeName] = useState('');
   const [editingDevTypeId, setEditingDevTypeId] = useState<string | null>(null);
   const [editingDevTypeName, setEditingDevTypeName] = useState('');
 
   // Custom Accessories state
-  const [accessories, setAccessories] = useState<CustomAccessoryItem[]>(() => StorageService.getCustomAccessories());
+  const [accessories, setAccessories] = useState<CustomAccessoryItem[]>(() => StorageService.getCustomAccessories() || []);
   const [selectedAccDeviceFilter, setSelectedAccDeviceFilter] = useState<string>('ALL');
   const [newAccName, setNewAccName] = useState('');
   const [newAccPlaceholder, setNewAccPlaceholder] = useState('');
@@ -208,13 +211,13 @@ export const SettingsView: React.FC = () => {
   const [editingAccDeviceTypes, setEditingAccDeviceTypes] = useState<string[]>(['ALL']);
 
   // Custom Payment Methods state
-  const [paymentMethods, setPaymentMethods] = useState<CustomPaymentMethodItem[]>(() => StorageService.getCustomPaymentMethods());
+  const [paymentMethods, setPaymentMethods] = useState<CustomPaymentMethodItem[]>(() => StorageService.getCustomPaymentMethods() || []);
   const [newPaymentName, setNewPaymentName] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingPaymentName, setEditingPaymentName] = useState('');
 
   // Custom OS Statuses state
-  const [osStatuses, setOsStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses());
+  const [osStatuses, setOsStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses() || []);
   const [newOsLabel, setNewOsLabel] = useState('');
   const [newOsColor, setNewOsColor] = useState('BLUE');
   const [editingOsId, setEditingOsId] = useState<string | null>(null);
@@ -2905,7 +2908,7 @@ export const SettingsView: React.FC = () => {
                           type="button"
                           onClick={() => setPreviewPaperFormat('50mm' as any)}
                           className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
-                            previewPaperFormat === '50mm' || previewPaperFormat === '58mm'
+                            (previewPaperFormat as string) === '50mm' || previewPaperFormat === '58mm'
                               ? 'bg-blue-600 text-white shadow-xs'
                               : 'text-slate-400 hover:text-white'
                           }`}

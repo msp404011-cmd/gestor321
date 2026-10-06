@@ -39,25 +39,25 @@ export const OrderProblemAccessoriesSection: React.FC<
   OrderProblemAccessoriesSectionProps
 > = ({
   isDark,
-  clientDefect,
+  clientDefect = '',
   setClientDefect,
-  serviceToBeDone,
+  serviceToBeDone = '',
   setServiceToBeDone,
-  showServicePicker,
+  showServicePicker = false,
   setShowServicePicker,
-  quickServices,
-  deviceType,
-  customAccessories,
-  customAccMap,
+  quickServices = [],
+  deviceType = 'Smartphone',
+  customAccessories = [],
+  customAccMap = {},
   setCustomAccMap,
   onSelectQuickService,
 }) => {
-  const activeAccessories = customAccessories.filter((acc) =>
+  const activeAccessories = (customAccessories || []).filter((acc) =>
     isAccessoryForDeviceType(acc, deviceType)
   );
 
   const presentCount = activeAccessories.filter(
-    (acc) => customAccMap[acc.id]?.present
+    (acc) => customAccMap?.[acc.id]?.present
   ).length;
 
   const handleAddDefectTag = (tag: string) => {

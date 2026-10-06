@@ -1032,7 +1032,7 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
               return (
                 <div
                   key={task.id}
-                  className={`rounded-xl border-2 transition-all flex flex-col justify-between p-2.5 sm:p-3 shadow-xl relative overflow-hidden ${getCardFlamingGlowClass(
+                  className={`rounded-xl border-2 transition-all flex flex-col justify-between p-2 sm:p-2.5 shadow-xl relative overflow-hidden ${getCardFlamingGlowClass(
                     cardHighestPriority,
                     isDone
                   )}`}
@@ -1116,30 +1116,30 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                       </div>
                     )}
 
-                    {/* INDIVIDUAL SUB-TASKS / ACTIVITIES LIST (SORTED BY PRIORITY) */}
-                    <div className="space-y-1.5 mb-2">
+                    {/* INDIVIDUAL SUB-TASKS / ACTIVITIES LIST (SUPER DESTAQUE & LAYOUT JUSTO) */}
+                    <div className="space-y-1 mb-1.5">
                       {sortedSubItems.map((subItem) => (
                         <div
                           key={subItem.id}
-                          className={`rounded-xl border-2 p-1.5 sm:p-2 transition-all flex flex-col space-y-1.5 shadow-xl relative overflow-hidden ${
+                          className={`rounded-lg border-2 p-1.5 transition-all flex flex-col space-y-1 shadow-md relative overflow-hidden ${
                             subItem.isCompleted
-                              ? 'bg-[#091a13] border-emerald-500/80 text-emerald-100 border-l-[6px] border-l-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                              ? 'bg-[#081912] border-emerald-500/90 text-emerald-100 border-l-[6px] border-l-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.25)]'
                               : subItem.priority === 'URGENTE'
-                              ? 'bg-[#400c14] border-rose-500 border-l-[6px] border-l-rose-500 text-white shadow-[0_0_18px_rgba(244,63,94,0.5)] ring-1 ring-rose-500/30 animate-pulse'
+                              ? 'bg-[#3b0b13] border-rose-500 border-l-[6px] border-l-rose-500 text-white shadow-[0_0_18px_rgba(244,63,94,0.45)] ring-1 ring-rose-500/40'
                               : subItem.priority === 'ALTA'
-                              ? 'bg-[#3b1704] border-orange-500 border-l-[6px] border-l-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)] ring-1 ring-orange-500/20'
+                              ? 'bg-[#331404] border-orange-500 border-l-[6px] border-l-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.35)] ring-1 ring-orange-500/30'
                               : subItem.priority === 'MEDIA'
-                              ? 'bg-[#302404] border-amber-500 border-l-[6px] border-l-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.35)]'
-                              : 'bg-[#132340] border-cyan-500 border-l-[6px] border-l-cyan-400 text-white shadow-[0_0_10px_rgba(6,182,212,0.25)]'
+                              ? 'bg-[#2b1f04] border-amber-500 border-l-[6px] border-l-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                              : 'bg-[#0f1d33] border-cyan-500 border-l-[6px] border-l-cyan-400 text-white shadow-[0_0_10px_rgba(6,182,212,0.2)]'
                           }`}
                         >
-                          {/* Priority Badge & Action Buttons */}
+                          {/* Super Destaque: Priority Badge, Status & Direct Completion Action */}
                           <div className="flex items-center justify-between gap-1 flex-wrap">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                               {renderSubItemPriorityBadge(subItem.priority)}
                               {subItem.isCompleted && (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" /> CONCLUÍDO
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 flex items-center gap-0.5 shadow-sm">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" /> FEITO
                                 </span>
                               )}
                             </div>
@@ -1151,10 +1151,10 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                                   e.stopPropagation();
                                   handleOpenActivityModal(task.id, subItem);
                                 }}
-                                className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-black flex items-center gap-0.5 cursor-pointer transition-all active:scale-95"
+                                className="px-1.5 py-0.5 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded text-[10px] font-black flex items-center gap-0.5 cursor-pointer transition-all active:scale-95"
                                 title="Editar esta atividade"
                               >
-                                <Edit2 className="w-3 h-3" />
+                                <Edit2 className="w-2.5 h-2.5" />
                                 <span>Editar</span>
                               </button>
 
@@ -1164,7 +1164,7 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                                   e.stopPropagation();
                                   handleDeleteSubItemFromCard(task.id, subItem.id);
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-all cursor-pointer"
+                                className="p-0.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 rounded transition-all cursor-pointer"
                                 title="Remover atividade"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -1172,10 +1172,14 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                             </div>
                           </div>
 
-                          {/* Activity Description Text & Touch Completion Action (High visibility, optimized for phone) */}
+                          {/* Activity Description & Direct Click Checkbox (Super Destaque, layout justo, sem truncar nada) */}
                           <div
                             onClick={() => handleToggleSubItem(task.id, subItem.id)}
-                            className="flex items-center justify-between gap-2.5 bg-black/60 hover:bg-black/80 p-1.5 sm:p-2 rounded-lg border border-white/5 cursor-pointer select-none group transition-all"
+                            className={`flex items-center justify-between gap-2 p-1.5 rounded-md border cursor-pointer select-none transition-all ${
+                              subItem.isCompleted
+                                ? 'bg-emerald-950/60 border-emerald-500/40 hover:bg-emerald-950/80'
+                                : 'bg-black/70 hover:bg-black/90 border-white/10'
+                            }`}
                           >
                             <div className="flex-1 min-w-0 pr-1">
                               <p
@@ -1187,33 +1191,28 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                               </p>
                             </div>
 
-                            {/* Large Touch Target Completion Toggle Button */}
+                            {/* Direct Click Option to Mark Activity as Complete */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleToggleSubItem(task.id, subItem.id);
                               }}
-                              className={`px-2.5 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1 shrink-0 border shadow-md active:scale-95 ${
+                              className={`px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1 shrink-0 border shadow-md active:scale-95 cursor-pointer ${
                                 subItem.isCompleted
-                                  ? 'bg-emerald-950 border-emerald-400 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.4)] border-emerald-400'
-                                  : subItem.priority === 'URGENTE'
-                                  ? 'bg-rose-955 border-rose-400 text-rose-200 hover:bg-rose-900/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]'
-                                  : subItem.priority === 'ALTA'
-                                  ? 'bg-orange-955 border-orange-400 text-orange-200 hover:bg-orange-900/60 shadow-[0_0_8px_rgba(249,115,22,0.3)]'
-                                  : subItem.priority === 'MEDIA'
-                                  ? 'bg-amber-955 border-amber-400 text-amber-200 hover:bg-amber-900/60 shadow-[0_0_6px_rgba(245,158,11,0.2)]'
-                                  : 'bg-cyan-955 border-cyan-400 text-cyan-200 hover:bg-cyan-900/60 shadow-[0_0_6px_rgba(6,182,212,0.2)]'
+                                  ? 'bg-emerald-600 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                                  : 'bg-slate-900 hover:bg-emerald-600/30 text-white border-slate-600 hover:border-emerald-400'
                               }`}
+                              title={subItem.isCompleted ? 'Clique para desmarcar' : 'Clique para marcar como concluída'}
                             >
                               {subItem.isCompleted ? (
                                 <>
-                                  <Check className="w-3.5 h-3.5 stroke-[4] text-emerald-400" />
-                                  <span>FEITO</span>
+                                  <Check className="w-3.5 h-3.5 stroke-[4] text-white" />
+                                  <span>CONCLUÍDO</span>
                                 </>
                               ) : (
                                 <>
-                                  <div className="w-2.5 h-2.5 rounded bg-black/40 border border-slate-500 shrink-0" />
+                                  <div className="w-3 h-3 rounded-xs border-2 border-slate-400 bg-black/50 shrink-0" />
                                   <span>CONCLUIR</span>
                                 </>
                               )}
@@ -1222,7 +1221,7 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
 
                           {/* Purchase Highlight for this Activity */}
                           {subItem.needsPurchase && (
-                            <div className="flex items-center justify-between gap-2 bg-indigo-950/90 border border-indigo-500/50 p-1.5 rounded-lg text-xs mt-0.5 shadow-inner">
+                            <div className="flex items-center justify-between gap-1.5 bg-indigo-950/90 border border-indigo-500/50 p-1 rounded-md text-xs mt-0.5 shadow-inner">
                               <div className="flex items-center gap-1 min-w-0 flex-1">
                                 <ShoppingBag className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                                 <span className="text-[10px] font-black text-indigo-100 break-words whitespace-normal">
@@ -1230,7 +1229,7 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                                 </span>
                               </div>
                               {subItem.purchaseValue !== undefined && Number(subItem.purchaseValue) > 0 && (
-                                <span className="text-[10px] font-black text-cyan-300 font-mono bg-cyan-950 px-2 py-1 rounded-md border border-cyan-500/50 shrink-0 shadow-md">
+                                <span className="text-[10px] font-black text-cyan-300 font-mono bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-500/50 shrink-0 shadow-md">
                                   R$ {Number(subItem.purchaseValue).toFixed(2).replace('.', ',')}
                                 </span>
                               )}
@@ -1245,10 +1244,10 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
                       <button
                         type="button"
                         onClick={() => handleOpenActivityModal(task.id)}
-                        className="w-full py-1.5 px-2.5 mb-2 bg-[#0B1221] hover:bg-amber-500/10 border border-dashed border-amber-500/40 hover:border-amber-500 text-amber-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        className="w-full py-1.5 px-2 mb-1.5 bg-[#0B1221] hover:bg-amber-500/10 border border-dashed border-amber-500/40 hover:border-amber-500 text-amber-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 text-amber-400" />
-                        <span>+ Adicionar Atividade com Pop-up (Prioridade & Compras)</span>
+                        <span>+ Adicionar Atividade</span>
                       </button>
                     )}
                   </div>

@@ -850,11 +850,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
                           isActive
                             ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.7)] scale-105'
-                            : 'bg-[#0a1224] border border-slate-800 text-slate-400 hover:text-white hover:border-slate-600'
+                            : 'bg-[#0a1224] border border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
                         }`}
                         title={item.title}
+                        aria-label={item.title}
                       >
-                        <ItemIcon className="w-4 h-4" />
+                        <ItemIcon className="w-5 h-5" />
                         {item.badge && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[8px] font-black flex items-center justify-center">
                             {typeof item.badge === 'number' ? item.badge : '●'}

@@ -316,6 +316,12 @@ export interface OrderItem {
   discount: number;
   total: number;
   totalPrice?: number;
+
+  // Opções de Qualidade de Peça (1ª Linha x Premium)
+  hasQualityTiers?: boolean;
+  firstLinePrice?: number; // Preço Peça 1ª Linha
+  premiumPrice?: number;   // Preço Peça Premium
+  chosenTier?: 'FIRST_LINE' | 'PREMIUM'; // Qual opção o cliente optou
 }
 
 export type OrderPartItem = OrderItem;
@@ -379,6 +385,12 @@ export interface ServiceOrder {
   // Itens do orçamento / peças
   items: OrderItem[];
   parts?: OrderItem[];
+
+  // Opções de Peça com dois valores (1ª Linha vs Premium)
+  partPriceFirstLine?: number;
+  partPricePremium?: number;
+  selectedPartTier?: 'FIRST_LINE' | 'PREMIUM' | 'NONE';
+  partTierDescription?: string;
 
   // Valores
   laborPrice: number; // Mão de obra

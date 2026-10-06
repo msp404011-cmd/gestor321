@@ -61,6 +61,7 @@ import {
   OrderTechnicalChecklistSection,
   formatTechnicalChecklistSummary,
 } from './OrderTechnicalChecklistSection';
+import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
 
 interface OrderDetailModalProps {
   isOpen: boolean;
@@ -153,6 +154,66 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [detailArchiveLocationInput, setDetailArchiveLocationInput] = useState('');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
+  const [copiedBudgetFeedback, setCopiedBudgetFeedback] = useState<string | null>(null);
+
+  const handleCopyBudgetFromDetail = async (type: BudgetCopyType) => {
+    const target = currentOrder || order;
+    if (!target) return;
+    const comp = StorageService.getCompanySettings();
+    const success = await copyOrderBudgetText(target, type, comp);
+    if (success) {
+      setCopiedBudgetFeedback(type === 'FIRST_LINE' ? '1ª Linha Copiado!' : type === 'PREMIUM' ? 'Premium Copiado!' : 'Comparativo Copiado!');
+      setTimeout(() => setCopiedBudgetFeedback(null), 3000);
+    }
+  };
+
+  const handleUpdateSelectedPartTier = (tier: 'FIRST_LINE' | 'PREMIUM' | 'NONE') => {
+    const target = currentOrder || order;
+    if (!target) return;
+    const tierPrice =
+      tier === 'FIRST_LINE'
+        ? (Number(target.partPriceFirstLine) || 0)
+        : tier === 'PREMIUM'
+        ? (Number(target.partPricePremium) || 0)
+        : 0;
+
+    const baseParts = (target.parts || []).filter(
+      (p) => !p.id.startsWith('tier-part-') && !p.id.startsWith('part-tier-')
+    );
+
+    const newTierItem: OrderPartItem | null =
+      tier !== 'NONE' && tierPrice > 0
+        ? {
+            id: `part-tier-${Date.now()}`,
+            type: 'PECA',
+            name: `${target.partTierDescription || 'Peça'} (${tier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+            productName: `${target.partTierDescription || 'Peça'} (${tier === 'PREMIUM' ? 'Premium' : '1ª Linha'})`,
+            quantity: 1,
+            unitPrice: tierPrice,
+            discount: 0,
+            total: tierPrice,
+            totalPrice: tierPrice,
+          }
+        : null;
+
+    const newParts = newTierItem ? [...baseParts, newTierItem] : baseParts;
+    const newPartsPrice = newParts.reduce((acc, p) => acc + (p.totalPrice || p.total || p.unitPrice * p.quantity), 0);
+    const newTotal = (Number(target.laborPrice) || 0) + newPartsPrice - (Number(target.discount) || 0);
+
+    const updated: ServiceOrder = {
+      ...target,
+      selectedPartTier: tier,
+      parts: newParts,
+      items: newParts,
+      partsPrice: newPartsPrice,
+      totalPrice: Math.max(0, newTotal),
+      updatedAt: new Date().toISOString(),
+    };
+
+    StorageService.saveOrder(updated);
+    setCurrentOrder(updated);
+    showToast(`Opção alterada para ${tier === 'PREMIUM' ? 'Peça Premium' : tier === 'FIRST_LINE' ? 'Peça 1ª Linha' : 'Nenhuma'}`);
+  };
 
   // Photo Attachment Upload Handler
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -644,25 +705,52 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const company = StorageService.getCompanySettings();
 
   const getWhatsAppMessage = () => {
-    let msg = `Olá *${order.customerName}*, tudo bem?\n`;
-    msg += `Aqui é da *${company.name}* informando sobre sua Ordem de Serviço *#${order.orderNumber}*.\n\n`;
-    msg += `📱 *Aparelho:* ${order.brand} ${order.model}\n`;
+    let msg = `👋 Olá, *${order.customerName || 'Cliente'}*! Tudo bem?\n\n`;
+    msg += `🏢 Aqui é da *${company.name || 'Assistência Técnica'}*!\n`;
+    msg += `📄 Seguem abaixo as informações da sua Ordem de Serviço *#${order.orderNumber}*:\n\n`;
+    msg += `📱 *Aparelho:* ${order.brand || ''} ${order.model || ''}\n`;
+    if (order.clientDefect) {
+      msg += `⚠️ *Defeito Relatado:* ${order.clientDefect}\n`;
+    }
+    if (localService || order.requestedService || order.performedService) {
+      msg += `🛠️ *Serviço:* ${localService || order.requestedService || order.performedService}\n`;
+    }
     msg += `📌 *Status Atual:* ${getOrderStatusLabel(order.status)}\n`;
 
-    if (canonical === 'AGUARDANDO_AUTORIZACAO' || canonical === 'ORCAMENTO') {
-      msg += `💰 *Orçamento Estimado:* ${formatCurrency(currentTotal)}\n`;
-      msg += `🔧 *Serviço/Defeito:* ${localService || order.clientDefect}\n`;
-      msg += `\nPodemos prosseguir com o conserto? Por favor, responda com sua aprovação.`;
-    } else if (canonical === 'PRONTO') {
-      msg += `🎉 *Seu aparelho está PRONTO para retirada!*\n`;
-      msg += `💰 *Valor Total:* ${formatCurrency(currentTotal)}\n`;
-      msg += `🛡️ *Garantia:* ${order.warrantyDays} dias\n`;
-      msg += `\nEndereço: ${company.address} - Aguardamos você!`;
-    } else {
-      msg += `💰 *Valor:* ${formatCurrency(currentTotal)}\n`;
-      msg += `Qualquer dúvida estamos à disposição!`;
+    const hasFirstLine = Number(order.partPriceFirstLine) > 0;
+    const hasPremium = Number(order.partPricePremium) > 0;
+
+    if (hasFirstLine || hasPremium) {
+      msg += `\n─────────────────────────\n`;
+      msg += `💰 *OPÇÕES DE ORÇAMENTO DISPONÍVEIS:*\n\n`;
+
+      if (hasPremium) {
+        const premTotal = Number(order.partPricePremium) + (order.laborPrice || 0) - (order.discount || 0);
+        const isSelected = order.selectedPartTier === 'PREMIUM';
+        msg += `💎 *OPÇÃO PREMIUM:* *${formatCurrency(premTotal)}* ${isSelected ? '✅ (OPÇÃO SELECIONADA)' : ''}\n`;
+        msg += `✨ *Qualidade:* Peças de alta performance com desempenho, brilho, toque e qualidade mais próximos da ORIGINAL!\n\n`;
+      }
+
+      if (hasFirstLine) {
+        const flTotal = Number(order.partPriceFirstLine) + (order.laborPrice || 0) - (order.discount || 0);
+        const isSelected = order.selectedPartTier === 'FIRST_LINE';
+        msg += `⭐ *OPÇÃO 1ª LINHA:* *${formatCurrency(flTotal)}* ${isSelected ? '✅ (OPÇÃO SELECIONADA)' : ''}\n`;
+        msg += `💡 *Qualidade:* Serviço econômico. Atende quem busca menor custo, lembrando que é realizado com peças de menor custo/qualidade comparada à Premium.\n\n`;
+      }
+
+      msg += `─────────────────────────\n`;
+      msg += `❓ Por favor, nos informe qual das opções você prefere para darmos andamento!\n`;
+    } else if (currentTotal > 0) {
+      msg += `\n─────────────────────────\n`;
+      msg += `💰 *Valor Total do Serviço:* *${formatCurrency(currentTotal)}*\n`;
+      if (canonical === 'PRONTO') {
+        msg += `🛡️ *Garantia:* ${order.warrantyDays} dias\n`;
+        msg += `🎉 *Seu aparelho está PRONTO para retirada no endereço:* ${company.address || 'Nossa loja'}\n`;
+      }
+      msg += `─────────────────────────\n`;
     }
 
+    msg += `\n💬 Qualquer dúvida, estamos à disposição para te atender!`;
     return encodeURIComponent(msg);
   };
 
@@ -875,6 +963,146 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
                 {targetOrder.clientDefect || 'Nenhum defeito detalhado informado pelo cliente.'}
               </p>
+            </div>
+
+            {/* NOVO: ORÇAMENTO COM DOIS VALORES DE PEÇA (1ª LINHA VS PREMIUM) & COPIAR P/ WHATSAPP */}
+            <div className="p-3.5 rounded-2xl bg-[#051814] border-2 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.2)] space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400">
+                    <Box className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-amber-300 font-extrabold text-xs uppercase tracking-wider flex items-center gap-1">
+                    ⭐💎 Orçamento: Peça 1ª Linha vs Premium
+                  </span>
+                </div>
+                {copiedBudgetFeedback && (
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500 text-white animate-pulse shadow-sm">
+                    ✓ {copiedBudgetFeedback}
+                  </span>
+                )}
+              </div>
+
+              {/* Informação dos valores */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className={`p-2.5 rounded-xl border transition-all ${
+                  targetOrder.selectedPartTier === 'FIRST_LINE'
+                    ? 'bg-amber-950/60 border-amber-400 ring-1 ring-amber-400/50 shadow-md'
+                    : 'bg-[#030d0b] border-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-amber-300 text-xs">⭐ Opção 1ª Linha</span>
+                    {targetOrder.selectedPartTier === 'FIRST_LINE' && (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-black">
+                        ESCOLHIDA (NA NOTA)
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
+                    <span className="font-mono font-black text-amber-300 text-sm">{formatCurrency(targetOrder.partPriceFirstLine || 0)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                    Custo-benefício com total funcionamento testado e garantia da loja.
+                  </p>
+                </div>
+
+                <div className={`p-2.5 rounded-xl border transition-all ${
+                  targetOrder.selectedPartTier === 'PREMIUM'
+                    ? 'bg-cyan-950/60 border-cyan-400 ring-1 ring-cyan-400/50 shadow-md'
+                    : 'bg-[#030d0b] border-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-cyan-300 text-xs">💎 Opção Premium</span>
+                    {targetOrder.selectedPartTier === 'PREMIUM' && (
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-500 text-black">
+                        ESCOLHIDA (NA NOTA)
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-baseline justify-between">
+                    <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
+                    <span className="font-mono font-black text-cyan-300 text-sm">{formatCurrency(targetOrder.partPricePremium || 0)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                    Qualidade superior: a qualidade da peça Premium sempre é mais próxima da original em cores, toque e brilho.
+                  </p>
+                </div>
+              </div>
+
+              {/* Seletor de Opção do Cliente */}
+              <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-black text-slate-300 uppercase">Cliente optou por:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSelectedPartTier('FIRST_LINE')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                      targetOrder.selectedPartTier === 'FIRST_LINE'
+                        ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                        : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <span>⭐ 1ª Linha {targetOrder.partPriceFirstLine ? `(${formatCurrency(targetOrder.partPriceFirstLine)})` : ''}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSelectedPartTier('PREMIUM')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                      targetOrder.selectedPartTier === 'PREMIUM'
+                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-md'
+                        : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <span>💎 Premium {targetOrder.partPricePremium ? `(${formatCurrency(targetOrder.partPricePremium)})` : ''}</span>
+                  </button>
+
+                  {targetOrder.selectedPartTier && targetOrder.selectedPartTier !== 'NONE' && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSelectedPartTier('NONE')}
+                      className="px-2 py-1 rounded-lg text-[10px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                      title="Desmarcar opção de peça"
+                    >
+                      (Remover escolha)
+                    </button>
+                  )}
+                </div>
+
+                <span className="text-[9px] text-emerald-400/90 font-medium italic">
+                  * Apenas a opção marcada sai no cupom fiscal/comprovante impresso. A não marcada não sai.
+                </span>
+              </div>
+
+              {/* Botões para Copiar Texto para o WhatsApp */}
+              <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-slate-400 mr-1 flex items-center gap-1">
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  Copiar p/ WhatsApp:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyBudgetFromDetail('FIRST_LINE')}
+                  className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                >
+                  <span>📋 Orçamento 1ª Linha</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopyBudgetFromDetail('PREMIUM')}
+                  className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                >
+                  <span>📋 Orçamento Premium</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopyBudgetFromDetail('COMPARATIVE')}
+                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded-lg text-[10px] font-black cursor-pointer transition-all active:scale-95 shadow-md flex items-center gap-1"
+                >
+                  <span>📋 Comparativo Completo (Explicação de Qualidade)</span>
+                </button>
+              </div>
             </div>
 
             {/* CHECKLIST TÉCNICO DO APARELHO */}
@@ -1149,7 +1377,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 <span>Observações</span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed pl-6">
-                {targetOrder.internalNotes || targetOrder.notes || 'Sem observações adicionais.'}
+                {targetOrder.internalNotes || (targetOrder as any).notes || 'Sem observações adicionais.'}
               </p>
             </div>
 

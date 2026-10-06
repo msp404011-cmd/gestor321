@@ -143,34 +143,43 @@ export const Modal: React.FC<ModalProps> = ({
 
 interface ConfirmDialogProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose?: () => void;
+  onCancel?: () => void;
   onConfirm: () => void;
   title: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
   isDestructive?: boolean;
+  variant?: string;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   onClose,
+  onCancel,
   onConfirm,
   title,
   message,
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   isDestructive = true,
+  variant,
 }) => {
   const { isDark } = useTheme();
+  const handleClose = () => {
+    if (onCancel) onCancel();
+    if (onClose) onClose();
+  };
+  const isDest = isDestructive || variant === 'danger';
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={
         <div className="flex items-center gap-2 whitespace-nowrap">
-          {isDestructive && <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />}
+          {isDest && <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />}
           <span>{title}</span>
         </div>
       }
@@ -179,7 +188,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors cursor-pointer whitespace-nowrap ${
               isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-200/70'
             }`}
@@ -190,10 +199,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             onClick={() => {
               onConfirm();
-              onClose();
+              handleClose();
             }}
             className={`px-4 py-2 text-sm font-bold text-white rounded-xl transition-all shadow-md cursor-pointer whitespace-nowrap ${
-              isDestructive
+              isDest
                 ? 'bg-rose-600 hover:bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
                 : 'bg-cyan-600 hover:bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
             }`}

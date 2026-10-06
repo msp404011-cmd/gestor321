@@ -77,16 +77,16 @@ interface OrderClientDeviceSectionProps {
 
 export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> = ({
   isDark,
-  filteredCustomers,
-  customerSearch,
+  filteredCustomers = [],
+  customerSearch = '',
   setCustomerSearch,
-  isSearchOpen,
+  isSearchOpen = false,
   setIsSearchOpen,
   searchRef,
   handleSelectCustomer,
   selectedCustomer,
   setSelectedCustomer,
-  whatsappClean,
+  whatsappClean = '',
   pickupType = 'OWNER_ONLY',
   setPickupType,
   authorizedPickupName = '',
@@ -96,27 +96,27 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
   onOpenNewCustomer,
   onOpenEditCustomer,
   setShowQuickCustomerModal,
-  deviceType,
+  deviceType = 'Smartphone',
   setDeviceType,
-  customDeviceTypes,
-  brand,
+  customDeviceTypes = [],
+  brand = 'Samsung',
   setBrand,
-  model,
+  model = '',
   setModel,
-  commonBrands,
-  imei,
+  commonBrands = [],
+  imei = '',
   setImei,
-  hasNoDamages,
+  hasNoDamages = true,
   setHasNoDamages,
-  physicalState,
+  physicalState = '',
   setPhysicalState,
-  passwordType,
+  passwordType = 'NONE',
   setPasswordType,
-  passwordPin,
+  passwordPin = '',
   setPasswordPin,
-  patternNodes,
+  patternNodes = [],
   setPatternNodes,
-  patternNote,
+  patternNote = '',
   setPatternNote,
 }) => {
   const topDeviceTypes = [
@@ -129,8 +129,9 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
 
   const handleSelectQuickType = (canonicalLabel: string) => {
     const norm = canonicalLabel.toLowerCase();
-    const found = customDeviceTypes.find((dt) => {
-      const n = dt.name.toLowerCase();
+    const list = Array.isArray(customDeviceTypes) ? customDeviceTypes : [];
+    const found = list.find((dt) => {
+      const n = (dt.name || '').toLowerCase();
       if (norm === 'celular' && (n.includes('smartphone') || n.includes('celular'))) return true;
       if (norm === 'tablet' && (n.includes('tablet') || n.includes('ipad'))) return true;
       if (norm === 'notebook' && (n.includes('notebook') || n.includes('laptop'))) return true;
@@ -443,7 +444,7 @@ export const OrderClientDeviceSection: React.FC<OrderClientDeviceSectionProps> =
               onChange={(e) => setDeviceType(e.target.value as DeviceType)}
               className="w-full px-2 py-1 bg-[#040c1e] border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-7"
             >
-              {customDeviceTypes.map((dt) => (
+              {(customDeviceTypes || []).map((dt) => (
                 <option key={dt.id} value={dt.name}>
                   Outro tipo: {dt.name}
                 </option>

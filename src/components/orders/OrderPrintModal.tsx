@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Printer, X, Wrench, FileText, CheckCircle2, Save, Send, Smartphone, ShieldCheck, CheckSquare, Square } from 'lucide-react';
+import { Printer, X, Wrench, FileText, CheckCircle2, Save, Send, Smartphone, ShieldCheck, CheckSquare, Square, MessageCircle } from 'lucide-react';
 import { ServiceOrder, EulisDispatchInfo } from '../../types';
 import { StorageService } from '../../services/storage';
 import { formatCurrency, formatDate, getPaymentMethodLabel } from '../../services/formatters';
@@ -7,6 +7,7 @@ import { PatternLock } from './PatternLock';
 import { ThermalOrderReceipt } from './ThermalOrderReceipt';
 import { ThermalEulisReceipt } from './ThermalEulisReceipt';
 import { formatTechnicalChecklistSummary } from './OrderTechnicalChecklistSection';
+import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
 
 interface OrderPrintModalProps {
   isOpen: boolean;
@@ -25,16 +26,21 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 }) => {
   const company = StorageService.getCompanySettings();
 
-  const isEulisStatus = (st?: string) => {
-    if (!st) return false;
-    const upper = st.toUpperCase();
-    return upper.includes('EULIS') || upper.includes('EUKLIS');
-  };
-
   const [printType, setPrintType] = useState<'entrance' | 'internal' | 'receipt' | 'eulis'>(() => {
-    if (mode === 'eulis' || isEulisStatus(order?.status)) return 'eulis';
+    if (mode === 'eulis') return 'eulis';
     return mode || 'receipt';
   });
+
+  const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null);
+
+  const handleCopyBudget = async (type: BudgetCopyType) => {
+    if (!order) return;
+    const success = await copyOrderBudgetText(order, type, company);
+    if (success) {
+      setCopiedFeedback(type === 'FIRST_LINE' ? '1ª Linha Copiado!' : type === 'PREMIUM' ? 'Premium Copiado!' : 'Comparativo Copiado!');
+      setTimeout(() => setCopiedFeedback(null), 3000);
+    }
+  };
 
   const [paperFormat, setPaperFormat] = useState<PaperFormat>(() => {
     const defaultFormat = company.osDefaultPaperFormat as PaperFormat;
@@ -77,13 +83,11 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       setPaperFormat(defaultFormat === 'a4' ? 'a4' : defaultFormat === '50mm' || defaultFormat === '58mm' ? '50mm' : '80mm');
       if (mode) {
         setPrintType(mode);
-      } else if (isEulisStatus(order?.status)) {
-        setPrintType('eulis');
       } else {
         setPrintType('receipt');
       }
     }
-  }, [isOpen, mode, order?.status, company.osDefaultPaperFormat]);
+  }, [isOpen, mode, company.osDefaultPaperFormat]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -101,7 +105,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
 
   if (!isOpen || !order) return null;
 
-  const isReadyOrDelivered = order.status === 'PRONTO' || order.status === 'CONCLUIDO' || order.status === 'ENTREGUE';
+  const isReadyOrDelivered = order.status === 'PRONTO' || (order.status as string) === 'CONCLUIDO' || order.status === 'ENTREGUE';
 
   // Recuperar dados mais recentes do cliente
   const customer = order.customerId
@@ -200,149 +204,11 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   }
 
   const handlePrint = () => {
-    const container = document.getElementById('printable-order-container');
-    if (!container) {
+    // Print directly from the rendered DOM. This preserves all stylesheets, fonts,
+    // colors, barcodes, and borders exactly as previewed on screen.
+    setTimeout(() => {
       window.print();
-      onClose();
-      return;
-    }
-
-    try {
-      const existingFrame = document.getElementById('receipt-print-iframe');
-      if (existingFrame) {
-        existingFrame.remove();
-      }
-
-      const printFrame = document.createElement('iframe');
-      printFrame.id = 'receipt-print-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.left = '-9999px';
-      printFrame.style.top = '0';
-      const iframePixelWidth = paperFormat === 'a4' ? '794px' : paperFormat === '80mm' ? '302px' : '220px';
-      printFrame.style.width = iframePixelWidth;
-      printFrame.style.height = '1000px';
-      printFrame.style.border = '0';
-      printFrame.style.zIndex = '-9999';
-      document.body.appendChild(printFrame);
-
-      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
-      if (!frameDoc) {
-        window.print();
-        onClose();
-        return;
-      }
-
-      const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-        .filter((el) => el.id !== 'print-modal-styles')
-        .map((el) => el.outerHTML)
-        .join('\n');
-
-      const contentHtml = container.innerHTML;
-      const printWidth = paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '72mm' : '100%';
-      const pageMargin = paperFormat === 'a4' ? '8mm' : '0mm';
-      const pageSize = paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto';
-
-      frameDoc.open();
-      frameDoc.write(`
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-          <head>
-            <meta charset="utf-8" />
-            <title>OS #${order.orderNumber} - ${company.commercialName || company.name || 'Impressão'}</title>
-            ${styleTags}
-            <style>
-              @page {
-                size: ${pageSize};
-                margin: ${pageMargin} !important;
-              }
-              *, *::before, *::after {
-                box-sizing: border-box !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                backdrop-filter: none !important;
-                -webkit-backdrop-filter: none !important;
-                filter: none !important;
-                visibility: visible !important;
-              }
-              html {
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-                width: 100% !important;
-                visibility: visible !important;
-              }
-              body {
-                margin: 0 auto !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-                color: #000000 !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                display: block !important;
-                text-align: center !important;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-                visibility: visible !important;
-              }
-              body * {
-                visibility: visible !important;
-              }
-              #printable-order-container, .print-root-wrapper {
-                width: ${printWidth} !important;
-                max-width: ${printWidth} !important;
-                min-width: ${printWidth} !important;
-                margin: 0 auto !important;
-                padding: ${paperFormat === 'a4' ? '4mm' : '1mm 0'} !important;
-                background: #ffffff !important;
-                color: #000000 !important;
-                box-sizing: border-box !important;
-                display: block !important;
-                visibility: visible !important;
-                overflow: visible !important;
-                text-align: left !important;
-              }
-              .no-print {
-                display: none !important;
-              }
-            </style>
-          </head>
-          <body>
-            <div id="printable-order-container" class="print-root-wrapper">
-              ${contentHtml}
-            </div>
-          </body>
-        </html>
-      `);
-      frameDoc.close();
-
-      const triggerPrint = () => {
-        try {
-          if (printFrame.contentWindow) {
-            printFrame.contentWindow.focus();
-            printFrame.contentWindow.print();
-          } else {
-            window.print();
-          }
-        } catch {
-          window.print();
-        }
-      };
-
-      // Disparar impressão imediatamente
-      setTimeout(triggerPrint, 80);
-      
-      // Fechar modal imediatamente como solicitado pelo usuário
-      setTimeout(() => {
-        onClose();
-        setTimeout(() => {
-          try {
-            printFrame.remove();
-          } catch (_) {}
-        }, 2500);
-      }, 120);
-    } catch {
-      window.print();
-      onClose();
-    }
+    }, 50);
   };
 
   const handleSaveDispatchInfoToOrder = () => {
@@ -375,6 +241,10 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       {/* Dynamic Print CSS Injection for Exact Paper Sizes */}
       <style id="print-modal-styles">{`
         @media print {
+          @page {
+            size: ${paperFormat === 'a4' ? 'A4 portrait' : 'auto'};
+            margin: ${paperFormat === 'a4' ? '8mm' : '0mm'} !important;
+          }
           *, *::before, *::after {
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
@@ -382,66 +252,65 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             text-shadow: none !important;
             box-shadow: none !important;
             box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          html {
+          html, body {
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
+            color: #000000 !important;
             width: 100% !important;
-            visibility: visible !important;
-          }
-          body {
-            margin: 0 auto !important;
-            padding: 0 !important;
-            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
-            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
-            min-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
             height: auto !important;
             overflow: visible !important;
-            background: #ffffff !important;
-            color: #000000 !important;
             visibility: visible !important;
-            display: block !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
           }
           /* Hide non-print application interface */
-          header, aside, nav, button, .no-print {
+          header, aside, nav, button, .no-print, [role="dialog"] > div:first-child {
             display: none !important;
           }
+          /* Neutralize modal wrapper and display printable order centered and crisp */
           .fixed.inset-0 {
             position: static !important;
             background: #ffffff !important;
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
             padding: 0 !important;
-            margin: 0 auto !important;
+            margin: 0 !important;
             overflow: visible !important;
             height: auto !important;
-            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
-            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            width: 100% !important;
+            display: block !important;
           }
-          #printable-order-container, #printable-order-container * {
-            visibility: visible !important;
+          .fixed.inset-0 > div {
+            border: none !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            border-radius: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
           }
           #printable-order-container {
             position: static !important;
-            width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
-            max-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
-            min-width: ${paperFormat === '50mm' || paperFormat === '58mm' ? '48mm' : paperFormat === '80mm' ? '70mm' : '100%'} !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
-            padding: 0 !important;
+            visibility: visible !important;
+            display: block !important;
+            margin: 0 auto !important;
+            padding: ${paperFormat === 'a4' ? '0' : '1mm 0'} !important;
             box-shadow: none !important;
             border: none !important;
             background: #ffffff !important;
             color: #000000 !important;
             box-sizing: border-box !important;
-            display: block !important;
+            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
+            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
+            min-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
           }
-          @page {
-            size: ${paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto'};
-            margin: ${paperFormat === 'a4' ? '8mm' : '0mm'} !important;
+          #printable-order-container * {
+            visibility: visible !important;
           }
         }
       `}</style>
@@ -554,6 +423,40 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
               >
                 📱 50mm
               </button>
+            </div>
+
+            {/* WhatsApp Budget Copy Buttons */}
+            <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 sm:p-1 rounded-xl border border-slate-800">
+              <span className="text-[10px] font-bold text-slate-400 pl-1 hidden md:inline">WhatsApp:</span>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('FIRST_LINE')}
+                className="px-2 py-1 text-[10px] font-bold rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all cursor-pointer whitespace-nowrap"
+                title="Copiar mensagem de orçamento com peça 1ª Linha"
+              >
+                ⭐ 1ª Linha
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('PREMIUM')}
+                className="px-2 py-1 text-[10px] font-bold rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer whitespace-nowrap"
+                title="Copiar mensagem de orçamento com peça Premium"
+              >
+                💎 Premium
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('COMPARATIVE')}
+                className="px-2 py-1 text-[10px] font-black rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 transition-all cursor-pointer whitespace-nowrap"
+                title="Copiar ambas as opções com explicação de qualidade"
+              >
+                📋 Ambas
+              </button>
+              {copiedFeedback && (
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-white animate-pulse">
+                  ✓ {copiedFeedback}
+                </span>
+              )}
             </div>
 
             {/* 3. Direct Print & Close Button */}
@@ -1236,6 +1139,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             </tr>
                           </thead>
                           <tbody>
+                            {/* Peças da OS */}
                             {order.parts && order.parts.map((p, i) => (
                               <tr key={i} className="border-b border-slate-200">
                                 <td className="p-2 border border-slate-200">Peça: {p.productName || p.name}</td>
@@ -1248,6 +1152,23 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                                 </td>
                               </tr>
                             ))}
+
+                            {/* Opção de Peça Escolhida pelo Cliente (1ª Linha ou Premium) */}
+                            {order.selectedPartTier && order.selectedPartTier !== 'NONE' && (
+                              <tr className="border-b border-slate-200 bg-amber-50/30">
+                                <td className="p-2 border border-slate-200 font-bold text-slate-900">
+                                  Peça: {order.partTierDescription || 'Componente / Peça'} ({order.selectedPartTier === 'PREMIUM' ? 'Qualidade Premium' : '1ª Linha'})
+                                </td>
+                                <td className="p-2 border border-slate-200 text-center">1</td>
+                                <td className="p-2 border border-slate-200 text-right">
+                                  {formatCurrency(order.selectedPartTier === 'PREMIUM' ? (order.partPricePremium || 0) : (order.partPriceFirstLine || 0))}
+                                </td>
+                                <td className="p-2 border border-slate-200 text-right font-black text-slate-900">
+                                  {formatCurrency(order.selectedPartTier === 'PREMIUM' ? (order.partPricePremium || 0) : (order.partPriceFirstLine || 0))}
+                                </td>
+                              </tr>
+                            )}
+
                             {order.laborPrice > 0 && (
                               <tr className="border-b border-slate-200">
                                 <td className="p-2 border border-slate-200" colSpan={3}>
@@ -1322,11 +1243,45 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                       </div>
                     </div>
 
+                    {/* Checklist no Cupom/Folha configurado nas preferências */}
+                    {company.osChecklistText && company.osChecklistText.trim() && (
+                      <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50/70 text-xs">
+                        <span className="font-bold text-slate-800 uppercase tracking-wider block mb-1 text-[11px]">
+                          Checklist de Acessórios & Itens na Entrada:
+                        </span>
+                        <div className="font-mono text-slate-900 leading-tight whitespace-pre-line text-[11px]">
+                          {company.osChecklistText}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Signatures */}
+                    {company.osShowSignatures !== false && (
+                      <div className="pt-4 border-t-2 border-slate-900">
+                        <div className="grid grid-cols-2 gap-8 text-center text-xs">
+                          <div>
+                            <div className="border-b border-slate-900 mb-1.5 w-4/5 mx-auto" />
+                            <span className="font-bold uppercase block text-slate-900">
+                              {company.osResponsibleSignLabel || 'Ass. do Responsável'}
+                            </span>
+                            <span className="text-[10px] text-slate-500">Técnico / Atendente</span>
+                          </div>
+                          <div>
+                            <div className="border-b border-slate-900 mb-1.5 w-4/5 mx-auto" />
+                            <span className="font-bold uppercase block text-slate-900">
+                              {company.osCustomerSignLabel || 'Ass. do Cliente'}
+                            </span>
+                            <span className="text-[10px] text-slate-500">Ciente dos Termos e Condições</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Footer & Disclaimer */}
-                    {company.receiptDisclaimer && (
+                    {(company.osFooterTerms || company.receiptDisclaimer) && (
                       <div className="pt-3 border-t border-slate-300">
-                        <p className="text-[10px] text-slate-500 text-justify leading-tight">
-                          {company.receiptDisclaimer}
+                        <p className="text-[10px] text-slate-500 text-justify leading-tight whitespace-pre-line">
+                          {company.osFooterTerms || company.receiptDisclaimer}
                         </p>
                       </div>
                     )}

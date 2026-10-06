@@ -887,7 +887,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
               <p className="text-center py-6 text-xs text-slate-400">Nenhuma movimentação no caixa atual.</p>
             ) : (
               cashMovements.map((mov) => {
-                const isPositive = mov.type === 'ABERTURA' || mov.type === 'VENDA' || mov.type === 'ORDEM SERVIÇO' || mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA';
+                const isPositive = mov.type === 'SERVICO_OS' || mov.type === 'ORDEM_SERVICO' || (mov.type as string) === 'ORDEM SERVIÇO' || (mov.type as string) === 'ABERTURA' || (mov.type as string) === 'VENDA' || mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA';
                 return (
                   <div key={mov.id} className="p-3 rounded-xl bg-[#050e1f] border border-blue-900/40 space-y-2">
                     <div className="flex items-center justify-between gap-2">
@@ -934,7 +934,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
               </thead>
               <tbody className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-200'}`}>
                 {cashMovements.map((mov) => {
-                  const isPositive = mov.type === 'ABERTURA' || mov.type === 'VENDA' || mov.type === 'ORDEM SERVIÇO' || mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA';
+                  const isPositive = mov.type === 'SERVICO_OS' || mov.type === 'ORDEM_SERVICO' || (mov.type as string) === 'ORDEM SERVIÇO' || (mov.type as string) === 'ABERTURA' || (mov.type as string) === 'VENDA' || mov.type === 'SUPRIMENTO' || mov.type === 'ENTRADA_AVULSA';
                   return (
                     <tr key={mov.id} className={isDark ? 'hover:bg-[#0d1d3d]/50 transition-colors' : 'hover:bg-slate-50 transition-colors'}>
                       <td className={`py-4 px-4 sm:px-5 font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>

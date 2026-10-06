@@ -20,7 +20,7 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
   if (!order) return null;
 
   const isMini = paperFormat === '50mm' || paperFormat === '58mm';
-  const isReadyOrDelivered = order.status === 'PRONTO' || order.status === 'CONCLUIDO' || order.status === 'ENTREGUE';
+  const isReadyOrDelivered = order.status === 'PRONTO' || (order.status as string) === 'CONCLUIDO' || order.status === 'ENTREGUE';
 
   // Look up customer full details if available
   const customer = order.customerId

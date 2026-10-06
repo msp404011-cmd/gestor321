@@ -772,11 +772,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const ySalesTotal = ySales.reduce((acc, s) => acc + (s.total || 0), 0);
 
     // Today delivered/paid OS
-    const tOrders = orders.filter((o) => o.status === 'ENTREGUE' && isToday(o.deliveryDate || o.updatedAt || o.createdAt));
+    const tOrders = orders.filter((o) => o.status === 'ENTREGUE' && isToday(o.deliveredAt || o.updatedAt || o.createdAt));
     const tOrdersTotal = tOrders.reduce((acc, o) => acc + (o.totalPrice || 0), 0);
 
     // Yesterday delivered/paid OS
-    const yOrders = orders.filter((o) => o.status === 'ENTREGUE' && isYesterday(o.deliveryDate || o.updatedAt || o.createdAt));
+    const yOrders = orders.filter((o) => o.status === 'ENTREGUE' && isYesterday(o.deliveredAt || o.updatedAt || o.createdAt));
     const yOrdersTotal = yOrders.reduce((acc, o) => acc + (o.totalPrice || 0), 0);
 
     const totalToday = tSalesTotal + tOrdersTotal;
@@ -892,8 +892,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     sales.forEach((s) => {
       (s.items || []).forEach((item) => {
-        const pId = item.productId || item.productName || item.name || 'item';
-        const pName = item.productName || item.name || 'Produto';
+        const pId = item.productId || item.productName || (item as any).name || 'item';
+        const pName = item.productName || (item as any).name || 'Produto';
         const existing = productCountMap.get(pId);
         if (existing) {
           existing.qty += item.quantity || 1;

@@ -1489,7 +1489,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                   supplierName: '',
                   paymentStatus: 'Pendente',
                   isInlineNewSupplier: false,
-                  newSupplierPhone: ''
+                  newSupplierPhone: '',
+                  useOriginalDate: false,
+                  customDate: ''
                 })}
                 className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
               >
@@ -1725,7 +1727,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                     supplierName: '',
                     paymentStatus: 'Pendente',
                     isInlineNewSupplier: false,
-                    newSupplierPhone: ''
+                    newSupplierPhone: '',
+                    useOriginalDate: false,
+                    customDate: ''
                   })}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
                 >

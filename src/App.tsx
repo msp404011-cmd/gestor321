@@ -6,6 +6,7 @@ import { db, auth } from './lib/firebase';
 import { Sidebar } from './components/common/Sidebar';
 import { Navbar } from './components/common/Navbar';
 import { ConfirmDialog } from './components/common/Modal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { SubscriptionService, normalizePlanType } from './services/subscriptionService';
 import { AdminBackendService } from './services/adminBackendService';
 import { updateService } from './services/updateService';
@@ -907,6 +908,13 @@ export default function App() {
                 onOpenNewOrderForDevice={(device) =>
                   handleOpenNewOrder(device.customerId, device.id)
                 }
+                onNavigateToOrder={(orderId) => {
+                  setActiveTab('ORDERS');
+                  const targetOrder = StorageService.getOrders().find((o) => o.id === orderId);
+                  if (targetOrder) {
+                    setOrderDetailState({ isOpen: true, order: targetOrder });
+                  }
+                }}
               />
             )}
 
@@ -977,7 +985,11 @@ export default function App() {
 
             {activeTab === 'COMPATIBILITY' && <CompatibilityView />}
 
-            {activeTab === 'SETTINGS' && <SettingsView />}
+            {activeTab === 'SETTINGS' && (
+              <ErrorBoundary fallbackTitle="Erro ao carregar Configurações">
+                <SettingsView />
+              </ErrorBoundary>
+            )}
 
             {activeTab === 'MONTHLY_DEBITS' && <MonthlyDebitsView />}
           </Suspense>
@@ -1061,9 +1073,23 @@ export default function App() {
           onEdit={(customer) =>
             setCustomerModalState({ isOpen: true, customerToEdit: customer })
           }
-          onOpenNewOrder={(customer) =>
+          onOpenNewOrderForCustomer={(customer) =>
             handleOpenNewOrder(customer.id)
           }
+          onOpenNewDeviceForCustomer={(customer) =>
+            setDeviceModalState({
+              isOpen: true,
+              deviceToEdit: null,
+              initialCustomerId: customer.id,
+            })
+          }
+          onNavigateToOrder={(orderId) => {
+            setActiveTab('ORDERS');
+            const targetOrder = StorageService.getOrders().find((o) => o.id === orderId);
+            if (targetOrder) {
+              setOrderDetailState({ isOpen: true, order: targetOrder });
+            }
+          }}
         />
 
         {/* Device Modal */}
@@ -1079,35 +1105,39 @@ export default function App() {
         />
 
         {/* Order Modal */}
-        <OrderModal
-          isOpen={orderModalState.isOpen}
-          onClose={() => setOrderModalState({ isOpen: false })}
-          onSave={handleSaveOrder}
-          orderToEdit={orderModalState.orderToEdit}
-          initialCustomerId={orderModalState.initialCustomerId}
-          initialDeviceId={orderModalState.initialDeviceId}
-          onOpenNewCustomer={() =>
-            setCustomerModalState({ isOpen: true, customerToEdit: null })
-          }
-          onOpenNewDevice={(customerId) =>
-            setDeviceModalState({
-              isOpen: true,
-              deviceToEdit: null,
-              initialCustomerId: customerId,
-            })
-          }
-          onOpenPrint={(order) => setOrderPrintState({ isOpen: true, order })}
-        />
+        <ErrorBoundary fallbackTitle="Erro ao abrir formulário da Ordem de Serviço">
+          <OrderModal
+            isOpen={orderModalState.isOpen}
+            onClose={() => setOrderModalState({ isOpen: false, orderToEdit: null, initialCustomerId: undefined, initialDeviceId: undefined })}
+            onSave={handleSaveOrder}
+            orderToEdit={orderModalState.orderToEdit}
+            initialCustomerId={orderModalState.initialCustomerId}
+            initialDeviceId={orderModalState.initialDeviceId}
+            onOpenNewCustomer={() =>
+              setCustomerModalState({ isOpen: true, customerToEdit: null })
+            }
+            onOpenNewDevice={(customerId) =>
+              setDeviceModalState({
+                isOpen: true,
+                deviceToEdit: null,
+                initialCustomerId: customerId,
+              })
+            }
+            onOpenPrint={(order) => setOrderPrintState({ isOpen: true, order })}
+          />
+        </ErrorBoundary>
 
         {/* Order Detail Modal */}
-        <OrderDetailModal
-          isOpen={orderDetailState.isOpen}
-          onClose={() => setOrderDetailState({ isOpen: false, order: null })}
-          order={orderDetailState.order}
-          onEdit={(order) => setOrderModalState({ isOpen: true, orderToEdit: order })}
-          onOpenPrint={(order, mode) => setOrderPrintState({ isOpen: true, order, mode })}
-          onDelete={(order) => setGlobalOrderToDelete(order)}
-        />
+        <ErrorBoundary fallbackTitle="Erro ao abrir detalhes da OS">
+          <OrderDetailModal
+            isOpen={orderDetailState.isOpen}
+            onClose={() => setOrderDetailState({ isOpen: false, order: null })}
+            order={orderDetailState.order}
+            onEdit={(order) => setOrderModalState({ isOpen: true, orderToEdit: order })}
+            onOpenPrint={(order, mode) => setOrderPrintState({ isOpen: true, order, mode })}
+            onDelete={(order) => setGlobalOrderToDelete(order)}
+          />
+        </ErrorBoundary>
 
         {/* Order Print Modal */}
         <OrderPrintModal
@@ -1129,19 +1159,15 @@ export default function App() {
         <GlobalSearchModal
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
-          onSelectCustomer={(c) => {
-            setActiveTab('CUSTOMERS');
-            setCustomerDetailState({ isOpen: true, customer: c });
-          }}
-          onSelectOrder={(o) => {
-            setActiveTab('ORDERS');
-            setOrderDetailState({ isOpen: true, order: o });
-          }}
-          onSelectProduct={() => {
-            setActiveTab('PRODUCTS');
-          }}
-          onSelectDevice={() => {
-            setActiveTab('DEVICES');
+          onNavigate={(tab, itemId) => {
+            setActiveTab(tab as any);
+            if (tab === 'ORDERS' && itemId) {
+              const targetOrder = StorageService.getOrders().find((o) => o.id === itemId);
+              if (targetOrder) setOrderDetailState({ isOpen: true, order: targetOrder });
+            } else if (tab === 'CUSTOMERS' && itemId) {
+              const cust = StorageService.getCustomers().find((c) => c.id === itemId);
+              if (cust) setCustomerDetailState({ isOpen: true, customer: cust });
+            }
           }}
         />
 
@@ -1149,12 +1175,12 @@ export default function App() {
         <NotificationDrawer
           isOpen={isNotificationOpen}
           onClose={() => setIsNotificationOpen(false)}
-          onSelectOrder={(order) => {
-            setActiveTab('ORDERS');
-            setOrderDetailState({ isOpen: true, order });
-          }}
-          onSelectProduct={() => {
-            setActiveTab('PRODUCTS');
+          onNavigate={(tab, itemId) => {
+            setActiveTab(tab as any);
+            if (tab === 'ORDERS' && itemId) {
+              const targetOrder = StorageService.getOrders().find((o) => o.id === itemId);
+              if (targetOrder) setOrderDetailState({ isOpen: true, order: targetOrder });
+            }
           }}
         />
 
@@ -1191,7 +1217,13 @@ export default function App() {
           onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
           title={paywallModalState.title}
           description={paywallModalState.description}
-          feature={paywallModalState.feature}
+          feature={
+            paywallModalState.feature === 'ADVANCED_REPORTS'
+              ? 'REPORTS'
+              : paywallModalState.feature === 'EXPORT_PDF'
+              ? 'PDF_EXPORT'
+              : (paywallModalState.feature as any) || 'GENERAL'
+          }
           onOpenPlans={() => {
             setPaywallModalState((prev) => ({ ...prev, isOpen: false }));
             setIsSubscriptionModalOpen(true);

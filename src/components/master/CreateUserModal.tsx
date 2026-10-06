@@ -442,7 +442,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onUse
                 {SYSTEM_PLANS_LIST.map((plan) => {
                   const isSelected = selectedPlan.id === plan.id;
                   return (
-                    <div
+                    <button
                       key={plan.id}
                       type="button"
                       onClick={() => handleSelectPlan(plan)}
@@ -472,7 +472,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ onClose, onUse
                         <span>{plan.monthlyPrice === 0 ? 'Grátis' : `R$ ${plan.monthlyPrice.toFixed(2)}`}</span>
                         {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400" />}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
