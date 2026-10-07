@@ -204,11 +204,148 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
   }
 
   const handlePrint = () => {
-    // Print directly from the rendered DOM. This preserves all stylesheets, fonts,
-    // colors, barcodes, and borders exactly as previewed on screen.
-    setTimeout(() => {
+    try {
+      // Remove any existing print frame
+      const existingFrame = document.getElementById('print-order-iframe');
+      if (existingFrame) existingFrame.remove();
+
+      const printFrame = document.createElement('iframe');
+      printFrame.id = 'print-order-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      printFrame.style.visibility = 'hidden';
+      document.body.appendChild(printFrame);
+
+      const frameDoc = printFrame.contentWindow?.document;
+      if (!frameDoc) {
+        window.print();
+        return;
+      }
+
+      const container = document.getElementById('printable-order-container');
+      if (!container) {
+        window.print();
+        return;
+      }
+
+      // Collect all active stylesheets and font links
+      const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .filter((el) => {
+          if (el.tagName.toLowerCase() === 'style' && el.id === 'print-modal-styles') return false;
+          return true;
+        })
+        .map((el) => el.outerHTML)
+        .join('\n');
+
+      const contentHtml = container.innerHTML;
+      const printWidth = paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm';
+      const pageMargin = paperFormat === 'a4' ? '8mm' : '0mm';
+      const pageSize = paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto';
+      const bodyWidth = paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm';
+
+      frameDoc.open();
+      frameDoc.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <title>OS #${order.orderNumber} - ${company.commercialName || company.name || 'Ordem de Serviço'}</title>
+            ${styleTags}
+            <style>
+              @page {
+                size: ${pageSize};
+                margin: ${pageMargin} !important;
+              }
+              *, *::before, *::after {
+                box-sizing: border-box !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                filter: none !important;
+                visibility: visible !important;
+              }
+              html {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                width: 100% !important;
+                visibility: visible !important;
+              }
+              body {
+                margin: 0 auto !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                width: ${bodyWidth} !important;
+                max-width: ${bodyWidth} !important;
+                min-width: ${bodyWidth} !important;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+                visibility: visible !important;
+                display: block !important;
+              }
+              body * {
+                visibility: visible !important;
+              }
+              #printable-order-container, .print-order-wrapper {
+                width: ${printWidth} !important;
+                max-width: ${printWidth} !important;
+                min-width: ${printWidth} !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                margin-top: 0 !important;
+                margin-bottom: 0 !important;
+                padding: ${paperFormat === 'a4' ? '0' : '0.5mm 0'} !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                box-sizing: border-box !important;
+                display: block !important;
+                visibility: visible !important;
+                overflow: visible !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="printable-order-container" class="print-order-wrapper">
+              ${contentHtml}
+            </div>
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      const triggerPrint = () => {
+        try {
+          if (printFrame.contentWindow) {
+            printFrame.contentWindow.onafterprint = () => {
+              try { printFrame.remove(); } catch {}
+              onClose();
+            };
+          }
+          printFrame.contentWindow?.focus();
+          printFrame.contentWindow?.print();
+        } catch {
+          window.print();
+        } finally {
+          setTimeout(() => {
+            try {
+              if (document.body.contains(printFrame)) printFrame.remove();
+            } catch {}
+          }, 3000);
+        }
+      };
+
+      setTimeout(triggerPrint, 150);
+    } catch {
       window.print();
-    }, 50);
+    }
   };
 
   const handleSaveDispatchInfoToOrder = () => {
@@ -242,7 +379,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
       <style id="print-modal-styles">{`
         @media print {
           @page {
-            size: ${paperFormat === 'a4' ? 'A4 portrait' : 'auto'};
+            size: ${paperFormat === 'a4' ? 'A4 portrait' : paperFormat === '80mm' ? '80mm auto' : '58mm auto'};
             margin: ${paperFormat === 'a4' ? '8mm' : '0mm'} !important;
           }
           *, *::before, *::after {
@@ -255,34 +392,59 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          html, body {
+          html {
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
-            color: #000000 !important;
             width: 100% !important;
+            visibility: visible !important;
+          }
+          body {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            min-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
             height: auto !important;
             overflow: visible !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-          }
-          /* Hide all application elements from print layout by default */
-          body * {
-            visibility: hidden !important;
+            display: block !important;
+            visibility: visible !important;
           }
           /* Hide UI controls, headers, buttons */
           header, aside, nav, button, .no-print {
             display: none !important;
           }
-          /* Isolate printable order container and align cleanly */
+          .fixed.inset-0, .fixed.inset-0 > div, .fixed.inset-0 > div > div {
+            position: static !important;
+            background: #ffffff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            max-height: none !important;
+            height: auto !important;
+            width: 100% !important;
+            max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '80mm' : '58mm'} !important;
+            overflow: visible !important;
+          }
           #printable-order-container, #printable-order-container * {
             visibility: visible !important;
           }
           #printable-order-container {
-            position: absolute !important;
-            left: 0 !important;
+            position: relative !important;
+            left: auto !important;
+            right: auto !important;
             top: 0 !important;
             display: block !important;
-            margin: 0 auto !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
             padding: ${paperFormat === 'a4' ? '0' : '0.5mm 0'} !important;
             box-shadow: none !important;
             border: none !important;
@@ -614,7 +776,9 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             className={`transition-all duration-300 ${
               paperFormat === 'a4'
                 ? 'bg-white text-slate-900 font-sans shadow-xl rounded-xl w-full max-w-[210mm] p-6 sm:p-8 text-xs'
-                : 'w-fit mx-auto bg-white shadow-2xl rounded-sm p-0'
+                : paperFormat === '50mm' || paperFormat === '58mm'
+                ? 'w-full max-w-[48mm] mx-auto bg-white shadow-2xl rounded-sm p-0'
+                : 'w-full max-w-[72mm] mx-auto bg-white shadow-2xl rounded-sm p-0'
             }`}
           >
             {/* A4 FORMAT LAYOUT */}

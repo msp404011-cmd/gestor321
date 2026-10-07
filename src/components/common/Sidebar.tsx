@@ -201,30 +201,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ],
           },
           {
-            id: 'CAMERAS_ACCESS',
-            title: 'CÂMERAS E ACESSOS',
-            icon: Video,
-            colorTheme: 'purple' as const,
-            items: [
-              {
-                id: 'ACCESSES',
-                title: 'Controle de Acessos',
-                subtitle: 'Liberações e permissões',
-                icon: Tv,
-                badge: 'MASTER',
-                badgeType: 'master-purple' as const,
-              },
-              {
-                id: 'CAMERAS',
-                title: 'Pacote de Câmeras',
-                subtitle: 'Planos e dispositivos',
-                icon: Video,
-                badge: 'MASTER',
-                badgeType: 'master-blue' as const,
-              },
-            ],
-          },
-          {
             id: 'SUPPLIER_ORDERS_SECTION',
             title: 'PEDIDOS E COMPRAS',
             icon: Truck,

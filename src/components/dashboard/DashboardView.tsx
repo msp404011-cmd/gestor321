@@ -1750,130 +1750,137 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </section>
 
-      {/* SUPER ADMIN EXCLUSIVE SECTORS BAR */}
-      {isSuperAdmin && (
-        <section className={`rounded-2xl p-4 border-2 transition-all shadow-lg ${
-          isDark
-            ? 'bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-cyan-950/40 border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.15)]'
-            : 'bg-gradient-to-r from-purple-50 via-slate-50 to-cyan-50 border-cyan-300 shadow-sm'
-        }`}>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                <Crown className="w-4 h-4 text-amber-400" />
-              </span>
-              <div>
-                <h3 className={`text-xs font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Setores Exclusivos do Super Administrador
+      {/* TOP SECTORS: CONTROLE DE TV & PACOTE DE CÂMERAS */}
+      <section className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Card 1: Controle de TV / Acessos */}
+          <button
+            type="button"
+            onClick={() => onNavigate('ACCESSES')}
+            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
+              isDark
+                ? 'bg-gradient-to-r from-purple-950/80 via-slate-900 to-purple-950/60 border-purple-500/50 hover:border-purple-400 text-white shadow-[0_0_25px_rgba(168,85,247,0.3)]'
+                : 'bg-gradient-to-r from-purple-50 via-white to-purple-100 border-purple-300 hover:border-purple-400 text-slate-900 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-13 h-13 rounded-2xl bg-purple-600/30 text-purple-300 border border-purple-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(168,85,247,0.45)]">
+                <Tv className="w-7 h-7 text-purple-300" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                    Setor de TV & Acessos
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black truncate">
+                  Controle de TV
                 </h3>
-                <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Acesso rápido aos módulos administrativos e gestão master central
+                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  Clique para abrir as liberações e controle do setor de TV
                 </p>
               </div>
             </div>
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider uppercase bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]">
-              SUPER ADMIN • VITALÍCIO
-            </span>
-          </div>
+            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/40 text-xs font-extrabold text-purple-300 group-hover:bg-purple-500/30 transition-all">
+              <span>Abrir TV</span>
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-            {/* Orçamentos WhatsApp (Comparativo de Telas) */}
+          {/* Card 2: Pacote de Câmeras */}
+          <button
+            type="button"
+            onClick={() => onNavigate('CAMERAS')}
+            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
+              isDark
+                ? 'bg-gradient-to-r from-cyan-950/80 via-slate-900 to-cyan-950/60 border-cyan-500/50 hover:border-cyan-400 text-white shadow-[0_0_25px_rgba(6,182,212,0.3)]'
+                : 'bg-gradient-to-r from-cyan-50 via-white to-cyan-100 border-cyan-300 hover:border-cyan-400 text-slate-900 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-13 h-13 rounded-2xl bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(6,182,212,0.45)]">
+                <Video className="w-7 h-7 text-cyan-300" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                    Setor de Câmeras
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black truncate">
+                  Pacote de Câmeras
+                </h3>
+                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  Clique para gerenciar os planos e dispositivos do pacote de câmeras
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-xs font-extrabold text-cyan-300 group-hover:bg-cyan-500/30 transition-all">
+              <span>Abrir Câmeras</span>
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        </div>
+
+        {/* Links rápidos complementares (Orçamentos, Pedidos Fornecedor e Pedidos Exclusivos) */}
+        {isSuperAdmin && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
             <button
               type="button"
               onClick={() => onNavigate('MESSAGE_BUDGETS')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
                 isDark
-                  ? 'bg-blue-950/40 hover:bg-blue-900/50 border-cyan-500/50 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
-                  : 'bg-blue-50 hover:bg-blue-100 border-cyan-300 text-blue-950 shadow-xs'
+                  ? 'bg-blue-950/40 hover:bg-blue-900/50 border-cyan-500/40 text-cyan-100'
+                  : 'bg-blue-50 hover:bg-blue-100 border-cyan-300 text-blue-950'
               }`}
             >
-              <div className="w-9 h-9 rounded-xl bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(6,182,212,0.35)]">
-                <MessageCircle className="w-5 h-5" />
+              <div className="w-7 h-7 rounded-lg bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 flex items-center justify-center shrink-0">
+                <MessageCircle className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <span className="text-xs font-bold block truncate">Orçamentos WhatsApp</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-blue-700'}`}>Comparativo de Telas</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-blue-700'}`}>Comparativo de Peças</span>
               </div>
             </button>
 
-            {/* Fornecedor / Pedidos Fornecedor */}
             <button
               type="button"
               onClick={() => onNavigate('SUPPLIER_ORDERS')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
                 isDark
-                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-950 shadow-xs'
+                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-100'
+                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-950'
               }`}
             >
-              <div className="w-9 h-9 rounded-xl bg-emerald-600/30 text-emerald-400 border border-emerald-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-                <Truck className="w-5 h-5" />
+              <div className="w-7 h-7 rounded-lg bg-emerald-600/30 text-emerald-400 border border-emerald-500/50 flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <span className="text-xs font-bold block truncate">Pedidos Fornecedor</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Envio & Devoluções</span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Envios & Reposição</span>
               </div>
             </button>
 
-            {/* Pedidos Exclusivos */}
             <button
               type="button"
               onClick={() => onNavigate('EXCLUSIVE_ORDERS')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
                 isDark
-                  ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                  : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-950 shadow-xs'
+                  ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-100'
+                  : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-950'
               }`}
             >
-              <div className="w-9 h-9 rounded-xl bg-amber-600/30 text-amber-400 border border-amber-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(245,158,11,0.3)]">
-                <ShoppingCart className="w-5 h-5" />
+              <div className="w-7 h-7 rounded-lg bg-amber-600/30 text-amber-400 border border-amber-500/50 flex items-center justify-center shrink-0">
+                <ShoppingCart className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <span className="text-xs font-bold block truncate">Pedidos Exclusivos</span>
                 <span className={`text-[10px] block truncate ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Central Especial</span>
               </div>
             </button>
-
-            {/* Controle de Acessos */}
-            <button
-              type="button"
-              onClick={() => onNavigate('ACCESSES')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
-                isDark
-                  ? 'bg-purple-950/40 hover:bg-purple-900/50 border-purple-500/40 text-purple-100 shadow-[0_0_15px_rgba(147,51,234,0.15)]'
-                  : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-950 shadow-xs'
-              }`}
-            >
-              <div className="w-9 h-9 rounded-xl bg-purple-600/30 text-purple-400 border border-purple-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(147,51,234,0.3)]">
-                <Tv className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs font-bold block truncate">Controle de Acessos</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-purple-300' : 'text-purple-700'}`}>Telas & Senhas</span>
-              </div>
-            </button>
-
-            {/* Pacote de Câmeras */}
-            <button
-              type="button"
-              onClick={() => onNavigate('CAMERAS')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 group hover:scale-[1.02] ${
-                isDark
-                  ? 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-500/40 text-cyan-100 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
-                  : 'bg-cyan-50 hover:bg-cyan-100 border-cyan-200 text-cyan-950 shadow-xs'
-              }`}
-            >
-              <div className="w-9 h-9 rounded-xl bg-cyan-600/30 text-cyan-400 border border-cyan-500/50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_10px_rgba(6,182,212,0.3)]">
-                <Video className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs font-bold block truncate">Pacote de Câmeras</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Segurança & CFTV</span>
-              </div>
-            </button>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
       <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">

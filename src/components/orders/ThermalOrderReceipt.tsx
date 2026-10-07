@@ -493,61 +493,36 @@ export const ThermalOrderReceipt: React.FC<ThermalOrderReceiptProps> = ({
         )}
       </div>
 
-      {/* 9. FINANCIAL TOTALS IN RECTANGULAR BOXES */}
-      <div className={`my-2 flex flex-col items-center justify-center ${isMini ? 'text-[7.5px] space-y-1' : 'text-[8.5px] space-y-1'} w-full`}>
-        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[155px]'}`}>
-          <span className="font-bold block mb-0.5 text-center">Total Bruto:</span>
-          <div
-            className="px-2 py-0.5 text-center font-black w-full"
-            style={{ border: '1px solid #000000' }}
-          >
-            {formatCurrency(totalGross)}
-          </div>
+      {/* 9. FINANCIAL TOTALS IN CLEAN FULL-WIDTH BOX */}
+      <div className={`my-2 w-full border border-black p-1.5 space-y-1 ${isMini ? 'text-[8px]' : 'text-[9px]'} bg-white text-black`}>
+        <div className="flex justify-between items-center">
+          <span className="font-bold">Total Bruto:</span>
+          <span className="font-mono font-bold">{formatCurrency(totalGross)}</span>
         </div>
         {order.discount > 0 && (
-          <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[155px]'}`}>
-            <span className="font-bold block mb-0.5 text-center">Desconto:</span>
-            <div
-              className="px-2 py-0.5 text-center font-black w-full"
-              style={{ border: '1px solid #000000' }}
-            >
-              {formatCurrency(order.discount || 0)}
-            </div>
+          <div className="flex justify-between items-center">
+            <span className="font-bold">Desconto:</span>
+            <span className="font-mono font-bold">- {formatCurrency(order.discount || 0)}</span>
           </div>
         )}
-        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[155px]'}`}>
-          <span className="font-bold block mb-0.5 text-center">Total Líquido:</span>
-          <div
-            className="px-2 py-0.5 text-center font-black w-full"
-            style={{ border: '1px solid #000000' }}
-          >
-            {formatCurrency(order.totalPrice)}
-          </div>
+        <div className="flex justify-between items-center border-t border-black pt-1">
+          <span className="font-black uppercase text-[9.5px]">VALOR TOTAL:</span>
+          <span className="font-mono font-black text-[10.5px]">{formatCurrency(order.totalPrice)}</span>
         </div>
-        <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[155px]'}`}>
-          <span className="font-bold block mb-0.5 text-center">Total Pago:</span>
-          <div
-            className="px-2 py-0.5 text-center font-black w-full"
-            style={{ border: '1px solid #000000' }}
-          >
-            {formatCurrency(totalPaid)}
-          </div>
+        <div className="flex justify-between items-center">
+          <span className="font-bold">Total Já Pago:</span>
+          <span className="font-mono font-bold">{formatCurrency(totalPaid)}</span>
         </div>
         {remainingAmount > 0 && (
-          <div className={`text-center w-full ${isMini ? 'max-w-[125px]' : 'max-w-[155px]'}`}>
-            <span className="font-bold block mb-0.5 text-center text-rose-600">Restante a Pagar:</span>
-            <div
-              className="px-2 py-0.5 text-center font-black w-full text-rose-600"
-              style={{ border: '1px solid #e11d48' }}
-            >
-              {formatCurrency(remainingAmount)}
-            </div>
+          <div className="flex justify-between items-center border-t border-dashed border-black pt-1">
+            <span className="font-black uppercase">Falta Pagar:</span>
+            <span className="font-mono font-black">{formatCurrency(remainingAmount)}</span>
           </div>
         )}
       </div>
 
       {/* 10. PAYMENT METHODS */}
-      <div className={`my-2 ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} space-y-1 text-left border-t border-dashed border-slate-300 pt-1.5`}>
+      <div className={`my-2 ${isMini ? 'text-[7.5px]' : 'text-[8.5px]'} space-y-1 text-left border-t border-dashed border-black pt-1.5`}>
         <div className="font-bold mb-0.5">Detalhamento dos Recebimentos:</div>
         {paymentsList.length > 0 ? (
           paymentsList.map((p, idx) => (
