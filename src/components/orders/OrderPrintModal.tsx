@@ -263,43 +263,27 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             width: 100% !important;
             height: auto !important;
             overflow: visible !important;
-            visibility: visible !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
           }
-          /* Hide non-print application interface */
-          header, aside, nav, button, .no-print, [role="dialog"] > div:first-child {
+          /* Hide all application elements from print layout by default */
+          body * {
+            visibility: hidden !important;
+          }
+          /* Hide UI controls, headers, buttons */
+          header, aside, nav, button, .no-print {
             display: none !important;
           }
-          /* Neutralize modal wrapper and display printable order centered and crisp */
-          .fixed.inset-0 {
-            position: static !important;
-            background: #ffffff !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            height: auto !important;
-            width: 100% !important;
-            display: block !important;
-          }
-          .fixed.inset-0 > div {
-            border: none !important;
-            box-shadow: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            border-radius: 0 !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            padding: 0 !important;
-            margin: 0 !important;
+          /* Isolate printable order container and align cleanly */
+          #printable-order-container, #printable-order-container * {
+            visibility: visible !important;
           }
           #printable-order-container {
-            position: static !important;
-            visibility: visible !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             display: block !important;
             margin: 0 auto !important;
-            padding: ${paperFormat === 'a4' ? '0' : '1mm 0'} !important;
+            padding: ${paperFormat === 'a4' ? '0' : '0.5mm 0'} !important;
             box-shadow: none !important;
             border: none !important;
             background: #ffffff !important;
@@ -308,9 +292,6 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
             width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
             max-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
             min-width: ${paperFormat === 'a4' ? '100%' : paperFormat === '80mm' ? '72mm' : '48mm'} !important;
-          }
-          #printable-order-container * {
-            visibility: visible !important;
           }
         }
       `}</style>
