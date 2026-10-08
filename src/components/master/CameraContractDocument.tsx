@@ -15,8 +15,6 @@ import {
   PenTool, 
   Loader2 
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 interface CameraContractDocumentProps {
   contract: Partial<CameraInstallationContract>;
@@ -65,36 +63,78 @@ export const CameraContractDocument: React.FC<CameraContractDocumentProps> = ({
 
     setIsGeneratingPdf(true);
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2.5, // 300dpi equivalent sharp rasterization
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#FFFFFF',
-        windowWidth: element.scrollWidth,
-      });
+      const loadScript = (src: string): Promise<void> => {
+        return new Promise((resolve, reject) => {
+          if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          document.head.appendChild(script);
+        });
+      };
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
-      
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
+      // Ensure html2canvas is available
+      let h2c = (window as any).html2canvas;
+      if (!h2c) {
+        try {
+          await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+          h2c = (window as any).html2canvas;
+        } catch {
+          // Fallback if network blocked
+        }
+      }
 
-      const pdfWidth = 210;
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      const finalHeight = Math.min(pdfHeight, 297);
-      const yOffset = pdfHeight < 297 ? (297 - pdfHeight) / 2 : 0;
+      // Ensure jsPDF is available
+      let JsPdfClass = (window as any).jspdf?.jsPDF || (window as any).jsPDF;
+      if (!JsPdfClass) {
+        try {
+          await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+          JsPdfClass = (window as any).jspdf?.jsPDF || (window as any).jsPDF;
+        } catch {
+          // Fallback if network blocked
+        }
+      }
 
-      pdf.addImage(imgData, 'JPEG', 0, yOffset, pdfWidth, finalHeight);
+      if (h2c && JsPdfClass) {
+        const canvas = await h2c(element, {
+          scale: 2.5, // 300dpi equivalent sharp rasterization
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#FFFFFF',
+          windowWidth: element.scrollWidth,
+        });
 
-      const safeName = (clientName || 'Cliente')
-        .replace(/[^a-zA-Z0-9À-ÿ\s]/g, '')
-        .trim()
-        .replace(/\s+/g, '_');
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        
+        const pdf = new JsPdfClass({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
 
-      pdf.save(`Contrato_Locacao_EliteCam_${safeName}.pdf`);
+        const pdfWidth = 210;
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        const finalHeight = Math.min(pdfHeight, 297);
+        const yOffset = pdfHeight < 297 ? (297 - pdfHeight) / 2 : 0;
+
+        pdf.addImage(imgData, 'JPEG', 0, yOffset, pdfWidth, finalHeight);
+
+        const safeName = (clientName || 'Cliente')
+          .replace(/[^a-zA-Z0-9À-ÿ\s]/g, '')
+          .trim()
+          .replace(/\s+/g, '_');
+
+        pdf.save(`Contrato_Locacao_EliteCam_${safeName}.pdf`);
+      } else {
+        // Fallback: browser print dialog allows saving directly to PDF natively
+        window.print();
+      }
     } catch (error) {
       console.error('Erro ao gerar arquivo PDF:', error);
       // Fallback: browser print dialog
