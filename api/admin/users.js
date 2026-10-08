@@ -1,4 +1,4 @@
-import { isAuthorizedRequest, setCorsHeaders, listAccountsREST } from '../adminUtils.js';
+import { isAuthorizedRequest, setCorsHeaders, listAccountsREST } from '../_adminUtils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);

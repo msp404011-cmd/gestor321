@@ -1,4 +1,4 @@
-import { verifyAdminToken, setCorsHeaders } from '../../adminUtils.js';
+import { verifyAdminToken, setCorsHeaders } from '../../_adminUtils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);

@@ -1,4 +1,4 @@
-import { isMasterPasswordValid, generateAdminToken, setCorsHeaders } from '../../adminUtils.js';
+import { isMasterPasswordValid, generateAdminToken, setCorsHeaders } from '../../_adminUtils.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(res);
