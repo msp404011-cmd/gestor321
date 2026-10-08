@@ -7,7 +7,7 @@ import {
   DollarSign, Clock, X, MoreVertical
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { ExclusiveOrderGroup, ExclusiveOrderItem } from '../../types/exclusiveOrders';
+import { ExclusiveOrderGroup, ExclusiveOrderItem } from '../../types';
 
 // Helper component for copying text
 const CopyButton = ({ text, title }: { text: string, title?: string }) => {

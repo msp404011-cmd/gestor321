@@ -61,7 +61,7 @@ import {
   OrderTechnicalChecklistSection,
   formatTechnicalChecklistSummary,
 } from './OrderTechnicalChecklistSection';
-import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
+import { copyOrderBudgetText, BudgetCopyType } from '../../services/orderBudgetSharing';
 
 interface OrderDetailModalProps {
   isOpen: boolean;

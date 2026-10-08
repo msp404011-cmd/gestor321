@@ -20,7 +20,7 @@ import {
   Check,
   ArrowRight
 } from 'lucide-react';
-import { AdminAuthService, CreatedUserResult } from '../../services/adminAuthService';
+import { AdminAuthService, CreatedUserResult } from '../../services/adminBackendService';
 import { SYSTEM_PLANS_LIST, AvailablePlanOption } from './ChangePlanModal';
 
 interface CreateUserModalProps {

@@ -10,7 +10,6 @@ import {
   Box,
   Wallet,
   BarChart3,
-  Calendar,
   Clock,
   ArrowUpRight,
   TrendingUp,
@@ -18,17 +17,11 @@ import {
   CheckCircle2,
   Info,
   DollarSign,
-  ChevronDown,
   ArrowRight,
   Smartphone,
   Laptop,
   Gamepad2,
   Sparkles,
-  Crown,
-  ShieldCheck,
-  Check,
-  Edit3,
-  X,
   CreditCard,
   Zap,
   Video,
@@ -588,12 +581,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [chartPeriod, setChartPeriod] = useState<'30days' | '7days' | '15days' | 'year'>('30days');
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; val: number; date: string } | null>(null);
 
-  // Hidden Plan Menu State (canto superior direito: PAINEL ATIVO)
-  const [isPlanMenuOpen, setIsPlanMenuOpen] = useState(false);
-  const [isEditingPlan, setIsEditingPlan] = useState(false);
-  const [savePlanFeedback, setSavePlanFeedback] = useState(false);
-
-  const planContainerRef = useRef<HTMLDivElement>(null);
   const [planInfo, setPlanInfo] = useState<SubscriptionPlanInfo>(() => StorageService.getSubscriptionPlan());
 
   useEffect(() => {
@@ -611,44 +598,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return () => unsub();
   }, []);
 
-  const [editPlanName, setEditPlanName] = useState(planInfo.planName);
-  const [editPlanPrice, setEditPlanPrice] = useState(planInfo.planPrice);
-  const [editBillingPeriod, setEditBillingPeriod] = useState(planInfo.billingPeriod);
-  const [editExpiryDate, setEditExpiryDate] = useState(planInfo.expiryDate);
-
-  // Sync edit form fields when planInfo changes or when editing mode opens
-  useEffect(() => {
-    setEditPlanName(planInfo.planName);
-    setEditPlanPrice(planInfo.planPrice);
-    setEditBillingPeriod(planInfo.billingPeriod);
-    setEditExpiryDate(planInfo.expiryDate);
-  }, [planInfo, isEditingPlan]);
-
-  // Click outside and ESC listener to close hidden plan menu
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (planContainerRef.current && !planContainerRef.current.contains(event.target as Node)) {
-        setIsPlanMenuOpen(false);
-        setIsEditingPlan(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsPlanMenuOpen(false);
-        setIsEditingPlan(false);
-      }
-    };
-    if (isPlanMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isPlanMenuOpen]);
-
-  // Expiration calculation & days remaining
+  // Super Admin validation
   const authSession = StorageService.getAuthSession();
   const currentUser = StorageService.getCurrentUser();
   const isSuperAdmin = useMemo(() => {
@@ -659,55 +609,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       planInfo?.planType === 'SUPER_ADMIN'
     );
   }, [planInfo?.planType, currentUser?.email, authSession?.email, tick]);
-
-  const expiryDetails = useMemo(() => {
-    if (isSuperAdmin || !planInfo.expiryDate) {
-      return { daysRemaining: null, formattedDate: 'Sem Vencimento (Vitalício)', isExpired: false, isExpiringSoon: false };
-    }
-    const [year, month, day] = planInfo.expiryDate.split('-').map(Number);
-    const expiry = new Date(year, (month || 1) - 1, day || 1);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const diffTime = expiry.getTime() - today.getTime();
-    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    const formattedDate = expiry.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-
-    return {
-      daysRemaining,
-      formattedDate,
-      isExpired: daysRemaining < 0,
-      isExpiringSoon: daysRemaining >= 0 && daysRemaining <= 7,
-    };
-  }, [planInfo.expiryDate, isSuperAdmin]);
-
-  const handleSavePlan = (e: React.FormEvent) => {
-    e.preventDefault();
-    const updated: SubscriptionPlanInfo = {
-      ...planInfo,
-      planName: editPlanName.trim() || 'Plano PRO Empresarial',
-      planPrice: Number(editPlanPrice) >= 0 ? Number(editPlanPrice) : 99.9,
-      billingPeriod: editBillingPeriod,
-      expiryDate: editExpiryDate || '2026-10-15',
-      status: 'ATIVO',
-    };
-    StorageService.saveSubscriptionPlan(updated);
-    setIsEditingPlan(false);
-    setSavePlanFeedback(true);
-    setTimeout(() => setSavePlanFeedback(false), 3000);
-  };
-
-  // Live time ticker
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Subscribe to storage changes in real time
   useEffect(() => {
@@ -724,24 +625,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const customers = useMemo(() => StorageService.getCustomers() || [], [tick]);
   const cashSession = useMemo(() => StorageService.getCashSession(), [tick]);
   const settings = useMemo(() => StorageService.getSettings(), [tick]);
-  const companySettings = useMemo(() => StorageService.getCompanySettings(), [tick]);
-  const userAccount = useMemo(() => {
-    const authSession = StorageService.getAuthSession();
-    if (authSession?.email) {
-      const accounts = StorageService.getUserAccounts();
-      return accounts.find((a) => a.email.toLowerCase() === authSession.email.toLowerCase());
-    }
-    return null;
-  }, [tick]);
-  const assistanceName =
-    userAccount?.shopName ||
-    companySettings?.commercialName ||
-    companySettings?.name ||
-    companySettings?.tradeName ||
-    planInfo?.clientName ||
-    settings?.commercialName ||
-    settings?.name ||
-    'Assistência Técnica';
 
   // Dynamic calculations from real system data
   const isCashOpen = cashSession?.status === 'ABERTO';
@@ -1314,445 +1197,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4 pb-8">
-      {/* 1. TOP HERO BANNER */}
-      <section
-        className={`relative rounded-2xl p-3 sm:p-4 border-2 transition-all z-20 ${
-          isDark
-            ? 'bg-gradient-to-r from-[#0a142c] via-[#081023] to-[#060c1c] border-blue-500/60 shadow-[0_0_24px_rgba(59,130,246,0.3)] text-white'
-            : 'bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border-blue-300 shadow-sm text-slate-800'
-        }`}
-      >
-        {/* Neon Glow Ambient Orbs (contained cleanly without clipping popovers) */}
-        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
-          <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 right-10 w-60 h-60 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-        </div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Left: Greeting and Slogan in One Compact Row */}
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-2xl sm:text-3xl shrink-0">👋</span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                <h1 className="text-lg sm:text-xl font-extrabold tracking-tight whitespace-nowrap">
-                  {assistanceName}
-                </h1>
-                <span className="hidden sm:inline text-slate-500">•</span>
-                <span className="font-serif italic text-xs sm:text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-pink-400 to-amber-300 whitespace-nowrap">
-                  {companySettings?.slogan || settings?.slogan || 'Consertar • Conectar • Evoluir!'}
-                </span>
-              </div>
-              <p className={`text-xs mt-0.5 truncate whitespace-nowrap ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                Central de operações em tempo real da assistência técnica e vendas.
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Live Calendar, Clock and Quick Status Pill */}
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap shrink-0 self-end md:self-auto">
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold ${
-                isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span className="whitespace-nowrap">
-                {currentTime.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </span>
-              <span className="text-slate-400">|</span>
-              <Clock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="font-mono whitespace-nowrap">
-                {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            </div>
-
-            {/* Menu Escondido: Informações da Assinatura e Plano do Cliente (Plano em uso, Valor e Vencimento) */}
-            <div className="relative" ref={planContainerRef}>
-              <button
-                type="button"
-                id="btn-painel-ativo-menu"
-                onClick={() => setIsPlanMenuOpen((prev) => !prev)}
-                className={`border-2 text-[11px] font-bold px-3 py-1.5 rounded-xl backdrop-blur-sm transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shadow-md ${
-                  isSuperAdmin
-                    ? isDark
-                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                      : 'bg-amber-50 hover:bg-amber-100 border-amber-400 text-amber-900 shadow-sm'
-                    : isPlanMenuOpen
-                    ? 'bg-blue-600 text-white border-blue-300 ring-2 ring-blue-400/50 shadow-[0_0_20px_rgba(59,130,246,0.6)] scale-[1.02]'
-                    : isDark
-                    ? 'bg-blue-600/30 hover:bg-blue-600/50 border-blue-400 text-blue-100 hover:text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]'
-                    : 'bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-800 shadow-sm'
-                }`}
-                title={isSuperAdmin ? 'Conta Super Admin Vitalícia - Acesso Ilimitado sem vencimento' : 'Clique para abrir detalhes do Plano, Valor e Vencimento da Assinatura'}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isSuperAdmin ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${isSuperAdmin ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-                </span>
-                <Crown className={`w-3.5 h-3.5 shrink-0 ${isSuperAdmin ? 'text-amber-400' : 'text-amber-300'}`} />
-                <span>{isSuperAdmin ? '👑 SUPER ADMIN • ILIMITADO' : 'PAINEL ATIVO'}</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isPlanMenuOpen ? 'rotate-180 text-white' : isSuperAdmin ? 'text-amber-400' : 'text-blue-300'
-                  }`}
-                />
-              </button>
-
-              {/* MENU ESCONDIDO (DROPDOWN SUSPENSO 100% VISÍVEL, ALINHADO AO BOTÃO PAINEL ATIVO) */}
-              {isPlanMenuOpen && (
-                <div
-                  id="popover-plano-assinatura"
-                  className={`absolute right-0 top-full mt-2 w-[340px] sm:w-[450px] max-w-[calc(100vw-32px)] rounded-2xl border-2 p-5 shadow-2xl z-[9999] transition-all animate-in fade-in zoom-in-95 duration-150 cursor-default ${
-                    isDark
-                      ? 'bg-[#091122] border-blue-500/70 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.95)] ring-2 ring-blue-500/30'
-                      : 'bg-white border-blue-300 text-slate-900 shadow-2xl ring-2 ring-blue-500/20'
-                  }`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Cabeçalho do Menu */}
-                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shadow-md shrink-0 ${
-                          isSuperAdmin
-                            ? 'bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950'
-                            : 'bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950'
-                        }`}>
-                          <Crown className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-black tracking-tight flex items-center gap-2">
-                            {isSuperAdmin ? 'Conta Super Administrador' : 'Assinatura & Plano do Cliente'}
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${
-                              isSuperAdmin
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                            }`}>
-                              {isSuperAdmin ? 'VITALÍCIO ILIMITADO' : 'ATIVO'}
-                            </span>
-                          </h4>
-                          <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            {isSuperAdmin ? 'Acesso Master Irrestrito • Sem Vencimento' : `${settings.commercialName || 'TechNova Assistência'} • Gestão de Licença`}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsPlanMenuOpen(false);
-                          setIsEditingPlan(false);
-                        }}
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                          isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500'
-                        }`}
-                        title="Fechar"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Feedback de salvamento */}
-                    {savePlanFeedback && (
-                      <div className="mt-3 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>Dados do plano atualizados com sucesso!</span>
-                      </div>
-                    )}
-
-                    {!isEditingPlan ? (
-                      /* MODO VISUALIZAÇÃO DO PLANO */
-                      <div className="mt-4 space-y-3.5">
-                        {/* 1. QUAL PLANO O CLIENTE ESTÁ USANDO */}
-                        <div
-                          className={`p-3.5 rounded-xl border ${
-                            isSuperAdmin
-                              ? isDark
-                                ? 'bg-gradient-to-br from-amber-950/40 to-slate-900/90 border-amber-500/40'
-                                : 'bg-amber-50/80 border-amber-200'
-                              : isDark
-                              ? 'bg-gradient-to-br from-blue-950/60 to-slate-900/90 border-blue-500/40'
-                              : 'bg-blue-50/80 border-blue-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider mb-1.5">
-                            <span className={isSuperAdmin ? (isDark ? 'text-amber-300' : 'text-amber-700') : (isDark ? 'text-blue-300' : 'text-blue-700')}>
-                              {isSuperAdmin ? 'Plano Exclusivo Super Admin' : 'Plano em Uso pelo Cliente'}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
-                              isSuperAdmin
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            }`}>
-                              {isSuperAdmin ? 'VITALÍCIO' : planInfo.billingPeriod}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2.5">
-                            <ShieldCheck className={`w-6 h-6 shrink-0 ${isSuperAdmin ? 'text-amber-400' : 'text-blue-400'}`} />
-                            <div>
-                              <span className="text-base sm:text-lg font-black tracking-tight block">
-                                {isSuperAdmin ? 'Plano Super Admin Vitalício' : planInfo.planName}
-                              </span>
-                              <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                                {isSuperAdmin ? 'Conta Master: mmspmartins62@gmail.com' : `Contrato: ${planInfo.contractNumber || 'MSP-7842-PRO'}`}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 2. VALOR DO PLANO & 3. ATÉ ONDE VENCE O PLANO */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {/* Valor do Plano */}
-                          <div
-                            className={`p-3.5 rounded-xl border ${
-                              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Valor do Plano
-                              </span>
-                              <CreditCard className="w-4 h-4 text-emerald-400" />
-                            </div>
-                            <div className="mt-1.5 flex items-baseline gap-1">
-                              <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400">
-                                {isSuperAdmin ? 'R$ 0,00' : formatCurrency(planInfo.planPrice)}
-                              </span>
-                            </div>
-                            <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                              {isSuperAdmin ? 'Sem custo • Vitalício exclusivo' : `Cobrança ${planInfo.billingPeriod.toLowerCase()}`}
-                            </span>
-                          </div>
-
-                          {/* Vencimento do Plano */}
-                          <div
-                            className={`p-3.5 rounded-xl border ${
-                              isSuperAdmin
-                                ? isDark ? 'bg-amber-950/20 border-amber-500/30' : 'bg-amber-50/50 border-amber-200'
-                                : expiryDetails.isExpired
-                                ? 'bg-rose-950/40 border-rose-500/50'
-                                : expiryDetails.isExpiringSoon
-                                ? 'bg-amber-950/40 border-amber-500/50'
-                                : isDark
-                                ? 'bg-slate-900/90 border-slate-800'
-                                : 'bg-slate-50 border-slate-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
-                              <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                                {isSuperAdmin ? 'Vencimento' : 'Até onde vence o plano'}
-                              </span>
-                              <Clock className="w-4 h-4 text-cyan-400" />
-                            </div>
-                            <div className="mt-1.5 text-sm sm:text-base font-black">
-                              {isSuperAdmin ? 'Sem Vencimento' : (planInfo.expiryDate
-                                ? new Date(planInfo.expiryDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-                                    day: '2-digit',
-                                    month: 'long',
-                                    year: 'numeric',
-                                  })
-                                : 'Indeterminado')}
-                            </div>
-                            <div className="mt-1">
-                              {isSuperAdmin ? (
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full inline-block bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                                  Acesso Permanente Ilimitado
-                                </span>
-                              ) : expiryDetails.daysRemaining !== null && (
-                                <span
-                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full inline-block ${
-                                    expiryDetails.isExpired
-                                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                                      : expiryDetails.isExpiringSoon
-                                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                  }`}
-                                >
-                                  {expiryDetails.isExpired
-                                    ? 'Assinatura Vencida'
-                                    : `Restam ${expiryDetails.daysRemaining} dia(s) de acesso`}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Status de Cobertura / Recursos Liberados */}
-                        <div
-                          className={`p-3 rounded-xl border text-xs space-y-1.5 ${
-                            isDark ? 'bg-slate-950/60 border-slate-800/80 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <div className="font-bold text-[10px] uppercase text-slate-400 tracking-wider mb-1">
-                            {isSuperAdmin ? 'Privilégios Exclusivos Super Admin:' : 'Módulos & Recursos Inclusos nesta Licença:'}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span><strong>100% de Todas as Funções Liberadas</strong> com acesso total irrestrito</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span>Ordens de Serviço, Técnicos, PDV & Vendas ilimitados</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 stroke-[2.5]" />
-                            <span>Controle de Estoque, Clientes, Financeiro & Relatórios sem restrições</span>
-                          </div>
-                        </div>
-
-                        {/* Botões do Rodapé */}
-                        <div className="pt-2 space-y-2 border-t border-slate-200 dark:border-slate-800">
-                          {!isSuperAdmin && onOpenPlans && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsPlanMenuOpen(false);
-                                onOpenPlans();
-                              }}
-                              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-slate-950 text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md hover:brightness-105 cursor-pointer"
-                            >
-                              <Crown className="w-4 h-4" />
-                              <span>Ver Todos os Planos & Fazer Upgrade</span>
-                            </button>
-                          )}
-                          <div className="flex items-center justify-between gap-2">
-                            {!isSuperAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => setIsEditingPlan(true)}
-                                className={`flex-1 py-2 px-3 rounded-xl border text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                  isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
-                                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                                }`}
-                              >
-                                <Edit3 className="w-3.5 h-3.5 text-blue-400" />
-                                <span>Editar Plano</span>
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsPlanMenuOpen(false);
-                                setIsEditingPlan(false);
-                              }}
-                              className={`${isSuperAdmin ? 'w-full' : ''} py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-all cursor-pointer`}
-                            >
-                              Fechar
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* MODO FORMULÁRIO DE EDIÇÃO DO PLANO */
-                      <form onSubmit={handleSavePlan} className="mt-4 space-y-3">
-                        <div className="text-xs font-bold text-blue-400 flex items-center gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-800">
-                          <Edit3 className="w-4 h-4" />
-                          <span>Atualizar Dados do Plano do Cliente:</span>
-                        </div>
-
-                        {/* Nome do Plano */}
-                        <div>
-                          <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                            Qual plano o cliente está usando:
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={editPlanName}
-                            onChange={(e) => setEditPlanName(e.target.value)}
-                            placeholder="Ex: Plano PRO Empresarial, Plano Ouro..."
-                            className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                              isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Valor do Plano e Ciclo */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                              Valor do Plano (R$):
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              required
-                              value={editPlanPrice}
-                              onChange={(e) => setEditPlanPrice(parseFloat(e.target.value) || 0)}
-                              className={`w-full px-3 py-2 rounded-xl border text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                              }`}
-                            />
-                          </div>
-
-                          <div>
-                            <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                              Ciclo de Cobrança:
-                            </label>
-                            <select
-                              value={editBillingPeriod}
-                              onChange={(e) => setEditBillingPeriod(e.target.value as any)}
-                              className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
-                                isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                              }`}
-                            >
-                              <option value="MENSAL">Mensal</option>
-                              <option value="TRIMESTRAL">Trimestral</option>
-                              <option value="SEMESTRAL">Semestral</option>
-                              <option value="ANUAL">Anual</option>
-                              <option value="VITALÍCIO">Vitalício</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        {/* Data de Vencimento do Plano */}
-                        <div>
-                          <label className={`block text-[11px] font-bold uppercase mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                            Até onde vence o plano:
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            value={editExpiryDate}
-                            onChange={(e) => setEditExpiryDate(e.target.value)}
-                            className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                              isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Botões do Formulário */}
-                        <div className="pt-2 flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingPlan(false)}
-                            className={`flex-1 py-2 px-4 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                              isDark ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                            }`}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="submit"
-                            className="flex-1 py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
-                          >
-                            <Check className="w-4 h-4 stroke-[2.5]" />
-                            <span>Salvar Alterações</span>
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* TOP SECTORS: CONTROLE DE TV & PACOTE DE CÂMERAS */}
+      {/* TOP SECTORS: CONTROLE DE TV, PACOTE DE CÂMERAS & INSTALAÇÃO DE CÂMERAS */}
       <section className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
           {/* Card 1: Controle de TV / Acessos */}
           <button
             type="button"
@@ -1817,6 +1264,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-xs font-extrabold text-cyan-300 group-hover:bg-cyan-500/30 transition-all">
               <span>Abrir Câmeras</span>
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+
+          {/* Card 3: Instalação de Câmeras */}
+          <button
+            type="button"
+            onClick={() => onNavigate('CAMERA_INSTALLATIONS')}
+            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
+              isDark
+                ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/60 border-emerald-500/50 hover:border-emerald-400 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
+                : 'bg-gradient-to-r from-emerald-50 via-white to-teal-100 border-emerald-300 hover:border-emerald-400 text-slate-900 shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-13 h-13 rounded-2xl bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(16,185,129,0.45)]">
+                <Video className="w-7 h-7 text-emerald-300" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Instalação de Câmeras
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black truncate">
+                  Instalação de Câmeras
+                </h3>
+                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  Marcação, contratos, aparelhos e clientes ativos
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-xs font-extrabold text-emerald-300 group-hover:bg-emerald-500/30 transition-all">
+              <span>Instalações</span>
               <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </button>

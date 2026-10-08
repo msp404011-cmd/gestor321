@@ -17,6 +17,7 @@ import {
   FileText,
   RotateCcw,
   Sparkles,
+  ArrowLeft,
 } from 'lucide-react';
 import { DeviceTechnicalChecklist } from '../../types';
 
@@ -25,11 +26,12 @@ interface OrderTechnicalChecklistSectionProps {
   checklist?: DeviceTechnicalChecklist;
   onChange: (updated: DeviceTechnicalChecklist) => void;
   compact?: boolean;
+  onNavigateBack?: () => void;
 }
 
 export const OrderTechnicalChecklistSection: React.FC<
   OrderTechnicalChecklistSectionProps
-> = ({ isDark = true, checklist: incomingChecklist, onChange, compact = false }) => {
+> = ({ isDark = true, checklist: incomingChecklist, onChange, compact = false, onNavigateBack }) => {
   const checklist: DeviceTechnicalChecklist = incomingChecklist || {};
 
   const updateField = (field: keyof DeviceTechnicalChecklist, val: any) => {
@@ -899,6 +901,23 @@ export const OrderTechnicalChecklistSection: React.FC<
           />
         </div>
       </div>
+
+      {/* Footer Navigation */}
+      {onNavigateBack && (
+        <div className="p-2 sm:p-2.5 border-t border-emerald-500/30 bg-[#071328] shrink-0 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Voltar para Acessórios</span>
+          </button>
+          <span className="text-[10px] text-emerald-300 font-bold px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40">
+            {completedCount}/17 testes realizados
+          </span>
+        </div>
+      )}
     </div>
   );
 };

@@ -35,7 +35,7 @@ const CompatibilityView = lazy(() => import('./components/compatibility/Compatib
 const EmployeesView = lazy(() => import('./components/employees/EmployeesView').then(m => ({ default: m.EmployeesView })));
 const ReceivablesView = lazy(() => import('./components/receivables/ReceivablesView').then(m => ({ default: m.ReceivablesView })));
 const MonthlyDebitsView = lazy(() => import('./components/finance/MonthlyDebitsView').then(m => ({ default: m.MonthlyDebitsView })));
-const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionModal').then(m => ({ default: m.SubscriptionModal })));
+const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionTab').then(m => ({ default: m.SubscriptionModal })));
 const PaywallModal = lazy(() => import('./components/subscription/PaywallModal').then(m => ({ default: m.PaywallModal })));
 const BlockedAccountModal = lazy(() => import('./components/common/BlockedAccountModal').then(m => ({ default: m.BlockedAccountModal })));
 const LoginView = lazy(() => import('./components/auth/LoginView').then(m => ({ default: m.LoginView })));
@@ -44,6 +44,7 @@ const MasterAuthModal = lazy(() => import('./components/master/MasterAuthModal')
 const MasterPanel = lazy(() => import('./components/master/MasterPanel').then(m => ({ default: m.MasterPanel })));
 const AppAccessManagement = lazy(() => import('./components/master/AppAccessManagement').then(m => ({ default: m.AppAccessManagement })));
 const CameraPackageManagement = lazy(() => import('./components/master/CameraPackageManagement').then(m => ({ default: m.CameraPackageManagement })));
+const CameraInstallationsManagement = lazy(() => import('./components/master/CameraInstallationsManagement').then(m => ({ default: m.CameraInstallationsManagement })));
 const SupplierOrdersManagement = lazy(() => import('./components/master/SupplierOrdersManagement').then(m => ({ default: m.SupplierOrdersManagement })));
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
 const MessageBudgetsView = lazy(() => import('./components/master/MessageBudgetsView').then(m => ({ default: m.MessageBudgetsView })));
@@ -870,6 +871,10 @@ export default function App() {
 
             {activeTab === 'CAMERAS' && (
               <CameraPackageManagement />
+            )}
+
+            {activeTab === 'CAMERA_INSTALLATIONS' && (
+              <CameraInstallationsManagement />
             )}
 
             {activeTab === 'SUPPLIER_ORDERS' && (

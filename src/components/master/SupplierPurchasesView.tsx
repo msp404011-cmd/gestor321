@@ -4,7 +4,8 @@ import {
   DollarSign, Package, Truck, Plus, Search,
   Edit3, ArrowRight, Check, AlertCircle, RefreshCw, Layers,
   Phone, MessageSquare, ExternalLink, Copy, CheckCheck, UserPlus,
-  Building2, ChevronDown, ChevronUp, RotateCcw, Undo2, Send, FileText
+  Building2, ChevronDown, ChevronUp, RotateCcw, Undo2, Send, FileText,
+  BarChart3, BarChart2, Filter, X, ShieldAlert
 } from 'lucide-react';
 
 export interface RegisteredSupplier {
@@ -39,12 +40,43 @@ export interface SupplierPurchaseItem {
   receivedAt?: string | null;
 }
 
+export interface MonthSummaryGroup {
+  monthKey: string;
+  year: number;
+  monthIndex: number;
+  monthName: string;
+  label: string;
+  totalMade: number;
+  totalPaid: number;
+  totalPending: number;
+  itemsCount: number;
+  paidCount: number;
+  pendingCount: number;
+  items: SupplierPurchaseItem[];
+}
+
+export interface WeekSummaryGroup {
+  weekKey: string;
+  year: number;
+  weekNum: number;
+  label: string;
+  totalMade: number;
+  totalPaid: number;
+  totalPending: number;
+  itemsCount: number;
+  paidCount: number;
+  pendingCount: number;
+  items: SupplierPurchaseItem[];
+}
+
 interface SupplierPurchasesViewProps {
   items: SupplierPurchaseItem[];
   subTab: 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS';
+  fieldSettings?: any;
   onUpdateStatus: (id: string, status: 'Pago' | 'Pendente') => void;
   onUpdateSupplier: (id: string, newSupplierName: string) => void;
   onDelete: (id: string) => void;
+  onBulkDeletePurchases?: (purchaseIds: string[]) => Promise<void> | void;
   onAddPurchaseItem: (item: Omit<SupplierPurchaseItem, 'purchaseId'>) => void;
   onUpdatePurchaseItem?: (updatedItem: SupplierPurchaseItem) => Promise<void> | void;
   onBulkPayForSupplier?: (supplierName: string) => void;
@@ -59,9 +91,11 @@ interface SupplierPurchasesViewProps {
 export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({ 
   items, 
   subTab, 
+  fieldSettings: passedFieldSettings,
   onUpdateStatus, 
   onUpdateSupplier, 
   onDelete, 
+  onBulkDeletePurchases,
   onAddPurchaseItem,
   onUpdatePurchaseItem,
   onBulkPayForSupplier,
@@ -76,6 +110,28 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   const [supplierFilter, setSupplierFilter] = useState('ALL');
   const [isAddPieceModalOpen, setIsAddPieceModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+
+  // Helper to determine field visibility for pieces based on category settings
+  const getPieceFieldConfig = (typeName?: string) => {
+    let settings = passedFieldSettings;
+    if (!settings) {
+      try {
+        const ls = localStorage.getItem('msp_supplier_field_settings_v4');
+        if (ls) settings = JSON.parse(ls);
+      } catch (_) {}
+    }
+    const cat = (typeName || 'Tela').toLowerCase();
+    const tmpl = (settings?.templates || []).find((t: any) => (t.name || '').toLowerCase() === cat) || settings?.templates?.[0];
+    const isTela = (tmpl?.name || cat).toLowerCase() === 'tela';
+    return {
+      showMarca: tmpl?.fields?.showMarca !== undefined ? Boolean(tmpl.fields.showMarca) : true,
+      showModelo: tmpl?.fields?.showModelo !== undefined ? Boolean(tmpl.fields.showModelo) : true,
+      showQualidade: tmpl?.fields?.showQualidade !== undefined ? Boolean(tmpl.fields.showQualidade) : true,
+      showTecnologia: Boolean(tmpl?.fields?.showTecnologia),
+      showEstrutura: tmpl?.fields?.showEstrutura !== undefined ? Boolean(tmpl.fields.showEstrutura) : isTela,
+      showCor: Boolean(tmpl?.fields?.showCor),
+    };
+  };
   const [editingSupplier, setEditingSupplier] = useState<RegisteredSupplier | null>(null);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
 
@@ -653,6 +709,276 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     return groups;
   }, [items]);
 
+  // -------------------------------------------------------------
+  // HISTÓRICO CONSOLIDADO POR MÊS E POR SEMANA & GERENCIAMENTO
+  // -------------------------------------------------------------
+  const parsePurchaseDate = (dateStr?: string | null): Date => {
+    if (!dateStr) return new Date();
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const groupPurchasesByMonth = (list: SupplierPurchaseItem[]): MonthSummaryGroup[] => {
+    const map: Record<string, MonthSummaryGroup> = {};
+    const monthNames = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+
+    list.forEach(item => {
+      const d = parsePurchaseDate(item.createdAt);
+      const year = d.getFullYear();
+      const monthIndex = d.getMonth();
+      const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+      const label = `${monthNames[monthIndex]} de ${year}`;
+
+      if (!map[monthKey]) {
+        map[monthKey] = {
+          monthKey,
+          year,
+          monthIndex,
+          monthName: monthNames[monthIndex],
+          label,
+          totalMade: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          itemsCount: 0,
+          paidCount: 0,
+          pendingCount: 0,
+          items: []
+        };
+      }
+
+      const group = map[monthKey];
+      const qty = Number(item.quantity) || 1;
+      const subtotal = (Number(item.price) || 0) * qty;
+
+      group.items.push(item);
+      group.itemsCount += qty;
+
+      if (!item.isReturned) {
+        group.totalMade += subtotal;
+        if (item.paymentStatus === 'Pago') {
+          group.totalPaid += subtotal;
+          group.paidCount += qty;
+        } else {
+          group.totalPending += subtotal;
+          group.pendingCount += qty;
+        }
+      }
+    });
+
+    return Object.values(map).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  };
+
+  const groupPurchasesByWeek = (list: SupplierPurchaseItem[]): WeekSummaryGroup[] => {
+    const map: Record<string, WeekSummaryGroup> = {};
+
+    list.forEach(item => {
+      const d = parsePurchaseDate(item.createdAt);
+      const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const day = date.getDay();
+      const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
+      const startOfWeek = new Date(date.setDate(diffToMonday));
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+      const year = startOfWeek.getFullYear();
+      const oneJan = new Date(year, 0, 1);
+      const numberOfDays = Math.floor((startOfWeek.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
+      const weekNum = Math.max(1, Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7));
+
+      const weekKey = `${year}-W${String(weekNum).padStart(2, '0')}`;
+      const startStr = startOfWeek.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const endStr = endOfWeek.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const label = `Semana ${weekNum} (${startStr} a ${endStr})`;
+
+      if (!map[weekKey]) {
+        map[weekKey] = {
+          weekKey,
+          year,
+          weekNum,
+          label,
+          totalMade: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          itemsCount: 0,
+          paidCount: 0,
+          pendingCount: 0,
+          items: []
+        };
+      }
+
+      const group = map[weekKey];
+      const qty = Number(item.quantity) || 1;
+      const subtotal = (Number(item.price) || 0) * qty;
+
+      group.items.push(item);
+      group.itemsCount += qty;
+
+      if (!item.isReturned) {
+        group.totalMade += subtotal;
+        if (item.paymentStatus === 'Pago') {
+          group.totalPaid += subtotal;
+          group.paidCount += qty;
+        } else {
+          group.totalPending += subtotal;
+          group.pendingCount += qty;
+        }
+      }
+    });
+
+    return Object.values(map).sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+  };
+
+  // State for History Modal & Deletion Management
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyModalSupplierName, setHistoryModalSupplierName] = useState<string | null>(null);
+  const [historyViewMode, setHistoryViewMode] = useState<'MES' | 'SEMANA'>('MES');
+  const [historySelectedYear, setHistorySelectedYear] = useState<string>('ALL');
+  const [historySelectedMonths, setHistorySelectedMonths] = useState<Record<string, boolean>>({});
+  const [historyDeleteScope, setHistoryDeleteScope] = useState<'PAID_ONLY' | 'ALL'>('PAID_ONLY');
+  const [historyExpandedKey, setHistoryExpandedKey] = useState<string | null>(null);
+  const [historyConfirmDialog, setHistoryConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    itemsCount: number;
+    totalValue: number;
+    purchaseIds: string[];
+  } | null>(null);
+
+  // Available Years
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    items.forEach(i => {
+      const d = parsePurchaseDate(i.createdAt);
+      years.add(String(d.getFullYear()));
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [items]);
+
+  // Items filtered for the History Modal
+  const historyModalItems = useMemo(() => {
+    let list = items;
+    if (historyModalSupplierName) {
+      list = list.filter(i => (i.supplierName || '').trim().toLowerCase() === historyModalSupplierName.trim().toLowerCase());
+    }
+    if (historySelectedYear !== 'ALL') {
+      list = list.filter(i => {
+        const d = parsePurchaseDate(i.createdAt);
+        return String(d.getFullYear()) === historySelectedYear;
+      });
+    }
+    return list;
+  }, [items, historyModalSupplierName, historySelectedYear]);
+
+  // Grouped by Month
+  const historyByMonth = useMemo(() => {
+    return groupPurchasesByMonth(historyModalItems);
+  }, [historyModalItems]);
+
+  // Grouped by Week
+  const historyByWeek = useMemo(() => {
+    return groupPurchasesByWeek(historyModalItems);
+  }, [historyModalItems]);
+
+  // Request deletion of checked months
+  const handleRequestDeleteSelectedMonths = () => {
+    const selectedMonthKeys = Object.keys(historySelectedMonths).filter(k => historySelectedMonths[k]);
+    if (selectedMonthKeys.length === 0) return;
+
+    let targetItems = historyModalItems.filter(i => {
+      const d = parsePurchaseDate(i.createdAt);
+      const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return selectedMonthKeys.includes(mKey);
+    });
+
+    if (historyDeleteScope === 'PAID_ONLY') {
+      targetItems = targetItems.filter(i => i.paymentStatus === 'Pago');
+    }
+
+    if (targetItems.length === 0) {
+      alert('Nenhuma compra encontrada para os critérios selecionados.');
+      return;
+    }
+
+    const totalVal = targetItems.reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+    const scopeLabel = historyDeleteScope === 'PAID_ONLY' ? 'compras PAGAS' : 'TODAS as compras (pagas e pendentes)';
+
+    setHistoryConfirmDialog({
+      title: `Apagar Histórico de ${selectedMonthKeys.length} Mês(es)`,
+      message: `Deseja realmente apagar ${targetItems.length} ${scopeLabel} no valor total de R$ ${totalVal.toFixed(2).replace('.', ',')} referente aos meses: ${selectedMonthKeys.join(', ')}?`,
+      itemsCount: targetItems.length,
+      totalValue: totalVal,
+      purchaseIds: targetItems.map(i => i.purchaseId)
+    });
+  };
+
+  // Request deletion of a single month
+  const handleRequestDeleteSingleMonth = (monthKey: string, monthLabel: string, monthItems: SupplierPurchaseItem[]) => {
+    let targetItems = monthItems;
+    if (historyDeleteScope === 'PAID_ONLY') {
+      targetItems = targetItems.filter(i => i.paymentStatus === 'Pago');
+    }
+
+    if (targetItems.length === 0) {
+      alert(`Nenhuma compra ${historyDeleteScope === 'PAID_ONLY' ? 'paga' : ''} para apagar em ${monthLabel}.`);
+      return;
+    }
+
+    const totalVal = targetItems.reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+    const scopeLabel = historyDeleteScope === 'PAID_ONLY' ? 'compras PAGAS' : 'TODAS as compras';
+
+    setHistoryConfirmDialog({
+      title: `Apagar Mês: ${monthLabel}`,
+      message: `Deseja realmente apagar ${targetItems.length} ${scopeLabel} do mês de ${monthLabel} no valor de R$ ${totalVal.toFixed(2).replace('.', ',')}?`,
+      itemsCount: targetItems.length,
+      totalValue: totalVal,
+      purchaseIds: targetItems.map(i => i.purchaseId)
+    });
+  };
+
+  // Request deletion of an entire year
+  const handleRequestDeleteYear = (year: string) => {
+    let targetItems = historyModalItems.filter(i => {
+      const d = parsePurchaseDate(i.createdAt);
+      return String(d.getFullYear()) === year;
+    });
+
+    if (historyDeleteScope === 'PAID_ONLY') {
+      targetItems = targetItems.filter(i => i.paymentStatus === 'Pago');
+    }
+
+    if (targetItems.length === 0) {
+      alert(`Nenhuma compra ${historyDeleteScope === 'PAID_ONLY' ? 'paga' : ''} encontrada no ano de ${year}.`);
+      return;
+    }
+
+    const totalVal = targetItems.reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+    const scopeLabel = historyDeleteScope === 'PAID_ONLY' ? 'compras PAGAS' : 'TODAS as compras';
+
+    setHistoryConfirmDialog({
+      title: `Apagar Ano Completo (${year})`,
+      message: `Deseja realmente apagar ${targetItems.length} ${scopeLabel} de todo o ano de ${year} no valor total de R$ ${totalVal.toFixed(2).replace('.', ',')}?`,
+      itemsCount: targetItems.length,
+      totalValue: totalVal,
+      purchaseIds: targetItems.map(i => i.purchaseId)
+    });
+  };
+
+  // Execute deletion
+  const handleExecuteDeleteHistory = async () => {
+    if (!historyConfirmDialog) return;
+    const ids = historyConfirmDialog.purchaseIds;
+    if (onBulkDeletePurchases) {
+      await onBulkDeletePurchases(ids);
+    } else {
+      ids.forEach(id => onDelete(id));
+    }
+    setHistorySelectedMonths({});
+    setHistoryConfirmDialog(null);
+  };
+
   // Quick action: Pay all pieces for a specific date group
   const handlePayDateGroup = (dateItems: SupplierPurchaseItem[]) => {
     if (!dateItems || dateItems.length === 0) return;
@@ -1114,9 +1440,22 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
               </p>
             </div>
           </div>
-          <div className="text-left sm:text-right shrink-0 bg-[#0B1221]/60 sm:bg-transparent p-2 sm:p-0 rounded-xl w-full sm:w-auto flex items-center sm:block justify-between border sm:border-0 border-slate-800">
-            <div className="text-[10px] text-slate-400 uppercase font-bold">Total Pago (12m)</div>
-            <div className="text-base sm:text-xl font-black text-emerald-400">R$ {totalPaidAmount.toFixed(2).replace('.', ',')}</div>
+          <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
+            <button
+              onClick={() => {
+                setHistoryModalSupplierName(null);
+                setHistorySelectedMonths({});
+                setIsHistoryModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
+              title="Abrir histórico detalhado com soma de compras feitas e pagas por mês e por semana e opção de apagar"
+            >
+              <BarChart3 className="w-4 h-4 text-white" /> <span>Visualizar por Mês & Semana / Gerenciar</span>
+            </button>
+            <div className="text-left sm:text-right shrink-0 bg-[#0B1221]/60 sm:bg-transparent p-2 sm:p-0 rounded-xl flex items-center sm:block justify-between border sm:border-0 border-slate-800">
+              <div className="text-[10px] text-slate-400 uppercase font-bold">Total Pago (12m)</div>
+              <div className="text-base sm:text-xl font-black text-emerald-400">R$ {totalPaidAmount.toFixed(2).replace('.', ',')}</div>
+            </div>
           </div>
         </div>
       )}
@@ -1202,9 +1541,21 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
             </select>
           </div>
 
-          {/* SubTab 2 actions: + Cadastrar Fornecedor & + Apontar Peça */}
+          {/* SubTab 2 actions: + Cadastrar Fornecedor & + Apontar Peça & Histórico Geral */}
           {subTab === 'FORNECEDOR' && (
-            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto flex-wrap">
+              <button
+                onClick={() => {
+                  setHistoryModalSupplierName(null);
+                  setHistorySelectedMonths({});
+                  setIsHistoryModalOpen(true);
+                }}
+                className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
+                title="Histórico consolidado de compras separadas por mês e semana e gerenciamento de exclusão"
+              >
+                <BarChart3 className="w-4 h-4 text-indigo-400" /> <span className="truncate">Histórico Geral (Mês/Semana)</span>
+              </button>
+
               <button
                 onClick={handleOpenAddSupplier}
                 className="flex-1 sm:flex-none px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
@@ -1441,57 +1792,84 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                           </div>
                         </div>
 
-                        {/* VALOR TOTAL DO CARD - Destacado no topo */}
-                        <div className="mt-3 bg-gradient-to-r from-slate-950 via-[#0D1527] to-slate-950 p-3 rounded-xl border border-indigo-500/30 shadow-inner">
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1 truncate">
-                                  <DollarSign className="w-3.5 h-3.5 shrink-0" /> VALOR TOTAL DO CARD ({supplier.name})
-                                </span>
+                        {/* SEPARAÇÃO INTELIGENTE DO CARD: DÉBITO ATUAL vs HISTÓRICO PAGO */}
+                        <div className="mt-3 bg-gradient-to-r from-slate-950 via-[#0D1527] to-slate-950 p-3 sm:p-3.5 rounded-xl border border-indigo-500/30 shadow-inner">
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            {/* DÉBITO ATUAL EM ABERTO (A PRAZO) - Destaque Principal do Card */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {pendingTotal > 0 ? (
+                                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-amber-400 shrink-0" /> A PAGAR (DÉBITO ATUAL EM ABERTO)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" /> SEM DÉBITO EM ABERTO (QUITADO)
+                                  </span>
+                                )}
                               </div>
-                              <div className="text-xl sm:text-2xl font-black text-white mt-0.5 tracking-tight">
-                                R$ {totalCardAmount.toFixed(2).replace('.', ',')}
+                              <div className={`text-2xl sm:text-3xl font-black mt-1 tracking-tight ${
+                                pendingTotal > 0 ? 'text-amber-400' : 'text-emerald-400'
+                              }`}>
+                                R$ {pendingTotal.toFixed(2).replace('.', ',')}
                               </div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                                Total de {supplierPieces.length} {supplierPieces.length === 1 ? 'peça' : 'peças'} agrupadas em {dateGroups.length} {dateGroups.length === 1 ? 'data' : 'datas diferentes'}.
+                              <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                                <span>{pendingPieces.length} {pendingPieces.length === 1 ? 'peça a pagar' : 'peças a pagar'}</span>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-slate-300">Histórico Pago: <strong className="text-emerald-400">R$ {paidTotal.toFixed(2).replace('.', ',')}</strong> ({paidPieces.length} peças)</span>
                               </div>
                             </div>
 
-                            {/* A Prazo, Pago e Devolução em uma linha na frente do outro, reduzidos e com espacinho bem pouquinho */}
-                            <div className="grid grid-cols-3 gap-1 sm:gap-1.5 w-full md:w-auto shrink-0">
-                              {/* A Prazo Subtotal */}
-                              <div className="bg-[#161B2B] px-2 py-1.5 rounded-lg border border-amber-500/30 min-w-0 text-center sm:text-left flex flex-col justify-center">
-                                <div className="text-[8px] sm:text-[9px] font-black uppercase text-amber-400 flex items-center justify-center sm:justify-start gap-1 truncate">
-                                  <Clock className="w-2.5 h-2.5 shrink-0" /> A Prazo
+                            {/* Resumo lateral em colunas + Botão Histórico (Mês / Semana) */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                              <div className="grid grid-cols-3 gap-1.5 min-w-0">
+                                {/* Total Compras Feitas */}
+                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-slate-700/60 min-w-0 text-center flex flex-col justify-center">
+                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-indigo-400 truncate">
+                                    Compras Feitas
+                                  </div>
+                                  <div className="text-xs sm:text-sm font-black text-white mt-0.5 truncate">
+                                    R$ {totalCardAmount.toFixed(2).replace('.', ',')}
+                                  </div>
+                                  <span className="text-[8px] text-slate-400 block truncate">{supplierPieces.length} peças</span>
                                 </div>
-                                <div className="text-xs sm:text-sm font-black text-amber-300 mt-0.5 truncate">
-                                  R$ {pendingTotal.toFixed(2).replace('.', ',')}
+
+                                {/* Total Pago */}
+                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-emerald-500/30 min-w-0 text-center flex flex-col justify-center">
+                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-400 truncate">
+                                    Total Pago
+                                  </div>
+                                  <div className="text-xs sm:text-sm font-black text-emerald-300 mt-0.5 truncate">
+                                    R$ {paidTotal.toFixed(2).replace('.', ',')}
+                                  </div>
+                                  <span className="text-[8px] text-slate-400 block truncate">{paidPieces.length} peças</span>
                                 </div>
-                                <span className="text-[8px] text-slate-400 block truncate">{pendingPieces.length} {pendingPieces.length === 1 ? 'peça' : 'peças'}</span>
+
+                                {/* Devoluções */}
+                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-rose-500/30 min-w-0 text-center flex flex-col justify-center">
+                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-rose-400 truncate">
+                                    Devoluções
+                                  </div>
+                                  <div className="text-xs sm:text-sm font-black text-rose-300 mt-0.5 truncate">
+                                    {returnedPieces.length}
+                                  </div>
+                                  <span className="text-[8px] text-slate-400 block truncate">Não cobrado</span>
+                                </div>
                               </div>
 
-                              {/* Pago Subtotal */}
-                              <div className="bg-[#161B2B] px-2 py-1.5 rounded-lg border border-emerald-500/30 min-w-0 text-center sm:text-left flex flex-col justify-center">
-                                <div className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-400 flex items-center justify-center sm:justify-start gap-1 truncate">
-                                  <CheckCircle2 className="w-2.5 h-2.5 shrink-0" /> Pago
-                                </div>
-                                <div className="text-xs sm:text-sm font-black text-emerald-300 mt-0.5 truncate">
-                                  R$ {paidTotal.toFixed(2).replace('.', ',')}
-                                </div>
-                                <span className="text-[8px] text-slate-400 block truncate">{paidPieces.length} {paidPieces.length === 1 ? 'peça' : 'peças'}</span>
-                              </div>
-
-                              {/* Devoluções Indicator */}
-                              <div className="bg-[#161B2B] px-2 py-1.5 rounded-lg border border-rose-500/30 min-w-0 text-center sm:text-left flex flex-col justify-center">
-                                <div className="text-[8px] sm:text-[9px] font-black uppercase text-rose-400 flex items-center justify-center sm:justify-start gap-1 truncate">
-                                  <RotateCcw className="w-2.5 h-2.5 shrink-0" /> Devolução
-                                </div>
-                                <div className="text-xs sm:text-sm font-black text-rose-300 mt-0.5 truncate">
-                                  {returnedPieces.length} {returnedPieces.length === 1 ? 'peça' : 'peças'}
-                                </div>
-                                <span className="text-[8px] text-slate-400 block truncate">Não cobrado</span>
-                              </div>
+                              {/* Botão de Histórico do Card (Mês / Semana) */}
+                              <button
+                                onClick={() => {
+                                  setHistoryModalSupplierName(supplier.name);
+                                  setHistorySelectedMonths({});
+                                  setIsHistoryModalOpen(true);
+                                }}
+                                className="px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer shrink-0"
+                                title="Ver histórico de compras do fornecedor separado por mês e por semana, e gerenciar exclusão"
+                              >
+                                <BarChart3 className="w-3.5 h-3.5 text-indigo-200" />
+                                <span>Histórico (Mês / Semana)</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -2171,28 +2549,33 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                       </div>
 
                                       {/* Tags de Marca, Modelo, Qualidade e Cor */}
-                                      <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
-                                        {(item.marca || item.modelo) && (
-                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
-                                            <strong className="text-slate-400">Aparelho:</strong> {item.marca || ''} {item.modelo || ''}
-                                          </span>
-                                        )}
-                                        {item.qualidade && (
-                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
-                                            <strong className="text-slate-400">Qualidade:</strong> {item.qualidade}
-                                          </span>
-                                        )}
-                                        {item.cor && (
-                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
-                                            <strong className="text-slate-400">Cor:</strong> {item.cor}
-                                          </span>
-                                        )}
-                                        {item.estrutura && (
-                                          <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
-                                            <strong className="text-slate-400">Estrutura:</strong> {item.estrutura}
-                                          </span>
-                                        )}
-                                      </div>
+                                      {(() => {
+                                        const cfg = getPieceFieldConfig(item.typeName);
+                                        return (
+                                          <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
+                                            {(item.marca || item.modelo) && (
+                                              <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                                <strong className="text-slate-400">Aparelho:</strong> {item.marca || ''} {item.modelo || ''}
+                                              </span>
+                                            )}
+                                            {cfg.showQualidade && item.qualidade && (
+                                              <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                                <strong className="text-slate-400">Qualidade:</strong> {item.qualidade}
+                                              </span>
+                                            )}
+                                            {cfg.showCor && item.cor && (
+                                              <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-slate-300">
+                                                <strong className="text-slate-400">Cor:</strong> {item.cor}
+                                              </span>
+                                            )}
+                                            {cfg.showEstrutura && item.estrutura && (
+                                              <span className="bg-[#161B2B] px-1.5 py-0.5 rounded border border-slate-800 text-purple-300 font-black">
+                                                <strong className="text-purple-400">Estrutura:</strong> {item.estrutura}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
 
                                     {/* Valores e Ações Individuais */}
@@ -2651,222 +3034,239 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
               </div>
 
               {/* Qualidade & Estrutura */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                  <label className="block text-xs font-bold text-amber-400 uppercase">Qualidade</label>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {qualidadeOpts.map(q => {
-                      const isSelected = newItemForm.qualidade === q;
-                      return (
-                        <div key={q} className="inline-flex items-center">
+              {(() => {
+                const addCfg = getPieceFieldConfig(newItemForm.typeName);
+                if (!addCfg.showQualidade && !addCfg.showEstrutura) return null;
+                return (
+                  <div className={`grid grid-cols-1 ${addCfg.showQualidade && addCfg.showEstrutura ? 'sm:grid-cols-2' : ''} gap-3`}>
+                    {addCfg.showQualidade && (
+                      <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                        <label className="block text-xs font-bold text-amber-400 uppercase">Qualidade</label>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {qualidadeOpts.map(q => {
+                            const isSelected = newItemForm.qualidade === q;
+                            return (
+                              <div key={q} className="inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewItemForm(prev => ({ ...prev, qualidade: q }))}
+                                  className={`px-2 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
+                                    isSelected ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
+                                  }`}
+                                >
+                                  {q}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePurchOption('qualidade', q)}
+                                  className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                                    isSelected ? 'bg-amber-600 text-slate-950 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                                  }`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            type="text"
+                            placeholder="Outra qualidade..."
+                            value={newItemForm.qualidade}
+                            onChange={(e) => setNewItemForm({ ...newItemForm, qualidade: e.target.value })}
+                            className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-amber-500"
+                          />
                           <button
                             type="button"
-                            onClick={() => setNewItemForm(prev => ({ ...prev, qualidade: q }))}
-                            className={`px-2 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
-                              isSelected ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'bg-slate-800 text-slate-300 hover:text-white'
-                            }`}
+                            onClick={() => handleAddPurchOption('qualidade', newItemForm.qualidade)}
+                            className="px-2 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500 hover:text-slate-950 rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                            title="Salvar como botão"
                           >
-                            {q}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePurchOption('qualidade', q)}
-                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
-                              isSelected ? 'bg-amber-600 text-slate-950 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
-                            }`}
-                          >
-                            <Trash2 className="w-3 h-3" />
+                            + Botão
                           </button>
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <input
-                      type="text"
-                      placeholder="Outra qualidade..."
-                      value={newItemForm.qualidade}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, qualidade: e.target.value })}
-                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddPurchOption('qualidade', newItemForm.qualidade)}
-                      className="px-2 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500 hover:text-slate-950 rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                      title="Salvar como botão"
-                    >
-                      + Botão
-                    </button>
-                  </div>
-                </div>
+                      </div>
+                    )}
 
-                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-2">
-                  <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura (C/ Aro, S/ Aro...)</label>
+                    {addCfg.showEstrutura && (
+                      <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-2">
+                        <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura (C/ Aro, S/ Aro...)</label>
 
-                  {/* Quick Direct Buttons: C/ ARO vs S/ ARO */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setNewItemForm(prev => {
-                        const isCurrentlyCAro = (prev.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'com aro';
-                        return { ...prev, estrutura: isCurrentlyCAro ? '' : 'C/ ARO' };
-                      })}
-                      className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                        (newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
-                          : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <span>⭕ C/ ARO</span>
-                      {((newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro') && (
-                        <Check className="w-4 h-4 text-white" />
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setNewItemForm(prev => {
-                        const isCurrentlySAro = (prev.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'sem aro';
-                        return { ...prev, estrutura: isCurrentlySAro ? '' : 'S/ ARO' };
-                      })}
-                      className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                        (newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
-                          : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                      }`}
-                    >
-                      <span>⭕ S/ ARO</span>
-                      {((newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro') && (
-                        <Check className="w-4 h-4 text-white" />
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {estruturaOpts.map(eOpt => {
-                      const isSelected = (newItemForm.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase();
-                      return (
-                        <div key={eOpt} className="inline-flex items-center">
+                        {/* Quick Direct Buttons: C/ ARO vs S/ ARO */}
+                        <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => setNewItemForm(prev => ({ 
-                              ...prev, 
-                              estrutura: (prev.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase() ? '' : eOpt 
-                            }))}
-                            className={`px-2.5 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
-                              isSelected ? 'bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400' : 'bg-slate-800 text-slate-300 hover:text-white'
+                            onClick={() => setNewItemForm(prev => {
+                              const isCurrentlyCAro = (prev.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'com aro';
+                              return { ...prev, estrutura: isCurrentlyCAro ? '' : 'C/ ARO' };
+                            })}
+                            className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                              (newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro'
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                                : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                             }`}
                           >
-                            {eOpt}
+                            <span>⭕ C/ ARO</span>
+                            {((newItemForm.estrutura || '').trim().toUpperCase() === 'C/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'com aro') && (
+                              <Check className="w-4 h-4 text-white" />
+                            )}
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => handleRemovePurchOption('estrutura', eOpt)}
-                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
-                              isSelected ? 'bg-purple-700 text-purple-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                            onClick={() => setNewItemForm(prev => {
+                              const isCurrentlySAro = (prev.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (prev.estrutura || '').trim().toLowerCase() === 'sem aro';
+                              return { ...prev, estrutura: isCurrentlySAro ? '' : 'S/ ARO' };
+                            })}
+                            className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
+                              (newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro'
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-600/40 ring-2 ring-purple-400 scale-[1.02]'
+                                : 'bg-slate-800/90 text-purple-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                             }`}
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <span>⭕ S/ ARO</span>
+                            {((newItemForm.estrutura || '').trim().toUpperCase() === 'S/ ARO' || (newItemForm.estrutura || '').trim().toLowerCase() === 'sem aro') && (
+                              <Check className="w-4 h-4 text-white" />
+                            )}
                           </button>
                         </div>
-                      );
-                    })}
+
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {estruturaOpts.map(eOpt => {
+                            const isSelected = (newItemForm.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase();
+                            return (
+                              <div key={eOpt} className="inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewItemForm(prev => ({ 
+                                    ...prev, 
+                                    estrutura: (prev.estrutura || '').trim().toUpperCase() === eOpt.trim().toUpperCase() ? '' : eOpt 
+                                  }))}
+                                  className={`px-2.5 py-1 rounded-l text-xs font-black transition-all cursor-pointer ${
+                                    isSelected ? 'bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400' : 'bg-slate-800 text-slate-300 hover:text-white'
+                                  }`}
+                                >
+                                  {eOpt}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePurchOption('estrutura', eOpt)}
+                                  className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                                    isSelected ? 'bg-purple-700 text-purple-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                                  }`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            type="text"
+                            placeholder="Outra estrutura..."
+                            value={newItemForm.estrutura}
+                            onChange={(e) => setNewItemForm({ ...newItemForm, estrutura: e.target.value })}
+                            className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddPurchOption('estrutura', newItemForm.estrutura)}
+                            className="px-2 py-1 bg-purple-600/30 border border-purple-500/40 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                            title="Salvar como botão"
+                          >
+                            + Botão
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <input
-                      type="text"
-                      placeholder="Outra estrutura..."
-                      value={newItemForm.estrutura}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, estrutura: e.target.value })}
-                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddPurchOption('estrutura', newItemForm.estrutura)}
-                      className="px-2 py-1 bg-purple-600/30 border border-purple-500/40 text-purple-300 hover:bg-purple-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                      title="Salvar como botão"
-                    >
-                      + Botão
-                    </button>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Cor & Quantidade/Preço */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-400 uppercase">Cor</label>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {corOpts.map(c => {
-                      const isSelected = newItemForm.cor === c;
-                      return (
-                        <div key={c} className="inline-flex items-center">
+              {(() => {
+                const addCfg = getPieceFieldConfig(newItemForm.typeName);
+                return (
+                  <div className={`grid grid-cols-1 ${addCfg.showCor ? 'sm:grid-cols-2' : ''} gap-3`}>
+                    {addCfg.showCor && (
+                      <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-400 uppercase">Cor</label>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {corOpts.map(c => {
+                            const isSelected = newItemForm.cor === c;
+                            return (
+                              <div key={c} className="inline-flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewItemForm(prev => ({ ...prev, cor: c }))}
+                                  className={`px-2 py-1 rounded-l text-xs font-bold cursor-pointer transition-all ${
+                                    isSelected ? 'bg-indigo-600 text-white font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
+                                  }`}
+                                >
+                                  {c}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePurchOption('cor', c)}
+                                  className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
+                                    isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
+                                  }`}
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            type="text"
+                            placeholder="Ex: Preto, Branco..."
+                            value={newItemForm.cor}
+                            onChange={(e) => setNewItemForm({ ...newItemForm, cor: e.target.value })}
+                            className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          />
                           <button
                             type="button"
-                            onClick={() => setNewItemForm(prev => ({ ...prev, cor: c }))}
-                            className={`px-2 py-1 rounded-l text-xs font-bold cursor-pointer transition-all ${
-                              isSelected ? 'bg-indigo-600 text-white font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
-                            }`}
+                            onClick={() => handleAddPurchOption('cor', newItemForm.cor)}
+                            className="px-2 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                            title="Salvar como botão"
                           >
-                            {c}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePurchOption('cor', c)}
-                            className={`px-1 py-1 rounded-r text-xs cursor-pointer transition-colors border-l border-slate-700/50 ${
-                              isSelected ? 'bg-indigo-700 text-indigo-200 hover:bg-red-600 hover:text-white' : 'bg-slate-800 text-slate-400 hover:bg-red-600 hover:text-white'
-                            }`}
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
+                            + Botão
                           </button>
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <input
-                      type="text"
-                      placeholder="Ex: Preto, Branco..."
-                      value={newItemForm.cor}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, cor: e.target.value })}
-                      className="w-full bg-[#121827] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddPurchOption('cor', newItemForm.cor)}
-                      className="px-2 py-1 bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                      title="Salvar como botão"
-                    >
-                      + Botão
-                    </button>
-                  </div>
-                </div>
+                      </div>
+                    )}
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantidade</label>
-                    <input 
-                      type="number"
-                      min="1"
-                      value={newItemForm.quantity}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                      className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantidade</label>
+                        <input 
+                          type="number"
+                          min="1"
+                          value={newItemForm.quantity}
+                          onChange={(e) => setNewItemForm({ ...newItemForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                          className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Preço Unitário (R$)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={newItemForm.price}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                    />
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Preço Unitário (R$)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={newItemForm.price}
+                          onChange={(e) => setNewItemForm({ ...newItemForm, price: parseFloat(e.target.value) || 0 })}
+                          className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Status Choice */}
               <div>
@@ -3301,102 +3701,114 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
               </div>
 
               {/* Estrutura, Qualidade & Cor */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
-                  <div className="grid grid-cols-2 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingPieceForm(prev => ({
-                        ...prev,
-                        estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
-                      }))}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
-                        (editingPieceForm.estrutura || '').toUpperCase() === 'C/ ARO'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
-                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      C/ ARO
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingPieceForm(prev => ({
-                        ...prev,
-                        estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
-                      }))}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
-                        (editingPieceForm.estrutura || '').toUpperCase() === 'S/ ARO'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
-                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      S/ ARO
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Outra estrutura..."
-                    value={editingPieceForm.estrutura}
-                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, estrutura: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+              {(() => {
+                const editCfg = getPieceFieldConfig(editingPieceForm.typeName);
+                if (!editCfg.showEstrutura && !editCfg.showQualidade && !editCfg.showCor) return null;
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                    {editCfg.showEstrutura && (
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
+                        <div className="grid grid-cols-2 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingPieceForm(prev => ({
+                              ...prev,
+                              estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
+                            }))}
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                              (editingPieceForm.estrutura || '').toUpperCase() === 'C/ ARO'
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                                : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                            }`}
+                          >
+                            C/ ARO
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingPieceForm(prev => ({
+                              ...prev,
+                              estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
+                            }))}
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                              (editingPieceForm.estrutura || '').toUpperCase() === 'S/ ARO'
+                                ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                                : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                            }`}
+                          >
+                            S/ ARO
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Outra estrutura..."
+                          value={editingPieceForm.estrutura}
+                          onChange={(e) => setEditingPieceForm({ ...editingPieceForm, estrutura: e.target.value })}
+                          className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                    )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
-                  <input
-                    type="text"
-                    placeholder="Original, Gold Pro, Incell..."
-                    value={editingPieceForm.qualidade}
-                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, qualidade: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {['Original', 'China Gold', 'Incell', 'OLED'].map(q => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => setEditingPieceForm(prev => ({ ...prev, qualidade: q }))}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                          editingPieceForm.qualidade.toLowerCase() === q.toLowerCase()
-                            ? 'bg-amber-500 text-slate-950 font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    {editCfg.showQualidade && (
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
+                        <input
+                          type="text"
+                          placeholder="Original, Gold Pro, Incell..."
+                          value={editingPieceForm.qualidade}
+                          onChange={(e) => setEditingPieceForm({ ...editingPieceForm, qualidade: e.target.value })}
+                          className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                        />
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {['Original', 'China Gold', 'Incell', 'OLED'].map(q => (
+                            <button
+                              key={q}
+                              type="button"
+                              onClick={() => setEditingPieceForm(prev => ({ ...prev, qualidade: q }))}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                editingPieceForm.qualidade.toLowerCase() === q.toLowerCase()
+                                  ? 'bg-amber-500 text-slate-950 font-black'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
-                  <input
-                    type="text"
-                    placeholder="Preto, Branco, Azul..."
-                    value={editingPieceForm.cor}
-                    onChange={(e) => setEditingPieceForm({ ...editingPieceForm, cor: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setEditingPieceForm(prev => ({ ...prev, cor: c }))}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                          editingPieceForm.cor.toLowerCase() === c.toLowerCase()
-                            ? 'bg-indigo-600 text-white font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
+                    {editCfg.showCor && (
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
+                        <input
+                          type="text"
+                          placeholder="Preto, Branco, Azul..."
+                          value={editingPieceForm.cor}
+                          onChange={(e) => setEditingPieceForm({ ...editingPieceForm, cor: e.target.value })}
+                          className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setEditingPieceForm(prev => ({ ...prev, cor: c }))}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                editingPieceForm.cor.toLowerCase() === c.toLowerCase()
+                                  ? 'bg-indigo-600 text-white font-black'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Quantidade & Preço Unitário (VALOR) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
@@ -3548,6 +3960,603 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================= */}
+      {/* MODAL: HISTÓRICO CONSOLIDADO POR MÊS E POR SEMANA & GERENCIAMENTO */}
+      {/* ============================================================= */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#10172A] border border-slate-700/80 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-start justify-between gap-3 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30 shrink-0">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2 flex-wrap">
+                    <span>Histórico de Compras & Pagamentos</span>
+                    {historyModalSupplierName ? (
+                      <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-md font-bold">
+                        {historyModalSupplierName}
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-md font-bold">
+                        Todos os Fornecedores
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Soma de todas as compras feitas e pagas, agrupadas por mês e por semana com ferramenta de exclusão por período.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setHistorySelectedMonths({});
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Metrics Ribbon */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-3 sm:p-4 bg-[#0B1221]/80 border-b border-slate-800/80 shrink-0">
+              <div className="bg-[#161B2B] p-2.5 sm:p-3 rounded-xl border border-slate-800">
+                <div className="text-[10px] text-slate-400 font-bold uppercase truncate">Total de Compras Feitas</div>
+                <div className="text-base sm:text-lg font-black text-white mt-0.5">
+                  R$ {historyModalItems.filter(i => !i.isReturned).reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0).toFixed(2).replace('.', ',')}
+                </div>
+                <div className="text-[10px] text-slate-500">{historyModalItems.length} peças totais</div>
+              </div>
+
+              <div className="bg-[#161B2B] p-2.5 sm:p-3 rounded-xl border border-emerald-500/30">
+                <div className="text-[10px] text-emerald-400 font-bold uppercase truncate">Total Já Pago</div>
+                <div className="text-base sm:text-lg font-black text-emerald-300 mt-0.5">
+                  R$ {historyModalItems.filter(i => i.paymentStatus === 'Pago' && !i.isReturned).reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0).toFixed(2).replace('.', ',')}
+                </div>
+                <div className="text-[10px] text-emerald-500">{historyModalItems.filter(i => i.paymentStatus === 'Pago' && !i.isReturned).length} peças pagas</div>
+              </div>
+
+              <div className="bg-[#161B2B] p-2.5 sm:p-3 rounded-xl border border-amber-500/30">
+                <div className="text-[10px] text-amber-400 font-bold uppercase truncate">Total a Prazo (Pendente)</div>
+                <div className="text-base sm:text-lg font-black text-amber-300 mt-0.5">
+                  R$ {historyModalItems.filter(i => i.paymentStatus === 'Pendente' && !i.isReturned).reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0).toFixed(2).replace('.', ',')}
+                </div>
+                <div className="text-[10px] text-amber-500">{historyModalItems.filter(i => i.paymentStatus === 'Pendente' && !i.isReturned).length} peças em aberto</div>
+              </div>
+
+              <div className="bg-[#161B2B] p-2.5 sm:p-3 rounded-xl border border-rose-500/30">
+                <div className="text-[10px] text-rose-400 font-bold uppercase truncate">Devoluções</div>
+                <div className="text-base sm:text-lg font-black text-rose-300 mt-0.5">
+                  {historyModalItems.filter(i => !!i.isReturned).length} peças
+                </div>
+                <div className="text-[10px] text-slate-500">Não cobradas</div>
+              </div>
+            </div>
+
+            {/* Controls Bar: Grouping Selector (Mês / Semana) & Year Filter & Deletion Scope */}
+            <div className="p-3 sm:p-4 bg-[#131B2E] border-b border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setHistoryViewMode('MES')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    historyViewMode === 'MES'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Separado por Mês ({historyByMonth.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHistoryViewMode('SEMANA')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    historyViewMode === 'SEMANA'
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Separado por Semana ({historyByWeek.length})</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Ano filter */}
+                <div className="flex items-center gap-1.5 bg-[#0B1221] border border-slate-700/80 px-2.5 py-1.5 rounded-xl">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Ano:</span>
+                  <select
+                    value={historySelectedYear}
+                    onChange={(e) => setHistorySelectedYear(e.target.value)}
+                    className="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL" className="bg-[#161B2B]">Todos os Anos</option>
+                    {availableYears.map(yr => (
+                      <option key={yr} value={yr} className="bg-[#161B2B]">{yr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Fornecedor selector inside modal if global */}
+                {!historyModalSupplierName && (
+                  <div className="flex items-center gap-1.5 bg-[#0B1221] border border-slate-700/80 px-2.5 py-1.5 rounded-xl">
+                    <Truck className="w-3.5 h-3.5 text-slate-400" />
+                    <select
+                      value={supplierFilter}
+                      onChange={(e) => setSupplierFilter(e.target.value)}
+                      className="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL" className="bg-[#161B2B]">Todos Fornecedores</option>
+                      {allSuppliersList.map(s => (
+                        <option key={s.id} value={s.name} className="bg-[#161B2B]">{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Toolbox: Selection & Deletion Management */}
+            <div className="p-3 bg-gradient-to-r from-rose-950/20 via-[#161B2B] to-slate-900 border-b border-rose-500/20 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 shrink-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-black text-rose-400 flex items-center gap-1">
+                  <Trash2 className="w-3.5 h-3.5" /> Opção de Apagar Histórico:
+                </span>
+                
+                {/* Scope selector */}
+                <div className="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDeleteScope('PAID_ONLY')}
+                    className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
+                      historyDeleteScope === 'PAID_ONLY'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Apaga apenas as peças que já foram pagas, mantendo débitos ativos"
+                  >
+                    Somente Compras Pagas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDeleteScope('ALL')}
+                    className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
+                      historyDeleteScope === 'ALL'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Apaga todas as compras do período selecionado (pagas e pendentes)"
+                  >
+                    Todas (Pagas + Pendentes)
+                  </button>
+                </div>
+              </div>
+
+              {/* Bulk select and delete buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {historyViewMode === 'MES' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allMap: Record<string, boolean> = {};
+                        historyByMonth.forEach(m => { allMap[m.monthKey] = true; });
+                        setHistorySelectedMonths(allMap);
+                      }}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Selecionar Todos Meses
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistorySelectedMonths({})}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Desmarcar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Object.values(historySelectedMonths).filter(Boolean).length === 0}
+                      onClick={handleRequestDeleteSelectedMonths}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:hover:bg-rose-600 text-white rounded-xl text-xs font-black flex items-center gap-1 transition-all shadow-md shadow-rose-600/20 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Apagar Meses Selecionados ({Object.values(historySelectedMonths).filter(Boolean).length})</span>
+                    </button>
+                  </>
+                )}
+
+                {historySelectedYear !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => handleRequestDeleteYear(historySelectedYear)}
+                    className="px-3 py-1.5 bg-rose-700 hover:bg-rose-600 text-white rounded-xl text-xs font-black flex items-center gap-1 transition-all shadow-md shadow-rose-700/20 cursor-pointer"
+                    title={`Apagar todas as compras do ano de ${historySelectedYear}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Apagar Ano {historySelectedYear}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body: Month or Week View */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              {historyViewMode === 'MES' ? (
+                historyByMonth.length === 0 ? (
+                  <div className="text-center py-12 bg-[#161B2B] rounded-2xl border border-slate-800">
+                    <Calendar className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <h4 className="text-sm font-bold text-white">Nenhuma compra encontrada para este filtro</h4>
+                    <p className="text-xs text-slate-500 mt-1">Selecione outro ano ou fornecedor.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {historyByMonth.map(group => {
+                      const isSelected = !!historySelectedMonths[group.monthKey];
+                      const isExpanded = historyExpandedKey === group.monthKey;
+
+                      return (
+                        <div
+                          key={group.monthKey}
+                          className={`bg-[#161B2B] rounded-2xl border transition-all ${
+                            isSelected
+                              ? 'border-rose-500/80 shadow-lg shadow-rose-500/10'
+                              : 'border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          {/* Month Header Card */}
+                          <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              {/* Selection checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  setHistorySelectedMonths(prev => ({
+                                    ...prev,
+                                    [group.monthKey]: e.target.checked
+                                  }));
+                                }}
+                                className="w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-rose-500 cursor-pointer shrink-0"
+                                title="Selecionar este mês para apagar"
+                              />
+
+                              <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 shrink-0">
+                                <Calendar className="w-5 h-5" />
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm sm:text-base font-black text-white">
+                                    {group.label}
+                                  </h4>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                    {group.itemsCount} {group.itemsCount === 1 ? 'peça' : 'peças'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  Total de {group.items.length} pedidos registrados neste mês
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Totals Breakdown */}
+                            <div className="flex items-center gap-3 justify-between sm:justify-end flex-wrap">
+                              <div className="flex items-center gap-2 text-right">
+                                <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-slate-800 text-center">
+                                  <div className="text-[9px] text-slate-400 uppercase font-bold">Total Feito</div>
+                                  <div className="text-xs sm:text-sm font-black text-white">
+                                    R$ {group.totalMade.toFixed(2).replace('.', ',')}
+                                  </div>
+                                </div>
+
+                                <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-emerald-500/30 text-center">
+                                  <div className="text-[9px] text-emerald-400 uppercase font-bold">Total Pago</div>
+                                  <div className="text-xs sm:text-sm font-black text-emerald-300">
+                                    R$ {group.totalPaid.toFixed(2).replace('.', ',')}
+                                  </div>
+                                </div>
+
+                                {group.totalPending > 0 && (
+                                  <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-amber-500/30 text-center">
+                                    <div className="text-[9px] text-amber-400 uppercase font-bold">A Prazo</div>
+                                    <div className="text-xs sm:text-sm font-black text-amber-300">
+                                      R$ {group.totalPending.toFixed(2).replace('.', ',')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setHistoryExpandedKey(isExpanded ? null : group.monthKey)}
+                                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border border-slate-700"
+                                >
+                                  {isExpanded ? (
+                                    <>
+                                      <ChevronUp className="w-3.5 h-3.5" /> Recolher
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="w-3.5 h-3.5" /> Ver Peças ({group.items.length})
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRequestDeleteSingleMonth(group.monthKey, group.label, group.items)}
+                                  className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                  title={`Apagar compras de ${group.label}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Expanded Pieces Table */}
+                          {isExpanded && (
+                            <div className="border-t border-slate-800/80 bg-[#0B1221]/60 p-3 sm:p-4 space-y-2 animate-in fade-in">
+                              <div className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-2">
+                                Peças e Compras de {group.label}:
+                              </div>
+                              <div className="divide-y divide-slate-800/60 max-h-72 overflow-y-auto custom-scrollbar">
+                                {group.items.map(piece => {
+                                  const pieceTotal = (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
+                                  return (
+                                    <div key={piece.purchaseId} className="py-2 flex items-center justify-between gap-3 text-xs">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
+                                            {piece.typeName || 'Peça'}
+                                          </span>
+                                          <span className="font-bold text-white truncate">{piece.title}</span>
+                                          <span className="text-[10px] text-slate-500">({piece.supplierName})</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                          Data: {new Date(piece.createdAt).toLocaleDateString('pt-BR')} • {piece.quantity}x R$ {Number(piece.price).toFixed(2).replace('.', ',')}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2.5 shrink-0">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                          piece.isReturned
+                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                            : piece.paymentStatus === 'Pago'
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        }`}>
+                                          {piece.isReturned ? 'Devolvida' : piece.paymentStatus}
+                                        </span>
+                                        <div className="font-black text-white text-right">
+                                          R$ {pieceTotal.toFixed(2).replace('.', ',')}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => onDelete(piece.purchaseId)}
+                                          className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all cursor-pointer"
+                                          title="Excluir peça"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* Week View */
+                historyByWeek.length === 0 ? (
+                  <div className="text-center py-12 bg-[#161B2B] rounded-2xl border border-slate-800">
+                    <Clock className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <h4 className="text-sm font-bold text-white">Nenhuma semana encontrada para este filtro</h4>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {historyByWeek.map(group => {
+                      const isExpanded = historyExpandedKey === group.weekKey;
+
+                      return (
+                        <div
+                          key={group.weekKey}
+                          className="bg-[#161B2B] rounded-2xl border border-slate-800 hover:border-slate-700 transition-all"
+                        >
+                          <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20 shrink-0">
+                                <Clock className="w-5 h-5" />
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm sm:base font-black text-white">
+                                    {group.label}
+                                  </h4>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                    {group.itemsCount} peças
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  {group.items.length} pedidos na semana
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Totals */}
+                            <div className="flex items-center gap-3 justify-between sm:justify-end flex-wrap">
+                              <div className="flex items-center gap-2 text-right">
+                                <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-slate-800 text-center">
+                                  <div className="text-[9px] text-slate-400 uppercase font-bold">Total Feito</div>
+                                  <div className="text-xs sm:text-sm font-black text-white">
+                                    R$ {group.totalMade.toFixed(2).replace('.', ',')}
+                                  </div>
+                                </div>
+
+                                <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-emerald-500/30 text-center">
+                                  <div className="text-[9px] text-emerald-400 uppercase font-bold">Total Pago</div>
+                                  <div className="text-xs sm:text-sm font-black text-emerald-300">
+                                    R$ {group.totalPaid.toFixed(2).replace('.', ',')}
+                                  </div>
+                                </div>
+
+                                {group.totalPending > 0 && (
+                                  <div className="bg-[#0B1221] px-2.5 py-1 rounded-lg border border-amber-500/30 text-center">
+                                    <div className="text-[9px] text-amber-400 uppercase font-bold">A Prazo</div>
+                                    <div className="text-xs sm:text-sm font-black text-amber-300">
+                                      R$ {group.totalPending.toFixed(2).replace('.', ',')}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setHistoryExpandedKey(isExpanded ? null : group.weekKey)}
+                                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border border-slate-700 shrink-0"
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <ChevronUp className="w-3.5 h-3.5" /> Recolher
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3.5 h-3.5" /> Ver Peças ({group.items.length})
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expanded pieces */}
+                          {isExpanded && (
+                            <div className="border-t border-slate-800/80 bg-[#0B1221]/60 p-3 sm:p-4 space-y-2 animate-in fade-in">
+                              <div className="text-xs font-black text-purple-400 uppercase tracking-wider mb-2">
+                                Peças da {group.label}:
+                              </div>
+                              <div className="divide-y divide-slate-800/60 max-h-72 overflow-y-auto custom-scrollbar">
+                                {group.items.map(piece => {
+                                  const pieceTotal = (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
+                                  return (
+                                    <div key={piece.purchaseId} className="py-2 flex items-center justify-between gap-3 text-xs">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
+                                            {piece.typeName || 'Peça'}
+                                          </span>
+                                          <span className="font-bold text-white truncate">{piece.title}</span>
+                                          <span className="text-[10px] text-slate-500">({piece.supplierName})</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                          Data: {new Date(piece.createdAt).toLocaleDateString('pt-BR')} • {piece.quantity}x R$ {Number(piece.price).toFixed(2).replace('.', ',')}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2.5 shrink-0">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                          piece.isReturned
+                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                            : piece.paymentStatus === 'Pago'
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        }`}>
+                                          {piece.isReturned ? 'Devolvida' : piece.paymentStatus}
+                                        </span>
+                                        <div className="font-black text-white text-right">
+                                          R$ {pieceTotal.toFixed(2).replace('.', ',')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 sm:p-4 bg-[#0B1221] border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <div className="text-xs text-slate-400">
+                Total consolidado: <strong className="text-white">{historyModalItems.length} compras</strong> no histórico
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setHistorySelectedMonths({});
+                }}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog for Deleting History */}
+      {historyConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#161B2B] border border-rose-500/40 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 bg-rose-500/10 rounded-xl border border-rose-500/20">
+                <ShieldAlert className="w-6 h-6 text-rose-500" />
+              </div>
+              <h3 className="text-base font-black text-white">
+                {historyConfirmDialog.title}
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {historyConfirmDialog.message}
+            </p>
+
+            <div className="bg-rose-950/20 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300 space-y-1">
+              <div>⚠️ <strong>Atenção:</strong> Esta ação é definitiva e removerá as compras selecionadas da memória e do banco de dados.</div>
+              <div>Quantidade: <strong>{historyConfirmDialog.itemsCount} compras</strong></div>
+              <div>Valor total: <strong>R$ {historyConfirmDialog.totalValue.toFixed(2).replace('.', ',')}</strong></div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setHistoryConfirmDialog(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteDeleteHistory}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-rose-600/30 cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" /> Confirmar Exclusão
+              </button>
+            </div>
           </div>
         </div>
       )}

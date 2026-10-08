@@ -210,16 +210,28 @@ export const SupplierOrdersManagement: React.FC = () => {
       ? (editingCardItemForm.createdAt.includes('T') ? editingCardItemForm.createdAt : `${editingCardItemForm.createdAt}T12:00:00.000Z`)
       : (item.createdAt || new Date().toISOString());
 
+    const activeTmpl = fieldSettings.templates.find(
+      t => t.name.toLowerCase() === (editingCardItemForm.typeName || 'Tela').toLowerCase()
+    ) || fieldSettings.templates[0];
+    const fields = {
+      showMarca: activeTmpl?.fields?.showMarca !== false,
+      showModelo: activeTmpl?.fields?.showModelo !== false,
+      showQualidade: activeTmpl?.fields?.showQualidade !== false,
+      showTecnologia: Boolean(activeTmpl?.fields?.showTecnologia),
+      showEstrutura: activeTmpl?.fields?.showEstrutura !== false,
+      showCor: Boolean(activeTmpl?.fields?.showCor),
+    };
+
     const updatedItem: SupplierOrderItem = {
       ...item,
-      title: editingCardItemForm.title.trim() || `${editingCardItemForm.typeName} ${editingCardItemForm.modelo || ''}`.trim() || 'Peça',
+      title: editingCardItemForm.title.trim() || `${editingCardItemForm.typeName} ${fields.showModelo ? editingCardItemForm.modelo : ''}`.trim() || 'Peça',
       typeName: editingCardItemForm.typeName,
-      marca: editingCardItemForm.marca.trim(),
-      modelo: editingCardItemForm.modelo.trim(),
-      estrutura: editingCardItemForm.estrutura.trim(),
-      qualidade: editingCardItemForm.qualidade.trim(),
-      tecnologia: editingCardItemForm.tecnologia.trim(),
-      cor: editingCardItemForm.cor.trim(),
+      marca: fields.showMarca ? editingCardItemForm.marca.trim() : '',
+      modelo: fields.showModelo ? editingCardItemForm.modelo.trim() : '',
+      estrutura: fields.showEstrutura ? editingCardItemForm.estrutura.trim() : '',
+      qualidade: fields.showQualidade ? editingCardItemForm.qualidade.trim() : '',
+      tecnologia: fields.showTecnologia ? editingCardItemForm.tecnologia.trim() : '',
+      cor: fields.showCor ? editingCardItemForm.cor.trim() : '',
       quantity: Math.max(1, Number(editingCardItemForm.quantity) || 1),
       price: Math.max(0, Number(editingCardItemForm.price) || 0),
       createdAt: finalCreatedAt
@@ -258,18 +270,35 @@ export const SupplierOrdersManagement: React.FC = () => {
   const [cardCategoryFilter, setCardCategoryFilter] = useState<Record<string, string>>({});
 
   const [fieldSettings, setFieldSettings] = useState<SupplierFieldSettings>(() => {
-    const cached = getRamItem<SupplierFieldSettings | null>('msp_supplier_field_settings_v4', null);
+    let cached = getRamItem<SupplierFieldSettings | null>('msp_supplier_field_settings_v4', null);
+    if (!cached) {
+      try {
+        const ls = localStorage.getItem('msp_supplier_field_settings_v4');
+        if (ls) cached = JSON.parse(ls);
+      } catch (_) {}
+    }
+
     if (cached && cached.templates && cached.templates.length > 0) {
       return {
         ...cached,
-        templates: cached.templates.map(t => ({
-          ...t,
-          fields: { ...t.fields, showEstrutura: true },
-          options: {
-            ...t.options,
-            estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
-          }
-        }))
+        templates: cached.templates.map(t => {
+          const isTela = (t.name || '').toLowerCase() === 'tela';
+          return {
+            ...t,
+            fields: {
+              showMarca: t.fields?.showMarca !== undefined ? Boolean(t.fields.showMarca) : true,
+              showModelo: t.fields?.showModelo !== undefined ? Boolean(t.fields.showModelo) : true,
+              showQualidade: t.fields?.showQualidade !== undefined ? Boolean(t.fields.showQualidade) : true,
+              showTecnologia: Boolean(t.fields?.showTecnologia),
+              showEstrutura: t.fields?.showEstrutura !== undefined ? Boolean(t.fields.showEstrutura) : isTela,
+              showCor: Boolean(t.fields?.showCor),
+            },
+            options: {
+              ...t.options,
+              estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
+            }
+          };
+        })
       };
     }
     return {
@@ -289,7 +318,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         {
           id: 'cat_bateria',
           name: 'Bateria',
-          fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: false, showCor: false },
+          fields: { showMarca: true, showModelo: true, showEstrutura: false, showQualidade: true, showTecnologia: false, showCor: false },
           options: {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Xiaomi' }, { id: '4', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original' }, { id: '2', value: 'Gold' }, { id: '3', value: 'Prime' }],
@@ -301,7 +330,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         {
           id: 'cat_doc',
           name: 'DOC',
-          fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: false, showCor: true },
+          fields: { showMarca: true, showModelo: true, showEstrutura: false, showQualidade: true, showTecnologia: false, showCor: true },
           options: {
             marca: [{ id: '1', value: 'Apple' }, { id: '2', value: 'Samsung' }, { id: '3', value: 'Motorola' }],
             qualidade: [{ id: '1', value: 'Original Carga Rápida' }, { id: '2', value: 'Prime' }],
@@ -313,7 +342,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         {
           id: 'cat_outros',
           name: 'Outros',
-          fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: true, showCor: true },
+          fields: { showMarca: true, showModelo: true, showEstrutura: false, showQualidade: true, showTecnologia: true, showCor: true },
           options: {
             marca: [{ id: '1', value: 'Geral' }],
             qualidade: [{ id: '1', value: 'Padrão' }],
@@ -331,6 +360,17 @@ export const SupplierOrdersManagement: React.FC = () => {
   const [selectedSettingTemplateId, setSelectedSettingTemplateId] = useState<string>('cat_tela');
   const [newCategoryNameInput, setNewCategoryNameInput] = useState('');
   const [newOptionInput, setNewOptionInput] = useState<{ field: 'qualidade' | 'tecnologia' | 'estrutura' | 'cor' | 'marca'; value: string }>({ field: 'qualidade', value: '' });
+
+  const handleOpenSettingsModal = (targetCategoryName?: string) => {
+    const catName = targetCategoryName || currentItem.typeName || 'Tela';
+    const found = fieldSettings.templates.find(t => t.name.toLowerCase() === catName.toLowerCase());
+    if (found) {
+      setSelectedSettingTemplateId(found.id);
+    } else if (fieldSettings.templates[0]) {
+      setSelectedSettingTemplateId(fieldSettings.templates[0].id);
+    }
+    setIsSettingsModalOpen(true);
+  };
 
   const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS' | 'SERVICOS'>('PEDIDOS');
 
@@ -513,20 +553,31 @@ export const SupplierOrdersManagement: React.FC = () => {
         const rawData = docSnap.data() as SupplierFieldSettings;
         const sanitized: SupplierFieldSettings = {
           ...rawData,
-          templates: (rawData.templates || []).map(t => ({
-            ...t,
-            fields: {
-              ...t.fields,
-              showEstrutura: true
-            },
-            options: {
-              ...t.options,
-              estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
-            }
-          }))
+          templates: (rawData.templates || []).map(t => {
+            const isTela = (t.name || '').toLowerCase() === 'tela';
+            return {
+              ...t,
+              fields: {
+                showMarca: t.fields?.showMarca !== undefined ? Boolean(t.fields.showMarca) : true,
+                showModelo: t.fields?.showModelo !== undefined ? Boolean(t.fields.showModelo) : true,
+                showQualidade: t.fields?.showQualidade !== undefined ? Boolean(t.fields.showQualidade) : true,
+                showTecnologia: Boolean(t.fields?.showTecnologia),
+                showEstrutura: t.fields?.showEstrutura !== undefined ? Boolean(t.fields.showEstrutura) : isTela,
+                showCor: Boolean(t.fields?.showCor),
+                ...t.fields
+              },
+              options: {
+                ...t.options,
+                estrutura: ensureDefaultEstruturaOptions(t.options?.estrutura)
+              }
+            };
+          })
         };
         setFieldSettings(sanitized);
         setRamItem('msp_supplier_field_settings_v4', sanitized);
+        try {
+          localStorage.setItem('msp_supplier_field_settings_v4', JSON.stringify(sanitized));
+        } catch (_) {}
       }
     }, (err) => {
       console.warn('Settings snapshot notice:', err.message);
@@ -986,6 +1037,23 @@ export const SupplierOrdersManagement: React.FC = () => {
     });
   };
 
+  const handleBulkDeletePurchases = async (purchaseIds: string[]) => {
+    if (!purchaseIds || purchaseIds.length === 0) return;
+    const userEmail = getUserAccountEmail();
+    const idsSet = new Set(purchaseIds);
+    const filtered = supplierPurchases.filter(p => !idsSet.has(p.purchaseId));
+    await savePurchasesLocallyAndRemote(filtered, async () => {
+      for (const id of purchaseIds) {
+        try {
+          await deleteDoc(doc(db, `accounts/${userEmail}/supplier_purchases`, id));
+        } catch (e) {
+          console.error('Erro ao excluir compra:', id, e);
+        }
+      }
+    });
+    showToast(`${purchaseIds.length} compra(s) excluída(s) com sucesso!`, 'success');
+  };
+
   const handleAddManualPurchase = async (newItem: Omit<SupplierPurchaseItem, 'purchaseId'>) => {
     const userEmail = getUserAccountEmail();
     const newId = `pur_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -1078,16 +1146,32 @@ export const SupplierOrdersManagement: React.FC = () => {
 
   const handleAddItemToForm = () => {
     const currentCategory = currentItem.typeName || 'Tela';
+    const activeTmpl = fieldSettings.templates.find(
+      t => t.name.toLowerCase() === (currentCategory || 'Tela').toLowerCase()
+    ) || fieldSettings.templates[0];
+    const fields = {
+      showMarca: activeTmpl?.fields?.showMarca !== false,
+      showModelo: activeTmpl?.fields?.showModelo !== false,
+      showQualidade: activeTmpl?.fields?.showQualidade !== false,
+      showTecnologia: Boolean(activeTmpl?.fields?.showTecnologia),
+      showEstrutura: activeTmpl?.fields?.showEstrutura !== false,
+      showCor: Boolean(activeTmpl?.fields?.showCor),
+    };
+
     const rawTitle = currentItem.title?.trim();
-    const rawModelo = currentItem.modelo?.trim();
-    const rawMarca = currentItem.marca?.trim();
+    const rawModelo = fields.showModelo ? (currentItem.modelo || '').trim() : '';
+    const rawMarca = fields.showMarca ? (currentItem.marca || '').trim() : '';
+    const rawEstrutura = fields.showEstrutura ? (currentItem.estrutura || '').trim() : '';
+    const rawQualidade = fields.showQualidade ? (currentItem.qualidade || '').trim() : '';
+    const rawTecnologia = fields.showTecnologia ? (currentItem.tecnologia || '').trim() : '';
+    const rawCor = fields.showCor ? (currentItem.cor || '').trim() : '';
 
     let finalTitle = rawTitle;
     if (!finalTitle && (rawModelo || rawMarca)) {
       finalTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
     }
-    if (!finalTitle && currentItem.estrutura) {
-      finalTitle = `${currentCategory} ${currentItem.estrutura}`.trim();
+    if (!finalTitle && rawEstrutura) {
+      finalTitle = `${currentCategory} ${rawEstrutura}`.trim();
     }
 
     if (!finalTitle) {
@@ -1099,12 +1183,12 @@ export const SupplierOrdersManagement: React.FC = () => {
       id: Date.now().toString(),
       title: finalTitle,
       typeName: currentCategory,
-      marca: rawMarca || '',
-      modelo: rawModelo || '',
-      estrutura: (currentItem.estrutura || '').trim(),
-      qualidade: currentItem.qualidade || '',
-      tecnologia: currentItem.tecnologia || '',
-      cor: currentItem.cor || '',
+      marca: rawMarca,
+      modelo: rawModelo,
+      estrutura: rawEstrutura,
+      qualidade: rawQualidade,
+      tecnologia: rawTecnologia,
+      cor: rawCor,
       quantity: Number(currentItem.quantity) || 1,
       price: Number(currentItem.price) || 0,
       createdAt: new Date().toISOString()
@@ -1142,25 +1226,42 @@ export const SupplierOrdersManagement: React.FC = () => {
       // Auto-include any piece currently typed or marked in the form that wasn't added via the button yet
       let itemsToSave = [...formData.items];
       const currentCategory = currentItem.typeName || 'Tela';
+      const activeTmpl = fieldSettings.templates.find(
+        t => t.name.toLowerCase() === (currentCategory || 'Tela').toLowerCase()
+      ) || fieldSettings.templates[0];
+      const fields = {
+        showMarca: activeTmpl?.fields?.showMarca !== false,
+        showModelo: activeTmpl?.fields?.showModelo !== false,
+        showQualidade: activeTmpl?.fields?.showQualidade !== false,
+        showTecnologia: Boolean(activeTmpl?.fields?.showTecnologia),
+        showEstrutura: activeTmpl?.fields?.showEstrutura !== false,
+        showCor: Boolean(activeTmpl?.fields?.showCor),
+      };
+
       const rawTitle = currentItem.title?.trim();
-      const rawModelo = currentItem.modelo?.trim();
-      const rawMarca = currentItem.marca?.trim();
+      const rawModelo = fields.showModelo ? (currentItem.modelo || '').trim() : '';
+      const rawMarca = fields.showMarca ? (currentItem.marca || '').trim() : '';
+      const rawEstrutura = fields.showEstrutura ? (currentItem.estrutura || '').trim() : '';
+      const rawQualidade = fields.showQualidade ? (currentItem.qualidade || '').trim() : '';
+      const rawTecnologia = fields.showTecnologia ? (currentItem.tecnologia || '').trim() : '';
+      const rawCor = fields.showCor ? (currentItem.cor || '').trim() : '';
+
       let pendingTitle = rawTitle;
       if (!pendingTitle && (rawModelo || rawMarca)) {
         pendingTitle = `${currentCategory} ${rawModelo || rawMarca}`.trim();
       }
 
-      if (pendingTitle || currentItem.estrutura || (Number(currentItem.price) > 0 && (rawModelo || rawMarca || currentItem.qualidade))) {
+      if (pendingTitle || rawEstrutura || (Number(currentItem.price) > 0 && (rawModelo || rawMarca || rawQualidade))) {
         const autoPiece: SupplierOrderItem = {
           id: Date.now().toString(),
-          title: pendingTitle || `${currentCategory} ${currentItem.estrutura || 'Diversos'}`,
+          title: pendingTitle || `${currentCategory} ${rawEstrutura || 'Diversos'}`,
           typeName: currentCategory,
-          marca: rawMarca || '',
-          modelo: rawModelo || '',
-          estrutura: (currentItem.estrutura || '').trim(),
-          qualidade: currentItem.qualidade || '',
-          tecnologia: currentItem.tecnologia || '',
-          cor: currentItem.cor || '',
+          marca: rawMarca,
+          modelo: rawModelo,
+          estrutura: rawEstrutura,
+          qualidade: rawQualidade,
+          tecnologia: rawTecnologia,
+          cor: rawCor,
           quantity: Number(currentItem.quantity) || 1,
           price: Number(currentItem.price) || 0,
           createdAt: new Date().toISOString()
@@ -1330,17 +1431,29 @@ export const SupplierOrdersManagement: React.FC = () => {
           cleanTitle = cleanTitle.slice(item.typeName.length + 1).trim();
         }
 
-        const estUpper = (item.estrutura || '').trim().toUpperCase();
+        const itemTmpl = fieldSettings.templates.find(
+          t => t.name.toLowerCase() === (item.typeName || 'Tela').toLowerCase()
+        ) || fieldSettings.templates[0];
+        const itemFields = {
+          showMarca: itemTmpl?.fields?.showMarca !== false,
+          showModelo: itemTmpl?.fields?.showModelo !== false,
+          showQualidade: itemTmpl?.fields?.showQualidade !== false,
+          showTecnologia: Boolean(itemTmpl?.fields?.showTecnologia),
+          showEstrutura: itemTmpl?.fields?.showEstrutura !== false,
+          showCor: Boolean(itemTmpl?.fields?.showCor),
+        };
+
+        const estUpper = itemFields.showEstrutura ? (item.estrutura || '').trim().toUpperCase() : '';
         const estBadge = estUpper ? ` - ${estUpper}` : '';
 
         text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
         
-        if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
-        if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
+        if (itemFields.showMarca && item.marca) text += `🏷️ Marca: ${item.marca}\n`;
+        if (itemFields.showModelo && item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
         if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
-        if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
-        if (item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
-        if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
+        if (itemFields.showQualidade && item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
+        if (itemFields.showTecnologia && item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
+        if (itemFields.showCor && item.cor) text += `🎨 Cor: ${item.cor}\n`;
         
         if (withPrice && (Number(item.price) || 0) > 0) {
           text += `💵 R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
@@ -1792,18 +1905,30 @@ export const SupplierOrdersManagement: React.FC = () => {
                     className="w-4 h-4 rounded border-slate-700 bg-slate-900 checked:bg-indigo-500 cursor-pointer"
                   />
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-xs font-bold truncate flex items-center gap-1.5 flex-wrap">
-                      {item.typeName && <span className="text-indigo-400">{item.typeName}</span>}
-                      <span>{item.title}</span>
-                      {item.estrutura && (
-                        <span className="text-purple-300 font-black px-1.5 py-0.5 bg-purple-500/20 rounded border border-purple-500/40 text-[10px]">
-                          ⭕ {item.estrutura}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      {item.marca} {item.modelo} - x{item.quantity} (R$ {((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(0)})
-                    </div>
+                    {(() => {
+                      const itTmpl = fieldSettings.templates.find(t => t.name.toLowerCase() === (item.typeName || 'Tela').toLowerCase()) || fieldSettings.templates[0];
+                      const itFields = {
+                        showMarca: itTmpl?.fields?.showMarca !== false,
+                        showModelo: itTmpl?.fields?.showModelo !== false,
+                        showEstrutura: itTmpl?.fields?.showEstrutura !== false,
+                      };
+                      return (
+                        <>
+                          <div className="text-xs font-bold truncate flex items-center gap-1.5 flex-wrap">
+                            {item.typeName && <span className="text-indigo-400">{item.typeName}</span>}
+                            <span>{item.title}</span>
+                            {itFields.showEstrutura && item.estrutura && (
+                              <span className="text-purple-300 font-black px-1.5 py-0.5 bg-purple-500/20 rounded border border-purple-500/40 text-[10px]">
+                                ⭕ {item.estrutura}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {[itFields.showMarca && item.marca, itFields.showModelo && item.modelo].filter(Boolean).join(' ')} {item.quantity ? `- x${item.quantity}` : ''} (R$ {((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(0)})
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </label>
               ))}
@@ -1873,7 +1998,7 @@ export const SupplierOrdersManagement: React.FC = () => {
 
           <div className="flex items-center gap-1.5 xl:hidden">
             <button 
-              onClick={() => setIsSettingsModalOpen(true)}
+              onClick={() => handleOpenSettingsModal()}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer border border-slate-700"
               title="Configurações"
             >
@@ -1918,7 +2043,7 @@ export const SupplierOrdersManagement: React.FC = () => {
 
           <div className="hidden xl:flex items-center gap-2">
             <button 
-              onClick={() => setIsSettingsModalOpen(true)}
+              onClick={() => handleOpenSettingsModal()}
               className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
               title="Configurar Categorias e Campos"
             >
@@ -1965,18 +2090,6 @@ export const SupplierOrdersManagement: React.FC = () => {
           </button>
 
           <button 
-            onClick={() => setActiveSubTab('HISTORICO')}
-            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeSubTab === 'HISTORICO' 
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>3. Histórico 12m ({supplierPurchases.filter(p => p.paymentStatus === 'Pago').length})</span>
-          </button>
-
-          <button 
             onClick={() => setActiveSubTab('DEBITOS')}
             className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'DEBITOS' 
@@ -1985,7 +2098,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>4. Débitos ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
+            <span>3. Débitos ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
           </button>
 
           <button 
@@ -1997,7 +2110,19 @@ export const SupplierOrdersManagement: React.FC = () => {
             }`}
           >
             <Wrench className="w-3.5 h-3.5" />
-            <span>5. Serviços</span>
+            <span>4. Serviços</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSubTab('HISTORICO')}
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeSubTab === 'HISTORICO' 
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>5. Histórico 12m ({supplierPurchases.filter(p => p.paymentStatus === 'Pago').length})</span>
           </button>
         </div>
 
@@ -2217,15 +2342,28 @@ export const SupplierOrdersManagement: React.FC = () => {
                                       </div>
 
                                       {/* Tags Detail Row (Marca, Modelo, Qualidade, Tecnologia, Estrutura, Cor) */}
-                                      <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-400 pl-6 pt-0.5">
-                                        {item.marca && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Marca: {item.marca}</span>}
-                                        {item.modelo && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold">Mod: {item.modelo}</span>}
-                                        {item.qualidade && <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-black">{item.qualidade}</span>}
-                                        {item.tecnologia && <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-black">{item.tecnologia}</span>}
-                                        {item.estrutura && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-black">⭕ {item.estrutura}</span>}
-                                        {item.cor && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cor: {item.cor}</span>}
-                                        {itemDateLabel && <span className="text-slate-500 ml-auto">📅 {itemDateLabel}</span>}
-                                      </div>
+                                      {(() => {
+                                        const itTmpl = fieldSettings.templates.find(t => t.name.toLowerCase() === (item.typeName || 'Tela').toLowerCase()) || fieldSettings.templates[0];
+                                        const itFields = {
+                                          showMarca: itTmpl?.fields?.showMarca !== false,
+                                          showModelo: itTmpl?.fields?.showModelo !== false,
+                                          showQualidade: itTmpl?.fields?.showQualidade !== false,
+                                          showTecnologia: Boolean(itTmpl?.fields?.showTecnologia),
+                                          showEstrutura: itTmpl?.fields?.showEstrutura !== false,
+                                          showCor: Boolean(itTmpl?.fields?.showCor),
+                                        };
+                                        return (
+                                          <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-400 pl-6 pt-0.5">
+                                            {itFields.showMarca && item.marca && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Marca: {item.marca}</span>}
+                                            {itFields.showModelo && item.modelo && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold">Mod: {item.modelo}</span>}
+                                            {itFields.showQualidade && item.qualidade && <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-black">{item.qualidade}</span>}
+                                            {itFields.showTecnologia && item.tecnologia && <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded font-black">{item.tecnologia}</span>}
+                                            {itFields.showEstrutura && item.estrutura && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-black">⭕ {item.estrutura}</span>}
+                                            {itFields.showCor && item.cor && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cor: {item.cor}</span>}
+                                            {itemDateLabel && <span className="text-slate-500 ml-auto">📅 {itemDateLabel}</span>}
+                                          </div>
+                                        );
+                                      })()}
 
                                       {/* Item Action Buttons Bar (Comfortable touch targets on mobile) */}
                                       <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-800/40 mt-1">
@@ -2354,9 +2492,11 @@ export const SupplierOrdersManagement: React.FC = () => {
         <SupplierPurchasesView 
           items={supplierPurchases} 
           subTab={activeSubTab as 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS'}
+          fieldSettings={fieldSettings}
           onUpdateStatus={handleUpdatePaymentStatus} 
           onUpdateSupplier={handleUpdatePurchaseSupplier}
           onDelete={handleDeletePurchase} 
+          onBulkDeletePurchases={handleBulkDeletePurchases}
           onAddPurchaseItem={handleAddManualPurchase}
           onUpdatePurchaseItem={handleUpdatePurchaseItem}
           onBulkPayForSupplier={handleBulkPayForSupplier}
@@ -2527,7 +2667,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                     </h3>
                     <button
                       type="button"
-                      onClick={() => setIsSettingsModalOpen(true)}
+                      onClick={() => handleOpenSettingsModal(currentItem.typeName)}
                       className="text-[10px] font-bold text-slate-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer bg-slate-800/60 px-2 py-1 rounded-md"
                     >
                       <Settings className="w-3 h-3 text-indigo-400" /> Configurar Campos
@@ -2547,7 +2687,24 @@ export const SupplierOrdersManagement: React.FC = () => {
                             key={tmpl.id}
                             type="button"
                             onClick={() => {
-                              setCurrentItem(prev => ({ ...prev, typeName: tmpl.name }));
+                              const tmplFields = {
+                                showMarca: tmpl.fields?.showMarca !== false,
+                                showModelo: tmpl.fields?.showModelo !== false,
+                                showQualidade: tmpl.fields?.showQualidade !== false,
+                                showTecnologia: Boolean(tmpl.fields?.showTecnologia),
+                                showEstrutura: tmpl.fields?.showEstrutura !== false,
+                                showCor: Boolean(tmpl.fields?.showCor),
+                              };
+                              setCurrentItem(prev => ({
+                                ...prev,
+                                typeName: tmpl.name,
+                                marca: tmplFields.showMarca ? prev.marca : '',
+                                modelo: tmplFields.showModelo ? prev.modelo : '',
+                                estrutura: tmplFields.showEstrutura ? prev.estrutura : '',
+                                qualidade: tmplFields.showQualidade ? prev.qualidade : '',
+                                tecnologia: tmplFields.showTecnologia ? prev.tecnologia : '',
+                                cor: tmplFields.showCor ? prev.cor : '',
+                              }));
                               setFieldSettings(prev => ({ ...prev, activeTemplateId: tmpl.id }));
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -2572,7 +2729,14 @@ export const SupplierOrdersManagement: React.FC = () => {
                       t => t.name.toLowerCase() === (currentItem.typeName || 'Tela').toLowerCase()
                     ) || fieldSettings.templates[0];
 
-                    const fields = activeTmpl?.fields || { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: true, showCor: true };
+                    const fields = {
+                      showMarca: activeTmpl?.fields?.showMarca !== false,
+                      showModelo: activeTmpl?.fields?.showModelo !== false,
+                      showQualidade: activeTmpl?.fields?.showQualidade !== false,
+                      showTecnologia: Boolean(activeTmpl?.fields?.showTecnologia),
+                      showEstrutura: activeTmpl?.fields?.showEstrutura !== false,
+                      showCor: Boolean(activeTmpl?.fields?.showCor),
+                    };
                     const options = activeTmpl?.options || { marca: [], qualidade: [], tecnologia: [], estrutura: [], cor: [] };
 
                     return (
@@ -3056,22 +3220,30 @@ export const SupplierOrdersManagement: React.FC = () => {
                     {formData.items.length === 0 ? (
                       <div className="text-xs text-slate-500 text-center py-4 italic">Nenhuma peça no pedido ainda.</div>
                     ) : (
-                      formData.items.map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-[#161B2B] p-2 rounded-lg border border-slate-800 text-xs">
-                          <div className="truncate pr-2">
-                            <span className="font-bold text-white block">{item.title}</span>
-                            <span className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                              {item.marca && <span>{item.marca}</span>}
-                              {item.modelo && <span>{item.modelo}</span>}
-                              {item.qualidade && <span>• {item.qualidade}</span>}
-                              {item.estrutura && (
-                                <span className="text-purple-300 font-bold px-1.5 py-0.2 bg-purple-500/20 rounded border border-purple-500/30">
-                                  ⭕ {item.estrutura}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                      formData.items.map(item => {
+                        const itTmpl = fieldSettings.templates.find(t => t.name.toLowerCase() === (item.typeName || 'Tela').toLowerCase()) || fieldSettings.templates[0];
+                        const itFields = {
+                          showMarca: itTmpl?.fields?.showMarca !== false,
+                          showModelo: itTmpl?.fields?.showModelo !== false,
+                          showQualidade: itTmpl?.fields?.showQualidade !== false,
+                          showEstrutura: itTmpl?.fields?.showEstrutura !== false,
+                        };
+                        return (
+                          <div key={item.id} className="flex justify-between items-center bg-[#161B2B] p-2 rounded-lg border border-slate-800 text-xs">
+                            <div className="truncate pr-2">
+                              <span className="font-bold text-white block">{item.title}</span>
+                              <span className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
+                                {itFields.showMarca && item.marca && <span>{item.marca}</span>}
+                                {itFields.showModelo && item.modelo && <span>{item.modelo}</span>}
+                                {itFields.showQualidade && item.qualidade && <span>• {item.qualidade}</span>}
+                                {itFields.showEstrutura && item.estrutura && (
+                                  <span className="text-purple-300 font-bold px-1.5 py-0.2 bg-purple-500/20 rounded border border-purple-500/30">
+                                    ⭕ {item.estrutura}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
                             <span className="text-emerald-400 font-bold">
                               {item.quantity}x R${(Number(item.price) || 0).toFixed(0)}
                             </span>
@@ -3106,8 +3278,8 @@ export const SupplierOrdersManagement: React.FC = () => {
                             </button>
                           </div>
                         </div>
-                      ))
-                    )}
+                      );
+                    }))}
                   </div>
                 </div>
 
@@ -3226,10 +3398,11 @@ export const SupplierOrdersManagement: React.FC = () => {
                     onClick={() => {
                       if (!newCategoryNameInput.trim()) return;
                       const newId = `cat_${Date.now()}`;
+                      const isNewTela = newCategoryNameInput.trim().toLowerCase().includes('tela');
                       const newTmpl: ItemTemplate = {
                         id: newId,
                         name: newCategoryNameInput.trim(),
-                        fields: { showMarca: true, showModelo: true, showEstrutura: true, showQualidade: true, showTecnologia: true, showCor: true },
+                        fields: { showMarca: true, showModelo: true, showEstrutura: isNewTela, showQualidade: true, showTecnologia: false, showCor: false },
                         options: {
                           marca: [{ id: '1', value: 'Geral' }],
                           qualidade: [{ id: '1', value: 'Original' }, { id: '2', value: 'Premium' }],
@@ -3276,15 +3449,41 @@ export const SupplierOrdersManagement: React.FC = () => {
                 };
 
                 const updateTmplFields = (updater: (prevFields: typeof activeTmpl.fields) => typeof activeTmpl.fields) => {
+                  const isTela = (activeTmpl.name || '').toLowerCase() === 'tela';
+                  const currentFields = {
+                    showMarca: activeTmpl.fields?.showMarca !== undefined ? Boolean(activeTmpl.fields.showMarca) : true,
+                    showModelo: activeTmpl.fields?.showModelo !== undefined ? Boolean(activeTmpl.fields.showModelo) : true,
+                    showQualidade: activeTmpl.fields?.showQualidade !== undefined ? Boolean(activeTmpl.fields.showQualidade) : true,
+                    showTecnologia: Boolean(activeTmpl.fields?.showTecnologia),
+                    showEstrutura: activeTmpl.fields?.showEstrutura !== undefined ? Boolean(activeTmpl.fields.showEstrutura) : isTela,
+                    showCor: Boolean(activeTmpl.fields?.showCor),
+                  };
+                  const newFields = updater(currentFields);
                   const updated: SupplierFieldSettings = {
                     ...fieldSettings,
-                    templates: fieldSettings.templates.map(t => t.id === activeTmpl.id ? { ...t, fields: updater(t.fields) } : t)
+                    templates: fieldSettings.templates.map(t => t.id === activeTmpl.id ? { ...t, fields: newFields } : t)
                   };
                   setFieldSettings(updated);
+                  setRamItem('msp_supplier_field_settings_v4', updated);
+                  try {
+                    localStorage.setItem('msp_supplier_field_settings_v4', JSON.stringify(updated));
+                  } catch (_) {}
                   try {
                     const userEmail = getUserAccountEmail();
                     setDoc(doc(db, `accounts/${userEmail}/settings`, 'supplierOrderFields'), updated, { merge: true });
                   } catch(e){}
+
+                  if ((currentItem.typeName || 'Tela').toLowerCase() === (activeTmpl.name || '').toLowerCase()) {
+                    setCurrentItem(prev => ({
+                      ...prev,
+                      marca: newFields.showMarca ? prev.marca : '',
+                      modelo: newFields.showModelo ? prev.modelo : '',
+                      qualidade: newFields.showQualidade ? prev.qualidade : '',
+                      tecnologia: newFields.showTecnologia ? prev.tecnologia : '',
+                      estrutura: newFields.showEstrutura ? prev.estrutura : '',
+                      cor: newFields.showCor ? prev.cor : '',
+                    }));
+                  }
                 };
 
                 const updateTmplOptions = (field: 'qualidade' | 'tecnologia' | 'estrutura' | 'cor' | 'marca', updater: (prevOpts: FieldOption[]) => FieldOption[]) => {
@@ -3320,6 +3519,14 @@ export const SupplierOrdersManagement: React.FC = () => {
                   } catch(e){}
                 };
 
+                const isCurrentTela = (activeTmpl.name || '').toLowerCase() === 'tela';
+                const isMarcaChecked = activeTmpl.fields?.showMarca !== undefined ? Boolean(activeTmpl.fields.showMarca) : true;
+                const isModeloChecked = activeTmpl.fields?.showModelo !== undefined ? Boolean(activeTmpl.fields.showModelo) : true;
+                const isQualidadeChecked = activeTmpl.fields?.showQualidade !== undefined ? Boolean(activeTmpl.fields.showQualidade) : true;
+                const isTecnologiaChecked = Boolean(activeTmpl.fields?.showTecnologia);
+                const isEstruturaChecked = activeTmpl.fields?.showEstrutura !== undefined ? Boolean(activeTmpl.fields.showEstrutura) : isCurrentTela;
+                const isCorChecked = Boolean(activeTmpl.fields?.showCor);
+
                 return (
                   <div className="space-y-5">
                     {/* Editable Category Name Banner */}
@@ -3349,13 +3556,13 @@ export const SupplierOrdersManagement: React.FC = () => {
                       <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
                         <Sliders className="w-4 h-4" /> Visibilidade de Campos para: <span className="text-white underline">{activeTmpl.name}</span>
                       </h3>
-                      <p className="text-[10px] text-slate-400">Marque quais campos devem aparecer no card e no formulário quando a categoria "{activeTmpl.name}" for selecionada:</p>
+                      <p className="text-[10px] text-slate-400">Marque quais campos devem aparecer no card e no formulário quando a categoria "{activeTmpl.name}" for selecionada (se desmarcar, não aparecerá em nenhum lugar):</p>
 
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showMarca}
+                            checked={isMarcaChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showMarca: e.target.checked }))}
                             className="w-4 h-4 rounded text-indigo-500 bg-slate-900 border-slate-700 focus:ring-indigo-500 cursor-pointer"
                           />
@@ -3365,7 +3572,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showModelo}
+                            checked={isModeloChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showModelo: e.target.checked }))}
                             className="w-4 h-4 rounded text-indigo-500 bg-slate-900 border-slate-700 focus:ring-indigo-500 cursor-pointer"
                           />
@@ -3375,7 +3582,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showQualidade}
+                            checked={isQualidadeChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showQualidade: e.target.checked }))}
                             className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 focus:ring-amber-500 cursor-pointer"
                           />
@@ -3385,7 +3592,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showTecnologia}
+                            checked={isTecnologiaChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showTecnologia: e.target.checked }))}
                             className="w-4 h-4 rounded text-cyan-500 bg-slate-900 border-slate-700 focus:ring-cyan-500 cursor-pointer"
                           />
@@ -3395,7 +3602,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showEstrutura}
+                            checked={isEstruturaChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showEstrutura: e.target.checked }))}
                             className="w-4 h-4 rounded text-purple-500 bg-slate-900 border-slate-700 focus:ring-purple-500 cursor-pointer"
                           />
@@ -3405,7 +3612,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <label className="flex items-center gap-2 bg-[#161B2B] p-2.5 rounded-xl border border-slate-700 cursor-pointer hover:border-slate-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={activeTmpl.fields.showCor}
+                            checked={isCorChecked}
                             onChange={e => updateTmplFields(f => ({ ...f, showCor: e.target.checked }))}
                             className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 cursor-pointer"
                           />
@@ -3681,6 +3888,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                 onClick={async () => {
                   try {
                     setRamItem('msp_supplier_field_settings_v4', fieldSettings);
+                    try {
+                      localStorage.setItem('msp_supplier_field_settings_v4', JSON.stringify(fieldSettings));
+                    } catch (_) {}
                     const userEmail = getUserAccountEmail();
                     await setDoc(doc(db, `accounts/${userEmail}/settings`, 'supplierOrderFields'), fieldSettings);
                     showToast('Configurações salvas e sincronizadas na Nuvem Firebase!', 'success');
@@ -3749,7 +3959,26 @@ export const SupplierOrdersManagement: React.FC = () => {
                         <button
                           key={tmpl.id}
                           type="button"
-                          onClick={() => setEditingCardItemForm({ ...editingCardItemForm, typeName: tmpl.name })}
+                          onClick={() => {
+                            const tmplFields = {
+                              showMarca: tmpl.fields?.showMarca !== false,
+                              showModelo: tmpl.fields?.showModelo !== false,
+                              showQualidade: tmpl.fields?.showQualidade !== false,
+                              showTecnologia: Boolean(tmpl.fields?.showTecnologia),
+                              showEstrutura: tmpl.fields?.showEstrutura !== false,
+                              showCor: Boolean(tmpl.fields?.showCor),
+                            };
+                            setEditingCardItemForm(prev => ({
+                              ...prev,
+                              typeName: tmpl.name,
+                              marca: tmplFields.showMarca ? prev.marca : '',
+                              modelo: tmplFields.showModelo ? prev.modelo : '',
+                              estrutura: tmplFields.showEstrutura ? prev.estrutura : '',
+                              qualidade: tmplFields.showQualidade ? prev.qualidade : '',
+                              tecnologia: tmplFields.showTecnologia ? prev.tecnologia : '',
+                              cor: tmplFields.showCor ? prev.cor : '',
+                            }));
+                          }}
                           className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
                             isSel
                               ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
@@ -3764,188 +3993,220 @@ export const SupplierOrdersManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Descrição / Nome */}
-              <div className="bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800 space-y-1">
-                <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
-                  Descrição / Nome da Peça *
-                </label>
-                <input 
-                  type="text"
-                  required
-                  placeholder="Ex: Tela Display Frente Complete, Bateria Original..."
-                  value={editingCardItemForm.title}
-                  onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, title: e.target.value })}
-                  className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
-                />
-              </div>
+              {/* Dynamic Category Fields for Edit Modal */}
+              {(() => {
+                const editActiveTmpl = fieldSettings.templates.find(
+                  t => t.name.toLowerCase() === (editingCardItemForm.typeName || 'Tela').toLowerCase()
+                ) || fieldSettings.templates[0];
+                const editFields = {
+                  showMarca: editActiveTmpl?.fields?.showMarca !== false,
+                  showModelo: editActiveTmpl?.fields?.showModelo !== false,
+                  showQualidade: editActiveTmpl?.fields?.showQualidade !== false,
+                  showTecnologia: Boolean(editActiveTmpl?.fields?.showTecnologia),
+                  showEstrutura: editActiveTmpl?.fields?.showEstrutura !== false,
+                  showCor: Boolean(editActiveTmpl?.fields?.showCor),
+                };
 
-              {/* Marca & Modelo */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
-                <div className="space-y-1">
-                  <label className="block text-xs font-black text-slate-300 uppercase">Marca / Fabricante</label>
-                  <input
-                    type="text"
-                    placeholder="Apple, Samsung, Xiaomi, Motorola..."
-                    value={editingCardItemForm.marca}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, marca: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap pt-1">
-                    {['Apple', 'Samsung', 'Xiaomi', 'Motorola', 'Realme'].map(m => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, marca: m }))}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                          (editingCardItemForm.marca || '').toLowerCase() === m.toLowerCase()
-                            ? 'bg-indigo-600 text-white font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                return (
+                  <>
+                    {/* Descrição / Nome */}
+                    <div className="bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800 space-y-1">
+                      <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                        Descrição / Nome da Peça *
+                      </label>
+                      <input 
+                        type="text"
+                        required
+                        placeholder="Ex: Tela Display Frente Complete, Bateria Original..."
+                        value={editingCardItemForm.title}
+                        onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, title: e.target.value })}
+                        className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="block text-xs font-black text-slate-300 uppercase">Modelo do Aparelho</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: iPhone 11, S20 FE, Redmi Note 10..."
-                    value={editingCardItemForm.modelo}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, modelo: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
-                  />
-                </div>
-              </div>
+                    {/* Marca & Modelo */}
+                    {(editFields.showMarca || editFields.showModelo) && (
+                      <div className={`grid grid-cols-1 ${editFields.showMarca && editFields.showModelo ? 'sm:grid-cols-2' : ''} gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800`}>
+                        {editFields.showMarca && (
+                          <div className="space-y-1">
+                            <label className="block text-xs font-black text-slate-300 uppercase">Marca / Fabricante</label>
+                            <input
+                              type="text"
+                              placeholder="Apple, Samsung, Xiaomi, Motorola..."
+                              value={editingCardItemForm.marca}
+                              onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, marca: e.target.value })}
+                              className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                            />
+                            <div className="flex items-center gap-1 flex-wrap pt-1">
+                              {['Apple', 'Samsung', 'Xiaomi', 'Motorola', 'Realme'].map(m => (
+                                <button
+                                  key={m}
+                                  type="button"
+                                  onClick={() => setEditingCardItemForm(prev => ({ ...prev, marca: m }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                    (editingCardItemForm.marca || '').toLowerCase() === m.toLowerCase()
+                                      ? 'bg-indigo-600 text-white font-black'
+                                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  {m}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-              {/* Estrutura, Qualidade & Tecnologia */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
-                  <div className="grid grid-cols-2 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingCardItemForm(prev => ({
-                        ...prev,
-                        estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
-                      }))}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
-                        (editingCardItemForm.estrutura || '').toUpperCase() === 'C/ ARO'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
-                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      C/ ARO
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingCardItemForm(prev => ({
-                        ...prev,
-                        estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
-                      }))}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
-                        (editingCardItemForm.estrutura || '').toUpperCase() === 'S/ ARO'
-                          ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
-                          : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                    >
-                      S/ ARO
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Outra estrutura..."
-                    value={editingCardItemForm.estrutura}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, estrutura: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+                        {editFields.showModelo && (
+                          <div className="space-y-1">
+                            <label className="block text-xs font-black text-slate-300 uppercase">Modelo do Aparelho</label>
+                            <input 
+                              type="text"
+                              placeholder="Ex: iPhone 11, S20 FE, Redmi Note 10..."
+                              value={editingCardItemForm.modelo}
+                              onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, modelo: e.target.value })}
+                              className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
-                  <input
-                    type="text"
-                    placeholder="Original, Gold Pro, Incell..."
-                    value={editingCardItemForm.qualidade}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, qualidade: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {['DIAMONDS', 'Original', 'Gold Pro', 'Premium'].map(q => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, qualidade: q }))}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                          (editingCardItemForm.qualidade || '').toLowerCase() === q.toLowerCase()
-                            ? 'bg-amber-500 text-slate-950 font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                    {/* Estrutura, Qualidade & Tecnologia */}
+                    {(editFields.showEstrutura || editFields.showQualidade || editFields.showTecnologia) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
+                        {editFields.showEstrutura && (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-black text-purple-400 uppercase">Estrutura</label>
+                            <div className="grid grid-cols-2 gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingCardItemForm(prev => ({
+                                  ...prev,
+                                  estrutura: (prev.estrutura || '').toUpperCase() === 'C/ ARO' ? '' : 'C/ ARO'
+                                }))}
+                                className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                                  (editingCardItemForm.estrutura || '').toUpperCase() === 'C/ ARO'
+                                    ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                                    : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                                }`}
+                              >
+                                C/ ARO
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingCardItemForm(prev => ({
+                                  ...prev,
+                                  estrutura: (prev.estrutura || '').toUpperCase() === 'S/ ARO' ? '' : 'S/ ARO'
+                                }))}
+                                className={`py-1.5 px-2 rounded-lg text-[10px] font-black cursor-pointer border ${
+                                  (editingCardItemForm.estrutura || '').toUpperCase() === 'S/ ARO'
+                                    ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
+                                    : 'bg-slate-800 text-purple-300 border-slate-700 hover:bg-slate-700'
+                                }`}
+                              >
+                                S/ ARO
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Outra estrutura..."
+                              value={editingCardItemForm.estrutura}
+                              onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, estrutura: e.target.value })}
+                              className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
 
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-black text-cyan-400 uppercase">Tecnologia</label>
-                  <input
-                    type="text"
-                    placeholder="INCELL, OLED, AMOLED..."
-                    value={editingCardItemForm.tecnologia}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, tecnologia: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {['INCELL', 'OLED', 'AMOLED', 'IPS'].map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, tecnologia: t }))}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                          (editingCardItemForm.tecnologia || '').toLowerCase() === t.toLowerCase()
-                            ? 'bg-cyan-500 text-slate-950 font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                        {editFields.showQualidade && (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-black text-amber-400 uppercase">Qualidade</label>
+                            <input
+                              type="text"
+                              placeholder="Original, Gold Pro, Incell..."
+                              value={editingCardItemForm.qualidade}
+                              onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, qualidade: e.target.value })}
+                              className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                            />
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {['DIAMONDS', 'Original', 'Gold Pro', 'Premium'].map(q => (
+                                <button
+                                  key={q}
+                                  type="button"
+                                  onClick={() => setEditingCardItemForm(prev => ({ ...prev, qualidade: q }))}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                    (editingCardItemForm.qualidade || '').toLowerCase() === q.toLowerCase()
+                                      ? 'bg-amber-500 text-slate-950 font-black'
+                                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  {q}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-              {/* Cor, Quantidade & Preço Unitário (VALOR) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800">
-                <div className="space-y-1">
-                  <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
-                  <input
-                    type="text"
-                    placeholder="Preto, Branco, Azul..."
-                    value={editingCardItemForm.cor}
-                    onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, cor: e.target.value })}
-                    className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                  <div className="flex items-center gap-1 flex-wrap pt-1">
-                    {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setEditingCardItemForm(prev => ({ ...prev, cor: c }))}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
-                          (editingCardItemForm.cor || '').toLowerCase() === c.toLowerCase()
-                            ? 'bg-indigo-600 text-white font-black'
-                            : 'bg-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {editFields.showTecnologia && (
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-black text-cyan-400 uppercase">Tecnologia</label>
+                            <input
+                              type="text"
+                              placeholder="INCELL, OLED, AMOLED..."
+                              value={editingCardItemForm.tecnologia}
+                              onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, tecnologia: e.target.value })}
+                              className="w-full bg-[#161B2B] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold"
+                            />
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {['INCELL', 'OLED', 'AMOLED', 'IPS'].map(t => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => setEditingCardItemForm(prev => ({ ...prev, tecnologia: t }))}
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                    (editingCardItemForm.tecnologia || '').toLowerCase() === t.toLowerCase()
+                                      ? 'bg-cyan-500 text-slate-950 font-black'
+                                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                                  }`}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Cor, Quantidade & Preço Unitário (VALOR) */}
+                    <div className={`grid grid-cols-1 ${editFields.showCor ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 bg-[#0B1221] p-3.5 rounded-2xl border border-slate-800`}>
+                      {editFields.showCor && (
+                        <div className="space-y-1">
+                          <label className="block text-xs font-black text-slate-300 uppercase">Cor</label>
+                          <input
+                            type="text"
+                            placeholder="Preto, Branco, Azul..."
+                            value={editingCardItemForm.cor}
+                            onChange={(e) => setEditingCardItemForm({ ...editingCardItemForm, cor: e.target.value })}
+                            className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          />
+                          <div className="flex items-center gap-1 flex-wrap pt-1">
+                            {['Preto', 'Branco', 'Azul', 'Dourado'].map(c => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => setEditingCardItemForm(prev => ({ ...prev, cor: c }))}
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                  (editingCardItemForm.cor || '').toLowerCase() === c.toLowerCase()
+                                    ? 'bg-indigo-600 text-white font-black'
+                                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                 <div className="space-y-1">
                   <label className="block text-xs font-black text-slate-300 uppercase">Quantidade</label>
@@ -3975,6 +4236,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                   />
                 </div>
               </div>
+                    </>
+                  );
+                })()}
 
               {/* Bottom Footer Actions */}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5 shrink-0">

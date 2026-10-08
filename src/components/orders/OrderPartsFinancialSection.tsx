@@ -24,7 +24,7 @@ import {
   ServiceOrder,
 } from '../../types';
 import { formatCurrency, getCanonicalStatus, cleanPhoneForWhatsApp } from '../../services/formatters';
-import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
+import { copyOrderBudgetText, BudgetCopyType } from '../../services/orderBudgetSharing';
 import { StorageService } from '../../services/storage';
 
 interface OrderPartsFinancialSectionProps {

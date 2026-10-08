@@ -4,6 +4,7 @@ export type NavigationTab =
   | 'DASHBOARD'
   | 'MESSAGE_BUDGETS'
   | 'CAMERAS'
+  | 'CAMERA_INSTALLATIONS'
   | 'SUPPLIER_ORDERS'
   | 'EXCLUSIVE_ORDERS'
   | 'ACCESSES'
@@ -937,6 +938,25 @@ export interface UserAccount {
   securityAnswer?: string;
   createdAt: string;
   lastLoginAt: string;
+}
+
+export interface ExclusiveOrderItem {
+  id: string;
+  title: string;
+  quantity: number;
+  price: number;
+  color?: string;
+  date: string;
+}
+
+export interface ExclusiveOrderGroup {
+  id: string;
+  clientName: string;
+  whatsapp: string;
+  status: 'PENDING' | 'PURCHASED';
+  items: ExclusiveOrderItem[];
+  createdAt: string;
+  purchasedAt?: string;
 }
 
 

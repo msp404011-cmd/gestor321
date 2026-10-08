@@ -7,7 +7,7 @@ import { PatternLock } from './PatternLock';
 import { ThermalOrderReceipt } from './ThermalOrderReceipt';
 import { ThermalEulisReceipt } from './ThermalEulisReceipt';
 import { formatTechnicalChecklistSummary } from './OrderTechnicalChecklistSection';
-import { copyOrderBudgetText, BudgetCopyType } from '../../utils/orderBudgetUtils';
+import { copyOrderBudgetText, BudgetCopyType } from '../../services/orderBudgetSharing';
 
 interface OrderPrintModalProps {
   isOpen: boolean;

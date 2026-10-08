@@ -9,6 +9,7 @@ import {
   EyeOff,
   Unlock,
   CheckSquare,
+  Headphones,
 } from 'lucide-react';
 import {
   ServiceOrder,
@@ -30,6 +31,7 @@ import { formatCurrency, cleanPhoneForWhatsApp } from '../../services/formatters
 import { useTheme } from '../../context/ThemeContext';
 import { OrderClientDeviceSection } from './OrderClientDeviceSection';
 import { OrderProblemAccessoriesSection } from './OrderProblemAccessoriesSection';
+import { OrderAccessoriesChecklistSection } from './OrderAccessoriesChecklistSection';
 import { OrderPartsFinancialSection } from './OrderPartsFinancialSection';
 import { OrderTechnicalChecklistSection } from './OrderTechnicalChecklistSection';
 import { CustomerModal } from '../customers/CustomerModal';
@@ -149,7 +151,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   // Technical Tests Checklist State & Column 2 Tab
   const [technicalChecklist, setTechnicalChecklist] = useState<DeviceTechnicalChecklist>({});
-  const [col2Tab, setCol2Tab] = useState<'PROBLEMA' | 'CHECKLIST'>('PROBLEMA');
+  const [col2Tab, setCol2Tab] = useState<'PROBLEMA' | 'ACESSORIOS' | 'CHECKLIST'>('PROBLEMA');
 
   // Problems & Services
   const [clientDefect, setClientDefect] = useState('');
@@ -901,6 +903,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ].filter(Boolean).length;
   }, [technicalChecklist]);
 
+  const accessoriesPresentCount = useMemo(() => {
+    const relevantAccs = (customAccessories || []).filter((acc) =>
+      isAccessoryForDeviceType(acc, deviceType)
+    );
+    return relevantAccs.filter((acc) => customAccMap[acc.id]?.present).length;
+  }, [customAccessories, customAccMap, deviceType]);
+
   if (!isOpen) return null;
 
   return (
@@ -997,33 +1006,55 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
           {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS vs CHECKLIST TÉCNICO */}
           <div className="flex flex-col h-full min-h-0 overflow-hidden">
-            {/* Column 2 Sub-Tabs */}
-            <div className="flex items-center gap-1.5 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
+            {/* Column 2 Sub-Tabs - 3 dedicated ergonomic steps */}
+            <div className="flex items-center gap-1 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setCol2Tab('PROBLEMA')}
-                className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   col2Tab === 'PROBLEMA'
                     ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.4)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
+                title="Defeito reclamado e serviço a realizar"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                <span>Defeito & Acessórios</span>
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="truncate">Defeito & Serviço</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setCol2Tab('ACESSORIOS')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  col2Tab === 'ACESSORIOS'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+                title="Checklist de acessórios entregues com o aparelho"
+              >
+                <Headphones className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span className="truncate">Acessórios</span>
+                {accessoriesPresentCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-purple-950 text-purple-300 border border-purple-500/50 shrink-0">
+                    {accessoriesPresentCount}
+                  </span>
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setCol2Tab('CHECKLIST')}
-                className={`flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   col2Tab === 'CHECKLIST'
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
+                title="Checklist técnico dos botões e funções do aparelho"
               >
-                <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Checklist Técnico</span>
+                <CheckSquare className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">Checklist Técnico</span>
                 {checklistFilledCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shrink-0">
                     {checklistFilledCount}/17
                   </span>
                 )}
@@ -1032,50 +1063,45 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             <div className="flex-1 min-h-0 overflow-hidden">
               {col2Tab === 'PROBLEMA' ? (
-                <div className="flex flex-col h-full min-h-0 space-y-1.5">
-                  {/* Quick trigger banner to switch to technical checklist */}
-                  <button
-                    type="button"
-                    onClick={() => setCol2Tab('CHECKLIST')}
-                    className="w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-emerald-950/80 via-[#071922] to-cyan-950/80 border border-emerald-500/40 hover:border-emerald-400 text-emerald-300 hover:text-white text-xs font-black flex items-center justify-between cursor-pointer transition-all shadow-sm shrink-0"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <CheckSquare className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                      <span>📋 Preencher Checklist Técnico do Aparelho</span>
-                    </div>
-                    <span className="text-[10px] bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500/40 font-bold">
-                      {checklistFilledCount > 0 ? `${checklistFilledCount}/17 preenchidos` : 'Abrir testes (17 botões)'}
-                    </span>
-                  </button>
-
-                  <div className="flex-1 min-h-0">
-                    <OrderProblemAccessoriesSection
-                      isDark={isDark}
-                      clientDefect={clientDefect}
-                      setClientDefect={setClientDefect}
-                      serviceToBeDone={serviceToBeDone}
-                      setServiceToBeDone={setServiceToBeDone}
-                      showServicePicker={showServicePicker}
-                      setShowServicePicker={setShowServicePicker}
-                      quickServices={QUICK_SERVICES}
-                      deviceType={deviceType}
-                      customAccessories={customAccessories}
-                      customAccMap={customAccMap}
-                      setCustomAccMap={setCustomAccMap}
-                      onSelectQuickService={(sName, price) => {
-                        setServiceToBeDone(sName);
-                        if (!isPriceUnlocked && customTotalPrice === null) {
-                          setCustomTotalPrice(price);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
+                <OrderProblemAccessoriesSection
+                  isDark={isDark}
+                  clientDefect={clientDefect}
+                  setClientDefect={setClientDefect}
+                  serviceToBeDone={serviceToBeDone}
+                  setServiceToBeDone={setServiceToBeDone}
+                  showServicePicker={showServicePicker}
+                  setShowServicePicker={setShowServicePicker}
+                  quickServices={QUICK_SERVICES}
+                  deviceType={deviceType}
+                  customAccessories={customAccessories}
+                  customAccMap={customAccMap}
+                  setCustomAccMap={setCustomAccMap}
+                  onSelectQuickService={(sName, price) => {
+                    setServiceToBeDone(sName);
+                    if (!isPriceUnlocked && customTotalPrice === null) {
+                      setCustomTotalPrice(price);
+                    }
+                  }}
+                  onOpenAccessoriesTab={() => setCol2Tab('ACESSORIOS')}
+                  onOpenChecklistTab={() => setCol2Tab('CHECKLIST')}
+                  checklistFilledCount={checklistFilledCount}
+                />
+              ) : col2Tab === 'ACESSORIOS' ? (
+                <OrderAccessoriesChecklistSection
+                  isDark={isDark}
+                  deviceType={deviceType}
+                  customAccessories={customAccessories}
+                  customAccMap={customAccMap}
+                  setCustomAccMap={setCustomAccMap}
+                  onNavigateToTab={(target) => setCol2Tab(target)}
+                  checklistFilledCount={checklistFilledCount}
+                />
               ) : (
                 <OrderTechnicalChecklistSection
                   isDark={isDark}
                   checklist={technicalChecklist}
                   onChange={setTechnicalChecklist}
+                  onNavigateBack={() => setCol2Tab('ACESSORIOS')}
                 />
               )}
             </div>
