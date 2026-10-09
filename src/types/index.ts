@@ -23,7 +23,23 @@ export type NavigationTab =
   | 'EMPLOYEES'
   | 'COMPATIBILITY'
   | 'SETTINGS'
-  | 'MONTHLY_DEBITS';
+  | 'MONTHLY_DEBITS'
+  | 'EARNINGS';
+
+export interface EarningItem {
+  id: string;
+  clientName: string; // Nome do cliente (não obrigatório)
+  service: string; // O serviço prestado (não obrigatório)
+  costValue: number; // Valor de custo (se vazio/zero, tudo é lucro)
+  grossValue: number; // Valor bruto
+  profitValue: number; // Lucro calculado: bruto - custo (automático)
+  status: 'PENDING' | 'RECEIVED'; // PENDING = A Receber / Previsível, RECEIVED = Recebido
+  isReceived: boolean;
+  receivedAt?: string; // Data e hora do recebimento
+  createdAt: string;
+  updatedAt: string;
+  notes?: string;
+}
 
 export interface DailyTaskSubItem {
   id: string;
@@ -424,6 +440,12 @@ export interface ServiceOrder {
 
   // Localização física do aparelho quando arquivado ou guardado (Ex: Gaveta 2, Prateleira B)
   archivedLocation?: string;
+
+  // Agendamento / Promessa de retorno para conserto quando arquivado (Dia, Mês, Ano)
+  promisedRepairDate?: string; // Formato YYYY-MM-DD
+  promisedRepairNotes?: string;
+  promisedRepairDismissed?: boolean;
+  promisedRepairDismissedAt?: string;
 
   // Envio exclusivo terceirizado C/ Eulis
   eulisDispatchInfo?: EulisDispatchInfo;

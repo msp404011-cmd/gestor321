@@ -133,6 +133,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [manualPartName, setManualPartName] = useState('');
   const [manualPartQty, setManualPartQty] = useState(1);
   const [manualPartPrice, setManualPartPrice] = useState(0);
+  const [manualPartCost, setManualPartCost] = useState(0);
 
   // Product modal state inside OrderDetail
   const [showProductModalInDetail, setShowProductModalInDetail] = useState(false);
@@ -152,6 +153,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showArchiveLocationPrompt, setShowArchiveLocationPrompt] = useState(false);
   const [detailArchiveLocationInput, setDetailArchiveLocationInput] = useState('');
+  const [detailPromisedDate, setDetailPromisedDate] = useState('');
+  const [detailPromisedNotes, setDetailPromisedNotes] = useState('');
+  const [detailHasPromisedDate, setDetailHasPromisedDate] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
   const [copiedBudgetFeedback, setCopiedBudgetFeedback] = useState<string | null>(null);
@@ -368,6 +372,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     }
     if (isArchivedStatus(newStatus as string)) {
       setDetailArchiveLocationInput(current.archivedLocation || '');
+      setDetailPromisedDate(current.promisedRepairDate || '');
+      setDetailPromisedNotes(current.promisedRepairNotes || '');
+      setDetailHasPromisedDate(!!current.promisedRepairDate);
       setShowArchiveLocationPrompt(true);
       return;
     }
@@ -387,24 +394,30 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     const current = currentOrder || order;
     if (!current) return;
     const loc = (customLoc !== undefined ? customLoc : detailArchiveLocationInput).trim();
+    const finalDate = detailHasPromisedDate && detailPromisedDate.trim() ? detailPromisedDate.trim() : undefined;
+    const finalNotes = detailHasPromisedDate && detailPromisedNotes.trim() ? detailPromisedNotes.trim() : undefined;
+
     const updated: ServiceOrder = {
       ...current,
       status: 'ARQUIVADO',
       archivedLocation: loc || undefined,
+      promisedRepairDate: finalDate,
+      promisedRepairNotes: finalNotes,
+      promisedRepairDismissed: false,
       statusHistory: [
         ...(current.statusHistory || []),
         {
           status: 'ARQUIVADO',
           changedAt: new Date().toISOString(),
           changedBy: currentUser?.name || 'Administrador',
-          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}` : ''}`,
+          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}.` : ''}${finalDate ? ` Retorno agendado para conserto em: ${finalDate}.` : ''}`,
         },
       ],
     };
     StorageService.saveOrder(updated);
     setCurrentOrder(updated);
     setShowArchiveLocationPrompt(false);
-    showToast(`OS arquivada com sucesso! Local: ${loc || 'Não informado'}`);
+    showToast(`OS arquivada com sucesso! Local: ${loc || 'Não informado'}${finalDate ? ` • Conserto: ${finalDate}` : ''}`);
   };
 
   // Toast feedback helper
@@ -836,6 +849,24 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {targetOrder.promisedRepairDate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailArchiveLocationInput(targetOrder.archivedLocation || '');
+                    setDetailPromisedDate(targetOrder.promisedRepairDate || '');
+                    setDetailPromisedNotes(targetOrder.promisedRepairNotes || '');
+                    setDetailHasPromisedDate(true);
+                    setShowArchiveLocationPrompt(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-black rounded-full bg-purple-500/25 text-purple-200 border border-purple-500/50 flex items-center gap-1.5 cursor-pointer hover:bg-purple-500/35 transition-all shadow-xs"
+                  title="Clique para editar o agendamento"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Conserto: {formatDate(targetOrder.promisedRepairDate)}</span>
+                </button>
+              )}
 
               {/* Quick Actions: Imprimir & Editar */}
               <div className="flex items-center gap-2">
@@ -1991,6 +2022,57 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* OPÇÃO OPCIONAL: Promessa de Retorno / Conserto */}
+              <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                <label className="flex items-center gap-2.5 cursor-pointer p-2 rounded-xl bg-purple-950/40 border border-purple-500/40 hover:bg-purple-900/30 transition-all select-none">
+                  <input
+                    type="checkbox"
+                    checked={detailHasPromisedDate}
+                    onChange={(e) => setDetailHasPromisedDate(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs font-black text-purple-200 block">
+                      📅 Agendar Data Que o Cliente Prometeu Trazer (Opcional)
+                    </span>
+                    <span className="text-[10.5px] text-purple-300/80 block">
+                      O cliente informou que vai trazer o celular tal dia para consertar?
+                    </span>
+                  </div>
+                </label>
+
+                {detailHasPromisedDate && (
+                  <div className="p-3 rounded-xl bg-purple-950/60 border border-purple-500/50 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-200 mb-1">
+                        Dia / Mês / Ano do Retorno Prometido:
+                      </label>
+                      <input
+                        type="date"
+                        value={detailPromisedDate}
+                        onChange={(e) => setDetailPromisedDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#040c1e] border border-purple-400/80 focus:border-purple-300 rounded-xl text-xs font-black text-purple-200 focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-200 mb-1">
+                        Observação do Agendamento (Opcional):
+                      </label>
+                      <input
+                        type="text"
+                        value={detailPromisedNotes}
+                        onChange={(e) => setDetailPromisedNotes(e.target.value)}
+                        placeholder="Ex: Vai vir após o almoço / aguardando pagamento..."
+                        className="w-full px-3 py-2 bg-[#040c1e] border border-purple-400/50 focus:border-purple-300 rounded-xl text-xs text-purple-100 placeholder-purple-400/50 focus:outline-hidden"
+                      />
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300">
+                      🔔 <strong>Aviso Automático:</strong> No dia agendado, o sistema criará uma <strong>mensagem bem grandona na tela inicial</strong> alertando sobre este serviço com o botão <strong>"OK VISTO"</strong>.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

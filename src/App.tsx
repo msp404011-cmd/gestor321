@@ -49,6 +49,7 @@ const SupplierOrdersManagement = lazy(() => import('./components/master/Supplier
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
 const MessageBudgetsView = lazy(() => import('./components/master/MessageBudgetsView').then(m => ({ default: m.MessageBudgetsView })));
 const DailyTasksView = lazy(() => import('./components/master/DailyTasksView').then(m => ({ default: m.DailyTasksView })));
+const SuperAdminEarningsView = lazy(() => import('./components/master/SuperAdminEarningsView').then(m => ({ default: m.SuperAdminEarningsView })));
 const GlobalSearchModal = lazy(() => import('./components/common/GlobalSearchModal').then(m => ({ default: m.GlobalSearchModal })));
 const NotificationDrawer = lazy(() => import('./components/common/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
 
@@ -90,7 +91,9 @@ export default function App() {
     if (['COMPATIBILITY', 'COMPATIBILIDADE'].includes(h)) return 'COMPATIBILITY';
     if (['RESELLERS', 'REVENDEDORES'].includes(h)) return 'RESELLERS';
     if (['MESSAGE_BUDGETS', 'ORCAMENTOS', 'MENSAGENS', 'ORCAMENTO_MENSAGENS'].includes(h)) return 'MESSAGE_BUDGETS';
+    if (['ACCESSES', 'ACESSOS', 'CAMERAS_ACCESS'].includes(h)) return 'ACCESSES';
     if (['TASKS', 'TAREFAS', 'TAREFA', 'TAREFAS_DIARIAS'].includes(h)) return 'TASKS';
+    if (['EARNINGS', 'GANHOS', 'GANHO', 'LUCRO', 'LUCROS'].includes(h)) return 'EARNINGS';
     if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
     return null;
   };
@@ -997,6 +1000,10 @@ export default function App() {
             )}
 
             {activeTab === 'MONTHLY_DEBITS' && <MonthlyDebitsView />}
+
+            {activeTab === 'EARNINGS' && (
+              <SuperAdminEarningsView onNavigate={(tab) => setActiveTab(tab as NavigationTab)} />
+            )}
           </Suspense>
         </main>
 

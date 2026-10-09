@@ -610,6 +610,11 @@ export const SubscriptionService = {
   },
 
   isTabAllowed(tab: NavigationTab, targetPlanType?: PlanType): boolean {
+    // A aba EARNINGS (Ganho) é estritamente exclusiva do Super Admin
+    if (tab === 'EARNINGS') {
+      return isSuperAdminUser();
+    }
+
     if (isSuperAdminUser()) {
       return true; // Super Admin tem todas as funções 100% liberadas exclusivamente para ele
     }

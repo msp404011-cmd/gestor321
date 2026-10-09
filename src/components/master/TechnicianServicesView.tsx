@@ -16,7 +16,9 @@ export interface TechnicianServiceItem {
   serviceDescription: string; // SERVIÇO
   deviceLocation: string; // LOCAL ONDE TÁ
   isCompleted: boolean; // STATUS (A Fazer / Feito)
+  status?: 'A_FAZER' | 'FALTA_A_PAGAR' | 'FEITO';
   repasseValue: number; // VALOR DO REPASSE
+  costValue?: number; // VALOR DE CUSTO
   obs?: string; // OBSERVAÇÃO (Opcional - só sai na mensagem se preenchido)
   clientPhone?: string;
   createdAt: string;
@@ -123,7 +125,7 @@ export const TechnicianServicesView: React.FC = () => {
   });
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'TODOS' | 'PENDENTES' | 'CONCLUIDOS'>('TODOS');
+  const [filterStatus, setFilterStatus] = useState<'A_FAZER' | 'FALTA_A_PAGAR' | 'FEITO' | 'TODOS'>('A_FAZER');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Selected services per card for targeted WhatsApp sending
@@ -149,6 +151,7 @@ export const TechnicianServicesView: React.FC = () => {
     deviceLocation: '',
     isCompleted: false,
     repasseValue: '',
+    costValue: '',
     obs: '',
     clientPhone: '',
     createdAt: new Date().toISOString().split('T')[0]
@@ -207,18 +210,26 @@ export const TechnicianServicesView: React.FC = () => {
               technicianPhone: data.technicianPhone || '',
               notes: data.notes || '',
               createdAt: data.createdAt || new Date().toISOString(),
-              services: Array.isArray(data.services) ? data.services.map((s: any) => ({
-                id: s.id || `s_${Date.now()}`,
-                clientName: s.clientName || '',
-                deviceModel: s.deviceModel || s.aparelho || '',
-                serviceDescription: s.serviceDescription || s.servico || '',
-                deviceLocation: s.deviceLocation || s.local || '',
-                isCompleted: Boolean(s.isCompleted || s.status === 'Feito'),
-                repasseValue: Number(s.repasseValue || s.repasse) || 0,
-                clientPhone: s.clientPhone || s.celular || '',
-                createdAt: s.createdAt || new Date().toISOString(),
-                completedAt: s.completedAt || null
-              })) : []
+              services: Array.isArray(data.services) ? data.services.map((s: any) => {
+                let st = s.status;
+                if (!st) {
+                  if (s.isCompleted || s.status === 'Feito') st = 'FEITO';
+                  else st = 'A_FAZER';
+                }
+                return {
+                  id: s.id || `s_${Date.now()}`,
+                  clientName: s.clientName || '',
+                  deviceModel: s.deviceModel || s.aparelho || '',
+                  serviceDescription: s.serviceDescription || s.servico || '',
+                  deviceLocation: s.deviceLocation || s.local || '',
+                  isCompleted: Boolean(s.isCompleted || st === 'FEITO'),
+                  status: st,
+                  repasseValue: Number(s.repasseValue || s.repasse) || 0,
+                  clientPhone: s.clientPhone || s.celular || '',
+                  createdAt: s.createdAt || new Date().toISOString(),
+                  completedAt: s.completedAt || null
+                };
+              }) : []
             });
           });
           loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -387,6 +398,7 @@ export const TechnicianServicesView: React.FC = () => {
       deviceLocation: '',
       isCompleted: false,
       repasseValue: '',
+      costValue: '',
       obs: '',
       clientPhone: '',
       createdAt: new Date().toISOString().split('T')[0]
@@ -413,6 +425,7 @@ export const TechnicianServicesView: React.FC = () => {
       deviceLocation: service.deviceLocation || '',
       isCompleted: Boolean(service.isCompleted),
       repasseValue: service.repasseValue ? String(service.repasseValue) : '',
+      costValue: service.costValue ? String(service.costValue) : '',
       obs: service.obs || '',
       clientPhone: service.clientPhone || '',
       createdAt: dateStr
@@ -446,6 +459,7 @@ export const TechnicianServicesView: React.FC = () => {
     }
 
     const repVal = parseFloat(serviceForm.repasseValue.replace(',', '.')) || 0;
+    const costVal = parseFloat(serviceForm.costValue.replace(',', '.')) || 0;
     const userEmail = getUserAccountEmail();
     const now = new Date().toISOString();
     const finalCreatedAt = serviceForm.createdAt
@@ -470,6 +484,7 @@ export const TechnicianServicesView: React.FC = () => {
             deviceLocation: location || 'Bancada',
             isCompleted: isNowCompleted,
             repasseValue: repVal,
+            costValue: costVal,
             obs: serviceForm.obs.trim(),
             clientPhone: serviceForm.clientPhone.trim(),
             createdAt: finalCreatedAt,
@@ -487,6 +502,7 @@ export const TechnicianServicesView: React.FC = () => {
         deviceLocation: location || 'Bancada',
         isCompleted: serviceForm.isCompleted,
         repasseValue: repVal,
+        costValue: costVal,
         obs: serviceForm.obs.trim(),
         clientPhone: serviceForm.clientPhone.trim(),
         createdAt: finalCreatedAt,
@@ -514,21 +530,39 @@ export const TechnicianServicesView: React.FC = () => {
     setIsServiceModalOpen(false);
   };
 
-  const handleToggleServiceStatus = async (cardId: string, serviceId: string) => {
+  const handleAdvanceServiceStatus = async (cardId: string, serviceId: string) => {
     const userEmail = getUserAccountEmail();
     const now = new Date().toISOString();
 
-    let newStatus = false;
     const targetCard = cards.find(c => c.id === cardId);
     if (!targetCard) return;
 
+    let updatedMsg = '';
     const updatedServices = targetCard.services.map(s => {
       if (s.id === serviceId) {
-        newStatus = !s.isCompleted;
+        const curStatus = s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER');
+        let nextStatus: 'A_FAZER' | 'FALTA_A_PAGAR' | 'FEITO' = 'FALTA_A_PAGAR';
+        let isComp = false;
+
+        if (curStatus === 'A_FAZER') {
+          nextStatus = 'FALTA_A_PAGAR';
+          isComp = false;
+          updatedMsg = 'Serviço concluído! Movido para Falta a Pagar';
+        } else if (curStatus === 'FALTA_A_PAGAR') {
+          nextStatus = 'FEITO';
+          isComp = true;
+          updatedMsg = 'Pago! Movido para Feito';
+        } else {
+          nextStatus = 'A_FAZER';
+          isComp = false;
+          updatedMsg = 'Retornado para A Fazer';
+        }
+
         return {
           ...s,
-          isCompleted: newStatus,
-          completedAt: newStatus ? now : null
+          status: nextStatus,
+          isCompleted: isComp,
+          completedAt: isComp ? (s.completedAt || now) : null
         };
       }
       return s;
@@ -546,7 +580,7 @@ export const TechnicianServicesView: React.FC = () => {
       await setDoc(docRef, { services: updatedServices }, { merge: true });
     });
 
-    showToast(newStatus ? 'Status: FEITO (Repasse somado)' : 'Status: A FAZER (Pendente)', 'success');
+    showToast(updatedMsg, 'success');
   };
 
   const handleDeleteService = (cardId: string, service: TechnicianServiceItem) => {
@@ -692,10 +726,12 @@ export const TechnicianServicesView: React.FC = () => {
     const q = searchTerm.toLowerCase();
     return cards.map(card => {
       let filteredServices = card.services || [];
-      if (filterStatus === 'PENDENTES') {
-        filteredServices = filteredServices.filter(s => !s.isCompleted);
-      } else if (filterStatus === 'CONCLUIDOS') {
-        filteredServices = filteredServices.filter(s => s.isCompleted);
+      if (filterStatus === 'A_FAZER') {
+        filteredServices = filteredServices.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'A_FAZER');
+      } else if (filterStatus === 'FALTA_A_PAGAR') {
+        filteredServices = filteredServices.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FALTA_A_PAGAR');
+      } else if (filterStatus === 'FEITO') {
+        filteredServices = filteredServices.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FEITO');
       }
 
       if (q) {
@@ -726,9 +762,11 @@ export const TechnicianServicesView: React.FC = () => {
   const overallTotals = useMemo(() => {
     let totalRepasses = 0;
     let totalFeito = 0;
+    let totalFaltaPagar = 0;
     let totalAFazer = 0;
     let countTotal = 0;
     let countFeito = 0;
+    let countFaltaPagar = 0;
     let countAFazer = 0;
 
     cards.forEach(c => {
@@ -736,9 +774,13 @@ export const TechnicianServicesView: React.FC = () => {
         countTotal++;
         const val = Number(s.repasseValue) || 0;
         totalRepasses += val;
-        if (s.isCompleted) {
+        const st = s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER');
+        if (st === 'FEITO') {
           countFeito++;
           totalFeito += val;
+        } else if (st === 'FALTA_A_PAGAR') {
+          countFaltaPagar++;
+          totalFaltaPagar += val;
         } else {
           countAFazer++;
           totalAFazer += val;
@@ -746,7 +788,7 @@ export const TechnicianServicesView: React.FC = () => {
       });
     });
 
-    return { totalRepasses, totalFeito, totalAFazer, countTotal, countFeito, countAFazer };
+    return { totalRepasses, totalFeito, totalFaltaPagar, totalAFazer, countTotal, countFeito, countFaltaPagar, countAFazer };
   }, [cards]);
 
   return (
@@ -796,7 +838,7 @@ export const TechnicianServicesView: React.FC = () => {
       )}
 
       {/* Top Summary Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 shrink-0">
         <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2.5 flex items-center gap-2.5 shadow-sm">
           <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
             <User className="w-4 h-4" />
@@ -831,6 +873,18 @@ export const TechnicianServicesView: React.FC = () => {
           </div>
         </div>
 
+        <div className="bg-[#161B2B] rounded-xl border border-purple-500/30 p-2.5 flex items-center gap-2.5 shadow-sm">
+          <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg">
+            <DollarSign className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-base font-black text-purple-400">
+              R$ {overallTotals.totalFaltaPagar.toFixed(2).replace('.', ',')}
+            </div>
+            <div className="text-[9px] text-purple-400 uppercase font-bold">Falta a Pagar ({overallTotals.countFaltaPagar})</div>
+          </div>
+        </div>
+
         <div className="bg-[#161B2B] rounded-xl border border-amber-500/30 p-2.5 flex items-center gap-2.5 shadow-sm">
           <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
             <Clock className="w-4 h-4" />
@@ -860,7 +914,31 @@ export const TechnicianServicesView: React.FC = () => {
           </div>
 
           {/* Filter Status */}
-          <div className="flex items-center bg-[#0B1221] p-1 rounded-lg border border-slate-800 text-xs shrink-0">
+          <div className="flex items-center bg-[#0B1221] p-1 rounded-lg border border-slate-800 text-xs shrink-0 overflow-x-auto">
+            <button
+              onClick={() => setFilterStatus('A_FAZER')}
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                filterStatus === 'A_FAZER' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Clock className="w-3 h-3" /> A Fazer
+            </button>
+            <button
+              onClick={() => setFilterStatus('FALTA_A_PAGAR')}
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                filterStatus === 'FALTA_A_PAGAR' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <DollarSign className="w-3 h-3" /> Falta a Pagar
+            </button>
+            <button
+              onClick={() => setFilterStatus('FEITO')}
+              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                filterStatus === 'FEITO' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <CheckCircle2 className="w-3 h-3" /> Feito
+            </button>
             <button
               onClick={() => setFilterStatus('TODOS')}
               className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
@@ -868,22 +946,6 @@ export const TechnicianServicesView: React.FC = () => {
               }`}
             >
               Todos
-            </button>
-            <button
-              onClick={() => setFilterStatus('PENDENTES')}
-              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                filterStatus === 'PENDENTES' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Clock className="w-3 h-3" /> A Fazer
-            </button>
-            <button
-              onClick={() => setFilterStatus('CONCLUIDOS')}
-              className={`px-2 sm:px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                filterStatus === 'CONCLUIDOS' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <CheckCircle2 className="w-3 h-3" /> Feitos
             </button>
           </div>
         </div>
@@ -907,6 +969,27 @@ export const TechnicianServicesView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Falta a Pagar Active Tab Banner */}
+      {filterStatus === 'FALTA_A_PAGAR' && (
+        <div className="bg-purple-950/30 border border-purple-500/30 rounded-xl p-3 flex items-center justify-between text-xs text-purple-200 shrink-0 shadow-md">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-purple-500/20 text-purple-300 rounded-lg">
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-white">Resumo da Aba - Falta a Pagar:</span>
+              <p className="text-[10px] text-purple-300/80">Estes serviços aguardam pagamento. Ao marcar como Pago, o valor é zerado desta aba e o item vai para Feito.</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-purple-400 font-bold uppercase">Total a Pagar</div>
+            <div className="text-sm font-black text-purple-200">
+              R$ {overallTotals.totalFaltaPagar.toFixed(2).replace('.', ',')} ({overallTotals.countFaltaPagar})
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Cards List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1 min-h-0">
@@ -933,10 +1016,13 @@ export const TechnicianServicesView: React.FC = () => {
 
             // Card Totals
             const totalRepasse = services.reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
-            const totalFeito = services.filter(s => s.isCompleted).reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
-            const totalAFazer = services.filter(s => !s.isCompleted).reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
-            const doneCount = services.filter(s => s.isCompleted).length;
-            const pendingCount = services.filter(s => !s.isCompleted).length;
+            const totalFeito = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FEITO').reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
+            const totalFaltaPagar = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FALTA_A_PAGAR').reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
+            const totalAFazer = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'A_FAZER').reduce((acc, s) => acc + (Number(s.repasseValue) || 0), 0);
+            
+            const doneCount = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FEITO').length;
+            const faltaPagarCount = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'FALTA_A_PAGAR').length;
+            const pendingCount = services.filter(s => (s.status || (s.isCompleted ? 'FEITO' : 'A_FAZER')) === 'A_FAZER').length;
 
             const selectedIds = selectedForSend[card.id] || [];
             const selectedCount = selectedIds.length;
@@ -975,6 +1061,8 @@ export const TechnicianServicesView: React.FC = () => {
                         <span>•</span>
                         <span className="text-emerald-400 font-bold">{doneCount} feitos</span>
                         <span>•</span>
+                        <span className="text-purple-400 font-bold">{faltaPagarCount} falta pagar</span>
+                        <span>•</span>
                         <span className="text-amber-400 font-bold">{pendingCount} a fazer</span>
                       </div>
                     </div>
@@ -995,6 +1083,15 @@ export const TechnicianServicesView: React.FC = () => {
                       </div>
                       <div className="text-xs font-black text-emerald-400">
                         R$ {totalFeito.toFixed(2).replace('.', ',')}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#0B1221] px-2 py-1 rounded-lg border border-purple-500/30 text-left">
+                      <div className="text-[9px] text-purple-400 uppercase font-bold flex items-center gap-1">
+                        <DollarSign className="w-2.5 h-2.5" /> Falta a Pagar
+                      </div>
+                      <div className="text-xs font-black text-purple-400">
+                        R$ {totalFaltaPagar.toFixed(2).replace('.', ',')}
                       </div>
                     </div>
 
@@ -1111,29 +1208,47 @@ export const TechnicianServicesView: React.FC = () => {
                               className="mt-1 md:mt-0 w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 checked:bg-cyan-500 cursor-pointer shrink-0"
                             />
 
-                            {/* Checkbox: STATUS Toggle (A Fazer / Feito) */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleServiceStatus(card.id, service.id)}
-                              className={`px-2 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                                service.isCompleted 
-                                  ? 'bg-emerald-500 text-white border-emerald-400 shadow-sm' 
-                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-                              }`}
-                              title={service.isCompleted ? 'Clique para mudar para A FAZER' : 'Clique para marcar como FEITO'}
-                            >
-                              {service.isCompleted ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                  <span>FEITO</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="w-3.5 h-3.5" />
-                                  <span>A FAZER</span>
-                                </>
-                              )}
-                            </button>
+                            {/* Status Workflow Button */}
+                            {(() => {
+                              const st = service.status || (service.isCompleted ? 'FEITO' : 'A_FAZER');
+                              if (st === 'A_FAZER') {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceServiceStatus(card.id, service.id)}
+                                    className="px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                                    title="Clique para marcar como Feito o Serviço (Vai para Falta a Pagar)"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Feito o Serviço</span>
+                                  </button>
+                                );
+                              } else if (st === 'FALTA_A_PAGAR') {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceServiceStatus(card.id, service.id)}
+                                    className="px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30"
+                                    title="Clique para marcar como Pago (Vai para Feito)"
+                                  >
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                    <span>Pago</span>
+                                  </button>
+                                );
+                              } else {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdvanceServiceStatus(card.id, service.id)}
+                                    className="px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 bg-emerald-500 text-white border-emerald-400 shadow-sm"
+                                    title="Serviço Feito e Pago (Clique para reverter)"
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>Feito</span>
+                                  </button>
+                                );
+                              }
+                            })()}
 
                             {/* 4 Core Fields: CLIENTE, APARELHO, SERVIÇO, LOCAL ONDE TÁ + ESPAÇO DE OBS */}
                             <div className="flex-1 min-w-0">
@@ -1204,12 +1319,21 @@ export const TechnicianServicesView: React.FC = () => {
 
                           {/* Right: Repasse Value & Row Actions */}
                           <div className="flex items-center gap-3 shrink-0 self-end md:self-center w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-2 md:pt-0 border-slate-800">
-                            {/* Valor do Repasse */}
-                            <div className="text-right">
+                            {/* Valor do Repasse & Custo / 100% */}
+                            <div className="text-right space-y-0.5">
                               <div className="text-[9px] text-slate-400 uppercase font-bold">Repasse</div>
                               <div className="text-xs sm:text-sm font-black text-emerald-400 font-mono">
                                 R$ {(Number(service.repasseValue) || 0).toFixed(2).replace('.', ',')}
                               </div>
+                              {Number(service.costValue) > 0 ? (
+                                <div className="text-[10px] text-rose-400 font-mono">
+                                  Custo: R$ {(Number(service.costValue) || 0).toFixed(2).replace('.', ',')}
+                                </div>
+                              ) : (
+                                <span className="inline-block px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase">
+                                  100% Lucro
+                                </span>
+                              )}
                             </div>
 
                             {/* Actions: 1 a 1 WhatsApp, Edit, Delete */}

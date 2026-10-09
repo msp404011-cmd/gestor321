@@ -5,7 +5,7 @@ import {
   Edit3, ArrowRight, Check, AlertCircle, RefreshCw, Layers,
   Phone, MessageSquare, ExternalLink, Copy, CheckCheck, UserPlus,
   Building2, ChevronDown, ChevronUp, RotateCcw, Undo2, Send, FileText,
-  BarChart3, BarChart2, Filter, X, ShieldAlert
+  BarChart3, BarChart2, Filter, X, ShieldAlert, CheckSquare
 } from 'lucide-react';
 
 export interface RegisteredSupplier {
@@ -252,13 +252,21 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     dateGroups: any[];
     pendingItems: SupplierPurchaseItem[];
     copiedText: boolean;
+    filterMode: 'ALL' | 'DAY' | 'SELECTED';
+    selectedDayKey: string;
+    selectedPieceIds: string[];
+    pieceSearch: string;
   }>({
     isOpen: false,
     supplierName: '',
     supplierInfo: undefined,
     dateGroups: [],
     pendingItems: [],
-    copiedText: false
+    copiedText: false,
+    filterMode: 'ALL',
+    selectedDayKey: '',
+    selectedPieceIds: [],
+    pieceSearch: '',
   });
 
   // Return modal state
@@ -1145,25 +1153,26 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       text += `🔢 *Total:* ${activePieces.length} modelos (${totalPieces} peças no total)\n`;
     }
 
-    // PEÇAS EM DEVOLUÇÃO (Ficam apenas embaixo, separadas das peças contabilizadas)
+    // PEÇAS EM DEVOLUÇÃO (Ficam destacadas, riscadas e separadas das peças contabilizadas)
     if (returnedPieces.length > 0) {
       if (activePieces.length > 0) {
         text += `\n-----------------------------------\n`;
       }
-      text += `🔄 *PEÇAS PARA DEVOLUÇÃO (${returnedPieces.length}):*\n`;
+      text += `🔄 *PEÇAS EM DEVOLUÇÃO (${returnedPieces.length}) - NÃO CONTABILIZADAS:*\n`;
+      text += `⚠️ *Atenção: Estas peças foram devolvidas e NÃO constam no valor total acima.*\n\n`;
       returnedPieces.forEach((item, rIdx) => {
         const typePrefix = item.typeName ? `${item.typeName} ` : '';
         const estUpper = (item.estrutura || '').trim().toUpperCase();
         const estBadge = estUpper ? ` - ${estUpper}` : '';
 
-        text += `${rIdx + 1}. 📱 ${typePrefix}${item.title}${estBadge}\n`;
+        text += `${rIdx + 1}. 📱 ~${typePrefix}${item.title}${estBadge}~ 🔄 [DEVOLVIDA]\n`;
         if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
         if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
         if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
         if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
         if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
-        text += `🔢 Qtd: ${item.quantity}x | R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
-        if (item.returnReason) text += `📝 Motivo: ${item.returnReason}\n`;
+        text += `🔢 Qtd: ${item.quantity}x | Valor desconsiderado: ~R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}~ (R$ 0,00)\n`;
+        if (item.returnReason) text += `📝 Motivo da Devolução: ${item.returnReason}\n`;
         text += `\n`;
       });
       text += `-----------------------------------\n`;
@@ -1178,7 +1187,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   // - Topo: RELATÓRIO DE CONFERÊNCIA DE DÉBITOS + DO DIA ... AO DIA ...
   // - Separado mais embaixo: VALOR TOTAL + QUANTIDADE DE PEÇAS
   // - Separado mais embaixo: Lista de peças por data com ordens, estruturas e valores
-  // - Peças devolvidas: Mostra apenas que foi devolvida
+  // - Peças devolvidas: Ficam riscadas e destacadas com aviso de devolução não contabilizada
   // - SEM status de recebido/não recebido
   // - No fim: Pergunta se está certo o débito
   const formatSupplierConferenceWhatsAppText = (
@@ -1197,6 +1206,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     const itemsToUse = allSupplierPendingItems || [];
     // Apenas itens em débito ativos (não devolvidos) contam para o valor total e contagem
     const activePendingItems = itemsToUse.filter(p => p.paymentStatus === 'Pendente' && !p.isReturned);
+    const returnedItemsList = itemsToUse.filter(p => p.isReturned);
 
     let grandTotal = 0;
     let totalPiecesCount = 0;
@@ -1235,8 +1245,15 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
 
     text += `-----------------------------------\n`;
     text += `💰 *VALOR TOTAL: R$ ${grandTotal.toFixed(2).replace('.', ',')}*\n`;
-    text += `📦 *QUANTIDADE DE PEÇAS: ${totalPiecesCount}*\n`;
+    text += `📦 *QUANTIDADE DE PEÇAS A PAGAR: ${totalPiecesCount}*\n`;
+    if (returnedItemsList.length > 0) {
+      text += `🔄 *DEVOLUÇÕES: ${returnedItemsList.length} peça(s) devolvida(s) (NÃO CONTABILIZADAS NO TOTAL)*\n`;
+    }
     text += `-----------------------------------\n\n`;
+
+    if (returnedItemsList.length > 0) {
+      text += `⚠️ *AVISO DE DEVOLUÇÃO:* Houve ${returnedItemsList.length} peça(s) devolvida(s). Elas aparecem riscadas ~assim~ e com valor R$ 0,00 no relatório abaixo.\n\n`;
+    }
 
     text += `📋 *DETALHAMENTO DE PEÇAS E PEDIDOS:*\n\n`;
 
@@ -1254,16 +1271,21 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
           const estUpper = (item.estrutura || '').trim().toUpperCase();
           const estBadge = estUpper ? ` - ${estUpper}` : '';
 
-          text += `  Ordem ${idx + 1}: 📱 ${typePrefix}${item.title}${estBadge}\n`;
-          if (item.marca || item.modelo) text += `   🏷️ Aparelho: ${item.marca || ''} ${item.modelo || ''}\n`;
-          if (estUpper) text += `   ⭕ Estrutura: ${estUpper}\n`;
-          if (item.qualidade) text += `   ⚡ Qualidade: ${item.qualidade}\n`;
-          if (item.cor) text += `   🎨 Cor: ${item.cor}\n`;
-          text += `   💵 Valor: R$ ${sub.toFixed(2).replace('.', ',')} (${qty}x R$ ${unitPrice.toFixed(2).replace('.', ',')})\n`;
-
           if (item.isReturned) {
-            text += `   ⚠️ [ DEVOLVIDA ]\n`;
-            if (item.returnReason) text += `   📝 Motivo: ${item.returnReason}\n`;
+            text += `  Ordem ${idx + 1}: 📱 ~${typePrefix}${item.title}${estBadge}~ 🔄 *[ DEVOLUÇÃO - NÃO COBRAR ]*\n`;
+            if (item.marca || item.modelo) text += `   🏷️ Aparelho: ~${item.marca || ''} ${item.modelo || ''}~\n`;
+            if (estUpper) text += `   ⭕ Estrutura: ~${estUpper}~\n`;
+            if (item.qualidade) text += `   ⚡ Qualidade: ~${item.qualidade}~\n`;
+            if (item.cor) text += `   🎨 Cor: ~${item.cor}~\n`;
+            text += `   💵 Valor: ~R$ ${sub.toFixed(2).replace('.', ',')}~ (R$ 0,00 - DEVOLVIDA)\n`;
+            if (item.returnReason) text += `   📝 Motivo da Devolução: ${item.returnReason}\n`;
+          } else {
+            text += `  Ordem ${idx + 1}: 📱 ${typePrefix}${item.title}${estBadge}\n`;
+            if (item.marca || item.modelo) text += `   🏷️ Aparelho: ${item.marca || ''} ${item.modelo || ''}\n`;
+            if (estUpper) text += `   ⭕ Estrutura: ${estUpper}\n`;
+            if (item.qualidade) text += `   ⚡ Qualidade: ${item.qualidade}\n`;
+            if (item.cor) text += `   🎨 Cor: ${item.cor}\n`;
+            text += `   💵 Valor: R$ ${sub.toFixed(2).replace('.', ',')} (${qty}x R$ ${unitPrice.toFixed(2).replace('.', ',')})\n`;
           }
           text += `\n`;
         });
@@ -2095,11 +2117,15 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                                   <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 uppercase">
                                                     {piece.typeName || 'Peça'}
                                                   </span>
-                                                  <span className="font-black text-xs sm:text-sm text-white truncate" title={piece.title}>
+                                                  <span className={`font-black text-xs sm:text-sm truncate ${
+                                                    isReturned ? 'line-through text-slate-400 opacity-60' : 'text-white'
+                                                  }`} title={piece.title}>
                                                     {piece.title}
                                                   </span>
                                                 </div>
-                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                <div className={`text-[10px] mt-0.5 ${
+                                                  isReturned ? 'line-through text-slate-500 opacity-60' : 'text-slate-400'
+                                                }`}>
                                                   {piece.marca} {piece.modelo} {piece.qualidade ? `• ${piece.qualidade}` : ''} {piece.cor ? `• ${piece.cor}` : ''}
                                                 </div>
                                                 {isReturned && piece.returnReason && (

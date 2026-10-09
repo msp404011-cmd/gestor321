@@ -33,6 +33,7 @@ import {
   MessageSquareText,
   MessageCircle,
   CheckSquare,
+  DollarSign,
 } from 'lucide-react';
 import { Employee, NavigationTab } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -221,6 +222,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 icon: ShoppingCart,
                 badge: 'MASTER',
                 badgeType: 'master-orange' as const,
+              },
+            ],
+          },
+          {
+            id: 'SUPER_ADMIN_EARNINGS_SECTION',
+            title: 'ÁREA DE GANHO',
+            icon: DollarSign,
+            colorTheme: 'emerald' as const,
+            items: [
+              {
+                id: 'EARNINGS',
+                title: 'Ganho',
+                subtitle: 'Bruto, Custos e Lucro',
+                icon: DollarSign,
+                badge: 'EXCLUSIVO',
+                badgeType: 'master-green' as const,
               },
             ],
           },
@@ -413,6 +430,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeType: 'genial' as const,
         },
         {
+          id: 'ACCESSES',
+          title: 'Controle de Acessos',
+          subtitle: 'Gerenciamento de acessos',
+          icon: Tv,
+        },
+        {
           id: 'SETTINGS',
           title: 'Configurações',
           subtitle: 'Ajustes do sistema',
@@ -447,7 +470,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const filteredSections = sections
     .map((section) => {
       const allowedItems = section.items.filter((item) => {
-        if (item.id === 'MONTHLY_DEBITS' && !isSuper) return false;
+        if ((item.id === 'MONTHLY_DEBITS' || item.id === 'EARNINGS') && !isSuper) return false;
         if (isSuper) return true;
         const normalizedTab = item.id.replace('_SECTION', '').replace('_TERMS', '').replace('_REPORTS', '');
         if (['HELP_SUPPORT'].includes(item.id)) return true;

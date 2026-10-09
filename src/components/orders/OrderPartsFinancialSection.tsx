@@ -15,6 +15,7 @@ import {
   MessageCircle,
   Package,
   Clock,
+  Calendar,
 } from 'lucide-react';
 import {
   OrderPartItem,
@@ -49,6 +50,8 @@ interface OrderPartsFinancialSectionProps {
   setManualPartQty: (val: number) => void;
   manualPartPrice: number;
   setManualPartPrice: (val: number) => void;
+  manualPartCost: number;
+  setManualPartCost: (val: number) => void;
   handleAddManualPart: () => void;
   handleUpdatePartQty: (idx: number, qty: number) => void;
   handleUpdatePartPrice: (idx: number, price: number) => void;
@@ -78,6 +81,10 @@ interface OrderPartsFinancialSectionProps {
   statusChoices: { status: OrderStatus; label: string; icon: string }[];
   archivedLocation?: string;
   setArchivedLocation?: (val: string) => void;
+  promisedRepairDate?: string;
+  setPromisedRepairDate?: (val: string) => void;
+  promisedRepairNotes?: string;
+  setPromisedRepairNotes?: (val: string) => void;
   // Two-tier part options (1ª Linha vs Premium)
   partPriceFirstLine?: number;
   setPartPriceFirstLine?: (val: number) => void;
@@ -125,6 +132,8 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
   setManualPartQty,
   manualPartPrice = 0,
   setManualPartPrice,
+  manualPartCost = 0,
+  setManualPartCost,
   handleAddManualPart,
   handleUpdatePartQty,
   handleUpdatePartPrice,
@@ -152,6 +161,10 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
   statusChoices = [],
   archivedLocation = '',
   setArchivedLocation,
+  promisedRepairDate = '',
+  setPromisedRepairDate,
+  promisedRepairNotes = '',
+  setPromisedRepairNotes,
   partPriceFirstLine = 0,
   setPartPriceFirstLine,
   partPricePremium = 0,
@@ -404,8 +417,17 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                 min="0"
                 value={manualPartPrice || ''}
                 onChange={(e) => setManualPartPrice(parseFloat(e.target.value) || 0)}
-                placeholder="R$ Unit"
+                placeholder="R$ Venda"
                 className="w-20 px-1 py-1 bg-[#020807] border border-slate-700 rounded-lg text-xs text-emerald-400 font-bold font-mono"
+              />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={manualPartCost || ''}
+                onChange={(e) => setManualPartCost(parseFloat(e.target.value) || 0)}
+                placeholder="R$ Custo"
+                className="w-20 px-1 py-1 bg-[#020807] border border-slate-700 rounded-lg text-xs text-rose-400 font-bold font-mono"
               />
               <button
                 type="button"
@@ -762,6 +784,52 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Agendamento Opcional de Conserto na OS Arquivada */}
+            <div className="pt-2.5 border-t border-amber-500/25 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black text-amber-200 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <span>CLIENTE INFORMOU QUE VAI CONSERTAR EM TAL DIA? (OPCIONAL)</span>
+                </label>
+                {promisedRepairDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPromisedRepairDate?.('');
+                      setPromisedRepairNotes?.('');
+                    }}
+                    className="text-[10px] text-rose-300 hover:text-rose-200 underline cursor-pointer"
+                  >
+                    Limpar data
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[9.5px] text-slate-400 block mb-0.5">Data Marcada (Dia / Mês / Ano):</span>
+                  <input
+                    type="date"
+                    value={promisedRepairDate}
+                    onChange={(e) => setPromisedRepairDate?.(e.target.value)}
+                    className="w-full h-9 px-3 bg-[#080f1e] border-2 border-amber-400/70 focus:border-amber-300 rounded-xl text-xs font-black text-amber-300 focus:outline-hidden shadow-inner"
+                  />
+                </div>
+                <div>
+                  <span className="text-[9.5px] text-slate-400 block mb-0.5">Observação (Opcional):</span>
+                  <input
+                    type="text"
+                    value={promisedRepairNotes}
+                    onChange={(e) => setPromisedRepairNotes?.(e.target.value)}
+                    placeholder="Ex: Vai vir após o almoço / aguardando pagamento..."
+                    className="w-full h-9 px-3 bg-[#080f1e] border border-amber-400/50 focus:border-amber-300 rounded-xl text-xs text-amber-200 placeholder-zinc-500 focus:outline-hidden shadow-inner"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-amber-300/80">
+                💡 Ao marcar esta data, o sistema exibirá uma <strong>mensagem bem grandona na tela inicial</strong> no dia marcado com o botão <strong>OK Visto</strong>.
+              </p>
             </div>
           </div>
         )}

@@ -178,6 +178,18 @@ export function MonthlyDebitsView() {
   const [expandedDebits, setExpandedDebits] = useState<Record<string, boolean>>({});
   const [expandedPayables, setExpandedPayables] = useState<Record<string, boolean>>({});
 
+  // Feedback de Baixa e Total que Falta
+  const [baixaFeedback, setBaixaFeedback] = useState<{
+    debitId: string;
+    name: string;
+    installmentPaid: number;
+    installmentsCount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    remainingInstallments: number;
+    isFullyPaid: boolean;
+  } | null>(null);
+
   // Delete Confirmation Modal State
   const [deleteConfirmState, setDeleteConfirmState] = useState<{
     isOpen: boolean;
@@ -812,6 +824,8 @@ export function MonthlyDebitsView() {
 
     const updatedPayments = [...debit.payments, paymentRecord];
     const isCompleted = nextIndex >= debit.installmentsCount;
+    const remainingAmount = Math.max(0, debit.totalAmount - (nextIndex * debit.installmentAmount));
+    const remainingInstallments = Math.max(0, debit.installmentsCount - nextIndex);
 
     const updatedDebit: MonthlyDebit = {
       ...debit,
@@ -821,6 +835,18 @@ export function MonthlyDebitsView() {
     };
 
     StorageService.saveMonthlyDebit(updatedDebit);
+    setDebits(StorageService.getMonthlyDebits());
+
+    setBaixaFeedback({
+      debitId: debit.id,
+      name: debit.name,
+      installmentPaid: nextIndex,
+      installmentsCount: debit.installmentsCount,
+      paidAmount: debit.installmentAmount,
+      remainingAmount,
+      remainingInstallments,
+      isFullyPaid: isCompleted,
+    });
   };
 
   const toggleExpand = (id: string) => {
@@ -1109,6 +1135,55 @@ export function MonthlyDebitsView() {
             </div>
           </div>
 
+          {/* FEEDBACK DE BAIXA DE PARCELA - MOSTRA O TOTAL QUE FALTA */}
+          {baixaFeedback && (
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl p-4 sm:p-6 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-950 border-2 border-emerald-500/60 shadow-[0_0_35px_rgba(16,185,129,0.3)] animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-2xl shrink-0 shadow-lg shadow-emerald-500/30">
+                    <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                        {baixaFeedback.isFullyPaid ? '🎉 100% QUITADO!' : '✅ BAIXA REALIZADA COM SUCESSO!'}
+                      </span>
+                      <span className="text-xs font-bold text-slate-300">
+                        {baixaFeedback.name}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Parcela <strong className="text-white font-mono">{baixaFeedback.installmentPaid} de {baixaFeedback.installmentsCount}</strong> ({formatCurrency(baixaFeedback.paidAmount)}) registrada com sucesso.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 self-stretch sm:self-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-white/10">
+                  <div className="p-3 rounded-2xl bg-black/60 border border-amber-500/40 text-left sm:text-right min-w-[160px]">
+                    <span className="text-[10px] text-amber-300 font-black uppercase tracking-wider block">
+                      TOTAL QUE FALTA A PAGAR:
+                    </span>
+                    <span className={`text-lg sm:text-xl font-black font-mono block leading-tight ${baixaFeedback.remainingAmount <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {baixaFeedback.remainingAmount <= 0 ? 'R$ 0,00 (NADA RESTANTE)' : formatCurrency(baixaFeedback.remainingAmount)}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
+                      {baixaFeedback.remainingInstallments <= 0 ? 'Todas as parcelas pagas' : `Restam ${baixaFeedback.remainingInstallments} parcela(s)`}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setBaixaFeedback(null)}
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
+                    title="Fechar aviso"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* MAIN GRID */}
           {debits.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-pink-955/40 rounded-3xl bg-[#030712]/50 text-center space-y-4">
@@ -1248,7 +1323,7 @@ export function MonthlyDebitsView() {
 
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div className="bg-white/5 border border-white/5 p-2.5 rounded-xl text-left">
-                          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block">Total</span>
+                          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black block">Total Débito</span>
                           <span className="text-sm font-black text-white mt-0.5 block leading-none">
                             {formatCurrency(debit.totalAmount)}
                           </span>
@@ -1260,6 +1335,40 @@ export function MonthlyDebitsView() {
                           </span>
                         </div>
                       </div>
+
+                      {/* DESTAQUE OBRIGATÓRIO: TOTAL QUE FALTA SEMPRE APÓS QUITAÇÃO DAS PARCELAS */}
+                      {(() => {
+                        const totalPaidAmount = Math.min(debit.totalAmount, debit.paidInstallments * debit.installmentAmount);
+                        const remainingToPay = Math.max(0, debit.totalAmount - totalPaidAmount);
+                        const remainingParcels = Math.max(0, debit.installmentsCount - debit.paidInstallments);
+
+                        return (
+                          <div className={`p-3 rounded-2xl border-2 transition-all ${
+                            isFullyPaid
+                              ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
+                              : 'bg-gradient-to-r from-amber-950/40 to-slate-900 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
+                                {isFullyPaid ? 'Situação do Débito' : 'TOTAL QUE FALTA A PAGAR'}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-slate-400">
+                                {remainingParcels === 0 ? 'Quitado' : `Faltam ${remainingParcels}x`}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline justify-between mt-1">
+                              <span className={`text-base font-black font-mono tracking-tight ${
+                                isFullyPaid ? 'text-emerald-400' : 'text-amber-400'
+                              }`}>
+                                {isFullyPaid ? 'R$ 0,00 (QUITADO)' : formatCurrency(remainingToPay)}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                Já pago: <strong className="text-white font-mono">{formatCurrency(totalPaidAmount)}</strong>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex items-center justify-between text-xs bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/60">
                         <span className="text-slate-400 font-medium">Status Mês Atual</span>

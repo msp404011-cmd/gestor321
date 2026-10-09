@@ -4,7 +4,7 @@ import {
   Plus, Edit2, Trash2, Check, ShoppingCart, 
   MessageSquare, MoreVertical, Search, Send, Settings, X, Box, DollarSign, Copy, Calendar, Filter,
   ChevronDown, ChevronUp, Truck, Clock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ExternalLink,
-  Building2, Layers, Sliders, Wrench
+  Building2, Layers, Sliders, Wrench, RotateCcw, Undo2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
@@ -29,6 +29,9 @@ export interface SupplierOrderItem {
   customFields?: Record<string, string>;
   sentToSupplier?: boolean;
   createdAt?: string;
+  isReturned?: boolean;
+  returnReason?: string;
+  returnedAt?: string | null;
 }
 
 interface CustomField {
@@ -264,6 +267,67 @@ export const SupplierOrdersManagement: React.FC = () => {
 
     showToast('Peça do pedido atualizada com sucesso!', 'success');
     setEditingCardItem(null);
+  };
+
+  // -------------------------------------------------------------
+  // ABA 1 MEUS PEDIDOS: DEVOLUÇÃO DE PEÇA
+  // -------------------------------------------------------------
+  const [returnOrderItemModal, setReturnOrderItemModal] = useState<{ groupId: string; item: SupplierOrderItem } | null>(null);
+  const [returnOrderItemReason, setReturnOrderItemReason] = useState('');
+
+  const handleToggleReturnOrderItem = async (groupId: string, itemId: string, isReturned: boolean, reason?: string) => {
+    const targetGroup = groups.find(g => g.id === groupId);
+    if (!targetGroup) return;
+
+    const updatedItems = (targetGroup.items || []).map(i => {
+      if (i.id === itemId) {
+        return {
+          ...i,
+          isReturned,
+          returnedAt: isReturned ? new Date().toISOString() : null,
+          returnReason: reason !== undefined ? reason : (i.returnReason || '')
+        };
+      }
+      return i;
+    });
+
+    const updatedList = groups.map(g => g.id === groupId ? { ...g, items: updatedItems } : g);
+    setGroups(updatedList);
+    setRamItem(STORAGE_KEY_GROUPS, updatedList);
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList));
+    } catch (_) {}
+
+    try {
+      const userEmail = getUserAccountEmail();
+      const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, groupId);
+      await updateDoc(docRef, { items: updatedItems });
+
+      if (userEmail === 'mmspmartins62@gmail.com') {
+        try {
+          const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', groupId);
+          await updateDoc(secRef, { items: updatedItems });
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    if (isReturned) {
+      showToast('🔄 Peça marcada como Devolução! O valor foi riscado e não será contabilizado.', 'success');
+    } else {
+      showToast('↩️ Devolução desfeita! A peça voltou a ser contabilizada normalmente.', 'success');
+    }
+  };
+
+  const handleConfirmReturnOrderItem = async () => {
+    if (!returnOrderItemModal) return;
+    await handleToggleReturnOrderItem(
+      returnOrderItemModal.groupId,
+      returnOrderItemModal.item.id,
+      true,
+      returnOrderItemReason.trim()
+    );
+    setReturnOrderItemModal(null);
+    setReturnOrderItemReason('');
   };
 
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
@@ -1446,32 +1510,50 @@ export const SupplierOrdersManagement: React.FC = () => {
         const estUpper = itemFields.showEstrutura ? (item.estrutura || '').trim().toUpperCase() : '';
         const estBadge = estUpper ? ` - ${estUpper}` : '';
 
-        text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
-        
-        if (itemFields.showMarca && item.marca) text += `🏷️ Marca: ${item.marca}\n`;
-        if (itemFields.showModelo && item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
-        if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
-        if (itemFields.showQualidade && item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
-        if (itemFields.showTecnologia && item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
-        if (itemFields.showCor && item.cor) text += `🎨 Cor: ${item.cor}\n`;
-        
-        if (withPrice && (Number(item.price) || 0) > 0) {
-          text += `💵 R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
-          total += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+        if (item.isReturned) {
+          text += `${globalIndex}. 📱 ~${typePrefix}${cleanTitle}${estBadge}~ 🔄 *[ DEVOLUÇÃO - NÃO COBRAR ]*\n`;
+          if (itemFields.showMarca && item.marca) text += `🏷️ Marca: ~${item.marca}~\n`;
+          if (itemFields.showModelo && item.modelo) text += `📱 Modelo: ~${item.modelo}~\n`;
+          if (estUpper) text += `⭕ Estrutura: ~${estUpper}~\n`;
+          if (itemFields.showQualidade && item.qualidade) text += `⚡ Qualidade: ~${item.qualidade}~\n`;
+          if (itemFields.showTecnologia && item.tecnologia) text += `🔬 Tecnologia: ~${item.tecnologia}~\n`;
+          if (itemFields.showCor && item.cor) text += `🎨 Cor: ~${item.cor}~\n`;
+          text += `💵 Valor: ~R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}~ (R$ 0,00 - PEÇA DEVOLVIDA)\n`;
+          if (item.returnReason) text += `📝 Motivo da Devolução: ${item.returnReason}\n`;
+        } else {
+          text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
+          
+          if (itemFields.showMarca && item.marca) text += `🏷️ Marca: ${item.marca}\n`;
+          if (itemFields.showModelo && item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
+          if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
+          if (itemFields.showQualidade && item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
+          if (itemFields.showTecnologia && item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
+          if (itemFields.showCor && item.cor) text += `🎨 Cor: ${item.cor}\n`;
+          
+          if (withPrice && (Number(item.price) || 0) > 0) {
+            text += `💵 R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
+            total += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          }
+          totalPieces += (Number(item.quantity) || 1);
         }
-        totalPieces += (Number(item.quantity) || 1);
         text += `\n`;
         globalIndex++;
       });
       text += `-----------------------------------\n`;
     });
 
+    const returnedCount = items.filter(i => i.isReturned).length;
+    if (returnedCount > 0) {
+      text += `🔄 *AVISO DE DEVOLUÇÕES (${returnedCount} PEÇA${returnedCount > 1 ? 'S' : ''}):* Constam peças em devolução que NÃO estão contabilizadas no total.\n`;
+      text += `-----------------------------------\n`;
+    }
+
     if (withPrice && total > 0) {
       text += `💰 *TOTAL ESTIMADO: R$ ${total.toFixed(2).replace('.', ',')}*\n`;
       text += `-----------------------------------\n`;
     }
     
-    text += `🔢 *Total:* ${items.length} modelos (${totalPieces} peças no total)\n`;
+    text += `🔢 *Total:* ${items.length} modelos (${totalPieces} peças a cobrar)\n`;
     text += `Se tiver todas confirma pra mim, e as que não tiver descreve abaixo.\n`;
     text += `Por favor, confirma se está certo o valor e as peças.`;
     
@@ -2169,7 +2251,10 @@ export const SupplierOrdersManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
               {filteredGroups.map(group => {
                 const groupItems = group.items || [];
-                const groupTotal = groupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
+                const activeGroupItems = groupItems.filter(i => !i.isReturned);
+                const returnedGroupItems = groupItems.filter(i => !!i.isReturned);
+                const groupTotal = activeGroupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
+                const returnedGroupTotal = returnedGroupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
                 const isExpanded = !!expandedCards[group.id]; // curtain closed by default
                 const activeCategoryFilter = cardCategoryFilter[group.id] || 'TODAS';
 
@@ -2199,6 +2284,11 @@ export const SupplierOrdersManagement: React.FC = () => {
                               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                               <span>{isExpanded ? 'Ocultar' : `Ver Peças (${groupItems.length})`}</span>
                             </span>
+                            {returnedGroupItems.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1" title={`${returnedGroupItems.length} peça(s) devolvida(s) - não cobrado`}>
+                                <RotateCcw className="w-2.5 h-2.5 text-rose-400" /> {returnedGroupItems.length} devolução
+                              </span>
+                            )}
                           </div>
                           
                           {/* Outside Summary Row: Total Value & Total Pieces */}
@@ -2215,7 +2305,7 @@ export const SupplierOrdersManagement: React.FC = () => {
                             </span>
                             <span className="text-slate-600">•</span>
                             <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 font-bold text-[10px] border border-indigo-500/30">
-                              {groupItems.length} peça{groupItems.length !== 1 ? 's' : ''}
+                              {activeGroupItems.length} a cobrar{activeGroupItems.length !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -2310,9 +2400,12 @@ export const SupplierOrdersManagement: React.FC = () => {
                                 displayedItems.map((item) => {
                                   const itemDate = item.createdAt ? new Date(item.createdAt) : (group.createdAt ? new Date(group.createdAt) : null);
                                   const itemDateLabel = itemDate && !isNaN(itemDate.getTime()) ? itemDate.toLocaleDateString('pt-BR') : '';
+                                  const isItemRet = !!item.isReturned;
 
                                   return (
-                                    <div key={item.id} className="flex flex-col gap-1.5 py-2 px-2.5 border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors rounded-xl bg-[#121827]">
+                                    <div key={item.id} className={`flex flex-col gap-1.5 py-2 px-2.5 border-b border-slate-800/50 transition-colors rounded-xl ${
+                                      isItemRet ? 'bg-rose-950/20 border-rose-500/30' : 'bg-[#121827] hover:bg-slate-800/40'
+                                    }`}>
                                       <div className="flex items-start sm:items-center justify-between gap-1.5">
                                         <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
                                           <input 
@@ -2326,7 +2419,14 @@ export const SupplierOrdersManagement: React.FC = () => {
                                               <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                                                 {item.typeName || 'Peça'}
                                               </span>
-                                              <span className="font-bold text-white text-xs sm:text-sm truncate">
+                                              {isItemRet && (
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                                                  <RotateCcw className="w-2.5 h-2.5 text-rose-400" /> Devolvida
+                                                </span>
+                                              )}
+                                              <span className={`font-bold text-xs sm:text-sm truncate ${
+                                                isItemRet ? 'line-through text-slate-400 opacity-60' : 'text-white'
+                                              }`}>
                                                 {item.title}
                                               </span>
                                             </div>
@@ -2334,10 +2434,21 @@ export const SupplierOrdersManagement: React.FC = () => {
                                         </div>
 
                                         <div className="text-right shrink-0 pl-1">
-                                          <span className="text-xs sm:text-sm font-black text-emerald-400 block">
-                                            R$ {((Number(item.quantity) || 1) * (Number(item.price) || 0)).toFixed(2).replace('.', ',')}
-                                          </span>
-                                          <span className="text-[10px] text-slate-400 block font-medium">x{item.quantity} (R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')})</span>
+                                          {isItemRet ? (
+                                            <>
+                                              <span className="text-xs sm:text-sm font-black text-slate-500 line-through block">
+                                                R$ {((Number(item.quantity) || 1) * (Number(item.price) || 0)).toFixed(2).replace('.', ',')}
+                                              </span>
+                                              <span className="text-[10px] text-rose-400 block font-bold">Devolução (R$ 0,00)</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="text-xs sm:text-sm font-black text-emerald-400 block">
+                                                R$ {((Number(item.quantity) || 1) * (Number(item.price) || 0)).toFixed(2).replace('.', ',')}
+                                              </span>
+                                              <span className="text-[10px] text-slate-400 block font-medium">x{item.quantity} (R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')})</span>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
 
@@ -2353,7 +2464,9 @@ export const SupplierOrdersManagement: React.FC = () => {
                                           showCor: Boolean(itTmpl?.fields?.showCor),
                                         };
                                         return (
-                                          <div className="flex items-center gap-1 flex-wrap text-[10px] text-slate-400 pl-6 pt-0.5">
+                                          <div className={`flex items-center gap-1 flex-wrap text-[10px] pl-6 pt-0.5 ${
+                                            isItemRet ? 'line-through opacity-60 text-slate-500' : 'text-slate-400'
+                                          }`}>
                                             {itFields.showMarca && item.marca && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Marca: {item.marca}</span>}
                                             {itFields.showModelo && item.modelo && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300 font-bold">Mod: {item.modelo}</span>}
                                             {itFields.showQualidade && item.qualidade && <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-black">{item.qualidade}</span>}
@@ -2361,41 +2474,85 @@ export const SupplierOrdersManagement: React.FC = () => {
                                             {itFields.showEstrutura && item.estrutura && <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-black">⭕ {item.estrutura}</span>}
                                             {itFields.showCor && item.cor && <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cor: {item.cor}</span>}
                                             {itemDateLabel && <span className="text-slate-500 ml-auto">📅 {itemDateLabel}</span>}
+                                            {isItemRet && item.returnReason && (
+                                              <span className="text-[10px] text-rose-400/90 font-medium bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 inline-block not-italic no-underline">
+                                                Motivo: {item.returnReason}
+                                              </span>
+                                            )}
                                           </div>
                                         );
                                       })()}
 
                                       {/* Item Action Buttons Bar (Comfortable touch targets on mobile) */}
                                       <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-800/40 mt-1">
-                                        <button 
-                                          type="button"
-                                          onClick={() => handleOpenEditCardItem(group.id, item)}
-                                          className="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
-                                          title="Editar dados desta peça (data, valor, modelo, etc.)"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                          <span>Editar</span>
-                                        </button>
+                                        {isItemRet ? (
+                                          <>
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleToggleReturnOrderItem(group.id, item.id, false)}
+                                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Cancelar devolução e voltar a contabilizar a peça"
+                                            >
+                                              <Undo2 className="w-3 h-3 text-slate-400" />
+                                              <span>Reativar</span>
+                                            </button>
 
-                                        <button 
-                                          type="button"
-                                          onClick={() => handleOpenSendToSupplier([{ item, groupTitle: group.title, groupCreatedAt: group.createdAt }])}
-                                          className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold shrink-0"
-                                          title="Mandar esta peça para o Card do Fornecedor"
-                                        >
-                                          <Truck className="w-3 h-3 text-purple-400" />
-                                          <span>Mandar</span>
-                                        </button>
+                                            <button 
+                                              type="button"
+                                              onClick={() => setSendModal({ isOpen: true, group, itemsToSend: [item], selectedItemIds: [item.id] })}
+                                              className="px-2.5 py-1 rounded-lg bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Enviar aviso de devolução pelo WhatsApp"
+                                            >
+                                              <Send className="w-3 h-3" />
+                                              <span>WhatsApp</span>
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleOpenEditCardItem(group.id, item)}
+                                              className="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Editar dados desta peça (data, valor, modelo, etc.)"
+                                            >
+                                              <Edit2 className="w-3 h-3" />
+                                              <span>Editar</span>
+                                            </button>
 
-                                        <button 
-                                          type="button"
-                                          onClick={() => setSendModal({ isOpen: true, group, itemsToSend: [item], selectedItemIds: [item.id] })}
-                                          className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
-                                          title="Enviar pelo WhatsApp"
-                                        >
-                                          <Send className="w-3 h-3" />
-                                          <span>WhatsApp</span>
-                                        </button>
+                                            <button 
+                                              type="button"
+                                              onClick={() => {
+                                                setReturnOrderItemModal({ groupId: group.id, item });
+                                                setReturnOrderItemReason('');
+                                              }}
+                                              className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Marcar peça como Devolução (não será cobrada nem contabilizada)"
+                                            >
+                                              <RotateCcw className="w-3 h-3 text-rose-400" />
+                                              <span>Devolver</span>
+                                            </button>
+
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleOpenSendToSupplier([{ item, groupTitle: group.title, groupCreatedAt: group.createdAt }])}
+                                              className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold shrink-0"
+                                              title="Mandar esta peça para o Card do Fornecedor"
+                                            >
+                                              <Truck className="w-3 h-3 text-purple-400" />
+                                              <span>Mandar</span>
+                                            </button>
+
+                                            <button 
+                                              type="button"
+                                              onClick={() => setSendModal({ isOpen: true, group, itemsToSend: [item], selectedItemIds: [item.id] })}
+                                              className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Enviar pelo WhatsApp"
+                                            >
+                                              <Send className="w-3 h-3" />
+                                              <span>WhatsApp</span>
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -2434,8 +2591,17 @@ export const SupplierOrdersManagement: React.FC = () => {
                     {/* Card Footer & Total */}
                     <div>
                       <div className="flex justify-between items-center py-2 border-t border-slate-800/80 mb-2.5">
-                        <span className="text-xs font-bold text-slate-400">Total do Pedido:</span>
-                        <span className="text-base font-black text-emerald-400">R$ {groupTotal.toFixed(2).replace('.', ',')}</span>
+                        <div>
+                          <span className="text-xs font-bold text-slate-400 block">Total do Pedido:</span>
+                          {returnedGroupItems.length > 0 && (
+                            <span className="text-[10px] text-rose-400 font-bold block">
+                              🔄 {returnedGroupItems.length} devolução (-R$ {returnedGroupTotal.toFixed(2).replace('.', ',')})
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-base font-black text-emerald-400">R$ {groupTotal.toFixed(2).replace('.', ',')}</span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -4257,6 +4423,75 @@ export const SupplierOrdersManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DEVOLUÇÃO DE PEÇA EM MEUS PEDIDOS */}
+      {returnOrderItemModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#121827] border border-rose-500/30 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-500/20 text-rose-400 rounded-xl">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Devolver Peça do Pedido</h3>
+                  <p className="text-xs text-slate-400">Marcar peça como devolvida</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setReturnOrderItemModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-xl text-xs space-y-2">
+              <p className="text-rose-300 font-bold">
+                📱 {returnOrderItemModal.item.title}
+              </p>
+              <p className="text-slate-300">
+                Valor Unitário: <strong className="text-white">R$ {(Number(returnOrderItemModal.item.price) || 0).toFixed(2).replace('.', ',')}</strong> (x{returnOrderItemModal.item.quantity})
+              </p>
+              <p className="text-amber-300/90 text-[11px] leading-relaxed">
+                ⚠️ <strong>Regra de Devolução:</strong> A peça continuará aparecendo no pedido, mas ficará <strong>riscada</strong> e seu valor <strong>NÃO será contabilizado</strong> no total do pedido e nos relatórios de conferência.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-300">
+                Motivo da Devolução (Opcional):
+              </label>
+              <input 
+                type="text"
+                placeholder="Ex: Peça com defeito, cliente desistiu, peça errada..."
+                value={returnOrderItemReason}
+                onChange={(e) => setReturnOrderItemReason(e.target.value)}
+                className="w-full bg-[#161B2B] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setReturnOrderItemModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReturnOrderItem}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-md shadow-rose-600/30 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Confirmar Devolução</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

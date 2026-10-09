@@ -35,12 +35,19 @@ import {
   Building,
   HelpCircle,
   MessageCircle,
+  Calendar,
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
-import { formatCurrency, getCanonicalStatus } from '../../services/formatters';
+import {
+  formatCurrency,
+  getCanonicalStatus,
+  formatDate,
+  cleanPhoneForWhatsApp,
+  openWhatsAppLink,
+} from '../../services/formatters';
 import { ServiceOrder, Sale, SubscriptionPlanInfo } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { AppAccessManagement } from '../master/AppAccessManagement';
@@ -626,6 +633,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const cashSession = useMemo(() => StorageService.getCashSession(), [tick]);
   const settings = useMemo(() => StorageService.getSettings(), [tick]);
 
+  // Lembrete e alerta de conserto prometido para a data de hoje / pendente
+  const todayPromisedRepairs = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+
+    return orders.filter((o) => {
+      if (!o.promisedRepairDate || o.promisedRepairDismissed) return false;
+      return o.promisedRepairDate <= todayStr;
+    });
+  }, [orders]);
+
+  const isDateToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+    return dateStr === todayStr;
+  };
+
+  const handleDismissPromisedRepair = (orderId: string) => {
+    const target = StorageService.getOrderById(orderId);
+    if (target) {
+      const updated: ServiceOrder = {
+        ...target,
+        promisedRepairDismissed: true,
+        promisedRepairDismissedAt: new Date().toISOString(),
+      };
+      StorageService.saveOrder(updated);
+      setTick((t) => t + 1);
+    }
+  };
+
   // Dynamic calculations from real system data
   const isCashOpen = cashSession?.status === 'ABERTO';
 
@@ -1197,6 +1241,142 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4 pb-8">
+      {/* MENSAGEM BEM GRANDONA NA TELA INICIAL: AVISO DE CONSERTO DE CELULAR MARCADO */}
+      {todayPromisedRepairs.length > 0 && (
+        <section className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
+          {todayPromisedRepairs.map((order) => {
+            const isTodayScheduled = isDateToday(order.promisedRepairDate);
+            return (
+              <div
+                key={order.id}
+                className="relative overflow-hidden rounded-3xl p-5 sm:p-7 bg-gradient-to-br from-[#2b0f02] via-[#160701] to-[#260c00] border-3 sm:border-4 border-amber-400 shadow-[0_0_60px_rgba(245,158,11,0.55)] text-white space-y-4 ring-4 ring-amber-400/20"
+              >
+                {/* Background decorative glow */}
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-amber-500/25 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
+
+                {/* Top Announcement Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-2xl sm:text-3xl shrink-0 shadow-[0_0_30px_rgba(245,158,11,0.7)] animate-bounce">
+                      🔔
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest bg-amber-400 text-slate-950 shadow-md animate-pulse">
+                          {isTodayScheduled ? '⚠️ ATENÇÃO: AGENDADO PARA HOJE!' : '⚠️ ATENÇÃO: CONSERTO MARCADO / PENDENTE!'}
+                        </span>
+                        <span className="text-xs font-mono font-bold text-amber-300 px-2.5 py-0.5 rounded-lg bg-black/60 border border-amber-400/50">
+                          OS #{order.orderNumber}
+                        </span>
+                      </div>
+                      <h2 className="text-lg sm:text-2xl font-black text-amber-300 mt-1 tracking-tight">
+                        AVISO DE RETORNO / AGENDAMENTO DE APARELHO
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-amber-200 bg-black/50 border border-amber-500/40 px-3.5 py-2 rounded-xl font-mono self-start sm:self-center">
+                    Data Marcada: <strong className="text-white text-sm font-black">{formatDate(order.promisedRepairDate)}</strong>
+                  </div>
+                </div>
+
+                {/* Big Bold Content Card */}
+                <div className="p-4 sm:p-6 rounded-2xl bg-black/70 border-2 border-amber-400/70 shadow-inner relative z-10 space-y-4">
+                  <p className="text-base sm:text-2xl font-extrabold text-white leading-relaxed">
+                    O cliente <span className="text-amber-300 underline font-black text-lg sm:text-2xl">{order.customerName}</span> informou que vai trazer o celular{' '}
+                    <span className="text-amber-400 font-black">{isTodayScheduled ? 'HOJE' : `no dia ${formatDate(order.promisedRepairDate)}`}</span> para conserto!
+                  </p>
+
+                  {/* Device and Service Details Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-amber-500/30 text-xs">
+                    <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40">
+                      <span className="text-[10px] text-amber-300 uppercase font-black block">📱 Aparelho:</span>
+                      <span className="font-black text-white text-sm sm:text-base block mt-0.5 truncate">
+                        {order.brand} {order.model}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40">
+                      <span className="text-[10px] text-amber-300 uppercase font-black block">🔧 Defeito / Serviço:</span>
+                      <span className="font-bold text-white text-xs block mt-0.5 truncate">
+                        {order.clientDefect || order.requestedService || 'Conserto de celular'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40">
+                      <span className="text-[10px] text-amber-300 uppercase font-black block">📍 Local no Arquivo:</span>
+                      <span className="font-black text-amber-300 text-xs sm:text-sm block mt-0.5 truncate">
+                        {order.archivedLocation ? `LOCAL: ${order.archivedLocation.toUpperCase()}` : 'Não especificado'}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40">
+                      <span className="text-[10px] text-amber-300 uppercase font-black block">📞 Telefone / Contato:</span>
+                      <span className="font-bold text-white text-xs block mt-0.5 truncate">
+                        {order.customerPhone || 'Não cadastrado'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {order.promisedRepairNotes && (
+                    <div className="p-3 rounded-xl bg-purple-950/50 border border-purple-500/50 text-xs text-purple-200">
+                      <strong className="text-purple-300 uppercase text-[10px] block font-black mb-0.5">📝 Observação do agendamento:</strong>
+                      <span>{order.promisedRepairNotes}</span>
+                    </div>
+                  )}
+
+                  {/* Direct Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {order.customerPhone && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const phone = cleanPhoneForWhatsApp(order.customerPhone);
+                          const text = encodeURIComponent(
+                            `Olá ${order.customerName}! Tudo bem? Vimos aqui na assistência técnica que você marcou para trazer o seu ${order.brand} ${order.model} hoje para consertar (OS #${order.orderNumber}). Estamos te aguardando!`
+                          );
+                          openWhatsAppLink(`https://api.whatsapp.com/send?phone=${phone}&text=${text}`);
+                        }}
+                        className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Conversar no WhatsApp</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('ORDERS', order.id)}
+                      className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+                    >
+                      <Wrench className="w-4 h-4" />
+                      <span>Abrir Ordem de Serviço #{order.orderNumber}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Big Bottom Action: OK VISTO */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10 border-t border-amber-500/40">
+                  <p className="text-xs sm:text-sm text-amber-200/90 font-medium">
+                    Já está ciente deste serviço? Clique no botão para dispensar este aviso:
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDismissPromisedRepair(order.id)}
+                    className="py-3 sm:py-3.5 px-8 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm sm:text-base uppercase tracking-wider shadow-[0_0_30px_rgba(16,185,129,0.7)] hover:shadow-[0_0_40px_rgba(16,185,129,0.9)] hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2.5"
+                  >
+                    <CheckCircle2 className="w-6 h-6 text-slate-950 stroke-[2.5]" />
+                    <span>OK VISTO</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
       {/* TOP SECTORS: CONTROLE DE TV, PACOTE DE CÂMERAS & INSTALAÇÃO DE CÂMERAS */}
       <section className="space-y-3">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
@@ -2004,6 +2184,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Access Control Management Section for Super Admin */}
       {isSuperAdmin && (
         <>
+          {/* Quick Access to Earnings Management for Super Admin */}
+          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
+            isDark
+              ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-[#0c1626]/90 border-emerald-500/30 text-white'
+              : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 text-slate-900 shadow-sm'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold tracking-wide">
+                      Área de Ganho & Apuração de Lucro (Exclusivo Super Admin)
+                    </h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Novo
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Planilha de controle com cálculo automático de custos, bruto e apuração de Lucro Previsível vs Lucro Recebido.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('EARNINGS')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto flex-shrink-0"
+              >
+                <span>Acessar Planilha de Ganhos</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </section>
+
           <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
             isDark
               ? 'bg-[#0c1626]/90 border-slate-800 text-white'

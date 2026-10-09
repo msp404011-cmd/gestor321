@@ -167,6 +167,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Status
   const [initialStatus, setInitialStatus] = useState<OrderStatus>('ORCAMENTO');
   const [archivedLocation, setArchivedLocation] = useState<string>('');
+  const [promisedRepairDate, setPromisedRepairDate] = useState<string>('');
+  const [promisedRepairNotes, setPromisedRepairNotes] = useState<string>('');
 
   // Options
   const [printAfterCreate, setPrintAfterCreate] = useState(true);
@@ -193,6 +195,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [manualPartName, setManualPartName] = useState('');
   const [manualPartQty, setManualPartQty] = useState(1);
   const [manualPartPrice, setManualPartPrice] = useState<number>(0);
+  const [manualPartCost, setManualPartCost] = useState<number>(0);
   const [discount, setDiscount] = useState<number>(0);
   const [customTotalPrice, setCustomTotalPrice] = useState<number | null>(null);
   const [isPriceUnlocked, setIsPriceUnlocked] = useState(false);
@@ -320,6 +323,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
       setInitialStatus(orderToEdit.status || 'ORCAMENTO');
       setArchivedLocation(orderToEdit.archivedLocation || '');
+      setPromisedRepairDate(orderToEdit.promisedRepairDate || '');
+      setPromisedRepairNotes(orderToEdit.promisedRepairNotes || '');
       setPaymentMethod(orderToEdit.paymentMethod || 'Não informado');
       setPartPriceFirstLine(orderToEdit.partPriceFirstLine || 0);
       setPartPricePremium(orderToEdit.partPricePremium || 0);
@@ -534,6 +539,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const handleAddManualPart = () => {
     if (!manualPartName.trim()) return;
     const unitPrice = Number(manualPartPrice) || 0;
+    const costPrice = Number(manualPartCost) || 0;
     const qty = Math.max(1, Number(manualPartQty) || 1);
     const sub = qty * unitPrice;
     const newItem: OrderPartItem = {
@@ -543,8 +549,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       name: manualPartName.trim(),
       quantity: qty,
       unitPrice: unitPrice,
-      unitCost: 0,
-      costPrice: 0,
+      unitCost: costPrice,
+      costPrice: costPrice,
       discount: 0,
       total: sub,
       totalPrice: sub,
@@ -553,6 +559,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setManualPartName('');
     setManualPartQty(1);
     setManualPartPrice(0);
+    setManualPartCost(0);
   };
 
   const handleUpdatePartQty = (index: number, newQty: number) => {
@@ -847,6 +854,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           : (paymentStatus || (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE')) as any,
         status: initialStatus,
         archivedLocation: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || archivedLocation.trim()) ? (archivedLocation.trim() || undefined) : undefined,
+        promisedRepairDate: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV')) && promisedRepairDate.trim() ? promisedRepairDate.trim() : (orderToEdit?.promisedRepairDate || undefined),
+        promisedRepairNotes: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV')) && promisedRepairNotes.trim() ? promisedRepairNotes.trim() : (orderToEdit?.promisedRepairNotes || undefined),
+        promisedRepairDismissed: orderToEdit?.promisedRepairDate !== promisedRepairDate ? false : orderToEdit?.promisedRepairDismissed,
         deliveredAt: (initialStatus === 'ENTREGUE' || (initialStatus as string)?.toUpperCase()?.includes('ENTREG') || (initialStatus as string) === 'CONCLUIDO')
           ? (orderToEdit?.deliveredAt || new Date().toISOString())
           : orderToEdit?.deliveredAt,
@@ -1130,6 +1140,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             setManualPartQty={setManualPartQty}
             manualPartPrice={manualPartPrice}
             setManualPartPrice={setManualPartPrice}
+            manualPartCost={manualPartCost}
+            setManualPartCost={setManualPartCost}
             handleAddManualPart={handleAddManualPart}
             handleUpdatePartQty={handleUpdatePartQty}
             handleUpdatePartPrice={handleUpdatePartPrice}
@@ -1159,6 +1171,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             statusChoices={dynamicStatusChoices}
             archivedLocation={archivedLocation}
             setArchivedLocation={setArchivedLocation}
+            promisedRepairDate={promisedRepairDate}
+            setPromisedRepairDate={setPromisedRepairDate}
+            promisedRepairNotes={promisedRepairNotes}
+            setPromisedRepairNotes={setPromisedRepairNotes}
             partPriceFirstLine={partPriceFirstLine}
             setPartPriceFirstLine={setPartPriceFirstLine}
             partPricePremium={partPricePremium}

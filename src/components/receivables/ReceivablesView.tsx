@@ -380,6 +380,7 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [isCompleted, setIsCompleted] = useState(false);
   const [lastPaymentsRecorded, setLastPaymentsRecorded] = useState<{ amount: number; method: string }[]>([]);
+  const [remainingAfterPay, setRemainingAfterPay] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -388,6 +389,7 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
     setIsCompleted(false);
     setError('');
     setNotes('');
+    setRemainingAfterPay(0);
   }, [receivable?.id, remaining]);
 
   const allPaymentOptions = StorageService.getDeduplicatedPaymentOptions();
@@ -467,6 +469,7 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
         amount: Number(s.amount) || 0,
       }));
       setLastPaymentsRecorded(mappedSplits);
+      setRemainingAfterPay(Math.max(0, remaining - sumPaid));
       setIsCompleted(true);
       onSuccess();
     } catch (err: any) {
@@ -584,6 +587,26 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
                 <p className="text-slate-300 text-xs mt-0.5">
                   Lançamento de <strong className="text-emerald-400 font-mono">{formatCurrency(lastPaymentsRecorded.reduce((a, b) => a + b.amount, 0))}</strong> realizado no caixa.
                 </p>
+              </div>
+
+              {/* Destaque do Total Que Falta após quitação da parcela */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/90 border-2 border-amber-500/50 text-left my-2 space-y-1.5 shadow-lg">
+                <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
+                  Situação do Débito Após Baixa:
+                </span>
+                {remainingAfterPay <= 0 ? (
+                  <p className="text-sm font-black text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 size={16} />
+                    <span>🎉 DÉBITO QUITADO 100%! Não resta nenhum valor a pagar.</span>
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-300">TOTAL QUE FALTA A PAGAR:</span>
+                    <span className="text-base font-black text-amber-400 font-mono underline decoration-amber-400">
+                      {formatCurrency(remainingAfterPay)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2 pt-1">

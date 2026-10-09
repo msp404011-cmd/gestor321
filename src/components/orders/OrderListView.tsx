@@ -137,6 +137,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
   const [orderForStatusChange, setOrderForStatusChange] = useState<ServiceOrder | null>(null);
   const [orderForArchiveLocation, setOrderForArchiveLocation] = useState<ServiceOrder | null>(null);
   const [archiveLocationInput, setArchiveLocationInput] = useState('');
+  const [archivePromisedDate, setArchivePromisedDate] = useState('');
+  const [archivePromisedNotes, setArchivePromisedNotes] = useState('');
+  const [hasPromisedDate, setHasPromisedDate] = useState(false);
   const [customOSStatuses, setCustomOSStatuses] = useState<CustomOSStatusItem[]>(() => StorageService.getCustomOSStatuses());
   const [orders, setOrders] = useState<ServiceOrder[]>(() => StorageService.getOrders());
 
@@ -351,8 +354,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     }
 
     if (isArchivedStatus(newStatus as string)) {
-      setArchiveLocationInput(order.archivedLocation || '');
-      setOrderForArchiveLocation(order);
+      openArchiveModalForOrder(order);
       return;
     }
 
@@ -374,20 +376,34 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     setOrders(StorageService.getOrders());
   };
 
+  const openArchiveModalForOrder = (os: ServiceOrder) => {
+    setOrderForArchiveLocation(os);
+    setArchiveLocationInput(os.archivedLocation || '');
+    setArchivePromisedDate(os.promisedRepairDate || '');
+    setArchivePromisedNotes(os.promisedRepairNotes || '');
+    setHasPromisedDate(!!os.promisedRepairDate);
+  };
+
   const handleConfirmArchiveLocation = (customLocation?: string) => {
     if (!orderForArchiveLocation) return;
     const loc = (customLocation !== undefined ? customLocation : archiveLocationInput).trim();
+    const finalDate = hasPromisedDate && archivePromisedDate.trim() ? archivePromisedDate.trim() : undefined;
+    const finalNotes = hasPromisedDate && archivePromisedNotes.trim() ? archivePromisedNotes.trim() : undefined;
+
     const updated: ServiceOrder = {
       ...orderForArchiveLocation,
       status: 'ARQUIVADO',
       archivedLocation: loc || undefined,
+      promisedRepairDate: finalDate,
+      promisedRepairNotes: finalNotes,
+      promisedRepairDismissed: false,
       statusHistory: [
         ...(orderForArchiveLocation.statusHistory || []),
         {
           status: 'ARQUIVADO',
           changedAt: new Date().toISOString(),
           changedBy: currentUser?.name || 'Administrador',
-          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}` : ''}`,
+          notes: `Status alterado para Arquivado.${loc ? ` Localização: ${loc}.` : ''}${finalDate ? ` Retorno agendado para conserto em: ${finalDate}.` : ''}`,
         },
       ],
     };
@@ -395,6 +411,9 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
     setOrders(StorageService.getOrders());
     setOrderForArchiveLocation(null);
     setArchiveLocationInput('');
+    setArchivePromisedDate('');
+    setArchivePromisedNotes('');
+    setHasPromisedDate(false);
   };
 
   // Handler to toggle and apply 1ª Linha or Premium part value directly on OS card
@@ -1486,8 +1505,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOrderForArchiveLocation(os);
-                          setArchiveLocationInput(os.archivedLocation || '');
+                          openArchiveModalForOrder(os);
                         }}
                         className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center justify-between cursor-pointer hover:bg-amber-500/30 transition-colors"
                       >
@@ -1498,6 +1516,39 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                         <Edit2 className="w-3 h-3 text-amber-400 shrink-0" />
                       </div>
                     )}
+
+                    {/* Data Marcada para Conserto / Retorno do Cliente */}
+                    {os.promisedRepairDate ? (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openArchiveModalForOrder(os);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-500/25 via-pink-500/20 to-purple-600/15 border border-purple-500/50 text-purple-200 text-[10px] font-black flex items-center justify-between cursor-pointer hover:bg-purple-500/35 transition-all shadow-xs"
+                        title="Cliente informou que vai trazer para consertar neste dia. Clique para alterar."
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Calendar className="w-3.5 h-3.5 shrink-0 text-purple-400" />
+                          <span className="truncate font-black">
+                            📅 CONSERTO MARCADO: {formatDate(os.promisedRepairDate)}
+                          </span>
+                        </div>
+                        <Edit2 className="w-3 h-3 text-purple-400 shrink-0" />
+                      </div>
+                    ) : (getCanonicalStatus(os.status as string) === 'ARQUIVADO') ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openArchiveModalForOrder(os);
+                        }}
+                        className="w-full py-1.5 px-2 rounded-xl border border-dashed border-purple-500/50 hover:border-purple-400 text-purple-300 hover:text-white bg-purple-950/30 hover:bg-purple-900/40 text-[9.5px] font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        title="Cliente falou que vai trazer para consertar tal dia? Clique para agendar."
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                        <span>+ Agendar data que o cliente vai consertar</span>
+                      </button>
+                    ) : null}
 
                     {/* Footer Row: Value + Print + Details Buttons */}
                     <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
@@ -1840,8 +1891,7 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOrderForArchiveLocation(os);
-                                  setArchiveLocationInput(os.archivedLocation || '');
+                                  openArchiveModalForOrder(os);
                                 }}
                                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all shadow-md cursor-pointer border max-w-[210px] truncate ${
                                   os.archivedLocation
@@ -1854,6 +1904,21 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                                 <span className="truncate">
                                   {os.archivedLocation ? `📍 LOCAL: ${os.archivedLocation.toUpperCase()}` : '📍 DEFINIR LOCAL...'}
                                 </span>
+                              </button>
+                            )}
+
+                            {os.promisedRepairDate && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openArchiveModalForOrder(os);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-purple-500/20 text-purple-200 border border-purple-500/40 hover:bg-purple-500/30 transition-all cursor-pointer truncate max-w-[210px]"
+                                title="Cliente agendou data para conserto"
+                              >
+                                <Calendar className="w-3 h-3 text-purple-400 shrink-0" />
+                                <span className="truncate">Marcado: {formatDate(os.promisedRepairDate)}</span>
                               </button>
                             )}
                           </div>
@@ -2078,13 +2143,12 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                     )}
 
                     {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
-                      <div className="mb-2">
+                      <div className="mb-2 space-y-1.5">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setOrderForArchiveLocation(os);
-                            setArchiveLocationInput(os.archivedLocation || '');
+                            openArchiveModalForOrder(os);
                           }}
                           className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-md ${
                             os.archivedLocation
@@ -2099,6 +2163,31 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                           </div>
                           <Edit2 className="w-3.5 h-3.5 text-slate-950 shrink-0" />
                         </button>
+
+                        {os.promisedRepairDate ? (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openArchiveModalForOrder(os);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/40 text-purple-200 text-[10px] font-black flex items-center justify-between cursor-pointer hover:bg-purple-500/30 transition-all shadow-xs"
+                          >
+                            <span className="truncate">📅 CONSERTO MARCADO: {formatDate(os.promisedRepairDate)}</span>
+                            <Edit2 className="w-3 h-3 text-purple-400 shrink-0" />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openArchiveModalForOrder(os);
+                            }}
+                            className="w-full py-1 px-2 rounded-lg border border-dashed border-purple-500/40 text-purple-300 hover:text-white bg-purple-950/20 text-[9.5px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Calendar className="w-3 h-3 text-purple-400" />
+                            <span>+ Agendar data do conserto</span>
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -2403,28 +2492,42 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
 
                           {/* Archived Location tag if present or status is ARQUIVADO */}
                           {(os.archivedLocation || getCanonicalStatus(os.status as string) === 'ARQUIVADO') && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOrderForArchiveLocation(os);
-                                setArchiveLocationInput(os.archivedLocation || '');
-                              }}
-                              className={`w-full mb-2 flex items-center justify-between p-2 rounded-xl text-[11px] font-black text-left transition-all cursor-pointer border shadow-sm ${
-                                os.archivedLocation
-                                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] hover:scale-[1.02]'
-                                  : 'bg-zinc-900/90 hover:bg-zinc-800 border-zinc-700 text-amber-300'
-                              }`}
-                              title="Clique para alterar a localização física no arquivo"
-                            >
-                              <div className="flex items-center gap-1.5 truncate">
-                                <Box className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                                <span className="truncate">
-                                  {os.archivedLocation ? `📍 LOCAL: ${os.archivedLocation.toUpperCase()}` : '📍 DEFINIR LOCAL...'}
-                                </span>
-                              </div>
-                              <Edit2 className="w-3 h-3 text-slate-950 shrink-0" />
-                            </button>
+                            <div className="mb-2 space-y-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openArchiveModalForOrder(os);
+                                }}
+                                className={`w-full flex items-center justify-between p-2 rounded-xl text-[11px] font-black text-left transition-all cursor-pointer border shadow-sm ${
+                                  os.archivedLocation
+                                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] hover:scale-[1.02]'
+                                    : 'bg-zinc-900/90 hover:bg-zinc-800 border-zinc-700 text-amber-300'
+                                }`}
+                                title="Clique para alterar a localização física no arquivo"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Box className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                                  <span className="truncate">
+                                    {os.archivedLocation ? `📍 LOCAL: ${os.archivedLocation.toUpperCase()}` : '📍 DEFINIR LOCAL...'}
+                                  </span>
+                                </div>
+                                <Edit2 className="w-3 h-3 text-slate-950 shrink-0" />
+                              </button>
+
+                              {os.promisedRepairDate && (
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openArchiveModalForOrder(os);
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-200 text-[10px] font-black flex items-center justify-between cursor-pointer hover:bg-purple-500/30 transition-all shadow-xs"
+                                >
+                                  <span className="truncate">📅 Marcado: {formatDate(os.promisedRepairDate)}</span>
+                                  <Edit2 className="w-2.5 h-2.5 text-purple-400 shrink-0" />
+                                </div>
+                              )}
+                            </div>
                           )}
 
                           {/* Price & Status */}
@@ -2701,6 +2804,57 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* OPÇÃO OPCIONAL: Prometeu consertar celular em tal data */}
+              <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                <label className="flex items-center gap-2.5 cursor-pointer p-2 rounded-xl bg-purple-950/40 border border-purple-500/40 hover:bg-purple-900/30 transition-all select-none">
+                  <input
+                    type="checkbox"
+                    checked={hasPromisedDate}
+                    onChange={(e) => setHasPromisedDate(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs font-black text-purple-200 block">
+                      📅 Agendar Data Que o Cliente Prometeu Trazer (Opcional)
+                    </span>
+                    <span className="text-[10.5px] text-purple-300/80 block">
+                      O cliente informou que vai trazer o celular tal dia para consertar?
+                    </span>
+                  </div>
+                </label>
+
+                {hasPromisedDate && (
+                  <div className="p-3 rounded-xl bg-purple-950/60 border border-purple-500/50 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-200 mb-1">
+                        Dia / Mês / Ano do Retorno Prometido:
+                      </label>
+                      <input
+                        type="date"
+                        value={archivePromisedDate}
+                        onChange={(e) => setArchivePromisedDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#040c1e] border border-purple-400/80 focus:border-purple-300 rounded-xl text-xs font-black text-purple-200 focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-200 mb-1">
+                        Observação do Agendamento (Opcional):
+                      </label>
+                      <input
+                        type="text"
+                        value={archivePromisedNotes}
+                        onChange={(e) => setArchivePromisedNotes(e.target.value)}
+                        placeholder="Ex: Vai receber salário dia 10 / vir na parte da manhã..."
+                        className="w-full px-3 py-2 bg-[#040c1e] border border-purple-400/50 focus:border-purple-300 rounded-xl text-xs text-purple-100 placeholder-purple-400/50 focus:outline-hidden"
+                      />
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-300">
+                      🔔 <strong>Aviso Automático:</strong> No dia agendado, o sistema criará uma <strong>mensagem bem grandona na tela inicial</strong> alertando sobre este serviço com o botão <strong>"OK VISTO"</strong>.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

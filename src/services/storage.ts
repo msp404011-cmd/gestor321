@@ -31,6 +31,7 @@ import {
   AccountsPayableTransaction,
   DailyTaskCard,
   RealFixedCost,
+  EarningItem,
 } from '../types';
 import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
 import { FirestoreSyncService } from './firestoreService';
@@ -90,6 +91,7 @@ export const STORAGE_KEYS = {
   ACCOUNTS_PAYABLE: 'msp_accounts_payable_v1',
   DAILY_TASKS: 'msp_daily_tasks_v1',
   REAL_FIXED_COSTS: 'msp_real_fixed_costs_v1',
+  SUPER_ADMIN_EARNINGS: 'msp_super_admin_earnings_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
 
@@ -4870,6 +4872,90 @@ export const StorageService = {
     if (target) {
       this.logAction(`Custo fixo excluído: ${target.name}`);
     }
+  },
+
+  // Super Admin - Área de Ganho (Earnings Management)
+  getEarnings(): EarningItem[] {
+    const list = getItem<EarningItem[]>(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, []);
+    // Remove demo items if any existed previously so it starts clean as requested
+    const cleaned = (list || []).filter(item => !item.id.startsWith('earn-demo-'));
+    if (cleaned.length !== (list || []).length) {
+      setItem(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, cleaned);
+    }
+    return cleaned;
+  },
+
+  saveEarnings(earnings: EarningItem[]): void {
+    setItem(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, earnings);
+    notifyListeners();
+  },
+
+  saveEarningItem(item: EarningItem): EarningItem {
+    const list = this.getEarnings();
+    // Auto-calculate profit: gross - cost (if cost is empty or <= 0, profit is gross)
+    const gross = Number(item.grossValue) || 0;
+    const cost = Number(item.costValue) || 0;
+    const calculatedProfit = gross - cost;
+
+    const sanitizedItem: EarningItem = {
+      ...item,
+      costValue: cost,
+      grossValue: gross,
+      profitValue: calculatedProfit,
+      isReceived: item.status === 'RECEIVED' || item.isReceived === true,
+      status: item.isReceived || item.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING',
+      updatedAt: new Date().toISOString(),
+      createdAt: item.createdAt || new Date().toISOString(),
+    };
+
+    const idx = list.findIndex((e) => e.id === sanitizedItem.id);
+    if (idx >= 0) {
+      list[idx] = sanitizedItem;
+      this.logAction(`Ganho atualizado: ${sanitizedItem.clientName || sanitizedItem.service || 'Sem nome'}`);
+    } else {
+      list.unshift(sanitizedItem);
+      this.logAction(`Novo ganho registrado: ${sanitizedItem.clientName || sanitizedItem.service || 'Sem nome'}`);
+    }
+    setItem(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, list);
+    notifyListeners();
+    return sanitizedItem;
+  },
+
+  deleteEarningItem(id: string): void {
+    const list = this.getEarnings();
+    const target = list.find((e) => e.id === id);
+    const filtered = list.filter((e) => e.id !== id);
+    setItem(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, filtered);
+    notifyListeners();
+    if (target) {
+      this.logAction(`Ganho excluído: ${target.clientName || target.service}`);
+    }
+  },
+
+  toggleEarningReceived(id: string, forceStatus?: boolean): EarningItem | null {
+    const list = this.getEarnings();
+    const idx = list.findIndex((e) => e.id === id);
+    if (idx === -1) return null;
+
+    const current = list[idx];
+    const newIsReceived = forceStatus !== undefined ? forceStatus : !current.isReceived;
+    const updated: EarningItem = {
+      ...current,
+      isReceived: newIsReceived,
+      status: newIsReceived ? 'RECEIVED' : 'PENDING',
+      receivedAt: newIsReceived ? (current.receivedAt || new Date().toISOString()) : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    list[idx] = updated;
+    setItem(STORAGE_KEYS.SUPER_ADMIN_EARNINGS, list);
+    notifyListeners();
+    this.logAction(
+      newIsReceived
+        ? `Ganho marcado como recebido: ${updated.clientName || updated.service}`
+        : `Ganho reaberto (A Receber): ${updated.clientName || updated.service}`
+    );
+    return updated;
   },
 };
 
