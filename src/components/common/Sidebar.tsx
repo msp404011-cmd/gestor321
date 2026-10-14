@@ -383,6 +383,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           subtitle: 'Controle de contas e parcelas',
           icon: CreditCard,
         },
+        {
+          id: 'TASKS',
+          title: 'Coisas a Fazer',
+          subtitle: 'Tarefas diárias e prioridades',
+          icon: CheckSquare,
+        },
         ...(isSuper
           ? [
               {
@@ -405,7 +411,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .map((section) => {
       const allowedItems = section.items.filter((item) => {
         if (item.id === 'EARNINGS' && !isSuper) return false;
-        if (item.id === 'MONTHLY_DEBITS') {
+        if (['MONTHLY_DEBITS', 'TASKS'].includes(item.id)) {
           const hasAccess = isSuper || isMasterAdmin || currentUser?.role === 'ADMIN' || currentUser?.role === 'GERENTE';
           if (!hasAccess) return false;
           return true;

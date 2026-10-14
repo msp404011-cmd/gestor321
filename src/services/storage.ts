@@ -4879,6 +4879,7 @@ export const StorageService = {
       this.logAction(`Nova tarefa criada: ${task.title}`);
     }
     setItem(STORAGE_KEYS.DAILY_TASKS, list);
+    FirestoreSyncService.saveDailyTask(task);
     notifyListeners();
     return task;
   },
@@ -4888,6 +4889,7 @@ export const StorageService = {
     const target = list.find((t) => t.id === id);
     const filtered = list.filter((t) => t.id !== id);
     setItem(STORAGE_KEYS.DAILY_TASKS, filtered);
+    FirestoreSyncService.deleteDailyTask(id);
     notifyListeners();
     if (target) {
       this.logAction(`Tarefa excluída: ${target.title}`);
@@ -4907,6 +4909,7 @@ export const StorageService = {
 
   saveRealFixedCosts(costs: RealFixedCost[]): void {
     setItem(STORAGE_KEYS.REAL_FIXED_COSTS, costs);
+    costs.forEach(c => FirestoreSyncService.saveRealFixedCost(c));
     notifyListeners();
   },
 
@@ -4921,6 +4924,7 @@ export const StorageService = {
       this.logAction(`Novo custo fixo adicionado: ${cost.name} (R$ ${cost.amount.toFixed(2)})`);
     }
     setItem(STORAGE_KEYS.REAL_FIXED_COSTS, list);
+    FirestoreSyncService.saveRealFixedCost(cost);
     notifyListeners();
     return cost;
   },
@@ -4930,6 +4934,7 @@ export const StorageService = {
     const target = list.find((c) => c.id === id);
     const filtered = list.filter((c) => c.id !== id);
     setItem(STORAGE_KEYS.REAL_FIXED_COSTS, filtered);
+    FirestoreSyncService.deleteRealFixedCost(id);
     notifyListeners();
     if (target) {
       this.logAction(`Custo fixo excluído: ${target.name}`);
@@ -4961,22 +4966,27 @@ export const StorageService = {
 
   saveFinanceCashRegisters(registers: FinanceCashRegister[]): void {
     setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, registers);
+    registers.forEach(r => FirestoreSyncService.saveFinanceCashRegister(r));
     notifyListeners();
   },
 
   saveFinanceCashRegister(register: FinanceCashRegister): FinanceCashRegister {
     const list = this.getFinanceCashRegisters();
     const idx = list.findIndex(r => r.id === register.id);
+    let saved: FinanceCashRegister;
     if (idx >= 0) {
-      list[idx] = { ...register, updatedAt: new Date().toISOString() };
+      saved = { ...register, updatedAt: new Date().toISOString() };
+      list[idx] = saved;
       this.logAction(`Caixa atualizado: ${register.name}`);
     } else {
-      list.push({ ...register, createdAt: register.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      saved = { ...register, createdAt: register.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      list.push(saved);
       this.logAction(`Novo Caixa criado: ${register.name}`);
     }
     this.saveFinanceCashRegisters(list);
+    FirestoreSyncService.saveFinanceCashRegister(saved);
     this.recalculateFinanceRegisterBalances();
-    return register;
+    return saved;
   },
 
   deleteFinanceCashRegister(id: string): void {
@@ -4984,6 +4994,7 @@ export const StorageService = {
     const target = list.find(r => r.id === id);
     const filtered = list.filter(r => r.id !== id);
     this.saveFinanceCashRegisters(filtered);
+    FirestoreSyncService.deleteFinanceCashRegister(id);
     if (target) {
       this.logAction(`Caixa excluído: ${target.name}`);
     }
@@ -4996,6 +5007,7 @@ export const StorageService = {
 
   saveFinanceCashMovements(movements: FinanceCashMovementItem[]): void {
     setItem(STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, movements);
+    movements.forEach(m => FirestoreSyncService.saveFinanceCashMovement(m));
     this.recalculateFinanceRegisterBalances();
     notifyListeners();
   },
@@ -5003,15 +5015,19 @@ export const StorageService = {
   saveFinanceCashMovement(movement: FinanceCashMovementItem): FinanceCashMovementItem {
     const list = this.getFinanceCashMovements();
     const idx = list.findIndex(m => m.id === movement.id);
+    let saved: FinanceCashMovementItem;
     if (idx >= 0) {
-      list[idx] = { ...movement, updatedAt: new Date().toISOString() };
+      saved = { ...movement, updatedAt: new Date().toISOString() };
+      list[idx] = saved;
       this.logAction(`Movimentação de caixa atualizada: ${movement.reason}`);
     } else {
-      list.unshift({ ...movement, createdAt: movement.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      saved = { ...movement, createdAt: movement.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+      list.unshift(saved);
       this.logAction(`Nova movimentação de caixa: ${movement.reason} (R$ ${movement.amount.toFixed(2)})`);
     }
     this.saveFinanceCashMovements(list);
-    return movement;
+    FirestoreSyncService.saveFinanceCashMovement(saved);
+    return saved;
   },
 
   deleteFinanceCashMovement(id: string): void {
@@ -5019,6 +5035,7 @@ export const StorageService = {
     const target = list.find(m => m.id === id);
     const filtered = list.filter(m => m.id !== id);
     this.saveFinanceCashMovements(filtered);
+    FirestoreSyncService.deleteFinanceCashMovement(id);
     if (target) {
       this.logAction(`Movimentação de caixa excluída: ${target.reason}`);
     }
@@ -5030,17 +5047,20 @@ export const StorageService = {
 
   saveDefinitiveExpense(expense: DefinitiveExpense): DefinitiveExpense {
     const list = this.getDefinitiveExpenses();
-    list.unshift({ ...expense, createdAt: expense.createdAt || new Date().toISOString() });
+    const saved: DefinitiveExpense = { ...expense, createdAt: expense.createdAt || new Date().toISOString() };
+    list.unshift(saved);
     setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, list);
+    FirestoreSyncService.saveDefinitiveExpense(saved);
     this.recalculateFinanceRegisterBalances();
     notifyListeners();
     this.logAction(`Nova despesa definitiva registrada: ${expense.reason} (R$ ${expense.amount.toFixed(2)})`);
-    return expense;
+    return saved;
   },
 
   deleteDefinitiveExpense(id: string): void {
     const list = this.getDefinitiveExpenses().filter(e => e.id !== id);
     setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, list);
+    FirestoreSyncService.deleteDefinitiveExpense(id);
     this.recalculateFinanceRegisterBalances();
     notifyListeners();
     this.logAction(`Despesa definitiva removida`);

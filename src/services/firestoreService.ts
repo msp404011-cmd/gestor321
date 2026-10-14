@@ -1647,6 +1647,112 @@ export const FirestoreSyncService = {
       console.warn('Firestore invalidateActiveSession error:', err);
     }
   },
+
+  async saveFinanceCashRegister(register: any): Promise<void> {
+    try {
+      if (!db || !register.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'finance_cash_registers', register.id);
+      await setDoc(docRef, sanitizeObject(register), { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveFinanceCashRegister error:', err);
+    }
+  },
+  async deleteFinanceCashRegister(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'finance_cash_registers', id));
+    } catch (err) {
+      console.warn('Firestore deleteFinanceCashRegister error:', err);
+    }
+  },
+  async saveFinanceCashMovement(movement: any): Promise<void> {
+    try {
+      if (!db || !movement.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'finance_cash_movements', movement.id);
+      await setDoc(docRef, sanitizeObject(movement), { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveFinanceCashMovement error:', err);
+    }
+  },
+  async deleteFinanceCashMovement(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'finance_cash_movements', id));
+    } catch (err) {
+      console.warn('Firestore deleteFinanceCashMovement error:', err);
+    }
+  },
+  async saveDefinitiveExpense(expense: any): Promise<void> {
+    try {
+      if (!db || !expense.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'definitive_expenses', expense.id);
+      await setDoc(docRef, sanitizeObject(expense), { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveDefinitiveExpense error:', err);
+    }
+  },
+  async deleteDefinitiveExpense(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'definitive_expenses', id));
+    } catch (err) {
+      console.warn('Firestore deleteDefinitiveExpense error:', err);
+    }
+  },
+  async saveDailyTask(task: any): Promise<void> {
+    try {
+      if (!db || !task.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'daily_tasks', task.id);
+      await setDoc(docRef, sanitizeObject(task), { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveDailyTask error:', err);
+    }
+  },
+  async deleteDailyTask(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'daily_tasks', id));
+    } catch (err) {
+      console.warn('Firestore deleteDailyTask error:', err);
+    }
+  },
+  async saveRealFixedCost(cost: any): Promise<void> {
+    try {
+      if (!db || !cost.id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      const docRef = doc(db, 'accounts', tenantId, 'real_fixed_costs', cost.id);
+      await setDoc(docRef, sanitizeObject(cost), { merge: true });
+    } catch (err) {
+      console.warn('Firestore saveRealFixedCost error:', err);
+    }
+  },
+  async deleteRealFixedCost(id: string): Promise<void> {
+    try {
+      if (!db || !id) return;
+      const tenantId = getTenantId();
+      if (!tenantId || tenantId === 'default_tenant') return;
+      await deleteDoc(doc(db, 'accounts', tenantId, 'real_fixed_costs', id));
+    } catch (err) {
+      console.warn('Firestore deleteRealFixedCost error:', err);
+    }
+  },
 };
 
 

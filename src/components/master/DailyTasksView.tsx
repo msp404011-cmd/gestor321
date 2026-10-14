@@ -227,107 +227,10 @@ export const DailyTasksView: React.FC<DailyTasksViewProps> = ({ isSuperAdmin = t
     return highest;
   };
 
-  // Load and seed initial tasks if empty
+  // Load tasks without seeding mock data
   useEffect(() => {
     const loadedTasks = StorageService.getDailyTasks();
-    if (loadedTasks && loadedTasks.length > 0) {
-      setTasks(loadedTasks);
-    } else {
-      // Seed default sample cards with sub-items containing individual priorities
-      const sampleTasks: DailyTaskCard[] = [
-        {
-          id: 'task-1',
-          title: 'Card 1 - Organização da Bancada & Teste de Telas',
-          description: 'Rotina diária técnica da bancada principal.',
-          items: [
-            {
-              id: 'sub-1',
-              text: 'Comprar 2 carretéis de malha dessoldadora Goot Wick',
-              isCompleted: false,
-              priority: 'URGENTE',
-              needsPurchase: true,
-              purchaseDescription: 'Malha Goot Wick 3mm 1.5m',
-              purchaseValue: 45.0,
-            },
-            {
-              id: 'sub-2',
-              text: 'Limpar e calibrar fonte de bancada 30V 5A',
-              isCompleted: false,
-              priority: 'ALTA',
-            },
-            {
-              id: 'sub-3',
-              text: 'Organizar parafusos e gabaritos de bancada',
-              isCompleted: true,
-              priority: 'BAIXA',
-            },
-          ],
-          needsPurchase: true,
-          purchaseDescription: 'Malha Goot Wick 3mm 1.5m',
-          purchaseValue: 45.0,
-          isCompleted: false,
-          createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-          updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-          priority: 'URGENTE',
-        },
-        {
-          id: 'task-2',
-          title: 'Card 2 - Reposição de Insumos de Solda',
-          description: 'Conferência e compra de insumos urgentes.',
-          items: [
-            {
-              id: 'sub-20',
-              text: 'Comprar Fluxo de Solda Amtech NC-559',
-              isCompleted: false,
-              priority: 'ALTA',
-              needsPurchase: true,
-              purchaseDescription: 'Siringa Fluxo Amtech 10cc',
-              purchaseValue: 85.0,
-            },
-            {
-              id: 'sub-21',
-              text: 'Conferir ponteiras do ferro de solda JBC',
-              isCompleted: false,
-              priority: 'MEDIA',
-            },
-          ],
-          needsPurchase: true,
-          purchaseDescription: 'Siringa Fluxo Amtech 10cc',
-          purchaseValue: 85.0,
-          isCompleted: false,
-          createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-          updatedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-          priority: 'ALTA',
-        },
-        {
-          id: 'task-3',
-          title: 'Card 3 - Limpeza e Teste de Lote de Telas',
-          description: 'Teste final antes da entrega.',
-          items: [
-            {
-              id: 'sub-30',
-              text: 'Testar touch e brilho tela Moto G22',
-              isCompleted: true,
-              priority: 'MEDIA',
-            },
-            {
-              id: 'sub-31',
-              text: 'Testar biometria e cores tela Samsung A32',
-              isCompleted: true,
-              priority: 'MEDIA',
-            },
-          ],
-          needsPurchase: false,
-          isCompleted: true,
-          completedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-          createdAt: new Date(Date.now() - 3600000 * 30).toISOString(),
-          updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-          priority: 'MEDIA',
-        },
-      ];
-      StorageService.saveDailyTasks(sampleTasks);
-      setTasks(sampleTasks);
-    }
+    setTasks(loadedTasks || []);
 
     const unsub = StorageService.subscribe(() => {
       setTasks(StorageService.getDailyTasks());

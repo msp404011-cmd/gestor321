@@ -1143,11 +1143,11 @@ export function MonthlyDebitsView() {
           )}
 
           {/* TAB SWITCHER */}
-          <div className="p-0.5 rounded-xl bg-[#08152e] border border-blue-900/60 grid grid-cols-4 gap-1 w-full md:w-auto">
+          <div className="p-0.5 rounded-xl bg-[#08152e] border border-blue-900/60 grid grid-cols-4 gap-0.5 sm:gap-1 w-full md:w-auto">
           <button
             type="button"
             onClick={() => setActiveMainTab('PARCELADOS')}
-            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate ${
+            className={`w-full px-1 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight sm:tracking-wider transition-all cursor-pointer text-center truncate ${
               activeMainTab === 'PARCELADOS'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
@@ -1158,7 +1158,7 @@ export function MonthlyDebitsView() {
           <button
             type="button"
             onClick={() => setActiveMainTab('CONTAS_PAGAR')}
-            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate ${
+            className={`w-full px-1 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight sm:tracking-wider transition-all cursor-pointer text-center truncate ${
               activeMainTab === 'CONTAS_PAGAR'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
@@ -1169,25 +1169,25 @@ export function MonthlyDebitsView() {
           <button
             type="button"
             onClick={() => setActiveMainTab('CUSTO_FIXO')}
-            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
+            className={`w-full px-0.5 sm:px-1 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight sm:tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
               activeMainTab === 'CUSTO_FIXO'
                 ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 text-white shadow-md shadow-amber-500/20'
                 : 'text-amber-400/80 hover:text-amber-300'
             }`}
           >
-            <Building2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 hidden sm:inline" />
+            <Building2 className="w-2.5 h-2.5 shrink-0 hidden lg:inline" />
             <span className="truncate">Custo Fixo</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveMainTab('FINANCAS')}
-            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
+            className={`w-full px-0.5 sm:px-1 py-1.5 rounded-lg text-[8px] sm:text-[10px] font-black uppercase tracking-tight sm:tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
               activeMainTab === 'FINANCAS'
                 ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 text-white shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400/40'
                 : 'text-emerald-400/80 hover:text-emerald-300'
             }`}
           >
-            <Wallet className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 hidden sm:inline" />
+            <Wallet className="w-2.5 h-2.5 shrink-0 hidden lg:inline" />
             <span className="truncate">Finanças</span>
           </button>
           </div>
