@@ -38,6 +38,7 @@ export interface SupplierPurchaseItem {
   returnReason?: string;
   isReceived?: boolean;
   receivedAt?: string | null;
+  isDeliveredToSupplier?: boolean;
 }
 
 export interface MonthSummaryGroup {
@@ -71,7 +72,7 @@ export interface WeekSummaryGroup {
 
 interface SupplierPurchasesViewProps {
   items: SupplierPurchaseItem[];
-  subTab: 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS';
+  subTab: 'HISTORICO' | 'DEBITOS' | 'DEVOLUCOES';
   fieldSettings?: any;
   onUpdateStatus: (id: string, status: 'Pago' | 'Pendente') => void;
   onUpdateSupplier: (id: string, newSupplierName: string) => void;
@@ -109,7 +110,22 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('ALL');
   const [isAddPieceModalOpen, setIsAddPieceModalOpen] = useState(false);
+  const [isAddReturnModalOpen, setIsAddReturnModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [newReturnForm, setNewReturnForm] = useState({
+    title: '',
+    typeName: 'Tela',
+    marca: '',
+    modelo: '',
+    estrutura: '',
+    qualidade: 'Premium',
+    cor: 'Preto',
+    quantity: 1,
+    price: 0,
+    supplierName: '',
+    returnReason: 'Defeito de fábrica',
+    customDate: new Date().toISOString().slice(0, 10)
+  });
 
   // Helper to determine field visibility for pieces based on category settings
   const getPieceFieldConfig = (typeName?: string) => {
@@ -267,6 +283,20 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     selectedDayKey: '',
     selectedPieceIds: [],
     pieceSearch: '',
+  });
+
+  const [returnsConferenceModal, setReturnsConferenceModal] = useState<{
+    isOpen: boolean;
+    supplierName: string;
+    supplierInfo?: RegisteredSupplier;
+    items: SupplierPurchaseItem[];
+    copiedText?: boolean;
+    onlyInStore?: boolean;
+  }>({
+    isOpen: false,
+    supplierName: '',
+    items: [],
+    onlyInStore: false
   });
 
   // Return modal state
@@ -716,6 +746,113 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
       });
     return groups;
   }, [items]);
+
+  // Returns grouped by supplier for DEVOLUCOES tab (pending payments with isReturned true)
+  const returnsBySupplier = useMemo(() => {
+    const returnedItems = items.filter(i => !!i.isReturned && i.paymentStatus === 'Pendente');
+    const searchLower = searchTerm.trim().toLowerCase();
+
+    const filtered = returnedItems.filter(item => {
+      const matchesSupplier = supplierFilter === 'ALL' || item.supplierName === supplierFilter;
+      if (!matchesSupplier) return false;
+      if (!searchLower) return true;
+      const fullSearchText = `${item.title || ''} ${item.typeName || ''} ${item.supplierName || ''} ${item.marca || ''} ${item.modelo || ''} ${item.returnReason || ''}`;
+      return fullSearchText.toLowerCase().includes(searchLower);
+    });
+
+    const supMap = new Map<string, {
+      supplierName: string;
+      supplierInfo?: RegisteredSupplier;
+      items: SupplierPurchaseItem[];
+      totalDesconsidered: number;
+      count: number;
+    }>();
+
+    filtered.forEach(item => {
+      const supName = item.supplierName?.trim() || 'Fornecedor Desconhecido';
+      if (!supMap.has(supName)) {
+        const foundSup = allSuppliersList.find(s => s.name.trim().toLowerCase() === supName.toLowerCase());
+        supMap.set(supName, {
+          supplierName: supName,
+          supplierInfo: foundSup,
+          items: [],
+          totalDesconsidered: 0,
+          count: 0
+        });
+      }
+      const group = supMap.get(supName)!;
+      const sub = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+      group.items.push(item);
+      group.totalDesconsidered += sub;
+      group.count += Number(item.quantity) || 1;
+    });
+
+    return Array.from(supMap.values()).sort((a, b) => b.count - a.count);
+  }, [items, searchTerm, supplierFilter, allSuppliersList]);
+
+  const formatReturnsConferenceWhatsApp = (supplierName: string, returnedItems: SupplierPurchaseItem[], onlyInStore = false): string => {
+    const listToProcess = onlyInStore 
+      ? returnedItems.filter(i => !i.isDeliveredToSupplier)
+      : returnedItems;
+
+    let totalDesconsidered = 0;
+    let totalCount = 0;
+    listToProcess.forEach(i => {
+      const qty = Number(i.quantity) || 1;
+      totalDesconsidered += (Number(i.price) || 0) * qty;
+      totalCount += qty;
+    });
+
+    let text = `🔄 *RELATÓRIO DE CONFERÊNCIA DE DEVOLUÇÃO* 🔄\n`;
+    text += `🏢 *Fornecedor:* ${supplierName}\n`;
+    text += `📅 *Data da Emissão:* ${new Date().toLocaleDateString('pt-BR')}\n`;
+    if (onlyInStore) {
+      text += `📦 *Foco:* Apenas Peças na Loja (Aguardando Envio)\n`;
+    }
+    text += `-----------------------------------\n\n`;
+
+    text += `⚠️ *ATENÇÃO: LISTA DE PEÇAS DEVOLVIDAS*\n`;
+    text += `💰 *Valor Total Desconsiderado:* R$ ${totalDesconsidered.toFixed(2).replace('.', ',')}\n`;
+    text += `🔢 *Total de Peças:* ${listToProcess.length} modelos (${totalCount} peças no total)\n\n`;
+    text += `-----------------------------------\n\n`;
+
+    listToProcess.forEach((item, idx) => {
+      const typePrefix = item.typeName ? `${item.typeName} ` : '';
+      let cleanTitle = (item.title || '').trim();
+      if (item.typeName && cleanTitle.toLowerCase().startsWith(item.typeName.toLowerCase() + ' ')) {
+        cleanTitle = cleanTitle.slice(item.typeName.length + 1).trim();
+      }
+      const estUpper = (item.estrutura || '').trim().toUpperCase();
+      const estBadge = estUpper ? ` - ${estUpper}` : '';
+
+      text += `${idx + 1}. 📱 ~${typePrefix}${cleanTitle}${estBadge}~ 🔄 [DEVOLVIDA]\n`;
+      if (item.marca) text += `🏷️ Marca: ${item.marca}\n`;
+      if (item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
+      if (estUpper) text += `⭕ Estrutura: ${estUpper}\n`;
+      if (item.qualidade) text += `⚡ Qualidade: ${item.qualidade}\n`;
+      if (item.cor) text += `🎨 Cor: ${item.cor}\n`;
+      
+      const sub = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+      text += `💵 Valor Original: ~R$ ${sub.toFixed(2).replace('.', ',')}~ (${item.quantity}x R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')})\n`;
+      if (item.returnReason) text += `📝 Motivo: ${item.returnReason}\n`;
+      
+      const deliveryStatusText = item.isDeliveredToSupplier 
+        ? `🚚 Status: Já Entregue ao Fornecedor` 
+        : `📦 Status: Ainda na Loja (Aguardando Entrega)`;
+      text += `${deliveryStatusText}\n\n`;
+    });
+
+    text += `-----------------------------------\n`;
+    text += `Por favor, confirme a relação e o valor destas devoluções.`;
+    return text;
+  };
+
+  const handleSendReturnsWhatsApp = (phone: string, supplierName: string, returnedItems: SupplierPurchaseItem[], onlyInStore = false) => {
+    const listToProcess = onlyInStore ? returnedItems.filter(i => !i.isDeliveredToSupplier) : returnedItems;
+    if (listToProcess.length === 0) return;
+    const msg = formatReturnsConferenceWhatsApp(supplierName, returnedItems, onlyInStore);
+    openWhatsAppMessageSafely(phone, msg);
+  };
 
   // -------------------------------------------------------------
   // HISTÓRICO CONSOLIDADO POR MÊS E POR SEMANA & GERENCIAMENTO
@@ -1439,48 +1576,52 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     });
   };
 
+  const handleSaveNewReturnItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReturnForm.title.trim()) return;
+
+    const supplier = newReturnForm.supplierName.trim() || 'Fornecedor Principal';
+    const dateObj = newReturnForm.customDate ? new Date(newReturnForm.customDate + 'T12:00:00') : new Date();
+
+    onAddPurchaseItem({
+      id: `return_manual_${Date.now()}`,
+      title: newReturnForm.title.trim(),
+      typeName: newReturnForm.typeName,
+      marca: newReturnForm.marca,
+      modelo: newReturnForm.modelo,
+      estrutura: newReturnForm.estrutura,
+      qualidade: newReturnForm.qualidade,
+      cor: newReturnForm.cor,
+      quantity: Number(newReturnForm.quantity) || 1,
+      price: Number(newReturnForm.price) || 0,
+      supplierName: supplier,
+      paymentStatus: 'Pendente',
+      createdAt: dateObj.toISOString(),
+      isReturned: true,
+      returnedAt: dateObj.toISOString(),
+      returnReason: newReturnForm.returnReason.trim(),
+      isDeliveredToSupplier: false
+    });
+
+    setIsAddReturnModalOpen(false);
+    setNewReturnForm({
+      title: '',
+      typeName: 'Tela',
+      marca: '',
+      modelo: '',
+      estrutura: '',
+      qualidade: 'Premium',
+      cor: 'Preto',
+      quantity: 1,
+      price: 0,
+      supplierName: '',
+      returnReason: 'Defeito de fábrica',
+      customDate: new Date().toISOString().slice(0, 10)
+    });
+  };
+
   return (
     <div className="flex-1 flex flex-col space-y-3 sm:space-y-4 overflow-hidden">
-      {/* ------------------------------------------------------------- */}
-      {/* TOP BANNERS FOR HISTÓRICO & DÉBITOS */}
-      {/* ------------------------------------------------------------- */}
-      {subTab === 'HISTORICO' && (
-        <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900 border border-indigo-500/30 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 shrink-0 shadow-lg">
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="p-2 sm:p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30 shrink-0">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-black text-white flex items-center gap-2 flex-wrap">
-                <span>Histórico de Compras Pagas (12 Meses)</span>
-                <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30">
-                  Auto-limpeza ativa
-                </span>
-              </h3>
-              <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
-                Peças marcadas como pagas na hora ou quitadas a prazo ficam arquivadas por 12 meses.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
-            <button
-              onClick={() => {
-                setHistoryModalSupplierName(null);
-                setHistorySelectedMonths({});
-                setIsHistoryModalOpen(true);
-              }}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/30 cursor-pointer"
-              title="Abrir histórico detalhado com soma de compras feitas e pagas por mês e por semana e opção de apagar"
-            >
-              <BarChart3 className="w-4 h-4 text-white" /> <span>Visualizar por Mês & Semana / Gerenciar</span>
-            </button>
-            <div className="text-left sm:text-right shrink-0 bg-[#0B1221]/60 sm:bg-transparent p-2 sm:p-0 rounded-xl flex items-center sm:block justify-between border sm:border-0 border-slate-800">
-              <div className="text-[10px] text-slate-400 uppercase font-bold">Total Pago (12m)</div>
-              <div className="text-base sm:text-xl font-black text-emerald-400">R$ {totalPaidAmount.toFixed(2).replace('.', ',')}</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {subTab === 'DEBITOS' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 shrink-0">
@@ -1517,6 +1658,34 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                 {Object.keys(debtsBySupplier).length}
               </div>
               <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Fornecedores com Débito</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {subTab === 'DEVOLUCOES' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
+          <div className="bg-[#161B2B] rounded-xl border border-rose-500/30 p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-xl shrink-0">
+              <RotateCcw className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-black text-rose-400 truncate">
+                {items.filter(i => !!i.isReturned && i.paymentStatus === 'Pendente').reduce((acc, i) => acc + (Number(i.quantity) || 1), 0)} peças
+              </div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Total de Devoluções Pendentes</div>
+            </div>
+          </div>
+
+          <div className="bg-[#161B2B] rounded-xl border border-rose-500/30 p-2.5 flex items-center gap-2.5 shadow-md">
+            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-xl shrink-0">
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm sm:text-base font-black text-rose-400 truncate">
+                R$ {items.filter(i => !!i.isReturned && i.paymentStatus === 'Pendente').reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0).toFixed(2).replace('.', ',')}
+              </div>
+              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Valor Retirado da Contabilidade</div>
             </div>
           </div>
         </div>
@@ -1563,49 +1732,231 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
             </select>
           </div>
 
-          {/* SubTab 2 actions: + Cadastrar Fornecedor & + Apontar Peça & Histórico Geral */}
-          {subTab === 'FORNECEDOR' && (
-            <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto flex-wrap">
-              <button
-                onClick={() => {
-                  setHistoryModalSupplierName(null);
-                  setHistorySelectedMonths({});
-                  setIsHistoryModalOpen(true);
-                }}
-                className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
-                title="Histórico consolidado de compras separadas por mês e semana e gerenciamento de exclusão"
-              >
-                <BarChart3 className="w-4 h-4 text-indigo-400" /> <span className="truncate">Histórico Geral (Mês/Semana)</span>
-              </button>
-
-              <button
-                onClick={handleOpenAddSupplier}
-                className="flex-1 sm:flex-none px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" /> <span className="truncate">+ Cadastrar Fornecedor</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setNewItemForm(prev => ({
-                    ...prev,
-                    supplierName: allSuppliersList[0]?.name || ''
-                  }));
-                  setIsAddPieceModalOpen(true);
-                }}
-                className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> <span className="truncate">+ Apontar Peça</span>
-              </button>
-            </div>
+          {subTab === 'DEVOLUCOES' && (
+            <button
+              type="button"
+              onClick={() => {
+                setNewReturnForm(prev => ({
+                  ...prev,
+                  supplierName: allSuppliersList[0]?.name || ''
+                }));
+                setIsAddReturnModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/30 shrink-0"
+              title="Adicionar peça diretamente para devolução informando a data desejada"
+            >
+              <RotateCcw className="w-4 h-4" /> + Nova Devolução Direta
+            </button>
           )}
+
+
         </div>
       </div>
 
       {/* ------------------------------------------------------------- */}
+      {/* ABA 3: DEVOLUÇÕES PENDENTES */}
+      {/* ------------------------------------------------------------- */}
+      {subTab === 'DEVOLUCOES' && (
+        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16 space-y-6">
+          {returnsBySupplier.length === 0 ? (
+            <div className="bg-[#161B2B] border border-slate-800 rounded-2xl p-12 text-center shadow-xl flex flex-col items-center justify-center">
+              <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-950/40">
+                <RotateCcw className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-black text-white mb-2">
+                Nenhuma Peça em Devolução Pendente!
+              </h3>
+              <p className="text-slate-400 max-w-sm mx-auto text-xs leading-relaxed">
+                As peças marcadas para devolução aparecerão aqui até que a nota da aba Débitos seja quitada.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {returnsBySupplier.map((supGroup) => {
+                const supInfo = supGroup.supplierInfo;
+                const phone = supInfo?.phone || '';
+                const cleanPhone = phone.replace(/\D/g, '');
+
+                return (
+                  <div 
+                    key={supGroup.supplierName}
+                    className="bg-[#13192B] border-2 border-rose-500/30 hover:border-rose-500/50 rounded-xl p-4 shadow-xl transition-all space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-rose-400" />
+                          <h4 className="text-sm sm:text-base font-black text-white">{supGroup.supplierName}</h4>
+                          <span className="text-xs bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-full border border-rose-500/30">
+                            {supGroup.count} {supGroup.count === 1 ? 'peça devolvida' : 'peças devolvidas'}
+                          </span>
+                        </div>
+                        {phone && <p className="text-xs text-slate-400 mt-0.5">📞 {phone}</p>}
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setReturnsConferenceModal({
+                            isOpen: true,
+                            supplierName: supGroup.supplierName,
+                            supplierInfo: supInfo,
+                            items: supGroup.items,
+                            onlyInStore: false
+                          })}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                          title="Gerar texto formatado de conferência de todas as devoluções"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> Texto (Todas)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setReturnsConferenceModal({
+                            isOpen: true,
+                            supplierName: supGroup.supplierName,
+                            supplierInfo: supInfo,
+                            items: supGroup.items,
+                            onlyInStore: true
+                          })}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                          title="Gerar texto formatado apenas das peças na loja"
+                        >
+                          <Package className="w-3.5 h-3.5" /> Texto (Na Loja)
+                        </button>
+
+                        {cleanPhone && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleSendReturnsWhatsApp(cleanPhone, supGroup.supplierName, supGroup.items, false)}
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1"
+                              title="Enviar todas via WhatsApp"
+                            >
+                              <Send className="w-3 h-3" /> Wpp (Todas)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSendReturnsWhatsApp(cleanPhone, supGroup.supplierName, supGroup.items, true)}
+                              className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1"
+                              title="Enviar via WhatsApp apenas as peças que estão na loja"
+                            >
+                              <Send className="w-3 h-3" /> Wpp (Na Loja)
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Lista de Peças Devolvidas */}
+                    <div className="divide-y divide-slate-800/60">
+                      {supGroup.items.map((item) => {
+                        const itemSubtotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+                        return (
+                          <div key={item.purchaseId} className="py-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase">
+                                  Devolução
+                                </span>
+                                <h5 className="text-xs sm:text-sm font-black text-rose-200 line-through truncate">
+                                  {item.title}
+                                </h5>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {item.marca} {item.modelo} {item.qualidade ? `• ${item.qualidade}` : ''} ({item.quantity}x R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')})
+                              </p>
+                              {item.returnReason && (
+                                <div className="mt-1 text-[11px] text-amber-300 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 flex items-center gap-1.5 w-fit">
+                                  <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <span><strong>Motivo:</strong> {item.returnReason}</span>
+                                </div>
+                              )}
+                              
+                              {/* Delivery Status Toggle */}
+                              <div className="mt-1.5">
+                                {onUpdatePurchaseItem && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdatePurchaseItem({ ...item, isDeliveredToSupplier: !item.isDeliveredToSupplier })}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer inline-flex items-center gap-1 border ${
+                                      item.isDeliveredToSupplier
+                                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
+                                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30'
+                                    }`}
+                                    title="Clique para alternar entre Já Entregue ou Na Loja"
+                                  >
+                                    {item.isDeliveredToSupplier ? (
+                                      <>
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Já Entregue ao Fornecedor
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Clock className="w-3 h-3 text-amber-400" /> Ainda na Loja (Vai Ser Devolvida)
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <div className="text-xs font-black text-slate-500 line-through">
+                                  R$ {itemSubtotal.toFixed(2).replace('.', ',')}
+                                </div>
+                                <div className="text-[10px] font-black text-rose-400">
+                                  R$ 0,00 (Desconsiderado)
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                {onToggleReturn && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onToggleReturn(item.purchaseId, false)}
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border border-slate-700"
+                                    title="Desfazer devolução e voltar a contabilizar"
+                                  >
+                                    <Undo2 className="w-3 h-3" /> Desfazer
+                                  </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenEditPieceModal(item)}
+                                    className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all cursor-pointer"
+                                    title="Editar motivo ou dados"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button 
+                                  type="button"
+                                  onClick={() => onDelete(item.purchaseId)}
+                                  className="p-1 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
+                                  title="Excluir peça"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
       {/* ABA 2: FORNECEDOR (CARDS DE FORNECEDORES) */}
       {/* ------------------------------------------------------------- */}
-      {subTab === 'FORNECEDOR' && (
+      {subTab === 'HISTORICO' && (
         <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16 space-y-4">
           {allSuppliersList.length === 0 ? (
             <div className="bg-[#161B2B] border border-slate-800 rounded-2xl p-12 text-center shadow-xl flex flex-col items-center justify-center">
@@ -1622,662 +1973,293 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              {allSuppliersList
-                .filter(s => supplierFilter === 'ALL' || s.name === supplierFilter)
+            <div className="space-y-4">
+              {/* Header Resumo Geral do Histórico com Soma Total */}
+              <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900 border border-indigo-500/30 p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30 shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <span>Histórico Geral dos Fornecedores</span>
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                        Últimos 25 Meses Salvos
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Totais mensais salvos por fornecedor e histórico com efeito cortina.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right shrink-0 bg-[#0B1221] px-4 py-2 rounded-xl border border-slate-800">
+                  <div className="text-[10px] text-slate-400 uppercase font-black">Soma Total Geral</div>
+                  <div className="text-base sm:text-xl font-black text-emerald-400">
+                    R$ {items.filter(i => {
+                      if (i.isReturned) return false;
+                      if (!i.createdAt) return true;
+                      const d = new Date(i.createdAt);
+                      const cutoff = new Date(new Date().getFullYear(), new Date().getMonth() - 25, 1);
+                      return isNaN(d.getTime()) || d >= cutoff;
+                    }).reduce((sub, i) => sub + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0).toFixed(2).replace('.', ',')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                {allSuppliersList
+                  .filter(s => supplierFilter === 'ALL' || s.name === supplierFilter)
                 .map(supplier => {
                   const supplierPieces = items.filter(
                     i => (i.supplierName || '').trim().toLowerCase() === supplier.name.trim().toLowerCase()
                   );
 
-                  // Peças normais (não devolvidas) para contabilidade
-                  const pendingPieces = supplierPieces.filter(i => i.paymentStatus === 'Pendente' && !i.isReturned);
-                  const paidPieces = supplierPieces.filter(i => i.paymentStatus === 'Pago' && !i.isReturned);
-                  const returnedPieces = supplierPieces.filter(i => !!i.isReturned);
+                  // 25-month limit and current month calculation
+                  const now = new Date();
+                  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                  const currentMonthName = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                  const cutoffDate = new Date(now.getFullYear(), now.getMonth() - 25, 1);
 
-                  const pendingTotal = pendingPieces.reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
-                  const paidTotal = paidPieces.reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
-                  const totalCardAmount = pendingTotal + paidTotal;
+                  const validSupplierPieces = supplierPieces.filter(i => {
+                    if (!i.createdAt) return true;
+                    const d = new Date(i.createdAt);
+                    return isNaN(d.getTime()) || d >= cutoffDate;
+                  });
 
-                  const currentCardFilter = cardPieceFilters[supplier.id] || 'ALL';
+                  const currentMonthPieces = validSupplierPieces.filter(i => {
+                    const d = i.createdAt ? new Date(i.createdAt) : now;
+                    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    return k === currentMonthKey;
+                  });
+                  const currentMonthTotal = currentMonthPieces
+                    .filter(i => !i.isReturned)
+                    .reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
 
-                  const displayedPieces = supplierPieces
-                    .filter(i => {
-                      if (currentCardFilter === 'PENDENTE') return i.paymentStatus === 'Pendente' && !i.isReturned;
-                      if (currentCardFilter === 'PAGO') return i.paymentStatus === 'Pago' && !i.isReturned;
-                      if (currentCardFilter === 'DEVOLUCAO') return !!i.isReturned;
-                      return true;
-                    })
-                    .filter(i => {
-                      if (!searchTerm) return true;
-                      const q = searchTerm.toLowerCase();
-                      return (i.title || '').toLowerCase().includes(q) || (i.modelo || '').toLowerCase().includes(q);
-                    });
-
-                  // Group displayed pieces by Date
-                  const dateGroupsMap: Record<string, {
-                    dateKey: string;
-                    displayDate: string;
-                    dayBadge?: string;
-                    weekday: string;
-                    pieces: SupplierPurchaseItem[];
-                    subtotal: number;
-                    pendingSubtotal: number;
-                    paidSubtotal: number;
-                    returnedCount: number;
-                  }> = {};
-
-                  displayedPieces.forEach(piece => {
-                    const { dateKey, displayDate, weekday, dayBadge } = getDateKeyAndLabels(piece.createdAt);
-                    if (!dateGroupsMap[dateKey]) {
-                      dateGroupsMap[dateKey] = {
-                        dateKey,
-                        displayDate,
-                        dayBadge,
-                        weekday,
-                        pieces: [],
-                        subtotal: 0,
-                        pendingSubtotal: 0,
-                        paidSubtotal: 0,
-                        returnedCount: 0
-                      };
-                    }
-                    const itemTotal = (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
-                    dateGroupsMap[dateKey].pieces.push(piece);
-
-                    // Peça devolvida NÃO contabiliza mais no valor dele nem no total do card
-                    if (piece.isReturned) {
-                      dateGroupsMap[dateKey].returnedCount += 1;
-                    } else {
-                      dateGroupsMap[dateKey].subtotal += itemTotal;
-                      if (piece.paymentStatus === 'Pendente') {
-                        dateGroupsMap[dateKey].pendingSubtotal += itemTotal;
-                      } else {
-                        dateGroupsMap[dateKey].paidSubtotal += itemTotal;
+                  const pastMonthsMap: Record<string, { monthKey: string; monthLabel: string; pieces: SupplierPurchaseItem[]; total: number }> = {};
+                  validSupplierPieces.forEach(piece => {
+                    const d = piece.createdAt ? new Date(piece.createdAt) : now;
+                    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    if (k !== currentMonthKey) {
+                      if (!pastMonthsMap[k]) {
+                        pastMonthsMap[k] = {
+                          monthKey: k,
+                          monthLabel: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+                          pieces: [],
+                          total: 0
+                        };
+                      }
+                      pastMonthsMap[k].pieces.push(piece);
+                      if (!piece.isReturned) {
+                        pastMonthsMap[k].total += (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
                       }
                     }
                   });
 
-                  // Sort date groups descending (most recent date first)
-                  const dateGroups = Object.values(dateGroupsMap).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
-                  const dateKeys = dateGroups.map(g => g.dateKey);
-                  const isCardCollapsed = !!collapsedSuppliers[supplier.id];
+                  const pastMonthsList = Object.values(pastMonthsMap)
+                    .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+                    .slice(0, 25);
+
+                  const supplierGrandTotal = validSupplierPieces
+                    .filter(i => !i.isReturned)
+                    .reduce((acc, i) => acc + ((Number(i.price) || 0) * (Number(i.quantity) || 1)), 0);
+
+                  const isCurtainOpen = !!openCurtains[`history_curtain_${supplier.id}`];
 
                   return (
                     <div 
                       key={supplier.id}
-                      className="bg-[#161B2B] rounded-2xl border border-slate-800 hover:border-slate-700/80 p-5 flex flex-col shadow-xl transition-all gap-4"
+                      className="bg-[#161B2B] rounded-2xl border border-slate-800 p-5 flex flex-col shadow-xl transition-all gap-4"
                     >
-                      {/* Card Header: Supplier Info & Actions */}
-                      <div>
-                        <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800/80 flex-wrap">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20 shrink-0">
-                              <Building2 className="w-6 h-6" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="text-base font-black text-white truncate" title={supplier.name}>
-                                  {supplier.name}
-                                </h3>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                  {supplierPieces.length} {supplierPieces.length === 1 ? 'peça' : 'peças'}
-                                </span>
-                                {returnedPieces.length > 0 && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                                    <RotateCcw className="w-2.5 h-2.5" /> {returnedPieces.length} {returnedPieces.length === 1 ? 'devolução' : 'devoluções'}
-                                  </span>
-                                )}
-                              </div>
-
-                              {supplier.obs && (
-                                <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                                  {supplier.obs}
-                                </p>
-                              )}
-
-                              {/* Contact, Pix & Extrato Pills */}
-                              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                {supplier.phone ? (
-                                  <button
-                                    onClick={() => handleOpenWhatsApp(supplier.phone!, supplier.name, pendingPieces)}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-500/20 transition-all cursor-pointer"
-                                    title="Chamar no WhatsApp"
-                                  >
-                                    <MessageSquare className="w-3.5 h-3.5" /> {supplier.phone}
-                                  </button>
-                                ) : (
-                                  <span className="text-[10px] text-slate-500 italic">Sem WhatsApp</span>
-                                )}
-
-                                {supplier.pixKey && (
-                                  <button
-                                    onClick={() => handleCopyPix(supplier.pixKey!, supplier.id)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold hover:bg-indigo-500/20 transition-all cursor-pointer"
-                                    title="Clique para copiar a Chave PIX"
-                                  >
-                                    {copiedPixId === supplier.id ? (
-                                      <>
-                                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> PIX Copiado!
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="w-3.5 h-3.5" /> PIX: {supplier.pixKey}
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-
-                                {/* BOTÃO EXTRATO FORNECEDOR (WHATSAPP) */}
-                                <button
-                                  onClick={() => handleSendExtratoWhatsApp(supplier.phone || '', supplier.name, supplierPieces)}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition-all cursor-pointer shadow-md shadow-emerald-600/20"
-                                  title="Enviar Extrato completo de conferência de peças e devoluções para o fornecedor"
-                                >
-                                  <Send className="w-3.5 h-3.5" /> Extrato (WhatsApp)
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Header controls: Collapse entire card + Edit / Delete */}
-                          <div className="flex items-center gap-1.5 shrink-0 mt-2 sm:mt-0">
-                            <button
-                              onClick={() => toggleSupplierCollapse(supplier.id)}
-                              className="px-2.5 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border border-slate-700/60"
-                              title={isCardCollapsed ? 'Expandir Card do Fornecedor' : 'Recolher Card do Fornecedor'}
-                            >
-                              {isCardCollapsed ? (
-                                <>
-                                  <ChevronDown className="w-3.5 h-3.5 text-indigo-400" /> Expandir Card
-                                </>
-                              ) : (
-                                <>
-                                  <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> Recolher Card
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditSupplier(supplier)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all cursor-pointer"
-                              title="Editar Fornecedor"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => onDeleteSupplier(supplier.id)}
-                              className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
-                              title="Excluir Fornecedor"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                      {/* Supplier Header */}
+                      <div className="flex items-center gap-3 pb-3 border-b border-slate-800/80">
+                        <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 shrink-0">
+                          <Building2 className="w-5 h-5" />
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-base font-black text-white truncate" title={supplier.name}>
+                            {supplier.name}
+                          </h3>
+                          <span className="text-[10px] font-semibold text-slate-400">
+                            Fornecedor
+                          </span>
+                        </div>
+                      </div>
 
-                        {/* SEPARAÇÃO INTELIGENTE DO CARD: DÉBITO ATUAL vs HISTÓRICO PAGO */}
-                        <div className="mt-3 bg-gradient-to-r from-slate-950 via-[#0D1527] to-slate-950 p-3 sm:p-3.5 rounded-xl border border-indigo-500/30 shadow-inner">
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                            {/* DÉBITO ATUAL EM ABERTO (A PRAZO) - Destaque Principal do Card */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {pendingTotal > 0 ? (
-                                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-amber-400 shrink-0" /> A PAGAR (DÉBITO ATUAL EM ABERTO)
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" /> SEM DÉBITO EM ABERTO (QUITADO)
-                                  </span>
-                                )}
-                              </div>
-                              <div className={`text-2xl sm:text-3xl font-black mt-1 tracking-tight ${
-                                pendingTotal > 0 ? 'text-amber-400' : 'text-emerald-400'
-                              }`}>
-                                R$ {pendingTotal.toFixed(2).replace('.', ',')}
-                              </div>
-                              <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
-                                <span>{pendingPieces.length} {pendingPieces.length === 1 ? 'peça a pagar' : 'peças a pagar'}</span>
-                                <span className="text-slate-600">•</span>
-                                <span className="text-slate-300">Histórico Pago: <strong className="text-emerald-400">R$ {paidTotal.toFixed(2).replace('.', ',')}</strong> ({paidPieces.length} peças)</span>
-                              </div>
-                            </div>
-
-                            {/* Resumo lateral em colunas + Botão Histórico (Mês / Semana) */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-                              <div className="grid grid-cols-3 gap-1.5 min-w-0">
-                                {/* Total Compras Feitas */}
-                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-slate-700/60 min-w-0 text-center flex flex-col justify-center">
-                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-indigo-400 truncate">
-                                    Compras Feitas
-                                  </div>
-                                  <div className="text-xs sm:text-sm font-black text-white mt-0.5 truncate">
-                                    R$ {totalCardAmount.toFixed(2).replace('.', ',')}
-                                  </div>
-                                  <span className="text-[8px] text-slate-400 block truncate">{supplierPieces.length} peças</span>
-                                </div>
-
-                                {/* Total Pago */}
-                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-emerald-500/30 min-w-0 text-center flex flex-col justify-center">
-                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-emerald-400 truncate">
-                                    Total Pago
-                                  </div>
-                                  <div className="text-xs sm:text-sm font-black text-emerald-300 mt-0.5 truncate">
-                                    R$ {paidTotal.toFixed(2).replace('.', ',')}
-                                  </div>
-                                  <span className="text-[8px] text-slate-400 block truncate">{paidPieces.length} peças</span>
-                                </div>
-
-                                {/* Devoluções */}
-                                <div className="bg-[#161B2B] px-2.5 py-1.5 rounded-lg border border-rose-500/30 min-w-0 text-center flex flex-col justify-center">
-                                  <div className="text-[8px] sm:text-[9px] font-black uppercase text-rose-400 truncate">
-                                    Devoluções
-                                  </div>
-                                  <div className="text-xs sm:text-sm font-black text-rose-300 mt-0.5 truncate">
-                                    {returnedPieces.length}
-                                  </div>
-                                  <span className="text-[8px] text-slate-400 block truncate">Não cobrado</span>
-                                </div>
-                              </div>
-
-                              {/* Botão de Histórico do Card (Mês / Semana) */}
-                              <button
-                                onClick={() => {
-                                  setHistoryModalSupplierName(supplier.name);
-                                  setHistorySelectedMonths({});
-                                  setIsHistoryModalOpen(true);
-                                }}
-                                className="px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer shrink-0"
-                                title="Ver histórico de compras do fornecedor separado por mês e por semana, e gerenciar exclusão"
-                              >
-                                <BarChart3 className="w-3.5 h-3.5 text-indigo-200" />
-                                <span>Histórico (Mês / Semana)</span>
-                              </button>
+                      {/* 1. SOMA TOTAL DO FORNECEDOR */}
+                      <div className="bg-gradient-to-r from-emerald-950/40 via-[#0B1A24] to-slate-900 border border-emerald-500/30 p-3.5 rounded-xl flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg shrink-0">
+                            <DollarSign className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider block">
+                              Soma Total de Compras
+                            </span>
+                            <div className="text-xl font-black text-emerald-300 mt-0.5">
+                              R$ {supplierGrandTotal.toFixed(2).replace('.', ',')}
                             </div>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
+                            {validSupplierPieces.length} {validSupplierPieces.length === 1 ? 'item total' : 'itens totais'}
+                          </span>
+                        </div>
+                      </div>
 
-                        {/* If NOT collapsed: Quick actions + Filter tabs + Curtain controls */}
-                        {!isCardCollapsed && (
-                          <>
-                            {/* Quick actions for Supplier */}
-                            <div className="flex items-center justify-between gap-2 mt-3 flex-wrap">
-                              {pendingPieces.length > 0 && onBulkPayForSupplier ? (
-                                <button
-                                  onClick={() => onBulkPayForSupplier(supplier.name)}
-                                  className="w-full sm:w-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
-                                >
-                                  <Check className="w-3.5 h-3.5" /> Quitar Todas a Prazo ({pendingPieces.length})
-                                </button>
-                              ) : (
-                                <div className="text-xs text-emerald-400 font-bold flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Nenhum débito em aberto
-                                </div>
-                              )}
+                      {/* 2. TOTAL DO MÊS ATUAL */}
+                      <div className="bg-gradient-to-r from-indigo-950/60 via-[#111A2E] to-slate-900 border border-indigo-500/30 p-3.5 rounded-xl flex items-center justify-between">
+                        <div>
+                          <div className="text-[10px] font-black uppercase text-indigo-300 tracking-wider flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>Total do Mês Atual ({currentMonthName})</span>
+                          </div>
+                          <div className="text-xl font-black text-white mt-1">
+                            R$ {currentMonthTotal.toFixed(2).replace('.', ',')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-indigo-300 bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-500/30 inline-block">
+                            {currentMonthPieces.length} {currentMonthPieces.length === 1 ? 'peça' : 'peças'}
+                          </span>
+                        </div>
+                      </div>
 
-                              <button
-                                onClick={() => {
-                                  setNewItemForm(prev => ({ ...prev, supplierName: supplier.name }));
-                                  setIsAddPieceModalOpen(true);
-                                }}
-                                className="w-full sm:w-auto px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-all border border-slate-700"
+                      {/* 3. HISTÓRICO DE MESES ANTERIORES (CADA MÊS COM SEU TOTAL) */}
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between px-1">
+                          <span>Histórico de Meses Anteriores</span>
+                          <span className="text-[10px] text-slate-500 font-bold">
+                            {pastMonthsList.length}/25 meses
+                          </span>
+                        </div>
+
+                        {pastMonthsList.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-slate-500 bg-[#0B1221] rounded-xl border border-slate-800/80">
+                            Nenhum histórico de mês anterior ainda.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+                            {pastMonthsList.map(pm => (
+                              <div 
+                                key={pm.monthKey} 
+                                className="bg-[#0B1221] border border-slate-800 hover:border-slate-700/80 p-2.5 rounded-xl flex items-center justify-between shadow-sm transition-all"
                               >
-                                <Plus className="w-3.5 h-3.5 text-indigo-400" /> Apontar Peça Neste Card
-                              </button>
-                            </div>
-
-                            {/* Pieces Filter Tabs + Accordion Curtain Bulk Controls */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-800/60">
-                              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full pb-1 sm:pb-0">
-                                <button
-                                  onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'ALL' }))}
-                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                    currentCardFilter === 'ALL'
-                                      ? 'bg-indigo-600 text-white shadow-sm'
-                                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                                  }`}
-                                >
-                                  Todas ({supplierPieces.length})
-                                </button>
-                                <button
-                                  onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'PENDENTE' }))}
-                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                    currentCardFilter === 'PENDENTE'
-                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
-                                      : 'bg-slate-800 text-slate-400 hover:text-amber-400'
-                                  }`}
-                                >
-                                  A Prazo ({pendingPieces.length})
-                                </button>
-                                <button
-                                  onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'PAGO' }))}
-                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                    currentCardFilter === 'PAGO'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                                      : 'bg-slate-800 text-slate-400 hover:text-emerald-400'
-                                  }`}
-                                >
-                                  Pagas ({paidPieces.length})
-                                </button>
-                                <button
-                                  onClick={() => setCardPieceFilters(prev => ({ ...prev, [supplier.id]: 'DEVOLUCAO' }))}
-                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                                    currentCardFilter === 'DEVOLUCAO'
-                                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm'
-                                      : 'bg-slate-800 text-slate-400 hover:text-rose-400'
-                                  }`}
-                                >
-                                  Devolução ({returnedPieces.length})
-                                </button>
-                              </div>
-
-                              {dateKeys.length > 0 && (
-                                <div className="flex items-center gap-1.5 justify-end">
-                                  <button
-                                    onClick={() => setAllCurtainsForSupplier(supplier.id, dateKeys, true)}
-                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                    title="Descer todas as cortinas de datas deste card"
-                                  >
-                                    <ChevronDown className="w-3.5 h-3.5 text-indigo-400" /> Abrir Cortinas
-                                  </button>
-                                  <button
-                                    onClick={() => setAllCurtainsForSupplier(supplier.id, dateKeys, false)}
-                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                    title="Recolher todas as cortinas de datas deste card"
-                                  >
-                                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> Recolher Cortinas
-                                  </button>
+                                <div>
+                                  <div className="text-xs font-bold text-white capitalize">
+                                    {pm.monthLabel}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    {pm.pieces.length} {pm.pieces.length === 1 ? 'peça comprada' : 'peças compradas'}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </>
+                                <div className="text-right">
+                                  <div className="text-sm font-black text-emerald-400">
+                                    R$ {pm.total.toFixed(2).replace('.', ',')}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
 
-                      {/* DATE GROUP ACCORDION CURTAINS (DIVIDIDO POR DATA) */}
-                      {!isCardCollapsed && (
-                        <div className="space-y-3 max-h-[450px] overflow-y-auto custom-scrollbar pr-1">
-                          {dateGroups.length === 0 ? (
-                            <div className="text-center py-6 text-slate-500 text-xs bg-[#0B1221] rounded-2xl border border-slate-800">
-                              Nenhuma peça encontrada neste status para este fornecedor.
-                            </div>
-                          ) : (
-                            dateGroups.map(group => {
-                              const curtainKey = `${supplier.id}_${group.dateKey}`;
-                              // IMPORTANTE: Por padrão, a cortina SEMPRE fica recolhida (false), só desce quando clica
-                              const isCurtainOpen = !!openCurtains[curtainKey];
+                      {/* 4. EFEITO CORTINA: MOSTRAR TUDO QUE FOI COMPRADO */}
+                      <div className="rounded-xl border border-slate-800 overflow-hidden bg-[#0B1221] shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => toggleCurtain(`history_curtain_${supplier.id}`)}
+                          className={`w-full p-3 transition-colors flex items-center justify-between gap-2.5 text-left cursor-pointer border-b ${
+                            isCurtainOpen
+                              ? 'bg-gradient-to-r from-slate-900 via-[#111A2E] to-slate-900 border-indigo-500/30'
+                              : 'bg-[#0E1524] hover:bg-slate-800/60 border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
+                              📜 Ver Tudo Que Foi Comprado ({validSupplierPieces.length} itens)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-indigo-400 font-bold">
+                            <span>{isCurtainOpen ? 'Recolher Cortina' : 'Abrir Cortina'}</span>
+                            {isCurtainOpen ? (
+                              <ChevronUp className="w-4 h-4 text-indigo-400" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-indigo-400" />
+                            )}
+                          </div>
+                        </button>
 
-                              return (
-                                <div 
-                                  key={group.dateKey}
-                                  className="rounded-2xl border border-slate-800/90 overflow-hidden bg-[#0B1221] transition-all shadow-sm hover:border-slate-700"
-                                >
-                                  {/* CURTAIN HEADER (Click to open / close like a curtain) */}
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleCurtain(curtainKey)}
-                                    className={`w-full p-2.5 sm:p-3 transition-colors flex items-center justify-between gap-2.5 text-left cursor-pointer border-b ${
-                                      isCurtainOpen 
-                                        ? 'bg-gradient-to-r from-slate-900 via-[#111A2E] to-slate-900 border-indigo-500/30' 
-                                        : 'bg-[#0E1524] hover:bg-slate-850 border-slate-800/60'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                                      <div className={`p-1.5 sm:p-2 rounded-xl border shrink-0 ${
-                                        isCurtainOpen 
-                                          ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' 
-                                          : 'bg-slate-800 text-slate-400 border-slate-700'
-                                      }`}>
-                                        <Calendar className="w-4 h-4" />
-                                      </div>
+                        {/* CORPO DA CORTINA RETRÁTIL */}
+                        {isCurtainOpen && (
+                          <div className="p-2.5 space-y-2 bg-[#080D18] max-h-72 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+                            {validSupplierPieces.length === 0 ? (
+                              <div className="text-center py-4 text-xs text-slate-500">
+                                Nenhuma compra registrada ainda.
+                              </div>
+                            ) : (
+                              validSupplierPieces
+                                .slice()
+                                .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                                .map((piece, pIdx) => {
+                                  const pieceTotal = (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
+                                  const isReturned = !!piece.isReturned;
+                                  const isPaid = piece.paymentStatus === 'Pago';
+                                  const dateFormatted = piece.createdAt && !isNaN(new Date(piece.createdAt).getTime())
+                                    ? new Date(piece.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    : 'Recente';
 
+                                  return (
+                                    <div
+                                      key={piece.purchaseId || pIdx}
+                                      className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                                        isReturned
+                                          ? 'bg-rose-950/20 border-rose-500/30 line-through opacity-75'
+                                          : isPaid
+                                            ? 'bg-[#121826] border-slate-800'
+                                            : 'bg-amber-950/10 border-amber-500/20'
+                                      }`}
+                                    >
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="text-xs sm:text-sm font-black text-white">
-                                            {group.displayDate}
+                                          <span className="text-[10px] text-slate-400 font-bold">{dateFormatted}</span>
+                                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
+                                            {piece.typeName || 'Peça'}
                                           </span>
-                                          {group.dayBadge && (
-                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                              {group.dayBadge}
-                                            </span>
-                                          )}
-                                          {group.weekday && (
-                                            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
-                                              • {group.weekday}
-                                            </span>
-                                          )}
-                                          <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-1.5 py-0.5 rounded">
-                                            {group.pieces.length} {group.pieces.length === 1 ? 'peça' : 'peças'}
+                                          <span className="font-bold text-white truncate max-w-[180px]" title={piece.title}>
+                                            {piece.title}
                                           </span>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 mt-0.5 text-[10px] flex-wrap">
-                                          {group.pendingSubtotal > 0 && (
-                                            <span className="text-amber-400 font-bold flex items-center gap-0.5">
-                                              <Clock className="w-2.5 h-2.5" /> A Prazo: R$ {group.pendingSubtotal.toFixed(2).replace('.', ',')}
-                                            </span>
-                                          )}
-                                          {group.paidSubtotal > 0 && (
-                                            <span className="text-emerald-400 font-bold flex items-center gap-0.5">
-                                              <CheckCircle2 className="w-2.5 h-2.5" /> Pago: R$ {group.paidSubtotal.toFixed(2).replace('.', ',')}
-                                            </span>
-                                          )}
-                                          {group.returnedCount > 0 && (
-                                            <span className="text-rose-400 font-bold flex items-center gap-0.5">
-                                              <RotateCcw className="w-2.5 h-2.5" /> {group.returnedCount} {group.returnedCount === 1 ? 'devolução' : 'devoluções'}
+                                          {isReturned && (
+                                            <span className="text-[9px] font-black px-1 rounded bg-rose-500/20 text-rose-300">
+                                              Devolvido
                                             </span>
                                           )}
                                         </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                                          {piece.modelo ? `Mod: ${piece.modelo}` : ''} {piece.qualidade ? `• Qual: ${piece.qualidade}` : ''} {piece.cor ? `• Cor: ${piece.cor}` : ''}
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0">
+                                        <div className={`font-black ${isReturned ? 'text-rose-400' : isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                          R$ {pieceTotal.toFixed(2).replace('.', ',')}
+                                        </div>
+                                        <div className="text-[10px] text-slate-500">
+                                          {piece.quantity}x R$ {(Number(piece.price) || 0).toFixed(2).replace('.', ',')}
+                                        </div>
                                       </div>
                                     </div>
-
-                                    {/* VALOR DELE (Desta data) & Curtain Toggle Indicator */}
-                                    <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                                      <div className="text-right">
-                                        <span className="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 block">
-                                          VALOR
-                                        </span>
-                                        <span className="text-xs sm:text-sm font-black text-indigo-300 block">
-                                          R$ {group.subtotal.toFixed(2).replace('.', ',')}
-                                        </span>
-                                      </div>
-
-                                      <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-black transition-all ${
-                                        isCurtainOpen 
-                                          ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' 
-                                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                                      }`}>
-                                        <span className="hidden sm:inline">{isCurtainOpen ? 'Recolher' : 'Descer'}</span>
-                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isCurtainOpen ? 'rotate-180 text-indigo-400' : 'text-slate-400'}`} />
-                                      </div>
-                                    </div>
-                                  </button>
-
-                                  {/* CURTAIN BODY */}
-                                  {isCurtainOpen && (
-                                    <div className="p-2.5 sm:p-3 space-y-2 bg-[#090E1A]/80 border-t border-slate-800/40">
-                                      {group.pieces.map(piece => {
-                                        const isReturned = !!piece.isReturned;
-                                        const isPaid = piece.paymentStatus === 'Pago' && !isReturned;
-                                        const itemTotal = (Number(piece.price) || 0) * (Number(piece.quantity) || 1);
-
-                                        return (
-                                          <div
-                                            key={piece.purchaseId}
-                                            className={`p-2.5 rounded-xl border flex flex-col gap-2 transition-all ${
-                                              isReturned
-                                                ? 'bg-rose-950/15 border-rose-500/30 hover:border-rose-500/50'
-                                                : isPaid 
-                                                  ? 'bg-emerald-950/10 border-emerald-500/20 hover:border-emerald-500/40' 
-                                                  : 'bg-[#111726] border-slate-800 hover:border-amber-500/30'
-                                            }`}
-                                          >
-                                            <div className="flex items-start justify-between gap-2">
-                                              <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 uppercase">
-                                                    {piece.typeName || 'Peça'}
-                                                  </span>
-                                                  <span className={`font-black text-xs sm:text-sm truncate ${
-                                                    isReturned ? 'line-through text-slate-400 opacity-60' : 'text-white'
-                                                  }`} title={piece.title}>
-                                                    {piece.title}
-                                                  </span>
-                                                </div>
-                                                <div className={`text-[10px] mt-0.5 ${
-                                                  isReturned ? 'line-through text-slate-500 opacity-60' : 'text-slate-400'
-                                                }`}>
-                                                  {piece.marca} {piece.modelo} {piece.qualidade ? `• ${piece.qualidade}` : ''} {piece.cor ? `• ${piece.cor}` : ''}
-                                                </div>
-                                                {isReturned && piece.returnReason && (
-                                                  <div className="text-[10px] text-rose-400/90 mt-1 font-medium bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 inline-block">
-                                                    Motivo: {piece.returnReason}
-                                                  </div>
-                                                )}
-                                              </div>
-
-                                              <div className="text-right shrink-0">
-                                                <div className={`text-xs sm:text-sm font-black ${
-                                                  isReturned 
-                                                    ? 'line-through text-slate-500' 
-                                                    : isPaid 
-                                                      ? 'text-emerald-400' 
-                                                      : 'text-amber-400'
-                                                }`}>
-                                                  R$ {itemTotal.toFixed(2).replace('.', ',')}
-                                                </div>
-                                                <div className="text-[10px] text-slate-500">
-                                                  {isReturned ? (
-                                                    <span className="text-rose-400 font-bold">Devolução (R$ 0,00)</span>
-                                                  ) : (
-                                                    `${piece.quantity}x R$ ${(Number(piece.price) || 0).toFixed(2).replace('.', ',')}`
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            {/* Piece Controls: Status Badge + Return Actions (Wrap-friendly on mobile) */}
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-1.5 border-t border-slate-800/50 gap-2">
-                                              <div>
-                                                {isReturned ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/30">
-                                                    <RotateCcw className="w-3 h-3 text-rose-400" /> DEVOLVIDA (NÃO COBRAR)
-                                                  </span>
-                                                ) : isPaid ? (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                                                    <CheckCircle2 className="w-3 h-3" /> PAGO NA HORA (HISTÓRICO)
-                                                  </span>
-                                                ) : (
-                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[10px] font-bold border border-amber-500/30">
-                                                    <Clock className="w-3 h-3" /> A PRAZO (EM DÉBITO)
-                                                  </span>
-                                                )}
-                                              </div>
-
-                                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                                                {isReturned ? (
-                                                  <>
-                                                    <button
-                                                      onClick={() => handleSendSinglePieceReturn(supplier.phone || '', supplier.name, piece)}
-                                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm"
-                                                      title="Enviar aviso de devolução no WhatsApp"
-                                                    >
-                                                      <Send className="w-3 h-3" /> WhatsApp
-                                                    </button>
-                                                    <button
-                                                      onClick={() => onToggleReturn && onToggleReturn(piece.purchaseId, false)}
-                                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                                      title="Cancelar devolução e voltar a contabilizar a peça"
-                                                    >
-                                                      <Undo2 className="w-3 h-3" /> Reativar
-                                                    </button>
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    {isPaid ? (
-                                                      <button
-                                                        onClick={() => onUpdateStatus(piece.purchaseId, 'Pendente')}
-                                                        className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                                        title="Reverter para A Prazo (Débito)"
-                                                      >
-                                                        <RefreshCw className="w-3 h-3" /> Reverter
-                                                      </button>
-                                                    ) : (
-                                                      <button
-                                                        onClick={() => onUpdateStatus(piece.purchaseId, 'Pago')}
-                                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-600/20"
-                                                        title="Pagar na Hora (Vai p/ Histórico)"
-                                                      >
-                                                        <Check className="w-3 h-3" /> ⚡ Pagar
-                                                      </button>
-                                                    )}
-
-                                                    <button
-                                                      onClick={() => handleOpenReturnModal(piece, supplier.name, supplier.phone || '')}
-                                                      className="px-2 py-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                                                      title="Marcar peça para devolução"
-                                                    >
-                                                      <RotateCcw className="w-3 h-3 text-rose-400" /> Devolver
-                                                    </button>
-                                                  </>
-                                                )}
-
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleOpenEditPieceModal(piece)}
-                                                  className="p-1.5 text-slate-300 hover:text-indigo-400 hover:bg-indigo-500/15 rounded-lg cursor-pointer transition-all bg-slate-800/80 border border-slate-700"
-                                                  title="Editar todos os dados da peça"
-                                                >
-                                                  <Edit3 className="w-3.5 h-3.5" />
-                                                </button>
-
-                                                <button
-                                                  onClick={() => onDelete(piece.purchaseId)}
-                                                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 rounded-lg cursor-pointer transition-all bg-slate-800/80 border border-slate-700"
-                                                  title="Excluir peça"
-                                                >
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-
-                                      {/* Curtain Footer: Extrato Desta Data + Quitar Peças Desta Data */}
-                                      <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t border-slate-800/60 mt-2">
-                                        <button
-                                          onClick={() => handleSendExtratoWhatsApp(supplier.phone || '', supplier.name, group.pieces, group.displayDate)}
-                                          className="px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                                          title="Enviar extrato de conferência desta data no WhatsApp"
-                                        >
-                                          <Send className="w-3.5 h-3.5 text-emerald-400" /> Extrato Desta Data (WhatsApp)
-                                        </button>
-
-                                        {group.pendingSubtotal > 0 && (
-                                          <button
-                                            onClick={() => {
-                                              group.pieces
-                                                .filter(p => p.paymentStatus === 'Pendente' && !p.isReturned)
-                                                .forEach(p => onUpdateStatus(p.purchaseId, 'Pago'));
-                                            }}
-                                            className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                                            title="Quitar todas as peças a prazo desta data específica"
-                                          >
-                                            <Check className="w-3.5 h-3.5" /> Quitar Dia (R$ {group.pendingSubtotal.toFixed(2).replace('.', ',')})
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
+                                  );
+                                })
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
+              </div>
             </div>
           )}
         </div>
@@ -2406,7 +2388,11 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                                 supplierInfo: sup.supplierInfo,
                                 dateGroups: sup.dateGroups,
                                 pendingItems: pendingItems,
-                                copiedText: false
+                                copiedText: false,
+                                filterMode: 'ALL',
+                                selectedDayKey: '',
+                                selectedPieceIds: [],
+                                pieceSearch: ''
                               });
                             }}
                             className="px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-black transition-all shadow-md cursor-pointer flex items-center gap-1.5 shrink-0 border border-indigo-400/30"
@@ -2700,139 +2686,7 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
         </div>
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* ABA 3: HISTÓRICO 12 MESES (PEÇAS PAGAS) */}
-      {/* ------------------------------------------------------------- */}
-      {subTab === 'HISTORICO' && (
-        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-16">
-          {filteredItems.length === 0 ? (
-            <div className="bg-[#161B2B] border border-slate-800 rounded-2xl p-12 text-center shadow-xl flex flex-col items-center justify-center">
-              <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-8 h-8 text-slate-600" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">
-                Nenhum Histórico Encontrado
-              </h3>
-              <p className="text-slate-400 max-w-sm mx-auto text-xs">
-                Quando você marcar peças como "Pago" na aba Fornecedor ou Débito, elas serão arquivadas aqui por 12 meses.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredItems.map((item) => {
-                const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
 
-                return (
-                  <div 
-                    key={item.purchaseId}
-                    className="bg-[#161B2B] rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition-all flex flex-col justify-between gap-3 shadow-md hover:shadow-lg"
-                  >
-                    <div>
-                      {/* Header */}
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                          <div className="p-2 rounded-lg shrink-0 bg-emerald-500/10 text-emerald-500">
-                            <CheckCircle2 className="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 uppercase">
-                                {item.typeName || 'Peça'}
-                              </span>
-                              <h4 className="text-sm font-black text-white truncate" title={item.title}>
-                                {item.title}
-                              </h4>
-                            </div>
-
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-1">
-                              <Calendar className="w-3 h-3" />
-                              {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
-                                ? new Date(item.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                : 'Recentemente'}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Price & Delete */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <div className="text-right">
-                            <div className="text-xs font-black text-emerald-400">
-                              R$ {itemTotal.toFixed(2).replace('.', ',')}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              {item.quantity}x R$ {(Number(item.price) || 0).toFixed(2).replace('.', ',')}
-                            </div>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => handleOpenEditPieceModal(item)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all cursor-pointer"
-                            title="Editar todos os dados da peça (data, valor, modelo, etc.)"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button 
-                            onClick={() => onDelete(item.purchaseId)}
-                            className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer"
-                            title="Excluir peça"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Details Box */}
-                      <div className="grid grid-cols-2 gap-2 py-2 mt-2 border-y border-slate-800/60 text-[11px]">
-                        <div className="col-span-2 bg-[#0B1221] p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1">
-                            <Truck className="w-3 h-3 text-indigo-400" /> Fornecedor:
-                          </span>
-                          <div className="font-black text-white text-xs mt-0.5">
-                            {item.supplierName || 'Fornecedor Principal'}
-                          </div>
-                        </div>
-
-                        <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Marca/Modelo</span>
-                          <span className="font-bold text-slate-300 truncate block">
-                            {item.marca || '-'} {item.modelo || ''}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Qualidade/Cor</span>
-                          <span className="font-bold text-slate-300 truncate block">
-                            {item.qualidade || '-'} / {item.cor || '-'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer & Status Controls */}
-                    <div className="flex items-center justify-between pt-1 gap-2">
-                      <div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                          PAGO {item.paidAt && !isNaN(new Date(item.paidAt).getTime()) ? `EM ${new Date(item.paidAt).toLocaleDateString()}` : ''}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => onUpdateStatus(item.purchaseId, 'Pendente')}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                          title="Reverter status para A Prazo"
-                        >
-                          <RefreshCw className="w-3 h-3" /> Reverter p/ A Prazo
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL: CADASTRAR / EDITAR FORNECEDOR */}
@@ -3583,6 +3437,140 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL DE CONFERÊNCIA DE DEVOLUÇÕES PARA FORNECEDOR */}
+      {/* ------------------------------------------------------------- */}
+      {returnsConferenceModal.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#161B2B] rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col border border-slate-700/50 overflow-hidden max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#0B1221]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400 border border-rose-500/30">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    Conferência de Devolução ({returnsConferenceModal.supplierName})
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Relatório detalhado de peças devolvidas com somas e emojis
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setReturnsConferenceModal(prev => ({ ...prev, isOpen: false }))}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Textarea */}
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+              <div className="bg-[#0B1221] p-3 rounded-xl border border-rose-500/30 text-xs text-slate-300">
+                <p className="font-bold text-white mb-1">
+                  💡 Texto pronto para conferência de devolução!
+                </p>
+                <p className="text-slate-400 text-[11px]">
+                  O texto abaixo traz a relação completa das peças devolvidas, valores desconsiderados, motivos e emojis formatados para envio no WhatsApp.
+                </p>
+              </div>
+
+              {/* Option toggle inside modal: Todas vs Apenas na Loja */}
+              <div className="flex items-center gap-2 bg-[#0B1221] p-1.5 rounded-xl border border-slate-700/80 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setReturnsConferenceModal(prev => ({ ...prev, onlyInStore: false }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    !returnsConferenceModal.onlyInStore 
+                      ? 'bg-indigo-600 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  📋 Todas as Devoluções
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReturnsConferenceModal(prev => ({ ...prev, onlyInStore: true }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    returnsConferenceModal.onlyInStore 
+                      ? 'bg-rose-600 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  📦 Apenas Peças na Loja
+                </button>
+              </div>
+
+              {(() => {
+                const fullText = formatReturnsConferenceWhatsApp(
+                  returnsConferenceModal.supplierName,
+                  returnsConferenceModal.items,
+                  !!returnsConferenceModal.onlyInStore
+                );
+
+                return (
+                  <div className="space-y-3">
+                    <textarea 
+                      readOnly
+                      rows={12}
+                      value={fullText}
+                      className="w-full bg-[#080D18] border border-slate-700/80 rounded-2xl p-4 text-xs font-mono text-emerald-300 leading-relaxed focus:outline-none select-all custom-scrollbar shadow-inner"
+                    />
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              navigator.clipboard.writeText(fullText);
+                            }
+                          } catch (_) {}
+                          setReturnsConferenceModal(prev => ({ ...prev, copiedText: true }));
+                          setTimeout(() => {
+                            setReturnsConferenceModal(prev => ({ ...prev, copiedText: false }));
+                          }, 2500);
+                        }}
+                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                      >
+                        {returnsConferenceModal.copiedText ? (
+                          <>
+                            <CheckCheck className="w-4 h-4 text-emerald-300" />
+                            <span className="text-emerald-300">Copiado com Sucesso!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copiar Texto Completo</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const phone = returnsConferenceModal.supplierInfo?.phone || '';
+                          openWhatsAppMessageSafely(phone, fullText);
+                        }}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Enviar via WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: EDITAR PEÇA / PEDIDO DE FORNECEDOR (DATA, VALOR E TODOS OS DADOS) */}
       {editingPiece && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
@@ -4583,6 +4571,261 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
                 <Trash2 className="w-4 h-4" /> Confirmar Exclusão
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: ADICIONAR NOVA PEÇA PARA DEVOLUÇÃO DIRETAMENTE (IDÊNTICO A PEDIDOS) */}
+      {/* ------------------------------------------------------------- */}
+      {isAddReturnModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#161B2B] border border-rose-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-rose-950/35 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-500/20 text-rose-400 rounded-lg border border-rose-500/30">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Adicionar Peça p/ Devolução</h3>
+                  <p className="text-xs text-rose-300">Cadastre a peça devolvida com os mesmos dados de pedidos.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAddReturnModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewReturnItem} className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
+                  Card do Fornecedor *
+                </label>
+                <select
+                  required
+                  value={newReturnForm.supplierName}
+                  onChange={(e) => setNewReturnForm({ ...newReturnForm, supplierName: e.target.value })}
+                  className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500 cursor-pointer"
+                >
+                  <option value="">Selecione um fornecedor cadastrado...</option>
+                  {allSuppliersList.map(s => (
+                    <option key={s.id} value={s.name}>
+                      {s.name} {s.phone ? `(${s.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Categoria / TypeName */}
+              <div className="space-y-1">
+                <label className="block text-xs font-black text-slate-300 uppercase tracking-wider">
+                  Categoria da Peça
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {['Tela', 'Bateria', 'DOC / Conector', 'Placa', 'Câmera', 'Carcaça', 'Acessórios', 'Outros'].map(cat => {
+                    const isSel = (newReturnForm.typeName || '').toLowerCase() === cat.toLowerCase();
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setNewReturnForm({ ...newReturnForm, typeName: cat })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                          isSel
+                            ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
+                  Nome da Peça / Produto *
+                </label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="Ex: Tela iPhone 11 Pro, Bateria..."
+                  value={newReturnForm.title}
+                  onChange={(e) => setNewReturnForm({ ...newReturnForm, title: e.target.value })}
+                  className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              {/* Marca & Modelo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400 uppercase">Marca</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {marcaOpts.map(m => {
+                      const isSelected = newReturnForm.marca === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setNewReturnForm(prev => ({ ...prev, marca: m }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                            isSelected ? 'bg-rose-600 text-white font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Ex: Apple, Samsung..."
+                    value={newReturnForm.marca}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, marca: e.target.value })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-rose-500 mt-1"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400 uppercase">Modelo</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: iPhone 11, A32..."
+                    value={newReturnForm.modelo}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, modelo: e.target.value })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-rose-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Qualidade & Estrutura */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-xs font-bold text-amber-400 uppercase">Qualidade</label>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {qualidadeOpts.map(q => {
+                      const isSelected = newReturnForm.qualidade === q;
+                      return (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => setNewReturnForm(prev => ({ ...prev, qualidade: q }))}
+                          className={`px-2 py-1 rounded text-xs font-black transition-all cursor-pointer ${
+                            isSelected ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {q}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="bg-[#0B1221] p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                  <label className="block text-xs font-bold text-purple-400 uppercase">Estrutura</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewReturnForm(prev => ({ ...prev, estrutura: prev.estrutura === 'C/ ARO' ? '' : 'C/ ARO' }))}
+                      className={`py-1 px-2 rounded-lg text-xs font-black transition-all cursor-pointer border ${
+                        newReturnForm.estrutura === 'C/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400'
+                          : 'bg-slate-800 text-purple-300 border-slate-700'
+                      }`}
+                    >
+                      C/ ARO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewReturnForm(prev => ({ ...prev, estrutura: prev.estrutura === 'S/ ARO' ? '' : 'S/ ARO' }))}
+                      className={`py-1 px-2 rounded-lg text-xs font-black transition-all cursor-pointer border ${
+                        newReturnForm.estrutura === 'S/ ARO'
+                          ? 'bg-purple-600 text-white border-purple-400'
+                          : 'bg-slate-800 text-purple-300 border-slate-700'
+                      }`}
+                    >
+                      S/ ARO
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data da Devolução & Motivo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
+                    Data da Devolução *
+                  </label>
+                  <input 
+                    type="date"
+                    required
+                    value={newReturnForm.customDate}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, customDate: e.target.value })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">
+                    Motivo da Devolução
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: Defeito de fábrica..."
+                    value={newReturnForm.returnReason}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, returnReason: e.target.value })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              {/* Quantidade & Preço */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Quantidade</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    required
+                    value={newReturnForm.quantity}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Valor Original (R$)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={newReturnForm.price}
+                    onChange={(e) => setNewReturnForm({ ...newReturnForm, price: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-[#0B1221] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddReturnModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-rose-600/25 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" /> Salvar Devolução Direta
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

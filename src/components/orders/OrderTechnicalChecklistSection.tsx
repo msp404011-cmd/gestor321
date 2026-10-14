@@ -59,6 +59,7 @@ export const OrderTechnicalChecklistSection: React.FC<
     checklist.cartaoMemoria,
     checklist.chip1,
     checklist.chip2,
+    checklist.carregador,
     checklist.sinalArea,
   ].filter(Boolean).length;
 
@@ -83,6 +84,7 @@ export const OrderTechnicalChecklistSection: React.FC<
       cartaoMemoria: 'FUNCIONA',
       chip1: 'FUNCIONA',
       chip2: 'FUNCIONA',
+      carregador: 'SIM',
       sinalArea: 'SIM',
     });
   };
@@ -145,7 +147,7 @@ export const OrderTechnicalChecklistSection: React.FC<
             <h3 className="text-xs sm:text-sm font-black tracking-wide leading-none text-white flex items-center gap-1.5">
               <span>CHECKLIST TÉCNICO</span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
-                {completedCount}/17 testados
+                {completedCount}/18 testados
               </span>
             </h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
@@ -169,7 +171,7 @@ export const OrderTechnicalChecklistSection: React.FC<
           <button
             type="button"
             onClick={handleClearAll}
-            className="px-2 py-1 rounded-lg text-[10px] font-black bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+            className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center gap-1 cursor-pointer transition-all active:scale-95"
             title="Limpar todos os botões do checklist"
           >
             <RotateCcw className="w-3 h-3" />
@@ -740,6 +742,17 @@ export const OrderTechnicalChecklistSection: React.FC<
                 C/ PROBLEMA
               </button>
             </div>
+            {Boolean(checklist.gavetaChip) && (
+              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in space-y-1">
+                <input
+                  type="text"
+                  value={checklist.gavetaChipObs || ''}
+                  onChange={(e) => updateField('gavetaChipObs', e.target.value)}
+                  placeholder="Observação da gaveta (ex: com avaria, quebrada, cor, faltando borracha)..."
+                  className="w-full px-2 py-1 bg-[#030917] border border-amber-500/40 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-hidden"
+                />
+              </div>
+            )}
           </div>
 
           {/* 14. CARTÃO DE MEMÓRIA */}
@@ -776,6 +789,17 @@ export const OrderTechnicalChecklistSection: React.FC<
                 NÃO TESTADO
               </button>
             </div>
+            {Boolean(checklist.cartaoMemoria) && (
+              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in space-y-1">
+                <input
+                  type="text"
+                  value={checklist.cartaoMemoriaObs || ''}
+                  onChange={(e) => updateField('cartaoMemoriaObs', e.target.value)}
+                  placeholder="Informações do cartão (ex: 32GB SanDisk, 64GB Kingston, marca)..."
+                  className="w-full px-2 py-1 bg-[#030917] border border-cyan-500/50 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-hidden"
+                />
+              </div>
+            )}
           </div>
 
           {/* 15. CHIP 1 */}
@@ -787,6 +811,7 @@ export const OrderTechnicalChecklistSection: React.FC<
               </span>
               <span className="text-[9px] font-bold text-slate-400">
                 {checklist.chip1 || 'Pendente'}
+                {checklist.chip1Operadora && ` • ${checklist.chip1Operadora === 'Outro' ? (checklist.chip1OperadoraOutro || 'Outro') : checklist.chip1Operadora}`}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1">
@@ -812,6 +837,57 @@ export const OrderTechnicalChecklistSection: React.FC<
                 NÃO TESTADO
               </button>
             </div>
+
+            {/* SELEÇÃO DA OPERADORA DO CHIP 1 AO CLICAR */}
+            {Boolean(checklist.chip1) && (
+              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wide">
+                    Operadora do Chip 1:
+                  </span>
+                  {checklist.chip1Operadora && (
+                    <span className="text-[9px] font-bold text-slate-400">
+                      {checklist.chip1Operadora === 'Outro' ? (checklist.chip1OperadoraOutro || 'Outro') : checklist.chip1Operadora}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {(['TIM', 'Vivo', 'Brisanet', 'Claro', 'Outro'] as const).map((operadora) => {
+                    const isSelected = checklist.chip1Operadora === operadora;
+                    return (
+                      <button
+                        key={operadora}
+                        type="button"
+                        onClick={() => {
+                          onChange({
+                            ...checklist,
+                            chip1Operadora: isSelected ? undefined : operadora,
+                            chip1OperadoraOutro: isSelected ? '' : checklist.chip1OperadoraOutro,
+                          });
+                        }}
+                        className={`px-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border text-center ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] ring-1 ring-emerald-300'
+                            : 'bg-[#030917] hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                        }`}
+                      >
+                        {operadora}
+                      </button>
+                    );
+                  })}
+                </div>
+                {checklist.chip1Operadora === 'Outro' && (
+                  <input
+                    type="text"
+                    value={checklist.chip1OperadoraOutro || ''}
+                    onChange={(e) => updateField('chip1OperadoraOutro', e.target.value)}
+                    placeholder="Digite o nome da operadora..."
+                    className="w-full px-2 py-1 bg-[#030917] border border-emerald-500/50 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-hidden"
+                    autoFocus
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           {/* 16. CHIP 2 */}
@@ -823,6 +899,7 @@ export const OrderTechnicalChecklistSection: React.FC<
               </span>
               <span className="text-[9px] font-bold text-slate-400">
                 {checklist.chip2 || 'Pendente'}
+                {checklist.chip2Operadora && ` • ${checklist.chip2Operadora === 'Outro' ? (checklist.chip2OperadoraOutro || 'Outro') : checklist.chip2Operadora}`}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1">
@@ -848,10 +925,108 @@ export const OrderTechnicalChecklistSection: React.FC<
                 NÃO TESTADO
               </button>
             </div>
+
+            {/* SELEÇÃO DA OPERADORA DO CHIP 2 AO CLICAR */}
+            {Boolean(checklist.chip2) && (
+              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-wide">
+                    Operadora do Chip 2:
+                  </span>
+                  {checklist.chip2Operadora && (
+                    <span className="text-[9px] font-bold text-slate-400">
+                      {checklist.chip2Operadora === 'Outro' ? (checklist.chip2OperadoraOutro || 'Outro') : checklist.chip2Operadora}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {(['TIM', 'Vivo', 'Brisanet', 'Claro', 'Outro'] as const).map((operadora) => {
+                    const isSelected = checklist.chip2Operadora === operadora;
+                    return (
+                      <button
+                        key={operadora}
+                        type="button"
+                        onClick={() => {
+                          onChange({
+                            ...checklist,
+                            chip2Operadora: isSelected ? undefined : operadora,
+                            chip2OperadoraOutro: isSelected ? '' : checklist.chip2OperadoraOutro,
+                          });
+                        }}
+                        className={`px-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border text-center ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)] ring-1 ring-blue-300'
+                            : 'bg-[#030917] hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                        }`}
+                      >
+                        {operadora}
+                      </button>
+                    );
+                  })}
+                </div>
+                {checklist.chip2Operadora === 'Outro' && (
+                  <input
+                    type="text"
+                    value={checklist.chip2OperadoraOutro || ''}
+                    onChange={(e) => updateField('chip2OperadoraOutro', e.target.value)}
+                    placeholder="Digite o nome da operadora..."
+                    className="w-full px-2 py-1 bg-[#030917] border border-blue-500/50 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-hidden"
+                    autoFocus
+                  />
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 17. SINAL DA ÁREA */}
-          <div className="p-2 rounded-xl bg-[#07132a]/80 border border-slate-800 hover:border-slate-700 space-y-1.5 md:col-span-2">
+          {/* 17. CARREGADOR */}
+          <div className="p-2 rounded-xl bg-[#07132a]/80 border border-slate-800 hover:border-slate-700 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black text-slate-200 flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span>CARREGADOR:</span>
+              </span>
+              <span className="text-[9px] font-bold text-slate-400">
+                {checklist.carregador || 'Pendente'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                type="button"
+                onClick={() => updateField('carregador', checklist.carregador === 'SIM' ? undefined : 'SIM')}
+                className={getBtnClass(checklist.carregador, 'SIM', 'green')}
+              >
+                SIM (DEIXOU)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateField('carregador', checklist.carregador === 'NAO' ? undefined : 'NAO')}
+                className={getBtnClass(checklist.carregador, 'NAO', 'red')}
+              >
+                NÃO
+              </button>
+              <button
+                type="button"
+                onClick={() => updateField('carregador', checklist.carregador === 'DETALHES' ? undefined : 'DETALHES')}
+                className={getBtnClass(checklist.carregador, 'DETALHES', 'amber')}
+              >
+                C/ DETALHES
+              </button>
+            </div>
+            {Boolean(checklist.carregador && checklist.carregador !== 'NAO') && (
+              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in space-y-1">
+                <input
+                  type="text"
+                  value={checklist.carregadorObs || ''}
+                  onChange={(e) => updateField('carregadorObs', e.target.value)}
+                  placeholder="Informações do carregador (ex: Original Turbo 67W, marca, com cabo Tipo C, voltagem)..."
+                  className="w-full px-2 py-1 bg-[#030917] border border-amber-500/50 rounded-lg text-[10px] text-white placeholder-slate-500 focus:outline-hidden"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 18. SINAL DA ÁREA */}
+          <div className="p-2 rounded-xl bg-[#07132a]/80 border border-slate-800 hover:border-slate-700 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black text-slate-200 flex items-center gap-1.5">
                 <Radio className="w-3 h-3 text-emerald-400" />
@@ -880,7 +1055,7 @@ export const OrderTechnicalChecklistSection: React.FC<
           </div>
         </div>
 
-        {/* 18. ESPAÇO DE OBSERVAÇÃO */}
+        {/* 19. ESPAÇO DE OBSERVAÇÃO */}
         <div className="p-2.5 rounded-xl bg-[#07132a]/95 border border-slate-800 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black text-slate-200 flex items-center gap-1.5">
@@ -914,7 +1089,7 @@ export const OrderTechnicalChecklistSection: React.FC<
             <span>Voltar para Acessórios</span>
           </button>
           <span className="text-[10px] text-emerald-300 font-bold px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40">
-            {completedCount}/17 testes realizados
+            {completedCount}/18 testes realizados
           </span>
         </div>
       )}
@@ -971,10 +1146,25 @@ export function formatTechnicalChecklistSummary(
       `Botão Auxiliar: ${chk.botaoAuxiliarPresenca === 'TEM' ? `TEM (${getStatusLabel(chk.botaoAuxiliarStatus) || 'OK'})` : 'NÃO TEM'}`
     );
   }
-  if (chk.gavetaChip) lines.push(`Gaveta do Chip: ${getStatusLabel(chk.gavetaChip)}`);
-  if (chk.cartaoMemoria) lines.push(`Cartão Memória: ${getStatusLabel(chk.cartaoMemoria)}`);
-  if (chk.chip1) lines.push(`Chip 1: ${getStatusLabel(chk.chip1)}`);
-  if (chk.chip2) lines.push(`Chip 2: ${getStatusLabel(chk.chip2)}`);
+  if (chk.gavetaChip) {
+    lines.push(`Gaveta do Chip: ${getStatusLabel(chk.gavetaChip)}${chk.gavetaChipObs ? ` (${chk.gavetaChipObs})` : ''}`);
+  }
+  if (chk.cartaoMemoria) {
+    lines.push(`Cartão Memória: ${getStatusLabel(chk.cartaoMemoria)}${chk.cartaoMemoriaObs ? ` (${chk.cartaoMemoriaObs})` : ''}`);
+  }
+  if (chk.chip1) {
+    const op = chk.chip1Operadora === 'Outro' ? (chk.chip1OperadoraOutro || 'Outro') : chk.chip1Operadora;
+    const opTxt = op ? ` [${op}]` : '';
+    lines.push(`Chip 1: ${getStatusLabel(chk.chip1)}${opTxt}${chk.chip1Obs ? ` (${chk.chip1Obs})` : ''}`);
+  }
+  if (chk.chip2) {
+    const op = chk.chip2Operadora === 'Outro' ? (chk.chip2OperadoraOutro || 'Outro') : chk.chip2Operadora;
+    const opTxt = op ? ` [${op}]` : '';
+    lines.push(`Chip 2: ${getStatusLabel(chk.chip2)}${opTxt}${chk.chip2Obs ? ` (${chk.chip2Obs})` : ''}`);
+  }
+  if (chk.carregador) {
+    lines.push(`Carregador: ${getStatusLabel(chk.carregador)}${chk.carregadorObs ? ` (${chk.carregadorObs})` : ''}`);
+  }
   if (chk.sinalArea) lines.push(`Sinal da Área: ${chk.sinalArea === 'SIM' ? 'DÁ ÁREA' : 'NÃO DÁ ÁREA'}`);
   if (chk.observacoes?.trim()) lines.push(`Obs: ${chk.observacoes.trim()}`);
 

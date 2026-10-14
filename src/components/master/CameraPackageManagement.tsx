@@ -1,100 +1,39 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  collection, 
-  onSnapshot, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  updateDoc 
-} from 'firebase/firestore';
-import { 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Search, 
-  Copy, 
-  Check, 
-  Video, 
-  DollarSign, 
-  User, 
-  Phone, 
-  X, 
-  Eye, 
-  EyeOff, 
-  UserPlus, 
-  CheckCircle, 
-  AlertCircle,
-  Calendar,
-  Clock,
-  Smartphone,
-  Mail
-} from 'lucide-react';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { Plus, Edit2, Trash2, Search, Copy, Check, Video, DollarSign, X, Eye, EyeOff, MoreVertical, User, UserPlus, CheckCircle, AlertCircle, Calendar, Mail, Smartphone, Clock } from 'lucide-react';
 import { db } from '../../lib/firebase';
+import { getTenantId, sanitizeObject } from '../../services/firestoreService';
 
-// Helper for copying text to clipboard in iframe/sandboxed environments
 const copyToClipboard = (text: string): boolean => {
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
-      return true;
-    }
-    // Fallback for older browsers or sandboxed iframes
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-99999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    const successful = document.execCommand('copy');
-    document.body.removeChild(textArea);
-    return successful;
-  } catch (err) {
-    console.error("Erro ao copiar texto:", err);
-    return false;
-  }
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text); return true; }
+    const textArea = document.createElement("textarea"); textArea.value = text;
+    textArea.style.position = "fixed"; textArea.style.left = "-99999px";
+    document.body.appendChild(textArea); textArea.focus(); textArea.select();
+    const successful = document.execCommand('copy'); document.body.removeChild(textArea); return successful;
+  } catch (err) { return false; }
 };
 
-// Reusable Copy Button component
 const CopyButton: React.FC<{ text: string; title?: string }> = ({ text, title }) => {
   const [copied, setCopied] = useState(false);
-
   const onCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (copyToClipboard(text)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }
+    if (copyToClipboard(text)) { setCopied(true); setTimeout(() => setCopied(false), 1500); }
   };
-
   return (
-    <button
-      type="button"
-      onClick={onCopy}
-      className={`p-1 rounded-md transition-all shrink-0 cursor-pointer ${
-        copied 
-          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60'
-      }`}
-      title={title || "Copiar"}
-    >
-      {copied ? (
-        <Check className="w-3 h-3 animate-in fade-in duration-150" />
-      ) : (
-        <Copy className="w-3 h-3" />
-      )}
+    <button type="button" onClick={onCopy} className={`p-1 rounded-md transition-all shrink-0 cursor-pointer ${copied ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60'}`} title={title || "Copiar"}>
+      {copied ? <Check className="w-3 h-3 animate-in fade-in duration-150" /> : <Copy className="w-3 h-3" />}
     </button>
   );
 };
 
-// Interfaces
 export interface CameraUser {
   id: string;
-  name: string;      // Who uses this account
-  email: string;     // Email ou Celular
+  name: string;
+  email: string;
   password: string;
   recoveryEmail: string;
-  expirationDate?: string; // Data / Vencimento
+  expirationDate?: string;
   createdAt?: string;
 }
 
@@ -102,11 +41,11 @@ export interface CameraClient {
   id: string;
   name: string;
   phone: string;
-  cameraCount: number; // 1, 2, 3, 4, or more
+  cameraCount: number;
   monthlyValue: number;
   contabilizar: boolean;
   users: CameraUser[];
-  dueDate?: string; // Data de vencimento
+  dueDate?: string;
   createdAt: string;
 }
 
@@ -114,7 +53,8 @@ export const CameraPackageManagement: React.FC = () => {
   const [clients, setClients] = useState<CameraClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [valueFilter, setValueFilter] = useState<number | null>(null);
+
   // Modals state
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<CameraClient | null>(null);
@@ -151,93 +91,96 @@ export const CameraPackageManagement: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Real-time Firestore sync under master account accounts/mmspmartins62@gmail.com/camera_clients
   useEffect(() => {
-    const q = collection(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const clientsList: CameraClient[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        clientsList.push({
-          id: doc.id,
+    const tenant = getTenantId();
+    const primaryRef = collection(db, 'accounts', tenant, 'camera_clients');
+    const unsubs: (() => void)[] = [];
+    const clientMap = new Map<string, CameraClient>();
+
+    const updateState = () => {
+      const list = Array.from(clientMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      setClients(list);
+      setLoading(false);
+    };
+
+    const processSnapshot = (snapshot: any) => {
+      snapshot.forEach((d: any) => {
+        const data = d.data();
+        clientMap.set(d.id, {
+          id: d.id,
           name: data.name || '',
           phone: data.phone || '',
           cameraCount: Number(data.cameraCount || 1),
           monthlyValue: Number(data.monthlyValue || 0),
           contabilizar: data.contabilizar !== false,
           users: Array.isArray(data.users) ? data.users : [],
+          dueDate: data.dueDate || '',
           createdAt: data.createdAt || new Date().toISOString()
         });
       });
-      // Sort clients by name
-      clientsList.sort((a, b) => a.name.localeCompare(b.name));
-      setClients(clientsList);
-      setLoading(false);
-    }, (error) => {
-      console.error("Erro ao sincronizar clientes de câmeras:", error);
-      showToast("Erro ao sincronizar com o Firebase", "error");
+      updateState();
+    };
+
+    const unsub1 = onSnapshot(primaryRef, processSnapshot, (error) => {
+      console.warn("Sincronização primária de câmeras:", error.message);
       setLoading(false);
     });
+    unsubs.push(unsub1);
 
-    return () => unsubscribe();
+    if (tenant !== 'mmspmartins62@gmail.com') {
+      try {
+        const secRef = collection(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients');
+        const unsub2 = onSnapshot(secRef, processSnapshot, () => {});
+        unsubs.push(unsub2);
+      } catch (_) {}
+    }
+
+    return () => {
+      unsubs.forEach(u => u());
+    };
   }, []);
 
-  // Formatted currency
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(val);
-  };
+  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // Formata telefone (XX) XXXXX-XXXX
-  const handlePhoneChange = (val: string) => {
-    const digits = val.replace(/\D/g, '').slice(0, 11);
-    let formatted = digits;
-    if (digits.length > 2) {
-      formatted = `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    }
-    if (digits.length > 7) {
-      formatted = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-    }
-    setClientPhone(formatted);
-  };
+  const valueStats = useMemo(() => {
+    const stats: Record<number, { count: number, total: number }> = {};
+    clients.forEach(c => {
+      if (c.contabilizar) {
+        if (!stats[c.monthlyValue]) stats[c.monthlyValue] = { count: 0, total: 0 };
+        stats[c.monthlyValue].count += 1;
+        stats[c.monthlyValue].total += c.monthlyValue;
+      }
+    });
+    return stats;
+  }, [clients]);
 
-  // Calculations for KPI/Totals
+  const filteredClients = useMemo(() => {
+    let list = clients;
+    const q = searchQuery.toLowerCase().trim();
+    if (q) {
+      list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.users.some(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.recoveryEmail.toLowerCase().includes(q)));
+    }
+    if (valueFilter !== null) {
+      list = list.filter(c => c.monthlyValue === valueFilter);
+    }
+    return list;
+  }, [clients, searchQuery, valueFilter]);
+
   const totals = useMemo(() => {
     let totalReceivable = 0;
     let totalCameras = 0;
-
-    clients.forEach(c => {
-      if (c.contabilizar) {
-        totalReceivable += c.monthlyValue;
-      }
+    filteredClients.forEach(c => {
+      if (c.contabilizar) totalReceivable += c.monthlyValue;
       totalCameras += c.cameraCount;
     });
-
     return {
-      totalReceivable,
-      totalCameras
+      clientCount: filteredClients.length,
+      totalReceivable: formatCurrency(totalReceivable),
+      totalCameras,
+      avgValue: filteredClients.length > 0 ? formatCurrency(totalReceivable / filteredClients.length) : formatCurrency(0)
     };
-  }, [clients]);
+  }, [filteredClients]);
 
-  // Filtering list based on search
-  const filteredClients = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return clients;
-
-    return clients.filter(c => {
-      const matchesClient = c.name.toLowerCase().includes(q) || c.phone.includes(q);
-      const matchesUser = c.users.some(u => 
-        u.name.toLowerCase().includes(q) || 
-        u.email.toLowerCase().includes(q) || 
-        u.recoveryEmail.toLowerCase().includes(q)
-      );
-      return matchesClient || matchesUser;
-    });
-  }, [clients, searchQuery]);
-
-  // Handle Client Add/Edit
   const handleOpenClientModal = (client?: CameraClient) => {
     if (client) {
       setSelectedClient(client);
@@ -261,16 +204,9 @@ export const CameraPackageManagement: React.FC = () => {
 
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientName.trim()) {
-      showToast("Informe o nome do cliente", "error");
-      return;
-    }
-
+    if (!clientName.trim()) { showToast("Informe o nome do cliente", "error"); return; }
     const valueNum = parseFloat(clientMonthlyValue.replace(/[^\d.,]/g, '').replace(',', '.'));
-    if (isNaN(valueNum)) {
-      showToast("Informe um valor mensal válido", "error");
-      return;
-    }
+    if (isNaN(valueNum)) { showToast("Informe um valor mensal válido", "error"); return; }
 
     const clientData = {
       name: clientName.trim(),
@@ -285,8 +221,12 @@ export const CameraPackageManagement: React.FC = () => {
 
     try {
       const id = selectedClient ? selectedClient.id : `cam_cli_${Date.now()}`;
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id);
-      await setDoc(docRef, clientData, { merge: true });
+      await setDoc(doc(db, 'accounts', getTenantId(), 'camera_clients', id), sanitizeObject(clientData), { merge: true });
+      if (getTenantId() !== 'mmspmartins62@gmail.com') {
+        try {
+          await setDoc(doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id), sanitizeObject(clientData), { merge: true });
+        } catch (_) {}
+      }
       showToast(selectedClient ? "Cliente atualizado!" : "Cliente adicionado com sucesso!");
       setIsClientModalOpen(false);
     } catch (err) {
@@ -295,17 +235,16 @@ export const CameraPackageManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteClient = (id: string, name: string) => {
-    setClientToDelete({ id, name });
-  };
-
   const confirmDeleteClient = async (id: string) => {
     setClients(prev => prev.filter(c => c.id !== id));
     setClientToDelete(null);
-
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id);
-      await deleteDoc(docRef);
+      await deleteDoc(doc(db, 'accounts', getTenantId(), 'camera_clients', id));
+      if (getTenantId() !== 'mmspmartins62@gmail.com') {
+        try {
+          await deleteDoc(doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', id));
+        } catch (_) {}
+      }
       showToast("Cliente excluído permanentemente!");
     } catch (err) {
       console.error(err);
@@ -313,16 +252,16 @@ export const CameraPackageManagement: React.FC = () => {
     }
   };
 
-  // Quick toggle Contabilizar
   const handleToggleContabilizar = async (client: CameraClient) => {
     const newStatus = !client.contabilizar;
     setClients(prev => prev.map(c => c.id === client.id ? { ...c, contabilizar: newStatus } : c));
-
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', client.id);
-      await updateDoc(docRef, {
-        contabilizar: newStatus
-      });
+      await updateDoc(doc(db, 'accounts', getTenantId(), 'camera_clients', client.id), { contabilizar: newStatus });
+      if (getTenantId() !== 'mmspmartins62@gmail.com') {
+        try {
+          await updateDoc(doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', client.id), { contabilizar: newStatus });
+        } catch (_) {}
+      }
       showToast(`Status "Contabilizar" de ${client.name} alterado!`);
     } catch (err) {
       console.error(err);
@@ -330,7 +269,6 @@ export const CameraPackageManagement: React.FC = () => {
     }
   };
 
-  // Handle User/Account inside Client Add/Edit
   const handleOpenUserModal = (clientId: string, user?: CameraUser) => {
     setTargetClientIdForUser(clientId);
     if (user) {
@@ -354,35 +292,16 @@ export const CameraPackageManagement: React.FC = () => {
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetClientIdForUser) return;
-
-    if (!userName.trim() || !userEmail.trim()) {
-      showToast("Nome e E-mail/Celular são obrigatórios", "error");
-      return;
-    }
+    if (!userName.trim() || !userEmail.trim()) { showToast("Nome e E-mail/Celular são obrigatórios", "error"); return; }
 
     const client = clients.find(c => c.id === targetClientIdForUser);
     if (!client) return;
 
     let updatedUsers = [...client.users];
-
     if (selectedUser) {
-      // Edit mode
-      updatedUsers = updatedUsers.map(u => 
-        u.id === selectedUser.id 
-          ? { 
-              ...u, 
-              name: userName.trim(), 
-              email: userEmail.trim(), 
-              password: userPassword.trim(), 
-              recoveryEmail: userRecoveryEmail.trim(),
-              expirationDate: userExpirationDate.trim(),
-              createdAt: u.createdAt || new Date().toISOString()
-            }
-          : u
-      );
+      updatedUsers = updatedUsers.map(u => u.id === selectedUser.id ? { ...u, name: userName.trim(), email: userEmail.trim(), password: userPassword.trim(), recoveryEmail: userRecoveryEmail.trim(), expirationDate: userExpirationDate.trim() } : u);
     } else {
-      // Add mode
-      const newUser: CameraUser = {
+      updatedUsers.push({
         id: `cam_usr_${Date.now()}`,
         name: userName.trim(),
         email: userEmail.trim(),
@@ -390,27 +309,24 @@ export const CameraPackageManagement: React.FC = () => {
         recoveryEmail: userRecoveryEmail.trim(),
         expirationDate: userExpirationDate.trim(),
         createdAt: new Date().toISOString()
-      };
-      updatedUsers.push(newUser);
+      });
     }
 
     setClients(prev => prev.map(c => c.id === targetClientIdForUser ? { ...c, users: updatedUsers } : c));
     setIsUserModalOpen(false);
 
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', targetClientIdForUser);
-      await updateDoc(docRef, {
-        users: updatedUsers
-      });
+      await updateDoc(doc(db, 'accounts', getTenantId(), 'camera_clients', targetClientIdForUser), { users: sanitizeObject(updatedUsers) });
+      if (getTenantId() !== 'mmspmartins62@gmail.com') {
+        try {
+          await updateDoc(doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', targetClientIdForUser), { users: sanitizeObject(updatedUsers) });
+        } catch (_) {}
+      }
       showToast(selectedUser ? "Conta de usuário atualizada!" : "Nova conta adicionada ao cliente!");
     } catch (err) {
       console.error(err);
       showToast("Erro ao salvar conta de usuário no Firebase", "error");
     }
-  };
-
-  const handleDeleteUser = (clientId: string, userId: string, userName: string) => {
-    setUserToDelete({ clientId, userId, userName });
   };
 
   const confirmDeleteUser = async (clientId: string, userId: string) => {
@@ -420,12 +336,13 @@ export const CameraPackageManagement: React.FC = () => {
 
     const updatedUsers = client.users.filter(u => u.id !== userId);
     setClients(prev => prev.map(c => c.id === clientId ? { ...c, users: updatedUsers } : c));
-
     try {
-      const docRef = doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', clientId);
-      await updateDoc(docRef, {
-        users: updatedUsers
-      });
+      await updateDoc(doc(db, 'accounts', getTenantId(), 'camera_clients', clientId), { users: sanitizeObject(updatedUsers) });
+      if (getTenantId() !== 'mmspmartins62@gmail.com') {
+        try {
+          await updateDoc(doc(db, 'accounts', 'mmspmartins62@gmail.com', 'camera_clients', clientId), { users: sanitizeObject(updatedUsers) });
+        } catch (_) {}
+      }
       showToast("Conta de usuário removida!");
     } catch (err) {
       console.error(err);
@@ -434,93 +351,61 @@ export const CameraPackageManagement: React.FC = () => {
   };
 
   const togglePasswordVisibility = (userId: string) => {
-    setShowPasswordMap(prev => ({
-      ...prev,
-      [userId]: !prev[userId]
-    }));
+    setShowPasswordMap(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast popup message */}
+    <div className="space-y-6 p-6 bg-slate-950 min-h-screen text-slate-200">
+      {/* Toast */}
       {toast && (
-        <div className={`fixed top-5 right-5 z-[200] px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 duration-200 ${
-          toast.type === 'success' 
-            ? 'bg-emerald-950 border border-emerald-600 text-emerald-200' 
-            : 'bg-rose-950 border border-rose-600 text-rose-200'
-        }`}>
-          {toast.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-          )}
+        <div className={`fixed top-5 right-5 z-[200] px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 duration-200 ${toast.type === 'success' ? 'bg-emerald-950 border border-emerald-600 text-emerald-200' : 'bg-rose-950 border border-rose-600 text-rose-200'}`}>
+          {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
           <span className="text-xs font-semibold">{toast.text}</span>
         </div>
       )}
 
       {/* KPI Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* KPI: Recebível Mensal */}
-        <div className="bg-slate-900/95 border border-slate-800/80 p-5 rounded-2xl shadow-xl flex items-center justify-between hover:border-slate-700/65 transition-all">
-          <div className="space-y-1">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Recebível Interno de Câmeras</p>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight text-emerald-400">
-              {formatCurrency(totals.totalReceivable)}
-            </p>
-            <p className="text-[10px] text-slate-500 font-medium">Contabilizado apenas neste setor (não entra no faturamento do Gestor)</p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <DollarSign className="w-6 h-6" />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
+          <div className="bg-blue-900/30 p-3 rounded-xl text-blue-400"><Search className="w-6 h-6" /></div>
+          <div><p className="text-xs text-slate-400 uppercase">Clientes</p><p className="text-2xl font-bold text-white">{totals.clientCount}</p></div>
         </div>
-
-        {/* KPI: Total de Câmeras */}
-        <div className="bg-slate-900/95 border border-slate-800/80 p-5 rounded-2xl shadow-xl flex items-center justify-between hover:border-slate-700/65 transition-all">
-          <div className="space-y-1">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total de Câmeras Instaladas</p>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight text-cyan-400">
-              {totals.totalCameras} <span className="text-sm text-slate-400 font-bold">Unidades</span>
-            </p>
-            <p className="text-[10px] text-slate-500 font-medium">Soma de todos os clientes ativos e inativos</p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-            <Video className="w-6 h-6" />
-          </div>
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
+          <div className="bg-emerald-900/30 p-3 rounded-xl text-emerald-400"><DollarSign className="w-6 h-6" /></div>
+          <div><p className="text-xs text-slate-400 uppercase">Total Mensal</p><p className="text-2xl font-bold text-white">{totals.totalReceivable}</p></div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
+          <div className="bg-purple-900/30 p-3 rounded-xl text-purple-400"><Video className="w-6 h-6" /></div>
+          <div><p className="text-xs text-slate-400 uppercase">Total de Câmeras</p><p className="text-2xl font-bold text-white">{totals.totalCameras}</p></div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
+          <div className="bg-amber-900/30 p-3 rounded-xl text-amber-400"><DollarSign className="w-6 h-6" /></div>
+          <div><p className="text-xs text-slate-400 uppercase">Valor Médio</p><p className="text-2xl font-bold text-white">{totals.avgValue}</p></div>
         </div>
       </div>
 
-      {/* Filter and Control Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-slate-900/40 p-3 rounded-2xl border border-slate-800/60">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-          <input
-            type="text"
-            placeholder="Pesquisar por cliente, telefone ou e-mails de contas..."
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:border-cyan-500 outline-none transition-colors"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button 
-              type="button" 
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-3 text-slate-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => handleOpenClientModal()}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-cyan-900/30 cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Novo Cliente de Câmeras</span>
-        </button>
+      {/* Value Breakdown Cards */}
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => setValueFilter(null)} className={`px-4 py-2 rounded-xl text-sm font-bold border ${valueFilter === null ? 'bg-cyan-700 border-cyan-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>Todos</button>
+        {Object.entries(valueStats).map(([value, stat]) => (
+          <button key={value} onClick={() => setValueFilter(Number(value))} className={`p-3 rounded-xl border flex flex-col items-center gap-1 cursor-pointer transition-all ${valueFilter === Number(value) ? 'bg-cyan-950/60 border-cyan-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'}`}>
+            <span className="text-xs text-slate-400 font-bold">{formatCurrency(Number(value))}</span>
+            <span className="text-lg font-bold">{stat.count}</span>
+            <span className="text-[10px] text-slate-500">{formatCurrency(stat.total)}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Clients Cards Grid */}
+      {/* Search and Add Bar */}
+      <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between gap-4">
+        <div className="flex-1 flex items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+          <Search className="w-5 h-5 text-slate-500" />
+          <input placeholder="Pesquisar por cliente, telefone ou e-mails de contas..." className="bg-transparent w-full text-sm text-white outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+        </div>
+        <button onClick={() => handleOpenClientModal()} className="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 cursor-pointer shrink-0"><Plus className="w-5 h-5"/> Adicionar Cliente</button>
+      </div>
+
+      {/* Cards Grid */}
       {loading ? (
         <div className="p-12 text-center text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800 border-dashed">
           <p className="text-sm font-semibold animate-pulse">Sincronizando com o Firebase...</p>
@@ -528,191 +413,97 @@ export const CameraPackageManagement: React.FC = () => {
       ) : filteredClients.length === 0 ? (
         <div className="p-12 text-center text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800 border-dashed">
           <p className="text-sm font-bold">Nenhum cliente de câmeras cadastrado.</p>
-          <p className="text-xs text-slate-600 mt-1">Clique no botão acima para adicionar o primeiro cliente.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {filteredClients.map((client) => (
-            <div 
-              key={client.id}
-              className={`rounded-2xl border bg-slate-900/90 shadow-lg p-4 transition-all duration-200 flex flex-col justify-between ${
-                client.contabilizar 
-                  ? 'border-slate-800/80 hover:border-cyan-500/45' 
-                  : 'border-slate-800/40 opacity-75 grayscale-20 hover:grayscale-0'
-              }`}
-            >
-              {/* Card Main Info */}
-              <div className="space-y-3.5">
-                {/* Client Header */}
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="font-bold text-slate-100 text-sm sm:text-base truncate max-w-[180px]" title={client.name}>
-                        {client.name}
-                      </h4>
-                      <CopyButton text={client.name} title="Copiar Nome" />
-                    </div>
-                    {client.phone && (
-                      <div className="flex items-center gap-1.5 text-slate-400 text-xs mt-0.5">
-                        <Phone className="w-3 h-3 text-slate-500 shrink-0" />
-                        <span className="font-mono">{client.phone}</span>
-                        <CopyButton text={client.phone} title="Copiar Telefone" />
+            <div key={client.id} className={`bg-slate-900 border rounded-2xl p-5 space-y-4 shadow-xl flex flex-col justify-between ${client.contabilizar ? 'border-slate-800' : 'border-slate-800/40 opacity-75'}`}>
+              <div className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-cyan-600 flex items-center justify-center text-lg font-bold text-white">{client.name.substring(0, 2).toUpperCase()}</div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-white text-base">{client.name}</h4>
+                        <CopyButton text={client.name} title="Copiar Nome" />
                       </div>
-                    )}
-                  </div>
-
-                  {/* Pricing and Action */}
-                  <div className="text-right shrink-0">
-                    <div className="text-emerald-400 font-mono font-black text-sm sm:text-base">
-                      {formatCurrency(client.monthlyValue)}
+                      <p className="text-xs text-slate-400 font-mono">{client.phone}</p>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Valor Mensal</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-emerald-400 font-bold font-mono">{formatCurrency(client.monthlyValue)}</div>
+                    <span className="text-[10px] text-slate-400 uppercase">Mensal</span>
                   </div>
                 </div>
 
-                {/* Badges / Options Section */}
-                <div className="flex flex-wrap items-center gap-2 py-1.5 border-y border-slate-800/50">
-                  {/* Camera Count Badge */}
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-950/40 text-cyan-400 border border-cyan-800/30">
-                    <Video className="w-3.5 h-3.5 shrink-0" />
-                    <span>
-                      {client.cameraCount} {client.cameraCount === 1 ? 'Câmera' : 'Câmeras'}
-                    </span>
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/60">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-950/40 text-cyan-400 border border-cyan-800/30">
+                    <Video className="w-3 h-3" />
+                    <span>{client.cameraCount} {client.cameraCount === 1 ? 'Câmera' : 'Câmeras'}</span>
                   </span>
-
-                  {/* Vencimento Badge */}
                   {client.dueDate && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-950/40 text-amber-400 border border-amber-800/40">
-                      <span>Vencimento: {client.dueDate}</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-amber-950/40 text-amber-400 border border-amber-800/30">
+                      <span>Venc: {client.dueDate}</span>
                     </span>
                   )}
-
-                  {/* Contabilizar Switch Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleContabilizar(client)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider border cursor-pointer transition-all ${
-                      client.contabilizar
-                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40'
-                        : 'bg-slate-950/80 text-slate-400 border-slate-800/80'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${client.contabilizar ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                    <span>Contabilizar neste Setor: {client.contabilizar ? 'SIM' : 'NÃO'}</span>
+                  <button type="button" onClick={() => handleToggleContabilizar(client)} className={`ml-auto text-[10px] font-bold px-2 py-1 rounded-lg border ${client.contabilizar ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>
+                    Contabilizar: {client.contabilizar ? 'SIM' : 'NÃO'}
                   </button>
                 </div>
 
-                {/* Sub-users (Linked Accounts) inside Client */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between pb-1 border-b border-slate-800/50">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                      <User className="w-3.5 h-3.5 text-cyan-500" />
+                {/* Users List */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex justify-between items-center pb-1 border-b border-slate-800/60">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <User className="w-3 h-3 text-cyan-400" />
                       <span>Usuários Vinculados ({client.users.length})</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenUserModal(client.id)}
-                      className="inline-flex items-center gap-1 bg-cyan-950/50 hover:bg-cyan-900/60 text-[#00bbf9] border border-[#00bbf9]/20 text-[9px] font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer"
-                    >
-                      <UserPlus className="w-2.5 h-2.5" />
-                      <span>Adicionar Usuário</span>
+                    <button type="button" onClick={() => handleOpenUserModal(client.id)} className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer">
+                      <Plus className="w-3 h-3" /> Adicionar Conta
                     </button>
                   </div>
 
                   {client.users.length === 0 ? (
-                    <p className="text-[11px] text-slate-500 italic text-center py-2">
-                      Nenhum usuário cadastrado neste cliente ainda.
-                    </p>
+                    <p className="text-[11px] text-slate-500 italic text-center py-2">Nenhum usuário cadastrado.</p>
                   ) : (
                     <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                      {client.users.map((usr) => (
-                        <div 
-                          key={usr.id}
-                          className="bg-slate-950/60 border border-slate-800/50 p-2 rounded-xl text-xs space-y-1 relative"
-                        >
-                          {/* User Name & Action Buttons */}
-                          <div className="flex justify-between items-center pb-0.5 border-b border-slate-800/30">
-                            <div className="flex items-center gap-1">
-                              <span className="font-bold text-slate-200">{usr.name}</span>
-                              <CopyButton text={usr.name} title="Copiar Usuário" />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenUserModal(client.id, usr)}
-                                className="p-1 hover:bg-slate-800 rounded text-amber-400/90 hover:text-amber-400 transition-all cursor-pointer"
-                                title="Editar Conta"
-                              >
-                                <Edit2 className="w-2.5 h-2.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteUser(client.id, usr.id, usr.name)}
-                                className="p-1 hover:bg-rose-950/40 rounded text-rose-400/90 hover:text-rose-400 transition-all cursor-pointer"
-                                title="Remover Conta"
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </button>
+                      {client.users.map(usr => (
+                        <div key={usr.id} className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200">
+                            <span className="flex items-center gap-1">{usr.name} <CopyButton text={usr.name} /></span>
+                            <div className="flex gap-1">
+                              <button onClick={() => handleOpenUserModal(client.id, usr)} className="text-amber-400 hover:text-amber-300 p-0.5"><Edit2 className="w-3 h-3" /></button>
+                              <button onClick={() => setUserToDelete({ clientId: client.id, userId: usr.id, userName: usr.name })} className="text-rose-400 hover:text-rose-300 p-0.5"><Trash2 className="w-3 h-3" /></button>
                             </div>
                           </div>
-
-                          {/* Email, Pass, and Recovery info */}
-                          <div className="space-y-1 text-[11px] text-slate-300 font-mono">
-                            {usr.email && (
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="truncate flex items-center gap-1">
-                                  {usr.email.includes('@') ? (
-                                    <Mail className="w-3 h-3 text-cyan-400 shrink-0" />
-                                  ) : (
-                                    <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
-                                  )}
-                                  <span>{usr.email}</span>
-                                </span>
-                                <CopyButton text={usr.email} title="Copiar E-mail/Celular" />
-                              </div>
-                            )}
-                            {usr.password && (
-                              <div className="flex items-center justify-between gap-1">
-                                <div className="flex items-center gap-1 min-w-0">
-                                  <span className="shrink-0 text-slate-400">Senha:</span>
-                                  <span className="truncate">
-                                    {showPasswordMap[usr.id] ? usr.password : '••••••••'}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => togglePasswordVisibility(usr.id)}
-                                    className="p-0.5 text-slate-500 hover:text-slate-300 shrink-0"
-                                  >
-                                    {showPasswordMap[usr.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                  </button>
-                                </div>
-                                <CopyButton text={usr.password} title="Copiar Senha" />
-                              </div>
-                            )}
-                            {usr.recoveryEmail && (
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="truncate text-slate-400">Recup: {usr.recoveryEmail}</span>
-                                <CopyButton text={usr.recoveryEmail} title="Copiar Recuperação" />
-                              </div>
-                            )}
-                            {usr.expirationDate && (
-                              <div className="flex items-center justify-between gap-1 text-amber-400 bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-800/40 text-[10px]">
-                                <span className="flex items-center gap-1 font-bold">
-                                  <Calendar className="w-2.5 h-2.5 shrink-0" />
-                                  <span>Vencimento: {usr.expirationDate}</span>
-                                </span>
-                                <CopyButton text={usr.expirationDate} title="Copiar Vencimento" />
-                              </div>
-                            )}
-                            {usr.createdAt && (
-                              <div className="text-[10px] text-slate-400 pt-0.5 border-t border-slate-800/40 flex items-center justify-between">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-2.5 h-2.5" />
-                                  <span>Criado em: {new Date(usr.createdAt).toLocaleDateString('pt-BR')}</span>
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                          {usr.email && (
+                            <div className="flex justify-between text-slate-400 font-mono text-[11px]">
+                              <span className="truncate">Email/Cel: {usr.email}</span>
+                              <CopyButton text={usr.email} />
+                            </div>
+                          )}
+                          {usr.password && (
+                            <div className="flex justify-between text-slate-400 font-mono text-[11px]">
+                              <span className="flex items-center gap-1">
+                                Senha: {showPasswordMap[usr.id] ? usr.password : '••••••••'}
+                                <button onClick={() => togglePasswordVisibility(usr.id)} className="text-slate-500 hover:text-slate-300">{showPasswordMap[usr.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}</button>
+                              </span>
+                              <CopyButton text={usr.password} />
+                            </div>
+                          )}
+                          {usr.recoveryEmail && (
+                            <div className="flex justify-between text-slate-400 font-mono text-[11px]">
+                              <span className="truncate">Recup: {usr.recoveryEmail}</span>
+                              <CopyButton text={usr.recoveryEmail} />
+                            </div>
+                          )}
+                          {usr.expirationDate && (
+                            <div className="text-[10px] text-amber-400 bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-800/40 flex justify-between">
+                              <span>Venc: {usr.expirationDate}</span>
+                              <CopyButton text={usr.expirationDate} />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -720,327 +511,119 @@ export const CameraPackageManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card Actions */}
-              <div className="grid grid-cols-2 gap-2 mt-3.5 pt-3.5 border-t border-slate-800/60">
-                <button
-                  type="button"
-                  onClick={() => handleOpenClientModal(client)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>Editar Cliente</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteClient(client.id, client.name)}
-                  className="bg-rose-950/20 hover:bg-rose-950/40 text-rose-300 border border-rose-900/30 hover:border-rose-700/60 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Excluir</span>
-                </button>
+              {/* Card Footer Actions */}
+              <div className="flex gap-2 border-t border-slate-800 pt-3 mt-3">
+                <button onClick={() => handleOpenUserModal(client.id)} className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white py-2 rounded-lg text-xs font-bold cursor-pointer">+ Conta</button>
+                <button onClick={() => handleOpenClientModal(client)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg text-xs font-bold cursor-pointer">Editar</button>
+                <button onClick={() => setClientToDelete({ id: client.id, name: client.name })} className="flex-1 bg-red-950/50 hover:bg-red-900 text-red-400 py-2 rounded-lg text-xs font-bold cursor-pointer">Excluir</button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* --- ADD / EDIT CLIENT MODAL --- */}
+      {/* --- MODALS --- */}
       {isClientModalOpen && (
-        <div className="fixed inset-0 bg-black/85 z-[160] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-black/80 z-[160] flex items-center justify-center p-4">
+          <form onSubmit={handleSaveClient} className="bg-slate-900 p-6 rounded-2xl w-full max-w-md space-y-4 border border-slate-800 text-white">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="text-base font-black text-white flex items-center gap-2">
-                <Video className="w-5 h-5 text-cyan-400" />
-                <span>{selectedClient ? 'Editar Cliente' : 'Novo Cliente de Câmeras'}</span>
-              </h3>
-              <button 
-                type="button" 
-                onClick={() => setIsClientModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <h3 className="font-bold text-lg">{selectedClient ? 'Editar Cliente' : 'Novo Cliente de Câmeras'}</h3>
+              <button type="button" onClick={() => setIsClientModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-
-            <form onSubmit={handleSaveClient} className="space-y-4">
-              {/* Nome */}
-              <div className="space-y-1">
+            <div className="space-y-3">
+              <div>
                 <label className="text-xs text-slate-400 font-bold block">Nome do Cliente *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nome completo ou Razão Social"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
+                <input required placeholder="Nome" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={clientName} onChange={e => setClientName(e.target.value)} />
               </div>
-
-              {/* Telefone */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block">Telefone / WhatsApp</label>
-                <input
-                  type="text"
-                  placeholder="(00) 00000-0000"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500 font-mono"
-                  value={clientPhone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">Telefone</label>
+                <input placeholder="(00) 00000-0000" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs font-mono" value={clientPhone} onChange={e => setClientPhone(e.target.value)} />
               </div>
-
-              {/* Qtd Câmeras & Valor Mensal */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
+                <div>
                   <label className="text-xs text-slate-400 font-bold block">Qtd de Câmeras *</label>
-                  <select
-                    className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
-                    value={clientCameraCount}
-                    onChange={(e) => setClientCameraCount(Number(e.target.value))}
-                  >
-                    <option value={1} className="bg-slate-900 text-white">1 Câmera</option>
-                    <option value={2} className="bg-slate-900 text-white">2 Câmeras</option>
-                    <option value={3} className="bg-slate-900 text-white">3 Câmeras</option>
-                    <option value={4} className="bg-slate-900 text-white">4 Câmeras</option>
-                    <option value={5} className="bg-slate-900 text-white">5 Câmeras</option>
-                    <option value={6} className="bg-slate-900 text-white">6 Câmeras</option>
-                    <option value={8} className="bg-slate-900 text-white">8 Câmeras</option>
-                    <option value={10} className="bg-slate-900 text-white">10 Câmeras</option>
-                    <option value={12} className="bg-slate-900 text-white">12 Câmeras</option>
-                    <option value={16} className="bg-slate-900 text-white">16 Câmeras</option>
+                  <select className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs cursor-pointer" value={clientCameraCount} onChange={e => setClientCameraCount(Number(e.target.value))}>
+                    {[1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32].map(n => <option key={n} value={n}>{n} {n === 1 ? 'Câmera' : 'Câmeras'}</option>)}
                   </select>
                 </div>
-
-                <div className="space-y-1">
+                <div>
                   <label className="text-xs text-slate-400 font-bold block">Valor Mensal (R$) *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="0,00"
-                    className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500 font-mono"
-                    value={clientMonthlyValue}
-                    onChange={(e) => setClientMonthlyValue(e.target.value)}
-                  />
+                  <input required placeholder="0,00" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs font-mono" value={clientMonthlyValue} onChange={e => setClientMonthlyValue(e.target.value)} />
                 </div>
               </div>
-
-              {/* Data de Vencimento */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block">Data de Vencimento (Dia ou Data Completa)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Todo dia 10 ou 10/10/2026"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500 font-mono"
-                  value={clientDueDate}
-                  onChange={(e) => setClientDueDate(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">Data de Vencimento</label>
+                <input placeholder="Ex: Todo dia 10" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs font-mono" value={clientDueDate} onChange={e => setClientDueDate(e.target.value)} />
               </div>
-
-              {/* Opção Contabilizar */}
-              <div className="flex items-center gap-2 py-2">
-                <input
-                  type="checkbox"
-                  id="checkbox-contabilizar"
-                  className="w-4 h-4 text-cyan-500 bg-slate-950 border-slate-800 rounded focus:ring-cyan-500"
-                  checked={clientContabilizar}
-                  onChange={(e) => setClientContabilizar(e.target.checked)}
-                />
-                <label htmlFor="checkbox-contabilizar" className="text-xs text-slate-300 font-semibold cursor-pointer">
-                  Marcar para Contabilizar neste Setor (Não vai para o Gestor)
-                </label>
+              <div className="flex items-center gap-2 py-1">
+                <input type="checkbox" id="contabilizar-cam" checked={clientContabilizar} onChange={e => setClientContabilizar(e.target.checked)} className="w-4 h-4 text-cyan-500 bg-slate-950 border-slate-800 rounded" />
+                <label htmlFor="contabilizar-cam" className="text-xs text-slate-300 font-semibold cursor-pointer">Contabilizar neste Setor</label>
               </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsClientModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-colors cursor-pointer"
-                >
-                  Salvar Cliente
-                </button>
-              </div>
-            </form>
-          </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setIsClientModalOpen(false)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold">Cancelar</button>
+              <button type="submit" className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold">Salvar</button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* --- ADD / EDIT USER ACCOUNT MODAL --- */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 bg-black/85 z-[160] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-black/80 z-[160] flex items-center justify-center p-4">
+          <form onSubmit={handleSaveUser} className="bg-slate-900 p-6 rounded-2xl w-full max-w-md space-y-4 border border-slate-800 text-white font-mono">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="text-base font-black text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-cyan-400" />
-                <span>{selectedUser ? 'Editar Usuário da Conta' : 'Adicionar Conta de Usuário'}</span>
-              </h3>
-              <button 
-                type="button" 
-                onClick={() => setIsUserModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <h3 className="font-bold text-lg font-sans">{selectedUser ? 'Editar Conta' : 'Nova Conta de Câmeras'}</h3>
+              <button type="button" onClick={() => setIsUserModalOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-
-            <form onSubmit={handleSaveUser} className="space-y-4 font-mono">
-              {/* Quem usa */}
-              <div className="space-y-1 font-sans">
+            <div className="space-y-3 font-sans">
+              <div>
                 <label className="text-xs text-slate-400 font-bold block">Identificação / Quem Usa *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Sala de Reunião, Guarita, Gerente"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
-                />
+                <input required placeholder="Ex: Portaria, Loja" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={userName} onChange={e => setUserName(e.target.value)} />
               </div>
-
-              {/* E-mail ou Celular */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block font-sans">E-mail ou Celular *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="email@dominio.com ou (00) 90000-0000"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">E-mail ou Celular *</label>
+                <input required placeholder="email@dominio.com" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={userEmail} onChange={e => setUserEmail(e.target.value)} />
               </div>
-
-              {/* Senha */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block font-sans">Senha da Conta</label>
-                <input
-                  type="text"
-                  placeholder="Senha de acesso"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={userPassword}
-                  onChange={(e) => setUserPassword(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">Senha</label>
+                <input placeholder="Senha" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={userPassword} onChange={e => setUserPassword(e.target.value)} />
               </div>
-
-              {/* Gmail de recuperação */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block font-sans">Gmail de Recuperação</label>
-                <input
-                  type="email"
-                  placeholder="gmail_recuperacao@gmail.com"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={userRecoveryEmail}
-                  onChange={(e) => setUserRecoveryEmail(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">Gmail de Recuperação</label>
+                <input placeholder="recuperacao@gmail.com" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={userRecoveryEmail} onChange={e => setUserRecoveryEmail(e.target.value)} />
               </div>
-
-              {/* Data de Vencimento / Validade da Conta */}
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 font-bold block font-sans">Data de Vencimento / Validade</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Todo dia 10 ou 10/10/2026"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-cyan-500"
-                  value={userExpirationDate}
-                  onChange={(e) => setUserExpirationDate(e.target.value)}
-                />
+              <div>
+                <label className="text-xs text-slate-400 font-bold block">Validade / Vencimento</label>
+                <input placeholder="Ex: 10/10/2026" className="w-full px-3 py-2 bg-slate-950 text-white rounded-xl border border-slate-800 outline-none focus:border-cyan-500 text-xs" value={userExpirationDate} onChange={e => setUserExpirationDate(e.target.value)} />
               </div>
-
-              <div className="flex gap-3 pt-2 font-sans">
-                <button
-                  type="button"
-                  onClick={() => setIsUserModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-colors cursor-pointer"
-                >
-                  Salvar Conta
-                </button>
-              </div>
-            </form>
-          </div>
+            </div>
+            <div className="flex gap-2 pt-2 font-sans">
+              <button type="button" onClick={() => setIsUserModalOpen(false)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold">Cancelar</button>
+              <button type="submit" className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold">Salvar Conta</button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* --- CONFIRM CLIENT DELETION MODAL --- */}
       {clientToDelete && (
-        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-white">Excluir Cliente</h3>
-                <p className="text-xs text-rose-300/80 font-medium">Ação irreversível</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Tem certeza que deseja excluir o cliente <strong className="text-white">"{clientToDelete.name}"</strong> e todas as suas contas de usuário vinculadas?
-            </p>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setClientToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => confirmDeleteClient(clientToDelete.id)}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
-              >
-                Sim, Excluir
-              </button>
+        <div className="fixed inset-0 bg-black/80 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 p-6 rounded-2xl w-full max-w-sm space-y-4 text-center border border-slate-800 text-white">
+            <p>Deseja realmente excluir o cliente <strong>{clientToDelete.name}</strong>?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setClientToDelete(null)} className="flex-1 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Cancelar</button>
+              <button onClick={() => confirmDeleteClient(clientToDelete.id)} className="flex-1 py-2 bg-red-600 text-white rounded-xl text-xs font-bold">Excluir</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- CONFIRM USER DELETION MODAL --- */}
       {userToDelete && (
-        <div className="fixed inset-0 bg-black/90 z-[180] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-rose-800/80 p-6 rounded-2xl w-full max-w-md shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0 text-rose-400">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black text-white">Remover Conta</h3>
-                <p className="text-xs text-rose-300/80 font-medium">Conta de usuário individual</p>
-              </div>
-            </div>
-
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Tem certeza que deseja remover a conta de <strong className="text-white">"{userToDelete.userName}"</strong> deste cliente?
-            </p>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setUserToDelete(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => confirmDeleteUser(userToDelete.clientId, userToDelete.userId)}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors cursor-pointer shadow-lg shadow-rose-950/50"
-              >
-                Sim, Remover Conta
-              </button>
+        <div className="fixed inset-0 bg-black/80 z-[180] flex items-center justify-center p-4">
+          <div className="bg-slate-900 p-6 rounded-2xl w-full max-w-sm space-y-4 text-center border border-slate-800 text-white">
+            <p>Deseja realmente excluir a conta de <strong>{userToDelete.userName}</strong>?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setUserToDelete(null)} className="flex-1 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">Cancelar</button>
+              <button onClick={() => confirmDeleteUser(userToDelete.clientId, userToDelete.userId)} className="flex-1 py-2 bg-red-600 text-white rounded-xl text-xs font-bold">Excluir</button>
             </div>
           </div>
         </div>

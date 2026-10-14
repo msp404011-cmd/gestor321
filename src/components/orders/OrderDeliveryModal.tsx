@@ -500,7 +500,7 @@ export const OrderDeliveryModal: React.FC<OrderDeliveryModalProps> = ({
                   }`}
                 >
                   <Clock size={18} className={deliveryMode === 'CREDIT' ? 'text-amber-400' : 'text-slate-500'} />
-                  <span className="text-xs font-bold">A Prazo / Crediário</span>
+                  <span className="text-xs font-bold">A Prazo</span>
                 </button>
               </div>
 

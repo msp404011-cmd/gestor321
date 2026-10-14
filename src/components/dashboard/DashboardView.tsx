@@ -36,6 +36,9 @@ import {
   HelpCircle,
   MessageCircle,
   Calendar,
+  Eye,
+  EyeOff,
+  Settings,
 } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -50,8 +53,6 @@ import {
 } from '../../services/formatters';
 import { ServiceOrder, Sale, SubscriptionPlanInfo } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
-import { AppAccessManagement } from '../master/AppAccessManagement';
-import { CameraPackageManagement } from '../master/CameraPackageManagement';
 
 // --- ANIMATED COUNT NUMBER ---
 export interface AnimatedCountNumberProps {
@@ -118,6 +119,8 @@ interface AnimatedDonutChartProps {
   orders: ServiceOrder[];
   isDark: boolean;
   onNavigate: (tab: string, filter?: string) => void;
+  isBlurred?: boolean;
+  onToggleBlur?: () => void;
 }
 
 interface StatusConfig {
@@ -135,6 +138,8 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
   orders,
   isDark,
   onNavigate,
+  isBlurred = false,
+  onToggleBlur,
 }) => {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
@@ -199,12 +204,32 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
             <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Distribuição e fluxo</p>
           </div>
         </div>
-        <button type="button" onClick={() => onNavigate('ORDERS')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border ${
-          isDark ? 'bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 border-purple-500/30' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
-        }`}>
-          <span>Ver OS</span>
-          <ChevronRight className="w-3 h-3" />
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onToggleBlur && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleBlur();
+              }}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                isBlurred
+                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                  : isDark ? 'bg-purple-950/50 text-purple-300 border-purple-500/30 hover:bg-purple-900/60' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+              }`}
+              title={isBlurred ? 'Mostrar números das OS' : 'Ocultar números das OS'}
+            >
+              {isBlurred ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
+          <button type="button" onClick={() => onNavigate('ORDERS')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border ${
+            isDark ? 'bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 border-purple-500/30' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
+          }`}>
+            <span>Ver OS</span>
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col items-center justify-center my-1">
@@ -222,7 +247,7 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
             })}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
-            <span className={`text-2xl font-black tracking-tight leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <span className={`text-2xl font-black tracking-tight leading-none ${isDark ? 'text-white' : 'text-slate-900'} ${isBlurred ? 'blur-sm select-none' : ''}`}>
               <AnimatedCountNumber value={activeItem ? activeItem.count : totalCount} duration={400} />
             </span>
             <span className={`text-[10px] font-bold uppercase tracking-wider mt-1 line-clamp-1 ${activeItem ? 'text-cyan-400' : isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -246,8 +271,8 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
                   <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{seg.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{seg.count} OS</span>
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'}`}>{seg.pct}%</span>
+                  <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{seg.count} OS</span>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{seg.pct}%</span>
                 </div>
               </div>
               <div className={`w-full h-1.5 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/90' : 'bg-slate-200'}`}>
@@ -266,9 +291,17 @@ interface AnimatedPaymentMethodsProps {
   sales: Sale[];
   orders: ServiceOrder[];
   isDark: boolean;
+  isBlurred: boolean;
+  onToggleBlur?: () => void;
 }
 
-export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({ sales, orders, isDark }) => {
+export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({
+  sales,
+  orders,
+  isDark,
+  isBlurred,
+  onToggleBlur,
+}) => {
   const [hoveredMethod, setHoveredMethod] = useState<string | null>(null);
 
   const methodsData = useMemo(() => {
@@ -342,7 +375,27 @@ export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({ 
           <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
           Formas de Pagamento (Mês)
         </h2>
-        <span className="text-xs font-bold text-teal-400">Distribuição</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onToggleBlur && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleBlur();
+              }}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                isBlurred
+                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                  : isDark ? 'bg-teal-950/50 text-teal-300 border-teal-500/30 hover:bg-teal-900/60' : 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100'
+              }`}
+              title={isBlurred ? 'Mostrar valores de pagamentos' : 'Ocultar valores de pagamentos'}
+            >
+              {isBlurred ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
+          <span className="text-xs font-bold text-teal-400">Distribuição</span>
+        </div>
       </div>
 
       <div className="space-y-2.5 my-auto">
@@ -354,8 +407,8 @@ export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({ 
                 <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{item.name}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-400 font-mono">{formatCurrency(item.amount)}</span>
-                <span className="font-black text-xs w-9 text-right text-white">{item.pct}%</span>
+                <span className={`text-[11px] text-slate-400 font-mono ${isBlurred ? 'blur-sm select-none' : ''}`}>{formatCurrency(item.amount)}</span>
+                <span className={`font-black text-xs w-9 text-right text-white ${isBlurred ? 'blur-sm select-none' : ''}`}>{item.pct}%</span>
               </div>
             </div>
             <div className={`w-full h-2 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/80' : 'bg-slate-200'}`}>
@@ -385,7 +438,21 @@ interface DataPoint {
   totalY: number;
 }
 
-export const AnimatedRevenueChart: React.FC<{ sales: Sale[]; orders: ServiceOrder[]; isDark: boolean }> = ({ sales, orders, isDark }) => {
+export interface AnimatedRevenueChartProps {
+  sales: Sale[];
+  orders: ServiceOrder[];
+  isDark: boolean;
+  isBlurred?: boolean;
+  onToggleBlur?: () => void;
+}
+
+export const AnimatedRevenueChart: React.FC<AnimatedRevenueChartProps> = ({
+  sales,
+  orders,
+  isDark,
+  isBlurred = false,
+  onToggleBlur,
+}) => {
   const [timeframe, setTimeframe] = useState<ChartTimeframe>('30days');
   const [activeSeries, setActiveSeries] = useState({ sales: true, services: true, total: false });
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -511,10 +578,30 @@ export const AnimatedRevenueChart: React.FC<{ sales: Sale[]; orders: ServiceOrde
     }`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2 relative z-10">
         <div>
-          <h2 className="text-sm sm:text-base font-black tracking-wide flex items-center gap-1.5">Faturamento</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm sm:text-base font-black tracking-wide flex items-center gap-1.5">Faturamento</h2>
+            {onToggleBlur && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleBlur();
+                }}
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                  isBlurred
+                    ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                    : isDark ? 'bg-cyan-950/50 text-cyan-300 border-cyan-500/30 hover:bg-cyan-900/60' : 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'
+                }`}
+                title={isBlurred ? 'Mostrar números do gráfico' : 'Ocultar números do gráfico'}
+              >
+                {isBlurred ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-3 mt-1 text-xs">
             <span className="text-slate-400 font-medium">Total:</span>
-            <span className="font-extrabold text-emerald-400 text-sm tracking-tight">
+            <span className={`font-extrabold text-emerald-400 text-sm tracking-tight ${isBlurred ? 'blur-sm select-none' : ''}`}>
               <AnimatedCountNumber value={totalRevenueSum} prefix="R$ " decimals={2} />
             </span>
           </div>
@@ -528,10 +615,37 @@ export const AnimatedRevenueChart: React.FC<{ sales: Sale[]; orders: ServiceOrde
       </div>
 
       <div ref={containerRef} className="relative w-full h-52 sm:h-60 mt-2 select-none" onMouseLeave={() => setHoveredIndex(null)}>
+        {hoveredData && (
+          <div
+            className={`absolute top-2 pointer-events-none p-2 rounded-xl border text-xs shadow-xl z-20 transition-all ${
+              isDark ? 'bg-slate-900/95 border-cyan-500/60 text-white' : 'bg-white/95 border-blue-300 text-slate-900'
+            }`}
+            style={{
+              left: `${Math.min(Math.max((hoveredData.x / 540) * 100, 15), 85)}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <p className="font-bold text-[10px] text-slate-400">{hoveredData.fullDate}</p>
+            <p className={`font-black text-cyan-400 text-xs ${isBlurred ? 'blur-sm select-none' : ''}`}>
+              {formatCurrency(hoveredData.totalVal)}
+            </p>
+          </div>
+        )}
+
         <svg viewBox="0 0 540 210" className="w-full h-full overflow-visible cursor-crosshair" preserveAspectRatio="none" onMouseMove={handleMouseMove}>
           {yAxisTicks.map((t, idx) => (
             <g key={idx}>
-              <text x="36" y={t.y + 3.5} textAnchor="end" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="10" fontFamily="monospace">{t.label}</text>
+              <text
+                x="36"
+                y={t.y + 3.5}
+                textAnchor="end"
+                fill={isDark ? '#64748b' : '#94a3b8'}
+                fontSize="10"
+                fontFamily="monospace"
+                style={{ filter: isBlurred ? 'blur(3.5px)' : 'none' }}
+              >
+                {t.label}
+              </text>
               <line x1="45" y1={t.y} x2="515" y2={t.y} stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeWidth="1" strokeDasharray="4 3" />
             </g>
           ))}
@@ -589,6 +703,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; val: number; date: string } | null>(null);
 
   const [planInfo, setPlanInfo] = useState<SubscriptionPlanInfo>(() => StorageService.getSubscriptionPlan());
+
+  const [blurToday, setBlurToday] = useState(true);
+  const [blurMonth, setBlurMonth] = useState(true);
+  const [blurChart, setBlurChart] = useState(true);
+  const [blurOrders, setBlurOrders] = useState(true);
+  const [blurEstoque, setBlurEstoque] = useState(true);
+  const [blurClientes, setBlurClientes] = useState(true);
+  const [blurPayments, setBlurPayments] = useState(true);
+
+  const isAnyBlurred = blurToday || blurMonth || blurChart || blurOrders || blurPayments || blurEstoque || blurClientes;
+
+  const toggleAllBlur = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const nextValue = !isAnyBlurred;
+    setBlurToday(nextValue);
+    setBlurMonth(nextValue);
+    setBlurChart(nextValue);
+    setBlurOrders(nextValue);
+    setBlurPayments(nextValue);
+    setBlurEstoque(nextValue);
+    setBlurClientes(nextValue);
+  };
 
   useEffect(() => {
     const user = StorageService.getCurrentUser();
@@ -1377,171 +1516,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </section>
       )}
 
-      {/* TOP SECTORS: CONTROLE DE TV, PACOTE DE CÂMERAS & INSTALAÇÃO DE CÂMERAS */}
-      <section className="space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
-          {/* Card 1: Controle de TV / Acessos */}
-          <button
-            type="button"
-            onClick={() => onNavigate('ACCESSES')}
-            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
-              isDark
-                ? 'bg-gradient-to-r from-purple-950/80 via-slate-900 to-purple-950/60 border-purple-500/50 hover:border-purple-400 text-white shadow-[0_0_25px_rgba(168,85,247,0.3)]'
-                : 'bg-gradient-to-r from-purple-50 via-white to-purple-100 border-purple-300 hover:border-purple-400 text-slate-900 shadow-sm'
-            }`}
-          >
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-13 h-13 rounded-2xl bg-purple-600/30 text-purple-300 border border-purple-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(168,85,247,0.45)]">
-                <Tv className="w-7 h-7 text-purple-300" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                    Setor de TV & Acessos
-                  </span>
-                </div>
-                <h3 className="text-base sm:text-lg font-black truncate">
-                  Controle de TV
-                </h3>
-                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Clique para abrir as liberações e controle do setor de TV
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/40 text-xs font-extrabold text-purple-300 group-hover:bg-purple-500/30 transition-all">
-              <span>Abrir TV</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
 
-          {/* Card 2: Pacote de Câmeras */}
-          <button
-            type="button"
-            onClick={() => onNavigate('CAMERAS')}
-            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
-              isDark
-                ? 'bg-gradient-to-r from-cyan-950/80 via-slate-900 to-cyan-950/60 border-cyan-500/50 hover:border-cyan-400 text-white shadow-[0_0_25px_rgba(6,182,212,0.3)]'
-                : 'bg-gradient-to-r from-cyan-50 via-white to-cyan-100 border-cyan-300 hover:border-cyan-400 text-slate-900 shadow-sm'
-            }`}
-          >
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-13 h-13 rounded-2xl bg-cyan-600/30 text-cyan-300 border border-cyan-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(6,182,212,0.45)]">
-                <Video className="w-7 h-7 text-cyan-300" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    Setor de Câmeras
-                  </span>
-                </div>
-                <h3 className="text-base sm:text-lg font-black truncate">
-                  Pacote de Câmeras
-                </h3>
-                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Clique para gerenciar os planos e dispositivos do pacote de câmeras
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-xs font-extrabold text-cyan-300 group-hover:bg-cyan-500/30 transition-all">
-              <span>Abrir Câmeras</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-
-          {/* Card 3: Instalação de Câmeras */}
-          <button
-            type="button"
-            onClick={() => onNavigate('CAMERA_INSTALLATIONS')}
-            className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-4 group hover:scale-[1.01] active:scale-98 ${
-              isDark
-                ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/60 border-emerald-500/50 hover:border-emerald-400 text-white shadow-[0_0_25px_rgba(16,185,129,0.3)]'
-                : 'bg-gradient-to-r from-emerald-50 via-white to-teal-100 border-emerald-300 hover:border-emerald-400 text-slate-900 shadow-sm'
-            }`}
-          >
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-13 h-13 rounded-2xl bg-emerald-600/30 text-emerald-300 border border-emerald-500/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-[0_0_18px_rgba(16,185,129,0.45)]">
-                <Video className="w-7 h-7 text-emerald-300" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    Instalação de Câmeras
-                  </span>
-                </div>
-                <h3 className="text-base sm:text-lg font-black truncate">
-                  Instalação de Câmeras
-                </h3>
-                <p className={`text-xs truncate mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                  Marcação, contratos, aparelhos e clientes ativos
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-xs font-extrabold text-emerald-300 group-hover:bg-emerald-500/30 transition-all">
-              <span>Instalações</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </button>
-        </div>
-
-        {/* Links rápidos complementares (Orçamentos, Pedidos Fornecedor e Pedidos Exclusivos) */}
-        {isSuperAdmin && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-            <button
-              type="button"
-              onClick={() => onNavigate('MESSAGE_BUDGETS')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
-                isDark
-                  ? 'bg-blue-950/40 hover:bg-blue-900/50 border-cyan-500/40 text-cyan-100'
-                  : 'bg-blue-50 hover:bg-blue-100 border-cyan-300 text-blue-950'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-cyan-600/30 text-cyan-300 border border-cyan-500/50 flex items-center justify-center shrink-0">
-                <MessageCircle className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs font-bold block truncate">Orçamentos WhatsApp</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-blue-700'}`}>Comparativo de Peças</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('SUPPLIER_ORDERS')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
-                isDark
-                  ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-100'
-                  : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-950'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-emerald-600/30 text-emerald-400 border border-emerald-500/50 flex items-center justify-center shrink-0">
-                <Truck className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs font-bold block truncate">Pedidos Fornecedor</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Envios & Reposição</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('EXCLUSIVE_ORDERS')}
-              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-2.5 group hover:scale-[1.01] ${
-                isDark
-                  ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 text-amber-100'
-                  : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-950'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-lg bg-amber-600/30 text-amber-400 border border-amber-500/50 flex items-center justify-center shrink-0">
-                <ShoppingCart className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs font-bold block truncate">Pedidos Exclusivos</span>
-                <span className={`text-[10px] block truncate ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>Central Especial</span>
-              </div>
-            </button>
-          </div>
-        )}
-      </section>
 
       {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
       <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
@@ -1609,69 +1584,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
 
-        {/* Button 3: Novo Cliente */}
-        <button
-          type="button"
-          onClick={handleNovoCliente}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
-            isDark
-              ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-purple-500 border-2 border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.55)] hover:shadow-[0_0_28px_rgba(168,85,247,0.8)]'
-              : 'bg-[#f3ebff] border border-purple-200/90 shadow-2xs hover:shadow-md hover:bg-[#ebd9ff]'
-          }`}
-        >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-purple-800/70 border border-purple-300/80 shadow-[0_0_10px_rgba(168,85,247,0.5)]'
-              : 'bg-[#9043f6] shadow-sm'
-          }`}>
-            <UserPlus className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#2e0962]'
-            }`}>
-              Novo Cliente
-            </span>
-            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-purple-100' : 'text-purple-700 font-medium'
-            }`}>
-              Cadastrar cliente
-            </span>
-          </div>
-        </button>
-
-        {/* Button 4: Entrada de Estoque */}
-        <button
-          type="button"
-          onClick={handleEntradaEstoque}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
-            isDark
-              ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-500 border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.55)] hover:shadow-[0_0_28px_rgba(245,158,11,0.8)]'
-              : 'bg-[#fff3e6] border border-amber-200/90 shadow-2xs hover:shadow-md hover:bg-[#ffe6cc]'
-          }`}
-        >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-amber-800/70 border border-amber-300/80 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
-              : 'bg-[#ff8800] shadow-sm'
-          }`}>
-            <Box className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#522900]'
-            }`}>
-              Entrada Estoque
-            </span>
-            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-amber-100' : 'text-amber-700 font-medium'
-            }`}>
-              Add produtos
-            </span>
-          </div>
-        </button>
-
-        {/* Button 5: Abrir Caixa */}
+        {/* Button 3: Abrir Caixa */}
         <button
           type="button"
           onClick={handleAbrirCaixa}
@@ -1702,39 +1615,109 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
 
-        {/* Button 6: Relatórios */}
+        {/* Button: Streaming */}
         <button
           type="button"
-          onClick={handleRelatorios}
+          onClick={() => onNavigate('STREAMING')}
           className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
             isDark
-              ? 'bg-gradient-to-r from-cyan-700 via-teal-600 to-teal-500 border-2 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.55)] hover:shadow-[0_0_28px_rgba(6,182,212,0.8)]'
-              : 'bg-[#e6f7ff] border border-cyan-200/90 shadow-2xs hover:shadow-md hover:bg-[#d4f2ff]'
+              ? 'bg-gradient-to-r from-orange-950 via-orange-900 to-orange-800 border-2 border-orange-700 shadow-[0_0_20px_rgba(194,65,12,0.55)]'
+              : 'bg-[#fff7ed] border border-orange-200'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-cyan-800/70 border border-cyan-300/80 shadow-[0_0_10px_rgba(6,182,212,0.5)]'
-              : 'bg-[#00b2fe] shadow-sm'
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
+            isDark ? 'bg-orange-900 border border-orange-500' : 'bg-orange-600'
           }`}>
-            <BarChart3 className="w-4 h-4" />
+            <Tv className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#003c57]'
-            }`}>
-              Relatórios
-            </span>
-            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-cyan-100' : 'text-cyan-700 font-medium'
-            }`}>
-              Resultados
-            </span>
+            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
+              isDark ? 'text-white' : 'text-orange-900'
+            }`}>Streaming</span>
+            <span className={`text-[9px] sm:text-[10px] block truncate ${
+              isDark ? 'text-orange-300' : 'text-orange-700'
+            }`}>MAC / Senha</span>
+          </div>
+        </button>
+
+        {/* Button: Câmeras */}
+        <button
+          type="button"
+          onClick={() => onNavigate('CAMERAS')}
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+            isDark
+              ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 border-2 border-blue-700 shadow-[0_0_20px_rgba(30,58,138,0.55)]'
+              : 'bg-[#eff6ff] border border-blue-200'
+          }`}
+        >
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
+            isDark ? 'bg-blue-900 border border-blue-500' : 'bg-blue-700'
+          }`}>
+            <Video className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
+              isDark ? 'text-white' : 'text-blue-900'
+            }`}>Câmeras</span>
+            <span className={`text-[9px] sm:text-[10px] block truncate ${
+              isDark ? 'text-blue-300' : 'text-blue-700'
+            }`}>Monitoramento</span>
+          </div>
+        </button>
+
+        {/* Button: Instalações */}
+        <button
+          type="button"
+          onClick={() => onNavigate('CAMERA_INSTALLATIONS')}
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+            isDark
+              ? 'bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 border-2 border-slate-500 shadow-[0_0_20px_rgba(71,85,105,0.55)]'
+              : 'bg-[#f8fafc] border border-slate-200'
+          }`}
+        >
+          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
+            isDark ? 'bg-slate-700 border border-slate-400' : 'bg-slate-600'
+          }`}>
+            <Settings className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
+              isDark ? 'text-white' : 'text-slate-900'
+            }`}>Instalações</span>
+            <span className={`text-[9px] sm:text-[10px] block truncate ${
+              isDark ? 'text-slate-300' : 'text-slate-600'
+            }`}>Câmeras</span>
           </div>
         </button>
       </section>
 
-      {/* 3. TOP 5 3D KPI METRIC CARDS WITH EXACT COLORS, DIVISIONS & 3D ICONS */}
+      {/* 3. TOP 5 3D KPI METRIC CARDS WITH MASTER EYE BAR */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Indicadores & Métricas Principais
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={toggleAllBlur}
+          className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 ${
+            isAnyBlurred
+              ? isDark
+                ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+              : isDark
+                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+          }`}
+          title={isAnyBlurred ? 'Mostrar todos os dados borrados' : 'Ocultar todos os dados'}
+        >
+          {isAnyBlurred ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-emerald-400" />}
+          <span>{isAnyBlurred ? 'Mostrar Todos os Números' : 'Ocultar Todos os Números'}</span>
+        </button>
+      </div>
+
       <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
         {/* Card 1: Faturamento Hoje (Green 3D Glass) */}
         <div
@@ -1750,20 +1733,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               FATURAMENTO HOJE
             </span>
-            <span className={`border rounded-full px-1.5 py-0.2 text-[8px] sm:text-[9px] font-bold whitespace-nowrap shrink-0 ${
-              growthPercentage >= 0 
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.4)]' 
-                : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-            }`}>
-              {growthPercentage >= 0 ? `+${growthPercentage}%` : `${growthPercentage}%`}
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setBlurToday(prev => !prev);
+                }}
+                className={`p-1 rounded-full hover:bg-white/20 transition-colors z-20 relative cursor-pointer ${
+                  blurToday ? 'text-amber-400' : 'text-slate-400 hover:text-white'
+                }`}
+                title={blurToday ? 'Mostrar Faturamento Hoje' : 'Ocultar Faturamento Hoje'}
+              >
+                {blurToday ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+              <span className={`border rounded-full px-1.5 py-0.2 text-[8px] sm:text-[9px] font-bold whitespace-nowrap shrink-0 ${
+                growthPercentage >= 0 
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.4)]' 
+                  : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              } ${blurToday ? 'blur-[3px] select-none' : ''}`}>
+                {growthPercentage >= 0 ? `+${growthPercentage}%` : `${growthPercentage}%`}
+              </span>
+            </div>
           </div>
-          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'} ${blurToday ? 'blur-sm select-none' : ''}`}>
             <AnimatedCountNumber value={todaySalesTotal} prefix="R$ " decimals={2} />
           </div>
           <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-emerald-500/30 text-[9px] sm:text-[10px]">
             <span className="text-emerald-400 font-semibold whitespace-nowrap truncate">
-              {todaySalesCount} {todaySalesCount === 1 ? 'venda' : 'vendas'}
+              <span className={blurToday ? 'blur-sm select-none' : ''}>{todaySalesCount}</span> {todaySalesCount === 1 ? 'venda' : 'vendas'}
             </span>
             <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]">
               <span className="text-[10px] sm:text-xs">💰</span>
@@ -1785,16 +1784,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               FATURAMENTO MÊS
             </span>
-            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded-full px-1.5 py-0.2 text-[8px] sm:text-[9px] font-bold whitespace-nowrap shrink-0 shadow-[0_0_6px_rgba(6,182,212,0.4)]">
-              Mensal
-            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setBlurMonth(prev => !prev);
+              }}
+              className={`p-1 rounded-full hover:bg-white/20 transition-colors z-20 relative cursor-pointer ${
+                blurMonth ? 'text-amber-400' : 'text-slate-400 hover:text-white'
+              }`}
+              title={blurMonth ? 'Mostrar Faturamento Mês' : 'Ocultar Faturamento Mês'}
+            >
+              {blurMonth ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
           </div>
-          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'} ${blurMonth ? 'blur-sm select-none' : ''}`}>
             <AnimatedCountNumber value={monthRevenueTotal} prefix="R$ " decimals={2} />
           </div>
           <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-cyan-500/30 text-[9px] sm:text-[10px]">
             <span className="text-cyan-400 font-medium whitespace-nowrap truncate">
-              {sales.length + orders.filter(o => o.status === 'ENTREGUE').length} vendas/OS
+              <span className={blurMonth ? 'blur-sm select-none' : ''}>{sales.length + orders.filter(o => o.status === 'ENTREGUE').length}</span> vendas/OS
             </span>
             <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-cyan-500/20 border border-cyan-500/60 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.5)]">
               <span className="text-[10px] sm:text-xs">📊</span>
@@ -1812,19 +1822,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
             }`}
           >
-            <div className="p-2 sm:p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
-              <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider block whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                ORDENS DE SERVIÇO
-              </span>
-              <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            <div className="flex flex-col flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  ORDENS DE SERVIÇO
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBlurOrders(prev => !prev);
+                  }}
+                  className={`p-1 rounded-full hover:bg-white/20 transition-colors z-20 relative cursor-pointer ${
+                    blurOrders ? 'text-amber-400' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title={blurOrders ? 'Mostrar total de OS' : 'Ocultar total de OS'}
+                >
+                  {blurOrders ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'} ${blurOrders ? 'blur-sm select-none' : ''}`}>
                 <AnimatedCountNumber value={statusCounts.total} />
               </div>
               <span className="text-purple-300 text-[9px] sm:text-[10px] font-medium block whitespace-nowrap truncate">
-                {statusCounts.emManutencao} em andamento
+                <span className={blurOrders ? 'blur-sm select-none' : ''}>{statusCounts.emManutencao}</span> em andamento
               </span>
+            </div>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-purple-500/30 border border-purple-400/70 text-purple-300 shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.5)]">
+              <Wrench className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </div>
         )}
@@ -1838,19 +1864,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               : 'bg-gradient-to-br from-rose-50 via-white to-rose-50/50 border-rose-400 shadow-sm hover:shadow-md'
           }`}
         >
-          <div className="p-2 sm:p-2.5 rounded-xl bg-rose-500/30 border border-rose-400/70 text-rose-300 shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.5)]">
-            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-[9px] sm:text-[10px] font-bold text-rose-300 uppercase tracking-wider block whitespace-nowrap truncate">
-              ESTOQUE BAIXO
-            </span>
-            <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              <AnimatedCountNumber value={lowStockCount} />
-            </div>
-            <span className="text-rose-300 text-[9px] sm:text-[10px] font-medium block whitespace-nowrap truncate">
-              produtos em alerta
-            </span>
+          <div className="flex flex-col flex-1 min-w-0">
+             <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] sm:text-[10px] font-bold text-rose-300 uppercase tracking-wider">ESTOQUE BAIXO</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlurEstoque(prev => !prev); }}
+                  className={`p-1 rounded-full hover:bg-white/20 transition-colors z-20 relative cursor-pointer ${blurEstoque ? 'text-amber-400' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {blurEstoque ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+             </div>
+             <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'} ${blurEstoque ? 'blur-sm select-none' : ''}`}>
+               <AnimatedCountNumber value={lowStockCount} />
+             </div>
+             <span className="text-rose-300 text-[9px] sm:text-[10px] font-medium block whitespace-nowrap truncate">
+               produtos em alerta
+             </span>
           </div>
         </div>
 
@@ -1863,20 +1893,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               : 'bg-gradient-to-br from-teal-50 via-white to-teal-50/50 border-teal-400 shadow-sm hover:shadow-md'
           }`}
         >
-          <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/30 border border-teal-400/70 text-teal-300 shrink-0 shadow-[0_0_12px_rgba(20,184,166,0.5)]">
-            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-[9px] sm:text-[10px] font-bold text-teal-300 uppercase tracking-wider block whitespace-nowrap truncate">
-              CLIENTES
-            </span>
-            <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              <AnimatedCountNumber value={customerCount} />
-            </div>
-            <span className="text-teal-300 text-[9px] sm:text-[10px] font-semibold block whitespace-nowrap truncate">
-              {customerCount === 1 ? 'cliente' : 'clientes'} cadastrados
-            </span>
-          </div>
+           <div className="flex flex-col flex-1 min-w-0">
+             <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] sm:text-[10px] font-bold text-teal-300 uppercase tracking-wider">CLIENTES</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlurClientes(prev => !prev); }}
+                  className={`p-1 rounded-full hover:bg-white/20 transition-colors z-20 relative cursor-pointer ${blurClientes ? 'text-amber-400' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {blurClientes ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+             </div>
+             <div className={`text-base sm:text-xl font-black tracking-tight whitespace-nowrap truncate ${isDark ? 'text-white' : 'text-slate-900'} ${blurClientes ? 'blur-sm select-none' : ''}`}>
+               <AnimatedCountNumber value={customerCount} />
+             </div>
+             <span className="text-teal-300 text-[9px] sm:text-[10px] font-semibold block whitespace-nowrap truncate">
+               <span className={blurClientes ? 'blur-sm select-none' : ''}>{customerCount}</span> cadastrados
+             </span>
+           </div>
         </div>
       </section>
 
@@ -1884,19 +1918,103 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         {/* Column 1: Faturamento (Últimos 30 dias / Selecionável) SVG Area Chart (lg:col-span-12 xl:col-span-6) */}
         <div className="lg:col-span-12 xl:col-span-6 flex flex-col">
-          <AnimatedRevenueChart sales={sales} orders={orders} isDark={isDark} />
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Faturamento (Gráfico)
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setBlurChart(prev => !prev);
+              }}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                blurChart
+                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                  : isDark ? 'bg-cyan-950/50 text-cyan-300 border-cyan-500/30 hover:bg-cyan-900/60' : 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'
+              }`}
+              title={blurChart ? 'Mostrar números do gráfico' : 'Ocultar números do gráfico'}
+            >
+              {blurChart ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <AnimatedRevenueChart sales={sales} orders={orders} isDark={isDark} isBlurred={blurChart} onToggleBlur={() => setBlurChart(prev => !prev)} />
         </div>
 
         {/* Column 2: Ordens de Serviço por Status (Donut Chart) (lg:col-span-6 xl:col-span-3) */}
         <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
-          <AnimatedDonutChart orders={orders} isDark={isDark} onNavigate={onNavigate} />
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Ordens de Serviço por Status
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setBlurOrders(prev => !prev);
+              }}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                blurOrders
+                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                  : isDark ? 'bg-purple-950/50 text-purple-300 border-purple-500/30 hover:bg-purple-900/60' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+              }`}
+              title={blurOrders ? 'Mostrar números de OS' : 'Ocultar números de OS'}
+            >
+              {blurOrders ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <AnimatedDonutChart orders={orders} isDark={isDark} onNavigate={onNavigate} isBlurred={blurOrders} onToggleBlur={() => setBlurOrders(prev => !prev)} />
         </div>
 
         {/* Column 3: Formas de Pagamento (Mês) (lg:col-span-6 xl:col-span-3) */}
         <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
-          <AnimatedPaymentMethods sales={sales} orders={orders} isDark={isDark} />
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Formas de Pagamento (Mês)
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setBlurPayments(prev => !prev);
+              }}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                blurPayments
+                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                  : isDark ? 'bg-teal-950/50 text-teal-300 border-teal-500/30 hover:bg-teal-900/60' : 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100'
+              }`}
+              title={blurPayments ? 'Mostrar números de pagamentos' : 'Ocultar números de pagamentos'}
+            >
+              {blurPayments ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <AnimatedPaymentMethods sales={sales} orders={orders} isDark={isDark} isBlurred={blurPayments} onToggleBlur={() => setBlurPayments(prev => !prev)} />
         </div>
       </section>
+      
+      {/* Botão Mestre de Blur (Olhinho Geral) */}
+      <div className="flex justify-end p-2">
+        <button
+          type="button"
+          onClick={toggleAllBlur}
+          className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl border transition-all cursor-pointer shadow-md hover:scale-[1.02] active:scale-95 ${
+            isAnyBlurred
+              ? isDark
+                ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+              : isDark
+                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/60 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+          }`}
+          title={isAnyBlurred ? 'Mostrar todos os números de uma vez' : 'Ocultar todos os números de uma vez'}
+        >
+          {isAnyBlurred ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
+          <span>{isAnyBlurred ? 'Mostrar Todos os Números' : 'Ocultar Todos os Números'}</span>
+        </button>
+      </div>
 
       {/* Live Interactive Dashboard Status Bar (Inspired by the Reference Image) */}
       <div className={`p-3 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3 text-xs shadow-lg transition-all ${
@@ -1941,6 +2059,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <h2 className="text-sm font-bold tracking-wide whitespace-nowrap">
                   Últimas Ordens de Serviço
                 </h2>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setBlurOrders(prev => !prev);
+                  }}
+                  className={`p-1 rounded-lg border transition-all cursor-pointer ${
+                    blurOrders
+                      ? isDark ? 'bg-amber-950/40 text-amber-300 border-amber-500/40 hover:bg-amber-900/50' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                      : isDark ? 'bg-blue-950/40 text-blue-300 border-blue-500/30 hover:bg-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                  }`}
+                  title={blurOrders ? 'Mostrar números das OS' : 'Ocultar números das OS'}
+                >
+                  {blurOrders ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
               </div>
               <button
                 type="button"
@@ -1977,7 +2111,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         onClick={() => onNavigate('ORDERS')}
                         className={`transition-colors cursor-pointer group ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}
                       >
-                        <td className="py-2 pr-2 font-bold text-blue-400 group-hover:text-cyan-300 whitespace-nowrap">
+                        <td className={`py-2 pr-2 font-bold text-blue-400 group-hover:text-cyan-300 whitespace-nowrap ${blurOrders ? 'blur-sm select-none' : ''}`}>
                           #{ord.orderNumber}
                         </td>
                         <td className={`py-2 px-2 font-medium truncate max-w-[130px] sm:max-w-[160px] 2xl:max-w-[200px] whitespace-nowrap ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -1991,7 +2125,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {ord.statusLabel}
                           </span>
                         </td>
-                        <td className="py-2 pl-2 text-right font-bold whitespace-nowrap">
+                        <td className={`py-2 pl-2 text-right font-bold whitespace-nowrap ${blurOrders ? 'blur-sm select-none' : ''}`}>
                           {formatCurrency(ord.totalPrice)}
                         </td>
                       </tr>
@@ -2017,7 +2151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1.5">
-                      <span className="font-black text-xs text-blue-400">#{ord.orderNumber}</span>
+                      <span className={`font-black text-xs text-blue-400 ${blurOrders ? 'blur-sm select-none' : ''}`}>#{ord.orderNumber}</span>
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${ord.statusBadgeClass}`}>
                         {ord.statusLabel}
                       </span>
@@ -2027,7 +2161,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <p className={`font-bold truncate text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>{ord.customerName}</p>
                         <p className="text-[10px] text-slate-400 truncate">{ord.device}</p>
                       </div>
-                      <span className="font-black text-xs text-emerald-400 font-mono shrink-0">
+                      <span className={`font-black text-xs text-emerald-400 font-mono shrink-0 ${blurOrders ? 'blur-sm select-none' : ''}`}>
                         {formatCurrency(ord.totalPrice)}
                       </span>
                     </div>
@@ -2181,73 +2315,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </section>
 
-      {/* Access Control Management Section for Super Admin */}
+      {/* Quick Access to Earnings Management for Super Admin */}
       {isSuperAdmin && (
-        <>
-          {/* Quick Access to Earnings Management for Super Admin */}
-          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
-            isDark
-              ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-[#0c1626]/90 border-emerald-500/30 text-white'
-              : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 text-slate-900 shadow-sm'
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold tracking-wide">
-                      Área de Ganho & Apuração de Lucro (Exclusivo Super Admin)
-                    </h2>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Novo
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Planilha de controle com cálculo automático de custos, bruto e apuração de Lucro Previsível vs Lucro Recebido.
-                  </p>
-                </div>
+        <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
+          isDark
+            ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-[#0c1626]/90 border-emerald-500/30 text-white'
+            : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 text-slate-900 shadow-sm'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                <DollarSign className="w-5 h-5" />
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate && onNavigate('EARNINGS')}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto flex-shrink-0"
-              >
-                <span>Acessar Planilha de Ganhos</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold tracking-wide">
+                    Área de Ganho & Apuração de Lucro (Exclusivo Super Admin)
+                  </h2>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Novo
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Planilha de controle com cálculo automático de custos, bruto e apuração de Lucro Previsível vs Lucro Recebido.
+                </p>
+              </div>
             </div>
-          </section>
-
-          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
-            isDark
-              ? 'bg-[#0c1626]/90 border-slate-800 text-white'
-              : 'bg-white border-slate-200 text-slate-900 shadow-sm'
-          }`}>
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/20">
-              <Tv className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-base font-bold tracking-wide">
-                Controle de Acessos & Ativações (Área do Super Admin)
-              </h2>
-            </div>
-            <AppAccessManagement />
-          </section>
-
-          <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
-            isDark
-              ? 'bg-[#0c1626]/90 border-slate-800 text-white'
-              : 'bg-white border-slate-200 text-slate-900 shadow-sm'
-          }`}>
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/20">
-              <Video className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-base font-bold tracking-wide">
-                Gerenciamento do Pacote de Câmeras (Área do Super Admin)
-              </h2>
-            </div>
-            <CameraPackageManagement />
-          </section>
-        </>
+            <button
+              type="button"
+              onClick={() => onNavigate && onNavigate('EARNINGS')}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto flex-shrink-0"
+            >
+              <span>Acessar Planilha de Ganhos</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </section>
       )}
 
       {/* 6. FOOTER BAR */}

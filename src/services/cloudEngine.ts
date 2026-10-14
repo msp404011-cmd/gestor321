@@ -191,7 +191,12 @@ class MegaCloudEngine {
     // 9. Fornecedores
     syncCollection('suppliers', STORAGE_KEYS.SUPPLIERS, 'suppliers');
     // 10. Grupos de Pedidos Fornecedores
-    syncCollection('supplier_orders', 'msp_supplier_order_groups_v1', 'supplier_orders');
+    syncCollection('supplier_orders', 'msp_supplier_order_groups_v1', 'supplier_orders', (g) => {
+      if (!g) return false;
+      const t = (g.title || '').toLowerCase().trim();
+      if (t === 'pedido 2' || t === 'pedido #2' || t === 'pedido 02') return false;
+      return true;
+    });
     // 11. Peças Compradas / Débitos Fornecedores
     syncCollection('supplier_purchases', 'msp_supplier_purchases_v1', 'supplier_purchases');
     // 12. Movimentações de Caixa

@@ -186,22 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ...(isSuper
       ? [
           {
-            id: 'MESSAGES_BUDGET_SECTION',
-            title: 'ORÇAMENTOS E MENSAGENS',
-            icon: MessageSquareText,
-            colorTheme: 'cyan' as const,
-            items: [
-              {
-                id: 'MESSAGE_BUDGETS',
-                title: 'Orçamentos WhatsApp',
-                subtitle: 'Comparativo de Telas & Peças',
-                icon: MessageCircle,
-                badge: 'EXCLUSIVO',
-                badgeType: 'master-blue' as const,
-              },
-            ],
-          },
-          {
             id: 'SUPPLIER_ORDERS_SECTION',
             title: 'PEDIDOS E COMPRAS',
             icon: Truck,
@@ -225,22 +209,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               },
             ],
           },
-          {
-            id: 'SUPER_ADMIN_EARNINGS_SECTION',
-            title: 'ÁREA DE GANHO',
-            icon: DollarSign,
-            colorTheme: 'emerald' as const,
-            items: [
-              {
-                id: 'EARNINGS',
-                title: 'Ganho',
-                subtitle: 'Bruto, Custos e Lucro',
-                icon: DollarSign,
-                badge: 'EXCLUSIVO',
-                badgeType: 'master-green' as const,
-              },
-            ],
-          },
         ]
       : []),
     {
@@ -257,18 +225,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: openOrdersCount > 0 ? openOrdersCount : 13,
           badgeType: 'count-blue' as const,
         },
-        ...(isSuper
-          ? [
-              {
-                id: 'TASKS',
-                title: 'Tarefas',
-                subtitle: 'Tarefas diárias e compras',
-                icon: CheckSquare,
-                badge: 'SUPER',
-                badgeType: 'master-orange' as const,
-              },
-            ]
-          : []),
       ],
     },
     {
@@ -285,20 +241,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'RECEIVABLES',
-          title: 'Fiado / Crediário',
-          subtitle: 'Controle de vendas a prazo',
+          title: 'A Prazo',
+          subtitle: 'Controle de vendas e parcelas',
           icon: Users,
           badge: openReceivablesCount > 0 ? openReceivablesCount : 2,
           badgeType: 'count-amber' as const,
-        },
-        {
-          id: 'RECEIVABLES_TERMS',
-          title: 'A Prazo',
-          subtitle: 'Parcelas e contas em aberto',
-          icon: Clock,
-          badge: openReceivablesCount > 0 ? openReceivablesCount : 2,
-          badgeType: 'count-red' as const,
-          action: () => handleSelect('RECEIVABLES'),
         },
       ],
     },
@@ -350,12 +297,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: TrendingUp,
       colorTheme: 'emerald' as const,
       items: [
-        {
-          id: 'FINANCE',
-          title: 'Financeiro',
-          subtitle: 'Contas, receitas e despesas',
-          icon: CreditCard,
-        },
+
         {
           id: 'CASH',
           title: 'Caixa',
@@ -430,12 +372,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeType: 'genial' as const,
         },
         {
-          id: 'ACCESSES',
-          title: 'Controle de Acessos',
-          subtitle: 'Gerenciamento de acessos',
-          icon: Tv,
-        },
-        {
           id: 'SETTINGS',
           title: 'Configurações',
           subtitle: 'Ajustes do sistema',
@@ -447,30 +383,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           subtitle: 'Controle de contas e parcelas',
           icon: CreditCard,
         },
+        ...(isSuper
+          ? [
+              {
+                id: 'EARNINGS',
+                title: 'Ganho',
+                subtitle: 'Bruto, Custos e Lucro',
+                icon: DollarSign,
+                badge: 'EXCLUSIVO',
+                badgeType: 'master-green' as const,
+              },
+            ]
+          : []),
       ],
     },
-    {
-      id: 'SUPPORT_SECTION',
-      title: 'SUPORTE',
-      icon: Headphones,
-      colorTheme: 'slate' as const,
-      items: [
-        {
-          id: 'HELP_SUPPORT',
-          title: 'Precisa de Ajuda?',
-          subtitle: 'Suporte e tutoriais do sistema',
-          icon: Headphones,
-          action: () => window.open('https://web.whatsapp.com', '_blank'),
-        },
-      ],
-    },
+
   ];
 
   // Filter sections by permissions and search term
   const filteredSections = sections
     .map((section) => {
       const allowedItems = section.items.filter((item) => {
-        if ((item.id === 'MONTHLY_DEBITS' || item.id === 'EARNINGS') && !isSuper) return false;
+        if (item.id === 'EARNINGS' && !isSuper) return false;
+        if (item.id === 'MONTHLY_DEBITS') {
+          const hasAccess = isSuper || isMasterAdmin || currentUser?.role === 'ADMIN' || currentUser?.role === 'GERENTE';
+          if (!hasAccess) return false;
+          return true;
+        }
         if (isSuper) return true;
         const normalizedTab = item.id.replace('_SECTION', '').replace('_TERMS', '').replace('_REPORTS', '');
         if (['HELP_SUPPORT'].includes(item.id)) return true;

@@ -1550,13 +1550,15 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                       </button>
                     ) : null}
 
-                    {/* Footer Row: Value + Print + Details Buttons */}
+                    {/* Footer Row: Original / Paid / Remaining Values */}
                     <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
                       <div className="flex flex-col">
-                        <span className="text-[9px] uppercase font-extrabold text-slate-400">Valor do serviço</span>
-                        <span className="text-base font-black text-emerald-400 font-mono tracking-tight">
-                          {formatCurrency(totalAmount)}
-                        </span>
+                        <span className="text-[9px] uppercase font-extrabold text-slate-400">Valores (Orig / Pago / Rest)</span>
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono mt-0.5">
+                          <span className="text-slate-300" title="Valor Original">Orig: <strong>{formatCurrency(totalAmount)}</strong></span>
+                          <span className="text-emerald-400" title="Valor Pago">Pago: <strong>{formatCurrency(os.paidAmount || 0)}</strong></span>
+                          <span className="text-amber-400 font-black" title="Valor Restante">Rest: <strong>{formatCurrency(Math.max(0, totalAmount - (os.paidAmount || 0)))}</strong></span>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -2192,9 +2194,13 @@ export const OrderListView: React.FC<OrderListViewProps> = ({
                     )}
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-700/40 gap-2">
-                      <div className="flex items-center justify-between sm:justify-start">
-                        <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">Valor:</span>
-                        <span className="font-black text-sm text-emerald-400 font-mono">{formatCurrency(os.totalPrice)}</span>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase font-extrabold">Valores (Orig / Pago / Rest)</span>
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono mt-0.5">
+                          <span className="text-slate-300">Orig: <strong>{formatCurrency(os.totalPrice)}</strong></span>
+                          <span className="text-emerald-400">Pago: <strong>{formatCurrency(os.paidAmount || 0)}</strong></span>
+                          <span className="text-amber-400 font-black">Rest: <strong>{formatCurrency(Math.max(0, (os.totalPrice || 0) - (os.paidAmount || 0)))}</strong></span>
+                        </div>
                       </div>
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         <div className="inline-flex items-center rounded-lg bg-emerald-600/20 border border-emerald-500/40 p-0.5 shadow-xs">

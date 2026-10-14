@@ -163,105 +163,32 @@ export const OrderAccessoriesChecklistSection: React.FC<
           : 'bg-white border-purple-400 shadow-xl text-slate-900'
       }`}
     >
-      {/* 1. TOP HEADER - COMPLETE INFO & BATCH BUTTONS */}
-      <div className="p-2.5 sm:p-3 border-b border-purple-500/30 shrink-0 bg-[#090212] flex flex-wrap items-center justify-between gap-2">
+      {/* 1. TOP HEADER: CHECKLIST DE ACESSÓRIOS */}
+      <div className="p-2.5 sm:p-3 border-b border-purple-500/30 shrink-0 bg-[#090212] flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-xl bg-purple-600/30 border border-purple-400/60 flex items-center justify-center text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.45)] shrink-0">
             <Headphones className="w-4 h-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-xs sm:text-sm font-black tracking-wide leading-none text-white">
-                CHECKLIST DE ACESSÓRIOS
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-950/90 border border-cyan-500/50 text-cyan-300">
-                {deviceType}
-              </span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                presentCount > 0
-                  ? 'bg-purple-950 text-purple-300 border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.3)]'
-                  : 'bg-slate-900 text-slate-400 border-slate-700'
-              }`}>
-                {presentCount} de {activeAccessories.length} entregue{presentCount === 1 ? '' : 's'}
-              </span>
-            </div>
+            <h3 className="text-xs sm:text-sm font-black tracking-wide leading-none text-white">
+              CHECKLIST DE ACESSÓRIOS
+            </h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Identifique se o cliente deixou carregador, chip, cartão, capinha ou cabos
+              Identifique se o cliente deixou carregador, chip, cartão, capinha ou outros itens
             </p>
           </div>
         </div>
 
-        {/* Quick Batch Actions */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={handleMarkAllNone}
-            className="px-2.5 py-1 rounded-xl text-[10px] sm:text-[11px] font-black bg-[#160624] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
-            title="Marcar todos como NÃO (Aparelho veio avulso)"
-          >
-            <X className="w-3 h-3 text-rose-400" />
-            <span>Nenhum (Aparelho Avulso)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleClearAll}
-            className="px-2 py-1 rounded-xl text-[10px] sm:text-[11px] font-bold bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-            title="Resetar checklist"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span className="hidden sm:inline">Limpar</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. FILTER & SEARCH BAR */}
-      <div className="px-2.5 py-1.5 border-b border-purple-900/40 bg-[#06010a] flex items-center justify-between gap-2 shrink-0">
-        <div className="relative flex-1 min-w-[120px]">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filtrar acessório..."
-            className="w-full pl-8 pr-2 py-1 bg-[#0d0317] border border-purple-900/60 focus:border-purple-400 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setFilterMode('ALL')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-              filterMode === 'ALL'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white bg-[#0e0419]'
-            }`}
-          >
-            Todos ({activeAccessories.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilterMode('PRESENT')}
-            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-              filterMode === 'PRESENT'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-emerald-400 hover:text-white bg-[#0e0419]'
-            }`}
-          >
-            <span>SIM</span>
-            <span className="px-1 py-0.2 rounded-full text-[9px] bg-black/40 font-black">{presentCount}</span>
-          </button>
-        </div>
+        {/* Quick Clear Action */}
+        <button
+          type="button"
+          onClick={handleClearAll}
+          className="px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-bold bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+          title="Limpar seleções"
+        >
+          <RotateCcw className="w-3 h-3" />
+          <span>Limpar</span>
+        </button>
       </div>
 
       {/* 3. SCROLLABLE ACCESSORIES LIST - ERGONOMIC, UNIFORM ON ALL DESKTOP SIZES */}
@@ -349,44 +276,219 @@ export const OrderAccessoriesChecklistSection: React.FC<
 
                   {/* Expandable Details Container when SIM is active */}
                   {isPresent && (
-                    <div className="mt-2 pt-2 border-t border-purple-900/50 space-y-1.5 animate-in fade-in duration-150">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={details}
-                          onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
-                          placeholder={acc.placeholder || `Descreva ${acc.name.toLowerCase()} (ex: cor, marca, voltagem, avaria)...`}
-                          className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
-                        />
-                        {details && (
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                            title="Limpar detalhe"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
+                    <div className="mt-2 pt-2 border-t border-purple-900/50 space-y-2 animate-in fade-in duration-150">
+                      {/* 1. CAPA */}
+                      {acc.name.toLowerCase().includes('capa') && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
+                            <span>🎨 Cor da Capa:</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={details.startsWith('Cor: ') ? details.replace('Cor: ', '') : details}
+                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value ? `Cor: ${e.target.value}` : '')}
+                              placeholder="Digite a cor da capa (ex: Transparente, Preto, Vermelho)..."
+                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
+                            />
+                            {details && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                title="Limpar"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            {['Preto', 'Transparente', 'Vermelho', 'Azul', 'Rosa', 'Silicone'].map((cor) => (
+                              <button
+                                key={cor}
+                                type="button"
+                                onClick={() => handleUpdateAccessoryDetail(acc.id, `Cor: ${cor}`)}
+                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
+                              >
+                                {cor}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                      {/* Quick Detail Tags */}
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-[9px] text-purple-300 font-bold flex items-center gap-0.5">
-                          <Tag className="w-2.5 h-2.5" />
-                          <span>Dica rápida:</span>
-                        </span>
-                        {COMMON_DETAIL_TAGS.map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            onClick={() => handleAppendTag(acc.id, tag)}
-                            className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
-                          >
-                            + {tag}
-                          </button>
-                        ))}
-                      </div>
+                      {/* 2. CHIP */}
+                      {acc.name.toLowerCase().includes('chip') && (
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-purple-300 font-bold flex items-center justify-between">
+                            <span>📶 Operadora do Chip:</span>
+                            {details && (
+                              <span className="text-[9px] text-purple-300 font-normal">
+                                {details.replace('Operadora: ', '')}
+                              </span>
+                            )}
+                          </label>
+                          <div className="grid grid-cols-5 gap-1">
+                            {(['TIM', 'Vivo', 'Brisanet', 'Claro', 'Outro'] as const).map((op) => {
+                              const isSelected = details === `Operadora: ${op}` || details.startsWith(`Operadora: ${op}:`) || (op === 'Outro' && details.startsWith('Operadora: Outro'));
+                              return (
+                                <button
+                                  key={op}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      handleUpdateAccessoryDetail(acc.id, '');
+                                    } else if (op === 'Outro') {
+                                      handleUpdateAccessoryDetail(acc.id, 'Operadora: Outro: ');
+                                    } else {
+                                      handleUpdateAccessoryDetail(acc.id, `Operadora: ${op}`);
+                                    }
+                                  }}
+                                  className={`px-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border text-center ${
+                                    isSelected
+                                      ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)] ring-1 ring-purple-300'
+                                      : 'bg-[#07010e] hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                                  }`}
+                                >
+                                  {op}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {(details.startsWith('Operadora: Outro') || details === 'Operadora: Outro') && (
+                            <input
+                              type="text"
+                              value={details.replace(/^Operadora:\s*Outro:\s*/i, '').replace(/^Operadora:\s*Outro/i, '')}
+                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, `Operadora: Outro: ${e.target.value}`)}
+                              placeholder="Digite o nome da operadora..."
+                              className="w-full mt-1 px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium"
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* 3. CARTÃO */}
+                      {acc.name.toLowerCase().includes('cart') && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
+                            <span>💾 Informações do Cartão de Memória:</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={details}
+                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
+                              placeholder="Informações do cartão (ex: 32GB SanDisk, 64GB Kingston)..."
+                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
+                            />
+                            {details && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                title="Limpar"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            {['16GB', '32GB', '64GB', '128GB', 'SanDisk', 'Kingston'].map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => handleAppendTag(acc.id, tag)}
+                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
+                              >
+                                + {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4. CARREGADOR */}
+                      {acc.name.toLowerCase().includes('carregador') && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
+                            <span>🔌 Informações do Carregador:</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={details}
+                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
+                              placeholder="Informações do carregador (ex: Original Turbo 67W, com cabo Tipo C)..."
+                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
+                            />
+                            {details && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                title="Limpar"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            {['Original', 'Paralelo', 'Turbo', 'Com cabo Tipo-C', 'Com cabo Lightning', 'Sem cabo'].map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => handleAppendTag(acc.id, tag)}
+                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
+                              >
+                                + {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 5. DEMAIS ACESSÓRIOS */}
+                      {!acc.name.toLowerCase().match(/(capa|chip|cart|carregador)/) && (
+                        <>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={details}
+                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
+                              placeholder={acc.placeholder || `Descreva ${acc.name.toLowerCase()} (ex: cor, marca, voltagem, avaria)...`}
+                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
+                            />
+                            {details && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                title="Limpar detalhe"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[9px] text-purple-300 font-bold flex items-center gap-0.5">
+                              <Tag className="w-2.5 h-2.5" />
+                              <span>Dica rápida:</span>
+                            </span>
+                            {COMMON_DETAIL_TAGS.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => handleAppendTag(acc.id, tag)}
+                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
+                              >
+                                + {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -396,8 +498,8 @@ export const OrderAccessoriesChecklistSection: React.FC<
         )}
       </div>
 
-      {/* 4. FOOTER: SUMMARY & FAST STEP NAVIGATION */}
-      <div className="p-2 sm:p-2.5 border-t border-purple-500/30 bg-[#090212] shrink-0 space-y-2">
+      {/* 4. FOOTER: SUMMARY */}
+      <div className="p-2 sm:p-2.5 border-t border-purple-500/30 bg-[#090212] shrink-0">
         {/* Live summary display for ticket */}
         <div className="px-2.5 py-1.5 rounded-xl bg-[#06010a] border border-purple-900/60 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -411,32 +513,6 @@ export const OrderAccessoriesChecklistSection: React.FC<
             {presentCount} item{presentCount === 1 ? '' : 'ns'}
           </span>
         </div>
-
-        {/* Navigation buttons to move between Intake Steps */}
-        {onNavigateToTab && (
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigateToTab('PROBLEMA')}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Voltar para Defeito</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateToTab('CHECKLIST')}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-[0_0_12px_rgba(16,185,129,0.4)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-            >
-              <span>Avançar para Checklist Técnico</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-black/30 font-black">
-                {checklistFilledCount}/17
-              </span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

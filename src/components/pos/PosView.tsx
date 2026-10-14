@@ -125,6 +125,7 @@ export const PosView: React.FC<PosViewProps> = ({
   const [isSalesHistoryModalOpen, setIsSalesHistoryModalOpen] = useState<boolean>(false);
   const [selectedPrintFormat, setSelectedPrintFormat] = useState<PrintPaperFormat>('80mm');
   const [finishedSale, setFinishedSale] = useState<Sale | null>(null);
+  const [isFinalizingSale, setIsFinalizingSale] = useState<boolean>(false);
 
   // Status to track if sale was started via F1 or barcode
   const [isSaleActive, setIsSaleActive] = useState<boolean>(false);
@@ -344,50 +345,58 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Finalize Sale
   const handleFinalizeSale = () => {
+    if (isFinalizingSale) return;
     if (cart.length === 0) {
       alert('Adicione ao menos um produto para finalizar a venda.');
       return;
     }
 
-    const amountReceived = parseFloat(amountReceivedInput.replace('.', '').replace(',', '.')) || total;
-    const change = Math.max(0, amountReceived - total);
-    const isResellerMatch = customerId && resellers.some((r) => r.id === customerId);
+    setIsFinalizingSale(true);
+    try {
+      const amountReceived = parseFloat(amountReceivedInput.replace('.', '').replace(',', '.')) || total;
+      const change = Math.max(0, amountReceived - total);
+      const isResellerMatch = customerId && resellers.some((r) => r.id === customerId);
 
-    const newSale: Sale = {
-      id: 'sale-' + Date.now(),
-      saleNumber: StorageService.getNextSaleNumber(),
-      date: new Date().toISOString(),
-      customerId: customerId || undefined,
-      customerName: selectedCustomer?.name || 'CLIENTE PADRÃO',
-      sellerId: currentUser.id,
-      sellerName: sellerName || currentUser.name,
-      items: cart,
-      subtotal,
-      discount: calculatedDiscount,
-      total,
-      totalCost,
-      costTotal: totalCost,
-      profit,
-      paymentMethod,
-      amountReceived,
-      amountPaid: total,
-      change,
-      notes: saleNotes.trim() || undefined,
-      priceTable,
-      resellerId: isResellerMatch ? customerId : undefined,
-    };
+      const newSale: Sale = {
+        id: 'sale-' + Date.now(),
+        saleNumber: StorageService.getNextSaleNumber(),
+        date: new Date().toISOString(),
+        customerId: customerId || undefined,
+        customerName: selectedCustomer?.name || 'CLIENTE PADRÃO',
+        sellerId: currentUser.id,
+        sellerName: sellerName || currentUser.name,
+        items: cart,
+        subtotal,
+        discount: calculatedDiscount,
+        total,
+        totalCost,
+        costTotal: totalCost,
+        profit,
+        paymentMethod,
+        amountReceived,
+        amountPaid: total,
+        change,
+        notes: saleNotes.trim() || undefined,
+        priceTable,
+        resellerId: isResellerMatch ? customerId : undefined,
+      };
 
-    StorageService.finalizeSale(newSale);
+      StorageService.finalizeSale(newSale);
 
-    // Reset Cart & trigger receipt modal
-    setCart([]);
-    setDiscountInput('0,00');
-    setAmountReceivedInput('');
-    setSaleNotes('');
-    setCustomerId('');
-    setIsSaleActive(false);
-    setIsCheckoutModalOpen(false);
-    setFinishedSale(newSale);
+      // Reset Cart & trigger receipt modal
+      setCart([]);
+      setDiscountInput('0,00');
+      setAmountReceivedInput('');
+      setSaleNotes('');
+      setCustomerId('');
+      setIsSaleActive(false);
+      setIsCheckoutModalOpen(false);
+      setFinishedSale(newSale);
+    } catch (err) {
+      console.error('Erro ao finalizar venda:', err);
+    } finally {
+      setTimeout(() => setIsFinalizingSale(false), 500);
+    }
   };
 
   // Action to start or finalize sale using F1 shortcut
@@ -1822,10 +1831,7 @@ export const PosView: React.FC<PosViewProps> = ({
                   { id: 'CARTAO_CREDITO', label: 'Cartão', icon: <CreditCard className="w-4 h-4 text-cyan-400" /> },
                   { id: 'PIX', label: 'Pix', icon: <span className="text-purple-400 font-black">❖</span> },
                   { id: 'MULTIPLO', label: 'Múltiplos', icon: <Layers className="w-4 h-4 text-violet-400" /> },
-                  { id: 'FIADO', label: priceTable === 'ATACADO' ? 'Fiado / A Prazo' : 'Fiado', icon: <FileText className="w-4 h-4 text-amber-400" /> },
-                  ...(priceTable === 'VAREJO'
-                    ? [{ id: 'BOLETO', label: 'Crediário', icon: <Receipt className="w-4 h-4 text-yellow-400" /> }]
-                    : []),
+                  { id: 'FIADO', label: 'A Prazo', icon: <FileText className="w-4 h-4 text-amber-400" /> },
                 ].map((pm) => (
                   <button
                     key={pm.id}
@@ -1870,11 +1876,12 @@ export const PosView: React.FC<PosViewProps> = ({
             <div className="space-y-2 pt-2 border-t border-blue-900/60">
               <button
                 type="button"
+                disabled={isFinalizingSale}
                 onClick={handleFinalizeSale}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-base rounded-xl shadow-[0_0_25px_rgba(16,185,129,0.5)] border border-emerald-300 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-base rounded-xl shadow-[0_0_25px_rgba(16,185,129,0.5)] border border-emerald-300 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
               >
                 <CheckCircle2 className="w-5 h-5" />
-                <span>Confirmar e Finalizar Venda (F1)</span>
+                <span>{isFinalizingSale ? 'Finalizando Venda...' : 'Confirmar e Finalizar Venda (F1)'}</span>
               </button>
 
               <div className="flex items-center gap-2">

@@ -83,6 +83,38 @@ interface SupplierOrderGroup {
 const STORAGE_KEY_GROUPS = 'msp_supplier_order_groups_v1';
 const STORAGE_KEY_PURCHASES = 'msp_supplier_purchases_v1';
 const STORAGE_KEY_SUPPLIERS = 'msp_suppliers_v1';
+const DELETED_GROUPS_STORAGE_KEY = 'msp_deleted_supplier_group_ids_v1';
+
+export const getDeletedGroupIds = (): Set<string> => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(DELETED_GROUPS_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    }
+  } catch (_) {}
+  return new Set();
+};
+
+export const addDeletedGroupId = (id: string) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const s = getDeletedGroupIds();
+      s.add(id);
+      window.localStorage.setItem(DELETED_GROUPS_STORAGE_KEY, JSON.stringify(Array.from(s)));
+    }
+  } catch (_) {}
+};
+
+export const isPedido2Group = (g: { title?: string; id?: string }): boolean => {
+  if (!g) return false;
+  const t = (g.title || '').trim().toLowerCase();
+  if (t === 'pedido 2' || t === 'pedido #2' || t === 'pedido 02') return true;
+  if (g.id === 'pedido-2' || g.id === '2') return true;
+  return false;
+};
 
 const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
   { id: 'sup_diamond', name: 'DIAMOND', phone: '', pixKey: '', obs: 'Fornecedor de Telas', createdAt: new Date().toISOString() },
@@ -108,14 +140,16 @@ export const ensureDefaultEstruturaOptions = (existing?: FieldOption[]): FieldOp
 export const SupplierOrdersManagement: React.FC = () => {
   // Safe initial state loaded synchronously from RAM store or localStorage
   const [groups, setGroups] = useState<SupplierOrderGroup[]>(() => {
+    const deletedIds = getDeletedGroupIds();
+    const filterValid = (list: SupplierOrderGroup[]) => list.filter(g => !deletedIds.has(g.id) && !isPedido2Group(g));
     const inRam = getRamItem<SupplierOrderGroup[]>(STORAGE_KEY_GROUPS, []);
-    if (inRam && inRam.length > 0) return inRam;
+    if (inRam && inRam.length > 0) return filterValid(inRam);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const local = window.localStorage.getItem(STORAGE_KEY_GROUPS);
         if (local) {
           const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) return filterValid(parsed);
         }
       } catch (_) {}
     }
@@ -436,7 +470,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     setIsSettingsModalOpen(true);
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS' | 'SERVICOS'>('PEDIDOS');
+  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'HISTORICO' | 'DEBITOS' | 'DEVOLUCOES' | 'SERVICOS'>('PEDIDOS');
 
   const [currentItem, setCurrentItem] = useState<Partial<SupplierOrderItem>>({
     title: '', typeName: 'Tela', marca: '', modelo: '', estrutura: '', qualidade: '', tecnologia: '', cor: '', quantity: 1, price: 0
@@ -670,23 +704,32 @@ export const SupplierOrdersManagement: React.FC = () => {
     const unsubGroups = onSnapshot(colRef, (snapshot) => {
       if (!isSubscribed) return;
       const loaded: SupplierOrderGroup[] = [];
+      const deletedIds = getDeletedGroupIds();
+      
       snapshot.forEach(d => {
-        loaded.push({ id: d.id, ...d.data() } as SupplierOrderGroup);
+        const data = d.data();
+        const g = { id: d.id, ...data } as SupplierOrderGroup;
+        if (isPedido2Group(g)) {
+          // Permanently purge from Firestore
+          const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
+          emails.forEach(em => {
+            deleteDoc(doc(db, `accounts/${em}/supplier_orders`, d.id)).catch(() => {});
+          });
+          addDeletedGroupId(d.id);
+          return;
+        }
+        if (!deletedIds.has(d.id)) {
+          loaded.push(g);
+        }
       });
       
-      setGroups(prev => {
-        const map = new Map<string, SupplierOrderGroup>();
-        loaded.forEach(g => map.set(g.id, g));
-        // Keep any local group that hasn't synced yet
-        prev.forEach(g => {
-          if (!map.has(g.id)) map.set(g.id, g);
-        });
-        const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setRamItem(STORAGE_KEY_GROUPS, merged);
+      setGroups(() => {
+        const sorted = loaded.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setRamItem(STORAGE_KEY_GROUPS, sorted);
         try {
-          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(merged));
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(sorted));
         } catch (_) {}
-        return merged;
+        return sorted;
       });
       setLoading(false);
     }, (err) => {
@@ -702,14 +745,27 @@ export const SupplierOrdersManagement: React.FC = () => {
         unsubSecondaryGroups = onSnapshot(secColRef, (snapshot) => {
           if (!isSubscribed || snapshot.empty) return;
           const extra: SupplierOrderGroup[] = [];
+          const deletedIds = getDeletedGroupIds();
           snapshot.forEach(d => {
-            extra.push({ id: d.id, ...d.data() } as SupplierOrderGroup);
+            const data = d.data();
+            const g = { id: d.id, ...data } as SupplierOrderGroup;
+            if (isPedido2Group(g)) {
+              deleteDoc(doc(db, 'accounts/msp404011@gmail.com/supplier_orders', d.id)).catch(() => {});
+              deleteDoc(doc(db, 'accounts/mmspmartins62@gmail.com/supplier_orders', d.id)).catch(() => {});
+              addDeletedGroupId(d.id);
+              return;
+            }
+            if (!deletedIds.has(d.id)) {
+              extra.push(g);
+            }
           });
           setGroups(prev => {
             const map = new Map<string, SupplierOrderGroup>();
-            prev.forEach(g => map.set(g.id, g));
+            prev.forEach(g => {
+              if (!deletedIds.has(g.id) && !isPedido2Group(g)) map.set(g.id, g);
+            });
             extra.forEach(g => {
-              if (!map.has(g.id)) map.set(g.id, g);
+              if (!deletedIds.has(g.id) && !isPedido2Group(g)) map.set(g.id, g);
             });
             const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
             setRamItem(STORAGE_KEY_GROUPS, merged);
@@ -1426,17 +1482,22 @@ export const SupplierOrdersManagement: React.FC = () => {
     setConfirmDialog({
       message: "Deseja realmente excluir este pedido e todas as suas peças?",
       onConfirm: async () => {
-        const userEmail = getUserAccountEmail();
+        addDeletedGroupId(groupId);
         const updated = groups.filter(g => g.id !== groupId);
         setGroups(updated);
         setRamItem(STORAGE_KEY_GROUPS, updated);
-
         try {
-          await deleteDoc(doc(db, `accounts/${userEmail}/supplier_orders`, groupId));
-          showToast("Pedido excluído!", "success");
-        } catch (e) {
-          showToast("Excluído localmente.", "success");
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
+        } catch (_) {}
+
+        const userEmail = getUserAccountEmail();
+        const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
+        for (const em of emails) {
+          try {
+            await deleteDoc(doc(db, `accounts/${em}/supplier_orders`, groupId));
+          } catch (_) {}
         }
+        showToast("Pedido excluído permanentemente!", "success");
       }
     });
   };
@@ -1598,10 +1659,16 @@ export const SupplierOrdersManagement: React.FC = () => {
   // FILTERED GROUPS & COUNTERS
   // -------------------------------------------------------------
   const filteredGroups = useMemo(() => {
-    const q = searchTerm.toLowerCase();
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return groups;
     return groups.filter(g => 
       (g.title || '').toLowerCase().includes(q) ||
-      (g.items || []).some(i => (i.title || '').toLowerCase().includes(q) || (i.modelo || '').toLowerCase().includes(q))
+      (g.items || []).some(i => 
+        (i.title || '').toLowerCase().includes(q) || 
+        (i.modelo || '').toLowerCase().includes(q) ||
+        (i.marca || '').toLowerCase().includes(q) ||
+        (i.typeName || '').toLowerCase().includes(q)
+      )
     );
   }, [groups, searchTerm]);
 
@@ -2160,18 +2227,6 @@ export const SupplierOrdersManagement: React.FC = () => {
           </button>
           
           <button 
-            onClick={() => setActiveSubTab('FORNECEDOR')}
-            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeSubTab === 'FORNECEDOR' 
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
-            }`}
-          >
-            <Truck className="w-3.5 h-3.5" />
-            <span>2. Fornecedor ({supplierPurchases.length})</span>
-          </button>
-
-          <button 
             onClick={() => setActiveSubTab('DEBITOS')}
             className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeSubTab === 'DEBITOS' 
@@ -2180,7 +2235,19 @@ export const SupplierOrdersManagement: React.FC = () => {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>3. Débitos ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente').length})</span>
+            <span>2. Débitos ({supplierPurchases.filter(p => p.paymentStatus === 'Pendente' && !p.isReturned).length})</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSubTab('DEVOLUCOES')}
+            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeSubTab === 'DEVOLUCOES' 
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>3. Devoluções ({supplierPurchases.filter(p => p.isReturned && p.paymentStatus === 'Pendente').length})</span>
           </button>
 
           <button 
@@ -2204,7 +2271,7 @@ export const SupplierOrdersManagement: React.FC = () => {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>5. Histórico 12m ({supplierPurchases.filter(p => p.paymentStatus === 'Pago').length})</span>
+            <span>5. Histórico</span>
           </button>
         </div>
 
@@ -2654,10 +2721,10 @@ export const SupplierOrdersManagement: React.FC = () => {
         /* ABA 5: SERVIÇOS DE TÉCNICOS & REPASSES */
         <TechnicianServicesView />
       ) : (
-        /* ABA 2, 3, 4: FORNECEDOR, HISTÓRICO, DÉBITOS */
+        /* ABA 2, 3, 4, 5: FORNECEDOR, DÉBITOS, DEVOLUÇÕES, HISTÓRICO */
         <SupplierPurchasesView 
           items={supplierPurchases} 
-          subTab={activeSubTab as 'FORNECEDOR' | 'HISTORICO' | 'DEBITOS'}
+          subTab={activeSubTab as 'HISTORICO' | 'DEBITOS' | 'DEVOLUCOES'}
           fieldSettings={fieldSettings}
           onUpdateStatus={handleUpdatePaymentStatus} 
           onUpdateSupplier={handleUpdatePurchaseSupplier}

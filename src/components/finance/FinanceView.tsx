@@ -27,6 +27,7 @@ import {
   Printer,
   Sliders,
   Clock,
+  Landmark,
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { Expense, PaymentMethod } from '../../types';
@@ -35,8 +36,9 @@ import { CashSessionModal } from './CashSessionModal';
 import { ExpenseModal } from './ExpenseModal';
 import { ConfirmDialog } from '../common/Modal';
 import { useTheme } from '../../context/ThemeContext';
+import { FinanceRegistersView } from './FinanceRegistersView';
 
-type FinanceTab = 'CASH' | 'EXPENSES';
+type FinanceTab = 'CASH' | 'EXPENSES' | 'REGISTERS';
 
 interface FinanceViewProps {
   initialTab?: FinanceTab;
@@ -690,36 +692,36 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
           </div>
         </div>
 
-        {/* Action Buttons Top Right */}
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+        {/* Action Buttons Top Right - Responsively wrapped on small devices */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {isCashOpen ? (
             <>
               <button
                 type="button"
                 onClick={() => setCashModalMode('SANGRIA')}
-                className="px-4 py-2.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 shadow-[0_0_12px_rgba(225,29,72,0.25)] text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-600/80 shadow-[0_0_12px_rgba(225,29,72,0.25)] text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <ArrowDownRight className="w-4 h-4 text-rose-400" />
-                <span>Sangria (Retirada)</span>
+                <ArrowDownRight className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>Sangria</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCashModalMode('SUPRIMENTO')}
-                className="px-4 py-2.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 shadow-[0_0_12px_rgba(16,185,129,0.25)] text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-600/80 shadow-[0_0_12px_rgba(16,185,129,0.25)] text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-                <span>Suprimento (Troco)</span>
+                <ArrowUpRight className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Suprimento</span>
               </button>
               <button
                 type="button"
                 onClick={() => setCashModalMode('CLOSE')}
-                className={`px-4 py-2.5 border text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 border text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                   isDark
                     ? 'bg-[#070e1f] hover:bg-[#0e1a38] border-slate-700/80 text-slate-200'
                     : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
                 }`}
               >
-                <Lock className="w-4 h-4 text-slate-400" />
+                <Lock className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>Fechar Caixa</span>
               </button>
             </>
@@ -727,9 +729,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
             <button
               type="button"
               onClick={() => setCashModalMode('OPEN')}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center gap-2"
+              className="flex-1 sm:flex-none px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <Wallet className="w-4 h-4" />
+              <Wallet className="w-4 h-4 shrink-0" />
               <span>Abrir Caixa Agora</span>
             </button>
           )}
@@ -740,24 +742,10 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
               setExpenseToEdit(null);
               setIsExpenseModalOpen(true);
             }}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center gap-2"
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Nova Despesa</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsZeroConfirmOpen(true)}
-            className={`px-3 py-2.5 border rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              isDark
-                ? 'border-slate-700 bg-slate-800/80 text-slate-300 hover:text-rose-400 hover:border-rose-500/50'
-                : 'border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:border-rose-300 shadow-sm'
-            }`}
-            title="Zerar Saldo Atual, Entradas e Resultado Líquido"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-            <span>Zerar Caixa / Financeiro</span>
           </button>
         </div>
       </div>
@@ -774,9 +762,20 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
           <div className="text-xl font-black text-emerald-400 font-mono">
             {formatCurrency(cashSession?.currentBalance || 0)}
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            {isCashOpen ? 'Troco inicial + entradas do dia' : 'Caixa fechado'}
-          </p>
+          <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-white/5">
+            <p className="text-[11px] text-slate-400">
+              {isCashOpen ? 'Troco inicial + entradas' : 'Caixa fechado'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('REGISTERS')}
+              className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition-colors"
+              title="Ver e alimentar fundo base dos Cards de Caixa"
+            >
+              <Landmark className="w-3 h-3" />
+              <span>Cards de Caixa</span>
+            </button>
+          </div>
         </div>
 
         <div className={`p-4 rounded-2xl border transition-all ${
@@ -851,7 +850,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
           <span>Despesas & Contas a Pagar ({allExpensesList.length})</span>
         </button>
 
-
+        <button
+          type="button"
+          onClick={() => setActiveTab('REGISTERS')}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            activeTab === 'REGISTERS'
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400/40'
+              : isDark ? 'text-slate-400 hover:text-white hover:bg-emerald-950/40' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+          }`}
+        >
+          <Landmark className="w-4 h-4 text-emerald-400" />
+          <span>Cards de Caixa & Fundo Base</span>
+        </button>
       </div>
 
       {/* TAB 1: CAIXA E MOVIMENTAÇÕES DE GAVETA */}
@@ -1895,6 +1905,13 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ initialTab = 'CASH' })
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 3: GESTÃO DE CARDS DE CAIXA E FUNDO BASE */}
+      {activeTab === 'REGISTERS' && (
+        <div className="pt-2 animate-fade-in">
+          <FinanceRegistersView />
         </div>
       )}
 

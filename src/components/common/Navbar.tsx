@@ -8,8 +8,6 @@ import {
   Moon,
   LogOut,
   UserCheck,
-  Crown,
-  ShieldCheck,
   Store,
   Cloud,
   ShoppingCart,
@@ -46,11 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenPDV,
   onSwitchUser,
   onLogout,
-  onOpenPlans,
-  onOpenMaster,
 }) => {
   const currentUser = propCurrentUser || StorageService.getCurrentUser();
-  const currentPlan = StorageService.getSubscriptionPlan();
   const { isDark, toggleTheme } = useTheme();
 
   const [company, setCompany] = React.useState(() => StorageService.getCompanySettings());
@@ -68,11 +63,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const assistanceName =
-    company?.commercialName ||
-    company?.name ||
-    company?.tradeName ||
-    userAccount?.shopName ||
-    'Assistência Técnica';
+    company?.commercialName && company.commercialName !== 'Painel Master Gestor'
+      ? company.commercialName
+      : company?.name && company.name !== 'Painel Master Gestor'
+      ? company.name
+      : userAccount?.shopName && userAccount.shopName !== 'Painel Master Gestor'
+      ? userAccount.shopName
+      : 'TechNova Informática';
+
+  const loggedInUserName =
+    currentUser?.name ||
+    authSession?.name ||
+    (authSession?.email ? authSession.email.split('@')[0] : 'Usuário Logado');
+
+  const loggedInRole = currentUser?.role || 'Administrador';
 
   const orders = StorageService.getOrders();
   const products = StorageService.getProducts();
@@ -116,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           : 'bg-white/95 border-slate-200 text-slate-900 shadow-xs'
       }`}
     >
-      {/* Left side: Mobile Toggle + Search Bar */}
+      {/* Left side: Mobile Toggle + Logged In User Badge + Search Bar */}
       <div className="flex items-center gap-1.5 sm:gap-3 flex-1 max-w-xl min-w-0 mr-1 sm:mr-3">
         <button
           type="button"
@@ -131,6 +135,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <Menu className="w-5 h-5 text-cyan-400" />
         </button>
+
+        {/* Top Logged-In User Badge */}
+        <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black shrink-0 shadow-inner ${
+          isDark ? 'bg-[#0c1427] border-cyan-500/40 text-cyan-300' : 'bg-slate-100 border-blue-300 text-blue-700'
+        }`} title={`Usuário logado: ${loggedInUserName} (${loggedInRole})`}>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="truncate max-w-[150px]">{loggedInUserName}</span>
+          <span className="text-[9px] opacity-80 uppercase">({loggedInRole})</span>
+        </div>
 
         <div className="relative w-full min-w-0">
           <button
@@ -222,48 +235,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
 
 
-        {/* Plan & Subscription Badge Button */}
-        {onOpenPlans && (
-          <button
-            type="button"
-            id="btn-navbar-plan"
-            onClick={onOpenPlans}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              currentPlan.planType === 'TRIAL' || currentPlan.planType === 'FREE'
-                ? isDark
-                  ? 'bg-blue-950/50 hover:bg-blue-900/60 text-blue-300 border-blue-700/60'
-                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                : currentPlan.planType === 'REVENDA' || currentPlan.planType === 'ENTERPRISE'
-                ? isDark
-                  ? 'bg-purple-950/60 hover:bg-purple-900/70 text-purple-300 border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
-                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200'
-                : isDark
-                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
-            }`}
-            title="Meu Plano / Assinatura (Gerenciar)"
-          >
-            <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="truncate max-w-[120px]">{currentPlan.planName || 'Meu Plano'}</span>
-          </button>
-        )}
 
-        {/* Master Panel Shortcut Button */}
-        {onOpenMaster && (
-          <button
-            type="button"
-            id="btn-navbar-master"
-            onClick={onOpenMaster}
-            className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              isDark
-                ? 'bg-slate-900/80 hover:bg-slate-800 text-cyan-400 border-cyan-700/60 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
-                : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300 shadow-xs'
-            }`}
-            title="Acessar Painel Master"
-          >
-            <ShieldCheck className="w-4 h-4 text-cyan-400" />
-          </button>
-        )}
 
         <div className={`h-6 w-[1px] hidden sm:block ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
 
@@ -280,12 +252,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             />
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#070b14] rounded-full" />
           </div>
-          <div className="hidden md:block text-left">
-            <p className={`text-xs font-bold leading-none tracking-tight truncate max-w-[170px] ${isDark ? 'text-white' : 'text-slate-900'}`} title={assistanceName}>
-              {assistanceName}
-            </p>
-            <p className={`text-[10px] font-semibold mt-0.5 truncate max-w-[170px] ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
-              {currentUser?.name || 'Operador'} • {currentUser?.role || 'Acesso'}
+          <div className="hidden sm:block text-left">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <p className={`text-xs font-black leading-none tracking-tight truncate max-w-[190px] ${isDark ? 'text-white' : 'text-slate-900'}`} title={loggedInUserName}>
+                {loggedInUserName}
+              </p>
+            </div>
+            <p className={`text-[10px] font-semibold mt-0.5 truncate max-w-[190px] ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>
+              {loggedInRole} • {assistanceName}
             </p>
           </div>
 

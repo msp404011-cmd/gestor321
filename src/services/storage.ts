@@ -31,6 +31,9 @@ import {
   AccountsPayableTransaction,
   DailyTaskCard,
   RealFixedCost,
+  FinanceCashRegister,
+  FinanceCashMovementItem,
+  DefinitiveExpense,
   EarningItem,
 } from '../types';
 import { defaultCompatibilitySectors, defaultCompatibilityCards } from '../data/defaultCompatibility';
@@ -91,6 +94,9 @@ export const STORAGE_KEYS = {
   ACCOUNTS_PAYABLE: 'msp_accounts_payable_v1',
   DAILY_TASKS: 'msp_daily_tasks_v1',
   REAL_FIXED_COSTS: 'msp_real_fixed_costs_v1',
+  FINANCE_CASH_REGISTERS: 'msp_finance_cash_registers_v1',
+  FINANCE_CASH_MOVEMENTS: 'msp_finance_cash_movements_v1',
+  DEFINITIVE_EXPENSES: 'msp_definitive_expenses_v1',
   SUPER_ADMIN_EARNINGS: 'msp_super_admin_earnings_v1',
   INITIALIZED: 'msp_system_initialized_v2',
 };
@@ -530,14 +536,21 @@ function loadInitialAuthSession(): AuthSession | null {
 }
 
 export const DEMO_ORDER_IDS = new Set([
-  'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
+  'os-2', '2', 'order-2', 'os-1002', 'os-1003', 'os-1004', 'os-1005', 'os-1006', 'os-1007',
   'os-1008', 'os-1009', 'os-1010', 'os-1011', 'os-1012', 'os-1013', 'os-1014',
   'os-1015', 'os-1016', 'os-1017', 'os-1018', 'os-1019', 'os-1020'
 ]);
 
-export function isDemoOrder(o: { id?: string }): boolean {
-  if (!o || !o.id) return false;
-  return DEMO_ORDER_IDS.has(o.id);
+export function isDemoOrder(o: { id?: string; orderNumber?: number; requestedService?: string; clientDefect?: string; items?: any[] }): boolean {
+  if (!o) return false;
+  if (o.id && DEMO_ORDER_IDS.has(o.id)) return true;
+  if (o.orderNumber === 2) return true;
+  const req = (o.requestedService || '').toLowerCase();
+  const defect = (o.clientDefect || '').toLowerCase();
+  if ((req.includes('tela') || defect.includes('tela')) && (o.orderNumber === 2 || o.id === '2' || o.id === 'os-1002')) {
+    return true;
+  }
+  return false;
 }
 
 const RAM_STORE = new Map<string, any>();
@@ -1562,11 +1575,23 @@ export const StorageService = {
       notes: notes || `Status alterado de ${prevStatus} para ${newStatus}`,
     });
 
-    if (newStatus === 'ENTREGUE') {
-      order.deliveredAt = new Date().toISOString();
-      if (Number(order.totalPrice) === 0) {
+    const statusUpper = String(newStatus || '').toUpperCase();
+    const isCompletedOrDelivered = statusUpper.includes('ENTREG') || statusUpper.includes('CONCLU');
+
+    if (isCompletedOrDelivered) {
+      if (statusUpper.includes('ENTREG') && !order.deliveredAt) {
+        order.deliveredAt = new Date().toISOString();
+      }
+      // Se não for explicitamente a prazo/fiado, reconhece automaticamente como PAGO
+      if (order.paymentMethod !== 'A_PRAZO') {
         order.paymentStatus = 'PAGO';
-        if (!order.paymentMethod) order.paymentMethod = 'OUTRO';
+        order.isPaid = true;
+        if (!order.paidAmount || order.paidAmount === 0) {
+          order.paidAmount = Number(order.totalPrice) || 0;
+        }
+        if (!order.paymentMethod || order.paymentMethod === 'Não informado') {
+          order.paymentMethod = 'DINHEIRO';
+        }
       }
       // If paid on delivery and cash is open, record cash inflow if not already recorded
       const existingCashMovements = this.getCashMovements();
@@ -2824,7 +2849,7 @@ export const StorageService = {
         billingPeriod: 'VITALÍCIO',
         expiryDate: '', // Sem vencimento, sem data!
         status: 'active',
-        clientName: 'Painel Master Gestor',
+        clientName: 'TechNova Informática & Celulares',
         accountEmail: email || 'msp404011@gmail.com',
         autoRenew: false,
         paymentMethod: 'Acesso Exclusivo Super Admin',
@@ -3143,7 +3168,7 @@ export const StorageService = {
       if (!list.some((a) => a.email.toLowerCase() === masterEmail)) {
         const masterAcc: UserAccount = {
           id: masterEmail,
-          shopName: 'Painel Master Gestor',
+          shopName: 'TechNova Informática & Celulares',
           ownerName: 'Administrador Master',
           email: masterEmail,
           phone: '00000000000',
@@ -3467,7 +3492,7 @@ export const StorageService = {
         billingPeriod: 'VITALÍCIO',
         expiryDate: '', // Sem data e sem vencimento!
         status: 'active',
-        clientName: 'Painel Master Gestor',
+        clientName: 'TechNova Informática & Celulares',
         accountEmail: cleanEmail,
         autoRenew: false,
         paymentMethod: 'Acesso Exclusivo Super Admin',
@@ -3497,7 +3522,7 @@ export const StorageService = {
         email: cleanEmail,
         nome: 'Administrador Master',
         responsavel: 'Administrador Master',
-        empresa: 'Painel Master Gestor',
+        empresa: 'TechNova Informática & Celulares',
         role: 'superadmin',
         tipo: 'superadmin',
         planoId: 'SUPER_ADMIN',
@@ -3697,7 +3722,7 @@ export const StorageService = {
         billingPeriod: 'VITALÍCIO',
         expiryDate: '', // Sem vencimento, sem data!
         status: 'active',
-        clientName: 'Painel Master Gestor',
+        clientName: 'TechNova Informática & Celulares',
         accountEmail: cleanEmail,
         autoRenew: false,
         paymentMethod: 'Acesso Exclusivo Super Admin',
@@ -4738,7 +4763,16 @@ export const StorageService = {
 
   // Monthly Debits (Débitos Mensais)
   getMonthlyDebits(): MonthlyDebit[] {
-    return getItem<MonthlyDebit[]>(STORAGE_KEYS.MONTHLY_DEBITS, []);
+    const raw = getItem<MonthlyDebit[]>(STORAGE_KEYS.MONTHLY_DEBITS, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((d) => ({
+      ...d,
+      payments: Array.isArray(d.payments) ? d.payments : [],
+      paidInstallments: Number(d.paidInstallments) || 0,
+      installmentsCount: Number(d.installmentsCount) || 12,
+      totalAmount: Number(d.totalAmount) || 0,
+      installmentAmount: Number(d.installmentAmount) || 0,
+    }));
   },
 
   saveMonthlyDebit(debit: MonthlyDebit): MonthlyDebit {
@@ -4769,9 +4803,31 @@ export const StorageService = {
     }
   },
 
+  clearAllMonthlyDebitsAndFinanceData(): void {
+    setItem(STORAGE_KEYS.MONTHLY_DEBITS, []);
+    setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, []);
+    setItem(STORAGE_KEYS.REAL_FIXED_COSTS, []);
+    setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, []);
+    setItem(STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, []);
+    setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, []);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.removeItem('msp_fixed_costs_initialized');
+      } catch (_) {}
+    }
+    this.logAction('Todos os dados de Débitos e Finanças foram zerados.');
+    notifyListeners();
+  },
+
   // Accounts Payable (Contas a Pagar / Diárias)
   getAccountsPayable(): AccountsPayable[] {
-    return getItem<AccountsPayable[]>(STORAGE_KEYS.ACCOUNTS_PAYABLE, []);
+    const raw = getItem<AccountsPayable[]>(STORAGE_KEYS.ACCOUNTS_PAYABLE, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((a) => ({
+      ...a,
+      currentBalance: Number(a.currentBalance) || 0,
+      transactions: Array.isArray(a.transactions) ? a.transactions : [],
+    }));
   },
 
   saveAccountsPayable(account: AccountsPayable): AccountsPayable {
@@ -4840,7 +4896,13 @@ export const StorageService = {
 
   // Custo Fixo Real (Real Fixed Costs)
   getRealFixedCosts(): RealFixedCost[] {
-    return getItem<RealFixedCost[]>(STORAGE_KEYS.REAL_FIXED_COSTS, []);
+    const raw = getItem<RealFixedCost[]>(STORAGE_KEYS.REAL_FIXED_COSTS, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((c) => ({
+      ...c,
+      amount: Number(c.amount) || 0,
+      isPaidThisMonth: Boolean(c.isPaidThisMonth),
+    }));
   },
 
   saveRealFixedCosts(costs: RealFixedCost[]): void {
@@ -4871,6 +4933,189 @@ export const StorageService = {
     notifyListeners();
     if (target) {
       this.logAction(`Custo fixo excluído: ${target.name}`);
+    }
+  },
+
+  // Finance Cash Registers (Cards de Caixa na aba Finanças)
+  getFinanceCashRegisters(): FinanceCashRegister[] {
+    let list = getItem<FinanceCashRegister[]>(STORAGE_KEYS.FINANCE_CASH_REGISTERS, []);
+    if (!list || list.length === 0) {
+      // Seed initial default Caixa Principal
+      const defaultRegister: FinanceCashRegister = {
+        id: 'freg-default-1',
+        name: 'Caixa Principal',
+        initialBalance: 500.00,
+        currentBalance: 500.00,
+        totalWithdrawn: 0.00,
+        totalDeposited: 0.00,
+        color: 'emerald',
+        notes: 'Caixa físico da loja / balcão principal',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      list = [defaultRegister];
+      setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, list);
+    }
+    return list;
+  },
+
+  saveFinanceCashRegisters(registers: FinanceCashRegister[]): void {
+    setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, registers);
+    notifyListeners();
+  },
+
+  saveFinanceCashRegister(register: FinanceCashRegister): FinanceCashRegister {
+    const list = this.getFinanceCashRegisters();
+    const idx = list.findIndex(r => r.id === register.id);
+    if (idx >= 0) {
+      list[idx] = { ...register, updatedAt: new Date().toISOString() };
+      this.logAction(`Caixa atualizado: ${register.name}`);
+    } else {
+      list.push({ ...register, createdAt: register.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      this.logAction(`Novo Caixa criado: ${register.name}`);
+    }
+    this.saveFinanceCashRegisters(list);
+    this.recalculateFinanceRegisterBalances();
+    return register;
+  },
+
+  deleteFinanceCashRegister(id: string): void {
+    const list = this.getFinanceCashRegisters();
+    const target = list.find(r => r.id === id);
+    const filtered = list.filter(r => r.id !== id);
+    this.saveFinanceCashRegisters(filtered);
+    if (target) {
+      this.logAction(`Caixa excluído: ${target.name}`);
+    }
+  },
+
+  // Finance Cash Movements (Retiradas / Colocações nos Caixas)
+  getFinanceCashMovements(): FinanceCashMovementItem[] {
+    return getItem<FinanceCashMovementItem[]>(STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, []);
+  },
+
+  saveFinanceCashMovements(movements: FinanceCashMovementItem[]): void {
+    setItem(STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, movements);
+    this.recalculateFinanceRegisterBalances();
+    notifyListeners();
+  },
+
+  saveFinanceCashMovement(movement: FinanceCashMovementItem): FinanceCashMovementItem {
+    const list = this.getFinanceCashMovements();
+    const idx = list.findIndex(m => m.id === movement.id);
+    if (idx >= 0) {
+      list[idx] = { ...movement, updatedAt: new Date().toISOString() };
+      this.logAction(`Movimentação de caixa atualizada: ${movement.reason}`);
+    } else {
+      list.unshift({ ...movement, createdAt: movement.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      this.logAction(`Nova movimentação de caixa: ${movement.reason} (R$ ${movement.amount.toFixed(2)})`);
+    }
+    this.saveFinanceCashMovements(list);
+    return movement;
+  },
+
+  deleteFinanceCashMovement(id: string): void {
+    const list = this.getFinanceCashMovements();
+    const target = list.find(m => m.id === id);
+    const filtered = list.filter(m => m.id !== id);
+    this.saveFinanceCashMovements(filtered);
+    if (target) {
+      this.logAction(`Movimentação de caixa excluída: ${target.reason}`);
+    }
+  },
+
+  getDefinitiveExpenses(): DefinitiveExpense[] {
+    return getItem<DefinitiveExpense[]>(STORAGE_KEYS.DEFINITIVE_EXPENSES, []);
+  },
+
+  saveDefinitiveExpense(expense: DefinitiveExpense): DefinitiveExpense {
+    const list = this.getDefinitiveExpenses();
+    list.unshift({ ...expense, createdAt: expense.createdAt || new Date().toISOString() });
+    setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, list);
+    this.recalculateFinanceRegisterBalances();
+    notifyListeners();
+    this.logAction(`Nova despesa definitiva registrada: ${expense.reason} (R$ ${expense.amount.toFixed(2)})`);
+    return expense;
+  },
+
+  deleteDefinitiveExpense(id: string): void {
+    const list = this.getDefinitiveExpenses().filter(e => e.id !== id);
+    setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, list);
+    this.recalculateFinanceRegisterBalances();
+    notifyListeners();
+    this.logAction(`Despesa definitiva removida`);
+  },
+
+  // Zera e limpa todas as movimentações e despesas definitivas do caixa selecionado
+  resetRegisterWithdrawals(registerId: string): void {
+    const movements = this.getFinanceCashMovements();
+    const filteredMovements = movements.filter(m => m.cashRegisterId !== registerId);
+    this.saveFinanceCashMovements(filteredMovements);
+
+    const expenses = this.getDefinitiveExpenses();
+    const filteredExpenses = expenses.filter(e => e.cashRegisterId !== registerId);
+    setItem(STORAGE_KEYS.DEFINITIVE_EXPENSES, filteredExpenses);
+
+    this.recalculateFinanceRegisterBalances();
+    this.logAction(`Caixa zerado e limpo com sucesso`);
+  },
+
+  // Recalculates current balance and totals for all registers based on movements
+  recalculateFinanceRegisterBalances(): void {
+    const registers = getItem<FinanceCashRegister[]>(STORAGE_KEYS.FINANCE_CASH_REGISTERS, []);
+    const movements = getItem<FinanceCashMovementItem[]>(STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, []);
+    if (!registers || registers.length === 0) return;
+
+    let hasChanges = false;
+    const updatedRegisters = registers.map(reg => {
+      const regMovements = movements.filter(m => m.cashRegisterId === reg.id);
+      
+      let pendingWithdrawn = 0;
+      let totalDeposited = 0;
+
+      regMovements.forEach(m => {
+        if (m.type === 'WITHDRAWAL') {
+          const addTotal = (m.transactions || []).filter(t => t.type === 'ADD').reduce((s, t) => s + t.amount, 0);
+          const paybackTotal = (m.transactions || []).filter(t => t.type === 'PAYBACK').reduce((s, t) => s + t.amount, 0);
+          const totalAmt = m.amount + addTotal;
+          const totalPaid = (m.paidBackAmount || 0) + paybackTotal;
+          const isFullyPaid = m.isPaid || totalPaid >= totalAmt;
+          if (!isFullyPaid) {
+            const remaining = Math.max(0, totalAmt - totalPaid);
+            pendingWithdrawn += remaining;
+          }
+        } else if (m.type === 'DEPOSIT') {
+          const addTotal = (m.transactions || []).filter(t => t.type === 'ADD').reduce((s, t) => s + t.amount, 0);
+          const paybackTotal = (m.transactions || []).filter(t => t.type === 'PAYBACK').reduce((s, t) => s + t.amount, 0);
+          totalDeposited += (m.amount + addTotal) - paybackTotal;
+        }
+      });
+
+      const definitiveExpenses = getItem<DefinitiveExpense[]>(STORAGE_KEYS.DEFINITIVE_EXPENSES, []);
+      const regDefinitiveExpenses = definitiveExpenses.filter(e => e.cashRegisterId === reg.id);
+      const totalDefinitiveExpenses = regDefinitiveExpenses.reduce((s, e) => s + e.amount, 0);
+
+      const newCurrentBalance = Math.max(0, (reg.initialBalance || 0) - pendingWithdrawn + totalDeposited - totalDefinitiveExpenses);
+
+      if (
+        reg.totalWithdrawn !== pendingWithdrawn ||
+        reg.totalDeposited !== totalDeposited ||
+        reg.currentBalance !== newCurrentBalance
+      ) {
+        hasChanges = true;
+        return {
+          ...reg,
+          totalWithdrawn: pendingWithdrawn,
+          totalDeposited: totalDeposited,
+          currentBalance: newCurrentBalance,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return reg;
+    });
+
+    if (hasChanges) {
+      setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, updatedRegisters, true);
     }
   },
 

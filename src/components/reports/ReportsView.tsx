@@ -40,7 +40,6 @@ import {
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { SubscriptionService } from '../../services/subscriptionService';
-import { PaywallModal } from '../subscription/PaywallModal';
 import { useTheme } from '../../context/ThemeContext';
 import { formatCurrency, formatDate, formatDateTime, getPaymentMethodLabel, getCanonicalStatus, getOrderStatusLabel, getOrderStatusBadgeClasses } from '../../services/formatters';
 import { Sale, ServiceOrder, Expense, Product, Purchase, AccountReceivable, PaymentMethod } from '../../types';
@@ -377,39 +376,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
   const [selectedReportType, setSelectedReportType] = useState('Relatório Completo');
   const [tick, setTick] = useState(0);
 
-  const [paywallModalState, setPaywallModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-    description: string;
-    feature: 'REPORTS' | 'PDF_EXPORT' | 'GENERAL' | 'ORDERS_LIMIT' | 'PRODUCTS_LIMIT';
-  }>({
-    isOpen: false,
-    title: '',
-    description: '',
-    feature: 'REPORTS',
-  });
-
   useEffect(() => {
     const unsub = StorageService.subscribe(() => setTick((t) => t + 1));
     return unsub;
   }, []);
 
-  const subLimits = useMemo(() => SubscriptionService.checkSubscriptionLimits(), [tick]);
   const sales = useMemo(() => StorageService.getSales() || [], [tick]);
   const orders = useMemo(() => StorageService.getOrders() || [], [tick]);
   const expenses = useMemo(() => StorageService.getExpenses() || [], [tick]);
   const products = useMemo(() => StorageService.getProducts() || [], [tick]);
 
   const handleExport = (type: string) => {
-    if (!subLimits.canExportPdf) {
-      setPaywallModalState({
-        isOpen: true,
-        title: 'Exportação em PDF Bloqueada',
-        description: 'A exportação de relatórios em PDF é um recurso Pro.',
-        feature: 'PDF_EXPORT',
-      });
-      return;
-    }
     alert(`Exportando relatório (${type})... Gerado com sucesso!`);
   };
 
@@ -456,8 +433,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ onOpenPlans }) => {
 
       {activeTab === 'OVERVIEW' && <ReportsOverviewTab sales={sales} orders={orders} expenses={expenses} products={products} onExport={handleExport} />}
       {activeTab === 'SALES' && <ReportsSalesTab sales={sales} onExport={handleExport} />}
-
-      <PaywallModal isOpen={paywallModalState.isOpen} onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))} title={paywallModalState.title} description={paywallModalState.description} feature={paywallModalState.feature} onOpenPlans={onOpenPlans} />
     </div>
   );
 };

@@ -4,6 +4,7 @@ export type NavigationTab =
   | 'DASHBOARD'
   | 'MESSAGE_BUDGETS'
   | 'CAMERAS'
+  | 'STREAMING'
   | 'CAMERA_INSTALLATIONS'
   | 'SUPPLIER_ORDERS'
   | 'EXCLUSIVE_ORDERS'
@@ -131,6 +132,64 @@ export interface RealFixedCost {
   dueDate: string; // Ex: "Dia 10", "15"
   notes?: string;
   isPaidThisMonth?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinanceInitialBalanceFeedItem {
+  id: string;
+  amountAdded: number;
+  previousBalance: number;
+  newBalance: number;
+  date: string;
+  reason?: string;
+}
+
+export interface FinanceCashRegister {
+  id: string;
+  name: string; // Ex: "Caixa Loja", "Caixa Balcão", "Cofre"
+  initialBalance: number; // Saldo Inicial / Fundo Base
+  currentBalance: number; // Saldo Atual disponível
+  totalWithdrawn: number; // Total que foi tirado e ainda não foi devolvido
+  totalDeposited: number; // Total que foi colocado / devolvido
+  color?: 'emerald' | 'blue' | 'purple' | 'amber' | 'cyan' | 'rose';
+  notes?: string;
+  initialBalanceHistory?: FinanceInitialBalanceFeedItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DefinitiveExpense {
+  id: string;
+  cashRegisterId: string;
+  amount: number;
+  reason: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface FinanceCashMovementTransaction {
+  id: string;
+  type: 'ADD' | 'PAYBACK'; // ADD = Adicionar mais retirada/empréstimo, PAYBACK = Devolver/pagar ao caixa
+  amount: number;
+  date: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface FinanceCashMovementItem {
+  id: string;
+  cashRegisterId: string; // Aponta para qual caixa
+  cashRegisterName?: string;
+  type: 'WITHDRAWAL' | 'DEPOSIT'; // 'WITHDRAWAL' = Tirar do caixa, 'DEPOSIT' = Colocar no caixa
+  amount: number; // Valor tirado ou colocado base
+  reason: string; // Motivo do dinheiro tirado ou colocado
+  date: string; // Data / Hora
+  paidBackAmount: number; // Quanto já foi devolvido / pago de volta
+  isPaid: boolean; // Se o valor já foi totalmente quitado / zerado
+  paidAt?: string;
+  notes?: string;
+  transactions?: FinanceCashMovementTransaction[];
   createdAt: string;
   updatedAt: string;
 }
@@ -416,6 +475,10 @@ export interface ServiceOrder {
   totalPrice: number;
   paymentMethod?: PaymentMethod;
   paymentStatus: 'PENDENTE' | 'PAGO' | 'PARCIAL';
+  paidAmount?: number;
+  paymentDate?: string;
+  paymentNotes?: string;
+  isPaid?: boolean;
   payments?: { paymentMethod: PaymentMethod | string; amount: number; date?: string }[];
 
   // Responsáveis e datas
@@ -490,9 +553,19 @@ export interface DeviceTechnicalChecklist {
   botaoAuxiliarPresenca?: 'TEM' | 'NAO_TEM' | string;
   botaoAuxiliarStatus?: 'FUNCIONA' | 'NAO_FUNCIONA' | string;
   gavetaChip?: 'SIM' | 'NAO' | 'PROBLEMA' | string;
+  gavetaChipObs?: string;
   cartaoMemoria?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  cartaoMemoriaObs?: string;
   chip1?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  chip1Operadora?: 'TIM' | 'Vivo' | 'Brisanet' | 'Claro' | 'Outro' | string;
+  chip1OperadoraOutro?: string;
+  chip1Obs?: string;
   chip2?: 'FUNCIONA' | 'NAO_FUNCIONA' | 'NAO_TESTADO' | string;
+  chip2Operadora?: 'TIM' | 'Vivo' | 'Brisanet' | 'Claro' | 'Outro' | string;
+  chip2OperadoraOutro?: string;
+  chip2Obs?: string;
+  carregador?: 'SIM' | 'NAO' | 'DETALHES' | string;
+  carregadorObs?: string;
   sinalArea?: 'SIM' | 'NAO' | string;
   observacoes?: string;
 }

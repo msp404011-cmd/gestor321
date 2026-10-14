@@ -370,75 +370,31 @@ export const SubscriptionService = {
 
     const isActive = !isExpired && !isCanceled;
 
-    // Monthly orders count
+    // Monthly orders and products count
     const osCountThisMonth = this.getOrdersCountThisMonth();
-    const maxMonthlyOrders = planDefinition.limits.maxMonthlyOrders;
-
-    let canCreateOrder = true;
-    let orderLimitReason: string | undefined;
-
-    if (planType === 'PDV_VENDAS') {
-      canCreateOrder = false;
-      orderLimitReason = 'O Plano PDV & Vendas não inclui o módulo de Ordens de Serviço. Atualize para o Plano Assistência Técnica ou Revenda para utilizar este recurso.';
-    } else if (isExpired) {
-      canCreateOrder = false;
-      orderLimitReason = isTrial
-        ? 'Seu período de teste grátis de 7 dias expirou. Escolha um plano para continuar emitindo Ordens de Serviço.'
-        : 'Sua assinatura mensal está vencida. Renove para continuar criando Ordens de Serviço.';
-    } else if (isCanceled) {
-      canCreateOrder = false;
-      orderLimitReason = 'Sua assinatura foi cancelada. Reative o plano para criar novas Ordens de Serviço.';
-    }
-
-    // Products count
     const productsCount = this.getProductsCount();
-    const maxProducts = planDefinition.limits.maxProducts;
-
-    let canCreateProduct = true;
-    let productLimitReason: string | undefined;
-
-    if (isExpired) {
-      canCreateProduct = false;
-      productLimitReason = isTrial
-        ? 'Seu período de teste grátis de 7 dias expirou. Escolha um plano para cadastrar novos produtos.'
-        : 'Sua assinatura mensal está vencida. Renove para cadastrar novos produtos.';
-    } else if (isCanceled) {
-      canCreateProduct = false;
-      productLimitReason = 'Sua assinatura foi cancelada. Reative para cadastrar novos produtos.';
-    }
-
-    // Advanced reports & PDF export access
-    const canAccessAdvancedReports = isActive;
-    const canExportPdf = isActive;
-
-    const formattedExpiryDate = currentPlan.expiryDate
-      ? new Date(currentPlan.expiryDate + 'T12:00:00').toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })
-      : 'Indeterminada';
+    const maxMonthlyOrders = planDefinition.limits.maxMonthlyOrders;
 
     return {
       currentPlan,
       planDefinition,
-      isTrial,
-      isFreePlan,
-      isActive,
-      isExpired,
-      isCanceled,
-      daysRemaining,
-      formattedExpiryDate,
+      isTrial: false,
+      isFreePlan: false,
+      isActive: true,
+      isExpired: false,
+      isCanceled: false,
+      daysRemaining: null,
+      formattedExpiryDate: 'Uso Exclusivo da Loja',
       osCountThisMonth,
-      maxMonthlyOrders,
-      canCreateOrder,
-      orderLimitReason,
+      maxMonthlyOrders: null,
+      canCreateOrder: true,
+      orderLimitReason: undefined,
       productsCount,
-      maxProducts,
-      canCreateProduct,
-      productLimitReason,
-      canAccessAdvancedReports,
-      canExportPdf,
+      maxProducts: null,
+      canCreateProduct: true,
+      productLimitReason: undefined,
+      canAccessAdvancedReports: true,
+      canExportPdf: true,
     };
   },
 
@@ -614,60 +570,16 @@ export const SubscriptionService = {
     if (tab === 'EARNINGS') {
       return isSuperAdminUser();
     }
-
-    if (isSuperAdminUser()) {
-      return true; // Super Admin tem todas as funções 100% liberadas exclusivamente para ele
-    }
-
-    const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType = targetPlanType || currentPlan.planType;
-    const norm: PlanType = normalizePlanType(rawType);
-
-    if (norm === 'SUPER_ADMIN' || norm === 'TRIAL' || norm === 'REVENDA') {
-      return true; // Todos os módulos 100% liberados
-    }
-
-    if (norm === 'PDV_VENDAS') {
-      // Plano PDV & Vendas: Sem OS (ORDERS), Sem Aparelhos (DEVICES), Sem Revenda (RESELLERS)
-      if (tab === 'ORDERS' || tab === 'DEVICES' || tab === 'RESELLERS') {
-        return false;
-      }
-      return true;
-    }
-
-    if (norm === 'ASSISTENCIA') {
-      // Plano Assistência Técnica: Com OS, Aparelhos, PDV. Sem Revenda
-      if (tab === 'RESELLERS') {
-        return false;
-      }
-      return true;
-    }
-
+    // O sistema agora é de uso exclusivo da loja, sem planos ou bloqueios
     return true;
   },
 
   isTechnicalAssistanceAllowed(targetPlanType?: PlanType): boolean {
-    if (isSuperAdminUser()) return true;
-
-    const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType = targetPlanType || currentPlan.planType;
-    const norm: PlanType = normalizePlanType(rawType);
-
-    if (norm === 'SUPER_ADMIN' || norm === 'TRIAL' || norm === 'REVENDA' || norm === 'ASSISTENCIA') {
-      return true;
-    }
-
-    return false;
+    return true;
   },
 
   isResellerFeatureAllowed(targetPlanType?: PlanType): boolean {
-    if (isSuperAdminUser()) return true;
-
-    const currentPlan = StorageService.getSubscriptionPlan();
-    const rawType = targetPlanType || currentPlan.planType;
-    const norm: PlanType = normalizePlanType(rawType);
-
-    return norm === 'SUPER_ADMIN' || norm === 'REVENDA' || norm === 'TRIAL';
+    return true;
   },
 
   isSuperAdminUser(email?: string | null): boolean {

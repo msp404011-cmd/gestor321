@@ -48,10 +48,8 @@ import {
   Key,
   Square,
   Database,
-  Crown,
   Cloud,
 } from 'lucide-react';
-import { SubscriptionTab } from '../subscription/SubscriptionTab';
 import { GoogleDriveBackupService } from '../../services/googleDriveBackupService';
 import {
   StorageService,
@@ -144,7 +142,7 @@ const samplePreviewOrder: ServiceOrder = {
 export const SettingsView: React.FC = () => {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<
-    'COMPANY' | 'SUBSCRIPTION' | 'OS_CONFIG' | 'CATEGORIES' | 'USERS' | 'AUDIT' | 'BACKUP' | 'PURCHASES_CONFIG' | 'SYSTEM_FORMAT'
+    'COMPANY' | 'OS_CONFIG' | 'CATEGORIES' | 'USERS' | 'AUDIT' | 'BACKUP' | 'PURCHASES_CONFIG' | 'SYSTEM_FORMAT'
   >('COMPANY');
 
   // System Formatter (Zerar Sistema) States
@@ -1065,17 +1063,18 @@ export const SettingsView: React.FC = () => {
 
       {/* Tabs Row */}
       <div className={`flex items-center gap-2 border-b-2 pb-2 overflow-x-auto ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-        {[
-          { id: 'COMPANY', label: 'Logotipo & Dados da Loja', icon: Building2 },
-          { id: 'SUBSCRIPTION', label: 'Meu Plano / Assinatura', icon: Crown, highlight: true },
-          { id: 'OS_CONFIG', label: 'Personalização da OS (Ordem de Serviço)', icon: Sliders },
-          { id: 'CATEGORIES', label: 'Categorias de Produtos', icon: Layers },
-          { id: 'USERS', label: 'Usuários & Permissões', icon: Users },
-          { id: 'AUDIT', label: 'Histórico de Auditoria', icon: Clock },
-          { id: 'BACKUP', label: 'Backup & Restauração', icon: Download },
-          { id: 'PURCHASES_CONFIG', label: 'Compras & Fornecedores', icon: Settings },
-          { id: 'SYSTEM_FORMAT', label: 'Formatador do Sistema (Zerar)', icon: AlertTriangle, danger: true },
-        ].map((tab) => {
+        {(
+          [
+            { id: 'COMPANY', label: 'Logotipo & Dados da Loja', icon: Building2 },
+            { id: 'OS_CONFIG', label: 'Personalização da OS (Ordem de Serviço)', icon: Sliders },
+            { id: 'CATEGORIES', label: 'Categorias de Produtos', icon: Layers },
+            { id: 'USERS', label: 'Usuários & Permissões', icon: Users },
+            { id: 'AUDIT', label: 'Histórico de Auditoria', icon: Clock },
+            { id: 'BACKUP', label: 'Backup & Restauração', icon: Download },
+            { id: 'PURCHASES_CONFIG', label: 'Compras & Fornecedores', icon: Settings },
+            { id: 'SYSTEM_FORMAT', label: 'Formatador do Sistema (Zerar)', icon: AlertTriangle, danger: true },
+          ] as Array<{ id: string; label: string; icon: any; danger?: boolean; highlight?: boolean }>
+        ).map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
 
@@ -1121,8 +1120,7 @@ export const SettingsView: React.FC = () => {
         })}
       </div>
 
-      {/* TAB: MY PLAN & SUBSCRIPTION */}
-      {activeTab === 'SUBSCRIPTION' && <SubscriptionTab />}
+
 
       {/* TAB 1: LOGO & COMPANY */}
       {activeTab === 'COMPANY' && (

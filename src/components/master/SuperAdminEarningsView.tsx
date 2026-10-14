@@ -269,7 +269,7 @@ export const SuperAdminEarningsView: React.FC<SuperAdminEarningsViewProps> = () 
 
   const handleClearAllEarnings = () => {
     if (confirm('Deseja realmente limpar todos os ganhos da planilha? Esta ação não pode ser desfeita.')) {
-      StorageService.setItem('msp_super_admin_earnings_v1', []);
+      StorageService.saveEarnings([]);
       setEarnings([]);
       showToast('🗑️ Todos os ganhos foram removidos!');
     }
@@ -284,7 +284,7 @@ export const SuperAdminEarningsView: React.FC<SuperAdminEarningsViewProps> = () 
     }
     if (confirm(`Deseja realmente limpar todos os ${receivedCount} registros do Histórico de Recebidos? Esta ação não pode ser desfeita. Os itens em aberto NÃO serão apagados.`)) {
       const remainingPending = earnings.filter(x => !x.isReceived && x.status !== 'RECEIVED');
-      StorageService.setItem('msp_super_admin_earnings_v1', remainingPending);
+      StorageService.saveEarnings(remainingPending);
       setEarnings(remainingPending);
       showToast(`🗑️ ${receivedCount} registro(s) do Histórico foram removidos com sucesso!`);
     }

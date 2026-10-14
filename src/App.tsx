@@ -35,15 +35,12 @@ const CompatibilityView = lazy(() => import('./components/compatibility/Compatib
 const EmployeesView = lazy(() => import('./components/employees/EmployeesView').then(m => ({ default: m.EmployeesView })));
 const ReceivablesView = lazy(() => import('./components/receivables/ReceivablesView').then(m => ({ default: m.ReceivablesView })));
 const MonthlyDebitsView = lazy(() => import('./components/finance/MonthlyDebitsView').then(m => ({ default: m.MonthlyDebitsView })));
-const SubscriptionModal = lazy(() => import('./components/subscription/SubscriptionTab').then(m => ({ default: m.SubscriptionModal })));
-const PaywallModal = lazy(() => import('./components/subscription/PaywallModal').then(m => ({ default: m.PaywallModal })));
 const BlockedAccountModal = lazy(() => import('./components/common/BlockedAccountModal').then(m => ({ default: m.BlockedAccountModal })));
 const LoginView = lazy(() => import('./components/auth/LoginView').then(m => ({ default: m.LoginView })));
 const LoginModal = lazy(() => import('./components/auth/LoginModal').then(m => ({ default: m.LoginModal })));
-const MasterAuthModal = lazy(() => import('./components/master/MasterAuthModal').then(m => ({ default: m.MasterAuthModal })));
-const MasterPanel = lazy(() => import('./components/master/MasterPanel').then(m => ({ default: m.MasterPanel })));
 const AppAccessManagement = lazy(() => import('./components/master/AppAccessManagement').then(m => ({ default: m.AppAccessManagement })));
 const CameraPackageManagement = lazy(() => import('./components/master/CameraPackageManagement').then(m => ({ default: m.CameraPackageManagement })));
+const StreamingPackageManagement = lazy(() => import('./components/master/StreamingPackageManagement').then(m => ({ default: m.StreamingPackageManagement })));
 const CameraInstallationsManagement = lazy(() => import('./components/master/CameraInstallationsManagement').then(m => ({ default: m.CameraInstallationsManagement })));
 const SupplierOrdersManagement = lazy(() => import('./components/master/SupplierOrdersManagement').then(m => ({ default: m.SupplierOrdersManagement })));
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
@@ -171,34 +168,9 @@ export default function App() {
     productToEdit?: Product | null;
   }>({ isOpen: false });
 
-  // Subscription and Paywall Modals State
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  // Account status State
   const [isAccountBlocked, setIsAccountBlocked] = useState(false);
   const [blockedAccountInfo, setBlockedAccountInfo] = useState<{ name?: string; email?: string }>({});
-  const [paywallModalState, setPaywallModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-    description: string;
-    feature: 'ORDERS_LIMIT' | 'PRODUCTS_LIMIT' | 'ADVANCED_REPORTS' | 'EXPORT_PDF';
-  }>({
-    isOpen: false,
-    title: '',
-    description: '',
-    feature: 'ORDERS_LIMIT',
-  });
-  
-  // Master Panel State
-  const MASTER_ADMIN_EMAILS = ['mmspmartins62@gmail.com', 'msp404011@gmail.com'];
-  const [showMasterAuth, setShowMasterAuth] = useState(false);
-  const [showMasterPanel, setShowMasterPanel] = useState(() => {
-    try {
-      const hasToken = Boolean(AdminBackendService.getToken());
-      const isOpenFlag = sessionStorage.getItem('msp_master_panel_open') === 'true';
-      return hasToken && isOpenFlag;
-    } catch {
-      return false;
-    }
-  });
 
   // System Update Notification State
   const [updateAvailableInfo, setUpdateAvailableInfo] = useState<{
@@ -226,29 +198,12 @@ export default function App() {
     return () => unsubSession();
   }, []);
 
-  // Verify master session validity on mount if master panel is open
-  useEffect(() => {
-    if (showMasterPanel) {
-      AdminBackendService.verifySession().then(isValid => {
-        if (!isValid) {
-          setShowMasterPanel(false);
-          AdminBackendService.clearToken();
-          try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
-        }
-      }).catch(() => {});
-    }
-  }, []);
-
+  const MASTER_ADMIN_EMAILS = ['mmspmartins62@gmail.com', 'msp404011@gmail.com'];
   const isMasterAdmin = Boolean(
     (authSession?.email && MASTER_ADMIN_EMAILS.includes(authSession.email.trim().toLowerCase())) ||
     (currentUser?.email && MASTER_ADMIN_EMAILS.includes(currentUser.email.trim().toLowerCase())) ||
     SubscriptionService.isSuperAdminUser(authSession?.email || currentUser?.email)
   );
-
-  const handleLogoClick = () => {
-    if (!isMasterAdmin) return;
-    setShowMasterAuth(true);
-  };
 
   // Automatically restore and maintain Firebase Auth session across all machines/browsers
   useEffect(() => {
@@ -419,65 +374,8 @@ export default function App() {
     }
   }, [tick, orderDetailState.order?.id, orderDetailState.order?.updatedAt, orderDetailState.order?.status, orderDetailState.order?.totalPrice, orderDetailState.order?.paymentStatus]);
 
-  // Enforce plan-based tab permissions automatically (PDV & VENDAS / ASSISTENCIA modes)
-  useEffect(() => {
-    if (authSession?.isAuthenticated && !SubscriptionService.isTabAllowed(activeTab)) {
-      console.warn(`🔒 Acesso negado à aba "${activeTab}" para o plano atual.`);
-      const currentSub = StorageService.getSubscriptionPlan();
-      const planType = currentSub.planType;
-      
-      const fallbackTab = SubscriptionService.isTabAllowed('DASHBOARD')
-        ? 'DASHBOARD'
-        : SubscriptionService.isTabAllowed('ORDERS')
-        ? 'ORDERS'
-        : 'POS';
-
-      setActiveTab(fallbackTab);
-
-      let modalTitle = 'Módulo Indisponível no seu Plano';
-      let modalDescription = 'Esta funcionalidade pertence a um plano superior. Faça upgrade no Painel Master ou na aba Assinatura para liberar o acesso.';
-
-      if (planType === 'PDV_VENDAS') {
-        modalTitle = 'Módulo Indisponível no Plano PDV & Vendas';
-        modalDescription = 'O Plano PDV & Vendas é focado em Frente de Caixa (PDV), Vendas Balcão, Estoque, Clientes, Crédito/A Prazo e Controle de Caixa. As funcionalidades de Assistência Técnica (OS e Aparelhos) e Revenda exigem o Plano Assistência Técnica ou Revenda.';
-      } else if (planType === 'ASSISTENCIA') {
-        modalTitle = 'Módulo Exclusivo do Plano Revenda / Atacado';
-        modalDescription = 'O Plano Assistência Técnica contempla Ordens de Serviço, Aparelhos, Checklists, PDV, Peças/Estoque, DRE e Relatórios. A gestão de Revenda e Atacado de Aparelhos é exclusiva do Plano Revenda / Atacado.';
-      }
-
-      setPaywallModalState({
-        isOpen: true,
-        title: modalTitle,
-        description: modalDescription,
-        feature: 'ORDERS_LIMIT',
-      });
-    }
-  }, [activeTab, authSession, tick]);
-
-  // Subscription-gated order and product openers
+  // Direct order and product openers for store use
   const handleOpenNewOrder = (initialCustomerId?: string, initialDeviceId?: string) => {
-    if (!SubscriptionService.isTabAllowed('ORDERS')) {
-      setPaywallModalState({
-        isOpen: true,
-        title: 'Módulo Indisponível no Plano PDV & Vendas',
-        description:
-          'O Plano PDV & Vendas não inclui o módulo de Ordens de Serviço. Para registrar equipamentos e gerenciar assistência técnica, faça o upgrade para o Plano Assistência Técnica.',
-        feature: 'ORDERS_LIMIT',
-      });
-      return;
-    }
-    const limits = SubscriptionService.checkSubscriptionLimits();
-    if (!limits.canCreateOrder) {
-      setPaywallModalState({
-        isOpen: true,
-        title: 'Recurso Bloqueado',
-        description:
-          limits.orderLimitReason ||
-          'Seu plano atual não permite criar novas Ordens de Serviço.',
-        feature: 'ORDERS_LIMIT',
-      });
-      return;
-    }
     setOrderModalState({
       isOpen: true,
       orderToEdit: null,
@@ -487,18 +385,6 @@ export default function App() {
   };
 
   const handleOpenNewProduct = () => {
-    const limits = SubscriptionService.checkSubscriptionLimits();
-    if (!limits.canCreateProduct) {
-      setPaywallModalState({
-        isOpen: true,
-        title: 'Limite de Estoque Atingido',
-        description:
-          limits.productLimitReason ||
-          'Você atingiu o limite de 20 produtos cadastrados no Plano Gratuito. Faça upgrade para o Plano Pro para ter estoque ilimitado!',
-        feature: 'PRODUCTS_LIMIT',
-      });
-      return;
-    }
     setProductModalState({ isOpen: true, productToEdit: null });
   };
 
@@ -588,31 +474,8 @@ export default function App() {
           name: data.nome || data.name || data.empresa || authSession.name || 'Cliente',
           email: data.email || authSession.email
         });
-        setIsSubscriptionModalOpen(false);
       } else {
         setIsAccountBlocked(false);
-
-        // Check for expiration/lock
-        const now = new Date();
-        now.setHours(0, 0, 0, 0); // Start of today
-        
-        // Assuming expiryDate is in YYYY-MM-DD format
-        const [y, m, d] = (updatedPlan.expiryDate || '').split('-').map(Number);
-        const expDate = new Date(y, (m || 1) - 1, d || 1);
-        expDate.setHours(0, 0, 0, 0);
-
-        const isExpired = !isSuperAdmin && (
-          updatedPlan.status === 'expired' || 
-          updatedPlan.status === 'canceled' || 
-          Boolean(updatedPlan.expiryDate && expDate < now)
-        );
-
-        if (isExpired) {
-           console.log('🔥 Assinatura expirada detectada. Bloqueando acesso.');
-           setIsSubscriptionModalOpen(true);
-        } else {
-           setIsSubscriptionModalOpen(false);
-        }
       }
     };
 
@@ -646,46 +509,14 @@ export default function App() {
     setDeviceModalState({ isOpen: false });
   };
 
-  // Order Actions (With Gating Protection)
+  // Order Actions (Store usage: unrestricted)
   const handleSaveOrder = (order: ServiceOrder) => {
-    const existingOrders = StorageService.getOrders();
-    const isNew = !existingOrders.some((o) => o.id === order.id);
-    if (isNew) {
-      const limits = SubscriptionService.checkSubscriptionLimits();
-      if (!limits.canCreateOrder) {
-        setPaywallModalState({
-          isOpen: true,
-          title: 'Limite de Ordens de Serviço Atingido',
-          description:
-            limits.orderLimitReason ||
-            'Você atingiu o limite de 10 Ordens de Serviço deste mês no Plano Gratuito.',
-          feature: 'ORDERS_LIMIT',
-        });
-        return;
-      }
-    }
     StorageService.saveOrder(order);
     setOrderModalState({ isOpen: false });
   };
 
-  // Product Actions (With Gating Protection)
+  // Product Actions (Store usage: unrestricted)
   const handleSaveProduct = (product: Product) => {
-    const existingProducts = StorageService.getProducts();
-    const isNew = !existingProducts.some((p) => p.id === product.id);
-    if (isNew) {
-      const limits = SubscriptionService.checkSubscriptionLimits();
-      if (!limits.canCreateProduct) {
-        setPaywallModalState({
-          isOpen: true,
-          title: 'Limite de Estoque Atingido',
-          description:
-            limits.productLimitReason ||
-            'Você atingiu o limite de 20 produtos cadastrados no Plano Gratuito.',
-          feature: 'PRODUCTS_LIMIT',
-        });
-        return;
-      }
-    }
     StorageService.saveProduct(product);
     setProductModalState({ isOpen: false });
   };
@@ -714,10 +545,6 @@ export default function App() {
       sessionManager.startHeartbeat(session.email, result.user.role);
     }
     setTick((prev) => prev + 1);
-
-    if (result.isExpiredOrCanceled) {
-      setIsSubscriptionModalOpen(true);
-    }
   };
 
   const handleLogout = () => {
@@ -754,8 +581,6 @@ export default function App() {
       sessionStorage.removeItem('msp_master_panel_open');
     } catch {}
     setAuthSession(null);
-    setShowMasterPanel(false);
-    setShowMasterAuth(false);
     setIsLoginOpen(false);
     setActiveTab('DASHBOARD');
   };
@@ -796,10 +621,8 @@ export default function App() {
             setIsMobileMenuOpen(false);
           }}
           isMasterAdmin={isMasterAdmin}
-          onLogoClick={isMasterAdmin ? handleLogoClick : undefined}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
-          onOpenPlans={() => setIsSubscriptionModalOpen(true)}
         />
       )}
 
@@ -819,8 +642,6 @@ export default function App() {
             onOpenPDV={() => setActiveTab('POS')}
             onSwitchUser={() => setIsLoginOpen(true)}
             onLogout={handleLogout}
-            onOpenPlans={() => setIsSubscriptionModalOpen(true)}
-            onOpenMaster={isMasterAdmin ? () => setShowMasterAuth(true) : undefined}
           />
         )}
 
@@ -831,27 +652,6 @@ export default function App() {
             : "flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 pb-24 lg:pb-6 max-w-[1780px] w-full mx-auto custom-scrollbar"
         }>
           <Suspense fallback={<ViewLoadingFallback />}>
-            {/* Master Panel */}
-            {showMasterAuth && (
-              <MasterAuthModal 
-                onClose={() => setShowMasterAuth(false)} 
-                onSuccess={() => {
-                  setShowMasterAuth(false); 
-                  setShowMasterPanel(true);
-                  try { sessionStorage.setItem('msp_master_panel_open', 'true'); } catch {}
-                }} 
-              />
-            )}
-            {showMasterPanel && (
-              <MasterPanel 
-                onClose={() => {
-                  setShowMasterPanel(false);
-                  try { sessionStorage.removeItem('msp_master_panel_open'); } catch {}
-                  AdminBackendService.clearToken();
-                }} 
-              />
-            )}
-
             {/* Dynamic Main View Components */}
             {activeTab === 'DASHBOARD' && (
               <DashboardView
@@ -860,7 +660,6 @@ export default function App() {
                 onViewOrder={(order) => setOrderDetailState({ isOpen: true, order })}
                 onNavigate={(tab) => setActiveTab(tab as NavigationTab)}
                 onOpenNewProduct={() => handleOpenNewProduct()}
-                onOpenPlans={() => setIsSubscriptionModalOpen(true)}
               />
             )}
 
@@ -874,6 +673,10 @@ export default function App() {
 
             {activeTab === 'CAMERAS' && (
               <CameraPackageManagement />
+            )}
+
+            {activeTab === 'STREAMING' && (
+              <StreamingPackageManagement />
             )}
 
             {activeTab === 'CAMERA_INSTALLATIONS' && (
@@ -987,7 +790,7 @@ export default function App() {
 
             {activeTab === 'FINANCE' && <FinanceView initialTab="EXPENSES" key="finance-view" />}
 
-            {activeTab === 'REPORTS' && <ReportsView onOpenPlans={() => setIsSubscriptionModalOpen(true)} />}
+            {activeTab === 'REPORTS' && <ReportsView />}
 
             {activeTab === 'EMPLOYEES' && <EmployeesView />}
 
@@ -999,7 +802,11 @@ export default function App() {
               </ErrorBoundary>
             )}
 
-            {activeTab === 'MONTHLY_DEBITS' && <MonthlyDebitsView />}
+            {activeTab === 'MONTHLY_DEBITS' && (
+              <ErrorBoundary fallbackTitle="Erro ao carregar Débitos Mensais">
+                <MonthlyDebitsView />
+              </ErrorBoundary>
+            )}
 
             {activeTab === 'EARNINGS' && (
               <SuperAdminEarningsView onNavigate={(tab) => setActiveTab(tab as NavigationTab)} />
@@ -1217,30 +1024,6 @@ export default function App() {
           onLogout={handleLogout}
         />
 
-        {/* Subscription Plans Modal */}
-        <SubscriptionModal
-          isOpen={isSubscriptionModalOpen && !isAccountBlocked}
-          onClose={() => setIsSubscriptionModalOpen(false)}
-        />
-
-        {/* Paywall Blocking Modal */}
-        <PaywallModal
-          isOpen={paywallModalState.isOpen}
-          onClose={() => setPaywallModalState((prev) => ({ ...prev, isOpen: false }))}
-          title={paywallModalState.title}
-          description={paywallModalState.description}
-          feature={
-            paywallModalState.feature === 'ADVANCED_REPORTS'
-              ? 'REPORTS'
-              : paywallModalState.feature === 'EXPORT_PDF'
-              ? 'PDF_EXPORT'
-              : (paywallModalState.feature as any) || 'GENERAL'
-          }
-          onOpenPlans={() => {
-            setPaywallModalState((prev) => ({ ...prev, isOpen: false }));
-            setIsSubscriptionModalOpen(true);
-          }}
-        />
       </Suspense>
 
       {/* Global Order Delete Confirmation Dialog */}

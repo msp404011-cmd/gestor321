@@ -10,6 +10,7 @@ import {
   Unlock,
   CheckSquare,
   Headphones,
+  Settings,
 } from 'lucide-react';
 import {
   ServiceOrder,
@@ -31,6 +32,7 @@ import { formatCurrency, cleanPhoneForWhatsApp } from '../../services/formatters
 import { useTheme } from '../../context/ThemeContext';
 import { OrderClientDeviceSection } from './OrderClientDeviceSection';
 import { OrderProblemAccessoriesSection } from './OrderProblemAccessoriesSection';
+import { OrderServiceDiagnosisSection } from './OrderServiceDiagnosisSection';
 import { OrderAccessoriesChecklistSection } from './OrderAccessoriesChecklistSection';
 import { OrderPartsFinancialSection } from './OrderPartsFinancialSection';
 import { OrderTechnicalChecklistSection } from './OrderTechnicalChecklistSection';
@@ -149,9 +151,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Dynamic Accessories Checklist State
   const [customAccMap, setCustomAccMap] = useState<Record<string, { present: boolean; details: string }>>({});
 
-  // Technical Tests Checklist State & Column 2 Tab
+  // Technical Tests Checklist State & Column 2 Tab: 1. PROBLEMA (apenas defeito), 2. SERVICO (serviço e diagnóstico), 3. ACESSORIOS (checklist de acessórios)
   const [technicalChecklist, setTechnicalChecklist] = useState<DeviceTechnicalChecklist>({});
-  const [col2Tab, setCol2Tab] = useState<'PROBLEMA' | 'ACESSORIOS' | 'CHECKLIST'>('PROBLEMA');
+  const [col2Tab, setCol2Tab] = useState<'PROBLEMA' | 'SERVICO' | 'ACESSORIOS'>('PROBLEMA');
+
+  // Mobile dedicated 3-step navigation (Step 1: Cliente & Aparelho, Step 2: Defeito & Checklist, Step 3: Peças & Valores)
+  const [mobileStep, setMobileStep] = useState<'CLIENTE' | 'SERVICO' | 'FINANCEIRO'>('CLIENTE');
 
   // Problems & Services
   const [clientDefect, setClientDefect] = useState('');
@@ -211,6 +216,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [selectedPartTier, setSelectedPartTier] = useState<'FIRST_LINE' | 'PREMIUM' | 'NONE'>('NONE');
   const [warrantyDays, setWarrantyDays] = useState<number>(90);
   const [paymentStatus, setPaymentStatus] = useState<string>('PENDENTE');
+  const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [paymentDate, setPaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const [showPaidAmountInput, setShowPaidAmountInput] = useState<boolean>(false);
+  const [showPaymentNotesInput, setShowPaymentNotesInput] = useState<boolean>(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const partSearchRef = useRef<HTMLDivElement>(null);
@@ -298,7 +308,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           orderToEdit.technicalDiagnosis ||
           ''
       );
-      setEntryDate(orderToEdit.createdAt ? orderToEdit.createdAt.split('T')[0] : today);
+      setEntryDate(orderToEdit.createdAt && typeof orderToEdit.createdAt === 'string' ? orderToEdit.createdAt.split('T')[0] : today);
       
       if (orderToEdit.estimatedCompletionDate) {
         setIsDeliveryOptional(false);
@@ -332,6 +342,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setSelectedPartTier(orderToEdit.selectedPartTier || 'NONE');
       setWarrantyDays(orderToEdit.warrantyDays || 90);
       setPaymentStatus(orderToEdit.paymentStatus || 'PENDENTE');
+      setPaidAmount(orderToEdit.paidAmount || 0);
+      setPaymentDate(orderToEdit.paymentDate || new Date().toISOString().split('T')[0]);
+      setPaymentNotes(orderToEdit.paymentNotes || '');
+      setShowPaidAmountInput(Boolean(orderToEdit.paidAmount && orderToEdit.paidAmount > 0));
+      setShowPaymentNotesInput(Boolean(orderToEdit.paymentNotes && orderToEdit.paymentNotes.trim()));
 
       if (orderToEdit.passwordPattern && Array.isArray(orderToEdit.passwordPattern) && orderToEdit.passwordPattern.length > 0) {
         setPasswordType('PATTERN');
@@ -846,12 +861,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         discount: Number(discount) || 0,
         totalPrice: finalOrderTotal,
         paymentMethod:
-          (paymentMethod && paymentMethod !== 'Não informado')
-            ? (paymentMethod as PaymentMethod)
-            : (finalOrderTotal === 0 ? 'OUTRO' : undefined),
-        paymentStatus: finalOrderTotal === 0
+          (initialStatus === 'ENTREGUE' || String(initialStatus).toUpperCase().includes('ENTREG') || String(initialStatus).toUpperCase().includes('CONCLU')) && (!paymentMethod || paymentMethod === 'Não informado')
+            ? 'DINHEIRO'
+            : ((paymentMethod && paymentMethod !== 'Não informado')
+                ? (paymentMethod as PaymentMethod)
+                : (finalOrderTotal === 0 ? 'OUTRO' : undefined)),
+        paymentStatus: (initialStatus === 'ENTREGUE' || String(initialStatus).toUpperCase().includes('ENTREG') || String(initialStatus).toUpperCase().includes('CONCLU'))
           ? 'PAGO'
           : (paymentStatus || (orderToEdit ? orderToEdit.paymentStatus : 'PENDENTE')) as any,
+        paidAmount: (initialStatus === 'ENTREGUE' || String(initialStatus).toUpperCase().includes('ENTREG') || String(initialStatus).toUpperCase().includes('CONCLU'))
+          ? (Number(paidAmount) > 0 ? Number(paidAmount) : finalOrderTotal)
+          : (Number(paidAmount) || 0),
+        paymentDate: paymentDate || undefined,
+        paymentNotes: paymentNotes.trim() || undefined,
+        isPaid: paymentStatus === 'PAGO' || (initialStatus === 'ENTREGUE' || String(initialStatus).toUpperCase().includes('ENTREG') || String(initialStatus).toUpperCase().includes('CONCLU')),
         status: initialStatus,
         archivedLocation: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || archivedLocation.trim()) ? (archivedLocation.trim() || undefined) : undefined,
         promisedRepairDate: (initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV')) && promisedRepairDate.trim() ? promisedRepairDate.trim() : (orderToEdit?.promisedRepairDate || undefined),
@@ -865,7 +888,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         warrantyDays: warrantyDays || 90,
         estimatedCompletionDate:
           !isDeliveryOptional && deliveryDate ? new Date(deliveryDate).toISOString() : undefined,
-        createdAt: orderToEdit ? orderToEdit.createdAt : new Date().toISOString(),
+        createdAt: entryDate
+          ? new Date(entryDate + 'T' + (orderToEdit ? new Date(orderToEdit.createdAt).toTimeString().split(' ')[0] : new Date().toTimeString().split(' ')[0])).toISOString()
+          : (orderToEdit ? orderToEdit.createdAt : new Date().toISOString()),
         updatedAt: new Date().toISOString(),
         statusHistory: historyList,
         history: historyList,
@@ -966,9 +991,52 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
         )}
 
-        {/* Main 3-Column Proportional Grid Body - Scrollable on mobile, 3-column on desktop */}
+        {/* Mobile Step Navigator Bar (shown only on mobile < lg, preserving desktop 3-columns) */}
+        <div className="lg:hidden flex items-center gap-1 px-2.5 py-1.5 bg-[#061129] border-b border-blue-900/60 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileStep('CLIENTE')}
+            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileStep === 'CLIENTE'
+                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)] border border-blue-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+            }`}
+          >
+            <span className="w-4 h-4 rounded-full bg-blue-900/80 text-[10px] flex items-center justify-center font-bold">1</span>
+            <span className="truncate">Cliente & Aparelho</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileStep('SERVICO')}
+            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileStep === 'SERVICO'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)] border border-purple-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+            }`}
+          >
+            <span className="w-4 h-4 rounded-full bg-purple-900/80 text-[10px] flex items-center justify-center font-bold">2</span>
+            <span className="truncate">Defeito & Checklist</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileStep('FINANCEIRO')}
+            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileStep === 'FINANCEIRO'
+                ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)] border border-emerald-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+            }`}
+          >
+            <span className="w-4 h-4 rounded-full bg-emerald-900/80 text-[10px] flex items-center justify-center font-bold">3</span>
+            <span className="truncate">Peças & Valores</span>
+          </button>
+        </div>
+
+        {/* Main 3-Column Proportional Grid Body - Mobile displays selected step with scroll, Desktop displays all 3 columns simultaneously */}
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 p-2 sm:p-2.5 overflow-y-auto lg:overflow-hidden bg-[#030814]">
           {/* COLUMN 1: CLIENTE & EQUIPAMENTO */}
+          <div className={`${mobileStep === 'CLIENTE' ? 'block' : 'hidden lg:block'} h-full min-h-0`}>
           <OrderClientDeviceSection
             isDark={isDark}
             customers={customers}
@@ -1013,23 +1081,38 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             patternNote={patternNote}
             setPatternNote={setPatternNote}
           />
+          </div>
 
           {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS vs CHECKLIST TÉCNICO */}
-          <div className="flex flex-col h-full min-h-0 overflow-hidden">
-            {/* Column 2 Sub-Tabs - 3 dedicated ergonomic steps */}
+          <div className={`${mobileStep === 'SERVICO' ? 'flex' : 'hidden lg:flex'} flex-col h-full min-h-0 overflow-hidden`}>
+            {/* Column 2 Sub-Tabs - 1. Defeito (apenas problema relatado), 2. Serviço & Diagnóstico, 3. Checklist de Acessórios */}
             <div className="flex items-center gap-1 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setCol2Tab('PROBLEMA')}
                 className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   col2Tab === 'PROBLEMA'
-                    ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.4)]'
+                    ? 'bg-rose-600 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
-                title="Defeito reclamado e serviço a realizar"
+                title="Apenas o problema e defeito relatado pelo cliente"
               >
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span className="truncate">Defeito & Serviço</span>
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-300 shrink-0" />
+                <span className="truncate">Defeito Reclamado</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCol2Tab('SERVICO')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  col2Tab === 'SERVICO'
+                    ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+                title="Serviço previsto e diagnóstico técnico"
+              >
+                <Settings className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                <span className="truncate">Serviço & Diagnóstico</span>
               </button>
 
               <button
@@ -1043,29 +1126,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 title="Checklist de acessórios entregues com o aparelho"
               >
                 <Headphones className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <span className="truncate">Acessórios</span>
+                <span className="truncate">Checklist de Acessórios</span>
                 {accessoriesPresentCount > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-purple-950 text-purple-300 border border-purple-500/50 shrink-0">
                     {accessoriesPresentCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCol2Tab('CHECKLIST')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  col2Tab === 'CHECKLIST'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                }`}
-                title="Checklist técnico dos botões e funções do aparelho"
-              >
-                <CheckSquare className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">Checklist Técnico</span>
-                {checklistFilledCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50 shrink-0">
-                    {checklistFilledCount}/17
                   </span>
                 )}
               </button>
@@ -1077,47 +1141,38 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   isDark={isDark}
                   clientDefect={clientDefect}
                   setClientDefect={setClientDefect}
+                />
+              ) : col2Tab === 'SERVICO' ? (
+                <OrderServiceDiagnosisSection
+                  isDark={isDark}
                   serviceToBeDone={serviceToBeDone}
                   setServiceToBeDone={setServiceToBeDone}
                   showServicePicker={showServicePicker}
                   setShowServicePicker={setShowServicePicker}
                   quickServices={QUICK_SERVICES}
-                  deviceType={deviceType}
-                  customAccessories={customAccessories}
-                  customAccMap={customAccMap}
-                  setCustomAccMap={setCustomAccMap}
                   onSelectQuickService={(sName, price) => {
                     setServiceToBeDone(sName);
                     if (!isPriceUnlocked && customTotalPrice === null) {
                       setCustomTotalPrice(price);
                     }
                   }}
-                  onOpenAccessoriesTab={() => setCol2Tab('ACESSORIOS')}
-                  onOpenChecklistTab={() => setCol2Tab('CHECKLIST')}
-                  checklistFilledCount={checklistFilledCount}
                 />
-              ) : col2Tab === 'ACESSORIOS' ? (
+              ) : (
                 <OrderAccessoriesChecklistSection
                   isDark={isDark}
                   deviceType={deviceType}
                   customAccessories={customAccessories}
                   customAccMap={customAccMap}
                   setCustomAccMap={setCustomAccMap}
-                  onNavigateToTab={(target) => setCol2Tab(target)}
+                  onNavigateToTab={(target) => setCol2Tab(target === 'CHECKLIST' ? 'ACESSORIOS' : target)}
                   checklistFilledCount={checklistFilledCount}
-                />
-              ) : (
-                <OrderTechnicalChecklistSection
-                  isDark={isDark}
-                  checklist={technicalChecklist}
-                  onChange={setTechnicalChecklist}
-                  onNavigateBack={() => setCol2Tab('ACESSORIOS')}
                 />
               )}
             </div>
           </div>
 
           {/* COLUMN 3: PEÇAS, VALORES & PAGAMENTO */}
+          <div className={`${mobileStep === 'FINANCEIRO' ? 'block' : 'hidden lg:block'} h-full min-h-0`}>
           <OrderPartsFinancialSection
             isDark={isDark}
             parts={parts}
@@ -1187,6 +1242,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             setWarrantyDays={setWarrantyDays}
             paymentStatus={paymentStatus}
             setPaymentStatus={setPaymentStatus}
+            paidAmount={paidAmount}
+            setPaidAmount={setPaidAmount}
+            paymentDate={paymentDate}
+            setPaymentDate={setPaymentDate}
+            paymentNotes={paymentNotes}
+            setPaymentNotes={setPaymentNotes}
+            showPaidAmountInput={showPaidAmountInput}
+            setShowPaidAmountInput={setShowPaidAmountInput}
+            showPaymentNotesInput={showPaymentNotesInput}
+            setShowPaymentNotesInput={setShowPaymentNotesInput}
             customerPhone={whatsappClean || selectedCustomer?.phone || ''}
             orderSummaryForCopy={{
               orderNumber: nextOrderNumber,
@@ -1198,6 +1263,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               warrantyDays: warrantyDays,
             }}
           />
+          </div>
         </div>
 
         {/* Bottom Action Footer Bar */}

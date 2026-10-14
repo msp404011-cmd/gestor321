@@ -33,11 +33,15 @@ import {
   Receipt,
   X,
   Building2,
-  Clock
+  Clock,
+  Wallet,
+  RotateCcw,
+  Landmark
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { MonthlyDebit, MonthlyDebitPayment, AccountsPayable, AccountsPayableTransaction, RealFixedCost } from '../../types';
 import { formatCurrency } from '../../services/formatters';
+import { FinanceRegistersView } from './FinanceRegistersView';
 
 // Simple Canvas Confetti helper written from scratch for absolute reliability and zero external package dependency
 class ConfettiEngine {
@@ -123,7 +127,7 @@ class ConfettiEngine {
 }
 
 export function MonthlyDebitsView() {
-  const [activeMainTab, setActiveMainTab] = useState<'PARCELADOS' | 'CONTAS_PAGAR' | 'CUSTO_FIXO'>('PARCELADOS');
+  const [activeMainTab, setActiveMainTab] = useState<'PARCELADOS' | 'CONTAS_PAGAR' | 'CUSTO_FIXO' | 'FINANCAS'>('PARCELADOS');
   const [debits, setDebits] = useState<MonthlyDebit[]>([]);
   const [payables, setPayables] = useState<AccountsPayable[]>([]);
   const [fixedCosts, setFixedCosts] = useState<RealFixedCost[]>([]);
@@ -155,6 +159,14 @@ export function MonthlyDebitsView() {
   const [fixedCostSearch, setFixedCostSearch] = useState('');
   const [fixedCostCategoryFilter, setFixedCostCategoryFilter] = useState<string>('TODOS');
 
+  // Filters for Débitos Parcelados
+  const [debitSearch, setDebitSearch] = useState('');
+  const [debitStatusFilter, setDebitStatusFilter] = useState<'TODOS' | 'PENDENTES' | 'VENCIDOS' | 'QUITADOS'>('TODOS');
+
+  // Filters for Contas a Pagar / Credores
+  const [payableSearch, setPayableSearch] = useState('');
+  const [payableStatusFilter, setPayableStatusFilter] = useState<'TODOS' | 'COM_SALDO' | 'ZERADOS'>('TODOS');
+
   // Current calendar month-year tracker (formatted as YYYY-MM)
   const currentMonthYear = (() => {
     const d = new Date();
@@ -173,6 +185,8 @@ export function MonthlyDebitsView() {
   // Form State for AccountsPayable
   const [payableName, setPayableName] = useState('');
   const [payableDueDate, setPayableNameDueDate] = useState('');
+  const [payableInitialAmount, setPayableInitialAmount] = useState('');
+  const [payableInitialDesc, setPayableInitialDesc] = useState('');
 
   // Expand state for checking payment logs (or curtain sliding down)
   const [expandedDebits, setExpandedDebits] = useState<Record<string, boolean>>({});
@@ -209,7 +223,8 @@ export function MonthlyDebitsView() {
   // Helper function to seed initial default fixed costs if list is empty
   const ensureDefaultFixedCosts = () => {
     let costs = StorageService.getRealFixedCosts();
-    if (costs.length === 0) {
+    const isInit = typeof window !== 'undefined' && localStorage.getItem('msp_fixed_costs_initialized') === 'true';
+    if (costs.length === 0 && !isInit) {
       const defaultItems: RealFixedCost[] = [
         {
           id: 'fc-luz',
@@ -268,6 +283,9 @@ export function MonthlyDebitsView() {
         },
       ];
       StorageService.saveRealFixedCosts(defaultItems);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('msp_fixed_costs_initialized', 'true');
+      }
       costs = defaultItems;
     }
     setFixedCosts(costs);
@@ -330,10 +348,12 @@ export function MonthlyDebitsView() {
 
   // Smart date check for current month status for MonthlyDebits
   const getStatusForCurrentMonth = (debit: MonthlyDebit) => {
-    if (debit.paidInstallments >= debit.installmentsCount) return 'FULLY_PAID';
+    const paidInst = Number(debit.paidInstallments) || 0;
+    const totalInst = Number(debit.installmentsCount) || 12;
+    if (paidInst >= totalInst) return 'FULLY_PAID';
 
     const startMonthStr = debit.startMonth || currentMonthYear;
-    const [startY, startM] = startMonthStr.split('-').map(Number);
+    const [startY, startM] = (startMonthStr || currentMonthYear).split('-').map(Number);
     const [currY, currM] = currentMonthYear.split('-').map(Number);
     
     const elapsedMonths = (currY - startY) * 12 + (currM - startM);
@@ -341,12 +361,13 @@ export function MonthlyDebitsView() {
 
     const currentInstallmentIndex = elapsedMonths + 1;
 
-    const paidThisMonth = debit.payments.some(p => {
-      const pMonth = p.paidAt.substring(0, 7);
+    const payments = Array.isArray(debit.payments) ? debit.payments : [];
+    const paidThisMonth = payments.some(p => {
+      const pMonth = p?.paidAt ? p.paidAt.substring(0, 7) : '';
       return pMonth === currentMonthYear;
     });
 
-    if (paidThisMonth || debit.paidInstallments >= currentInstallmentIndex) {
+    if (paidThisMonth || paidInst >= currentInstallmentIndex) {
       return 'PAID_THIS_MONTH';
     } else {
       return 'PENDING_THIS_MONTH';
@@ -370,7 +391,9 @@ export function MonthlyDebitsView() {
 
   // Helper to check if a MonthlyDebit is overdue / atrasado
   const isDebitOverdue = (debit: MonthlyDebit): boolean => {
-    if (debit.paidInstallments >= debit.installmentsCount) return false;
+    const paidInst = Number(debit.paidInstallments) || 0;
+    const totalInst = Number(debit.installmentsCount) || 12;
+    if (paidInst >= totalInst) return false;
 
     const currentMonthStatus = getStatusForCurrentMonth(debit);
     if (currentMonthStatus === 'FUTURE') return false;
@@ -380,11 +403,11 @@ export function MonthlyDebitsView() {
     const dueDay = parseDueDay(debit.dueDate);
 
     const startMonthStr = debit.startMonth || currentMonthYear;
-    const [startY, startM] = startMonthStr.split('-').map(Number);
+    const [startY, startM] = (startMonthStr || currentMonthYear).split('-').map(Number);
     const [currY, currM] = currentMonthYear.split('-').map(Number);
     const elapsedMonths = (currY - startY) * 12 + (currM - startM);
 
-    if (debit.paidInstallments < elapsedMonths) {
+    if (paidInst < elapsedMonths) {
       return true; // Previous month installment unpaid
     }
 
@@ -451,16 +474,19 @@ export function MonthlyDebitsView() {
     let sumRemaining = 0;
     let openMonthPending = 0;
 
-    debits.forEach((d) => {
-      sumTotal += d.totalAmount;
+    (debits || []).forEach((d) => {
+      const total = Number(d.totalAmount) || 0;
+      const paidInst = Number(d.paidInstallments) || 0;
+      const instAmount = Number(d.installmentAmount) || 0;
+      sumTotal += total;
       
-      const paid = d.paidInstallments * d.installmentAmount;
+      const paid = Math.min(total, paidInst * instAmount);
       sumPaid += paid;
-      sumRemaining += Math.max(0, d.totalAmount - paid);
+      sumRemaining += Math.max(0, total - paid);
 
       const status = getStatusForCurrentMonth(d);
       if (status === 'PENDING_THIS_MONTH') {
-        openMonthPending += d.installmentAmount;
+        openMonthPending += instAmount;
       }
     });
 
@@ -480,19 +506,20 @@ export function MonthlyDebitsView() {
     let totalDebited = 0;
     let activeAccountsCount = 0;
 
-    payables.forEach((p) => {
-      totalOutstanding += p.currentBalance;
-      if (p.currentBalance > 0) {
+    (payables || []).forEach((p) => {
+      const balance = Number(p.currentBalance) || 0;
+      totalOutstanding += balance;
+      if (balance > 0) {
         activeAccountsCount++;
       }
 
-      p.transactions.forEach((tx) => {
-        if (p.createdAt) { // sanity check
-          if (tx.type === 'DEBIT') {
-            totalDebited += tx.amount;
-          } else if (tx.type === 'PAYMENT') {
-            totalPaid += tx.amount;
-          }
+      const txs = Array.isArray(p.transactions) ? p.transactions : [];
+      txs.forEach((tx) => {
+        const amt = Number(tx.amount) || 0;
+        if (tx.type === 'DEBIT') {
+          totalDebited += amt;
+        } else if (tx.type === 'PAYMENT') {
+          totalPaid += amt;
         }
       });
     });
@@ -511,12 +538,13 @@ export function MonthlyDebitsView() {
     let sumPaid = 0;
     let sumPending = 0;
 
-    fixedCosts.forEach((c) => {
-      sumTotal += c.amount;
+    (fixedCosts || []).forEach((c) => {
+      const amt = Number(c.amount) || 0;
+      sumTotal += amt;
       if (c.isPaidThisMonth) {
-        sumPaid += c.amount;
+        sumPaid += amt;
       } else {
-        sumPending += c.amount;
+        sumPending += amt;
       }
     });
 
@@ -524,7 +552,7 @@ export function MonthlyDebitsView() {
       sumTotal,
       sumPaid,
       sumPending,
-      count: fixedCosts.length,
+      count: (fixedCosts || []).length,
       dailyAverage: sumTotal > 0 ? sumTotal / 30 : 0,
     };
   })();
@@ -535,6 +563,33 @@ export function MonthlyDebitsView() {
       (cost.notes && cost.notes.toLowerCase().includes(fixedCostSearch.toLowerCase()));
     const matchesCategory = fixedCostCategoryFilter === 'TODOS' || cost.category === fixedCostCategoryFilter;
     return matchesSearch && matchesCategory;
+  });
+
+  // Filtered Monthly Debits (Débitos Parcelados)
+  const filteredDebits = debits.filter((debit) => {
+    const term = debitSearch.toLowerCase().trim();
+    const matchesSearch = !term || debit.name.toLowerCase().includes(term) || (debit.dueDate && debit.dueDate.toLowerCase().includes(term));
+    if (!matchesSearch) return false;
+
+    const isFullyPaid = (Number(debit.paidInstallments) || 0) >= (Number(debit.installmentsCount) || 12);
+    const isOverdue = isDebitOverdue(debit);
+
+    if (debitStatusFilter === 'QUITADOS') return isFullyPaid;
+    if (debitStatusFilter === 'VENCIDOS') return !isFullyPaid && isOverdue;
+    if (debitStatusFilter === 'PENDENTES') return !isFullyPaid;
+    return true;
+  });
+
+  // Filtered Accounts Payable (Contas a Pagar / Credores)
+  const filteredPayables = payables.filter((payable) => {
+    const term = payableSearch.toLowerCase().trim();
+    const matchesSearch = !term || payable.name.toLowerCase().includes(term) || (payable.dueDate && payable.dueDate.toLowerCase().includes(term));
+    if (!matchesSearch) return false;
+
+    const hasBalance = (Number(payable.currentBalance) || 0) > 0;
+    if (payableStatusFilter === 'COM_SALDO') return hasBalance;
+    if (payableStatusFilter === 'ZERADOS') return !hasBalance;
+    return true;
   });
 
   const getCategoryIcon = (category: RealFixedCost['category']) => {
@@ -608,9 +663,20 @@ export function MonthlyDebitsView() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !totalAmount || !installmentsCount || !installmentAmount || !dueDate) {
+    if (!name.trim() || !dueDate) {
       return;
     }
+
+    const count = Math.max(1, parseInt(installmentsCount) || 1);
+    const tot = parseFloat(totalAmount);
+    let inst = parseFloat(installmentAmount);
+
+    if (isNaN(tot) && isNaN(inst)) {
+      return;
+    }
+
+    const finalTotal = !isNaN(tot) && tot > 0 ? tot : inst * count;
+    const finalInst = !isNaN(inst) && inst > 0 ? inst : parseFloat((finalTotal / count).toFixed(2));
 
     setLoading(true);
 
@@ -622,12 +688,13 @@ export function MonthlyDebitsView() {
           const updatedDebit: MonthlyDebit = {
             ...existingDebit,
             name: name.trim(),
-            totalAmount: parseFloat(totalAmount),
-            installmentsCount: parseInt(installmentsCount),
-            installmentAmount: parseFloat(installmentAmount),
+            totalAmount: finalTotal,
+            installmentsCount: count,
+            installmentAmount: finalInst,
             dueDate,
-            startMonth,
-            status: existingDebit.paidInstallments >= parseInt(installmentsCount) ? 'PAID' : 'OPEN'
+            startMonth: startMonth || currentMonthYear,
+            payments: Array.isArray(existingDebit.payments) ? existingDebit.payments : [],
+            status: (existingDebit.paidInstallments || 0) >= count ? 'PAID' : 'OPEN'
           };
           StorageService.saveMonthlyDebit(updatedDebit);
         }
@@ -636,11 +703,11 @@ export function MonthlyDebitsView() {
         const newDebit: MonthlyDebit = {
           id: 'deb-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
           name: name.trim(),
-          totalAmount: parseFloat(totalAmount),
-          installmentsCount: parseInt(installmentsCount),
-          installmentAmount: parseFloat(installmentAmount),
+          totalAmount: finalTotal,
+          installmentsCount: count,
+          installmentAmount: finalInst,
           dueDate,
-          startMonth,
+          startMonth: startMonth || currentMonthYear,
           paidInstallments: 0,
           createdAt: new Date().toISOString(),
           payments: [],
@@ -649,6 +716,7 @@ export function MonthlyDebitsView() {
         StorageService.saveMonthlyDebit(newDebit);
       }
 
+      setDebits(StorageService.getMonthlyDebits());
       handleCloseModal();
     } catch (err) {
       console.error('Error saving monthly debit:', err);
@@ -666,6 +734,17 @@ export function MonthlyDebitsView() {
     setStartMonth(currentMonthYear);
     setEditingDebitId(null);
     setIsModalOpen(false);
+  };
+
+  const handleOpenAddDebit = () => {
+    setName('');
+    setTotalAmount('');
+    setInstallmentsCount('12');
+    setInstallmentAmount('');
+    setDueDate('');
+    setStartMonth(currentMonthYear);
+    setEditingDebitId(null);
+    setIsModalOpen(true);
   };
 
   const handleOpenEdit = (debit: MonthlyDebit) => {
@@ -809,23 +888,29 @@ export function MonthlyDebitsView() {
   };
 
   const handleBaixa = (debit: MonthlyDebit, event: React.MouseEvent<HTMLButtonElement>) => {
-    if (debit.paidInstallments >= debit.installmentsCount) return;
+    const currentPaid = Number(debit.paidInstallments) || 0;
+    const totalCount = Number(debit.installmentsCount) || 12;
+    const instAmount = Number(debit.installmentAmount) || 0;
+    const totAmount = Number(debit.totalAmount) || 0;
+
+    if (currentPaid >= totalCount) return;
 
     if (confettiEngineRef.current) {
       confettiEngineRef.current.burst(event.clientX, event.clientY);
     }
 
-    const nextIndex = debit.paidInstallments + 1;
+    const nextIndex = currentPaid + 1;
     const paymentRecord: MonthlyDebitPayment = {
       installmentIndex: nextIndex,
       paidAt: new Date().toISOString(),
-      amount: debit.installmentAmount
+      amount: instAmount
     };
 
-    const updatedPayments = [...debit.payments, paymentRecord];
-    const isCompleted = nextIndex >= debit.installmentsCount;
-    const remainingAmount = Math.max(0, debit.totalAmount - (nextIndex * debit.installmentAmount));
-    const remainingInstallments = Math.max(0, debit.installmentsCount - nextIndex);
+    const currentPayments = Array.isArray(debit.payments) ? debit.payments : [];
+    const updatedPayments = [...currentPayments, paymentRecord];
+    const isCompleted = nextIndex >= totalCount;
+    const remainingAmount = Math.max(0, totAmount - (nextIndex * instAmount));
+    const remainingInstallments = Math.max(0, totalCount - nextIndex);
 
     const updatedDebit: MonthlyDebit = {
       ...debit,
@@ -841,12 +926,36 @@ export function MonthlyDebitsView() {
       debitId: debit.id,
       name: debit.name,
       installmentPaid: nextIndex,
-      installmentsCount: debit.installmentsCount,
-      paidAmount: debit.installmentAmount,
+      installmentsCount: totalCount,
+      paidAmount: instAmount,
       remainingAmount,
       remainingInstallments,
       isFullyPaid: isCompleted,
     });
+  };
+
+  const handleUndoBaixa = (debit: MonthlyDebit, paymentIndex?: number) => {
+    const currentPaid = Number(debit.paidInstallments) || 0;
+    if (currentPaid <= 0) return;
+
+    const currentPayments = Array.isArray(debit.payments) ? [...debit.payments] : [];
+    if (typeof paymentIndex === 'number' && paymentIndex >= 0 && paymentIndex < currentPayments.length) {
+      currentPayments.splice(paymentIndex, 1);
+    } else {
+      currentPayments.pop();
+    }
+
+    const nextIndex = Math.max(0, currentPaid - 1);
+    const updatedDebit: MonthlyDebit = {
+      ...debit,
+      paidInstallments: nextIndex,
+      payments: currentPayments,
+      status: 'OPEN'
+    };
+
+    StorageService.saveMonthlyDebit(updatedDebit);
+    setDebits(StorageService.getMonthlyDebits());
+    setBaixaFeedback(null);
   };
 
   const toggleExpand = (id: string) => {
@@ -860,6 +969,8 @@ export function MonthlyDebitsView() {
   const handleOpenPayableEdit = (p: AccountsPayable) => {
     setPayableName(p.name);
     setPayableNameDueDate(p.dueDate);
+    setPayableInitialAmount('');
+    setPayableInitialDesc('');
     setEditingPayableId(p.id);
     setIsPayableModalOpen(true);
   };
@@ -867,6 +978,8 @@ export function MonthlyDebitsView() {
   const handleClosePayableModal = () => {
     setPayableName('');
     setPayableNameDueDate('');
+    setPayableInitialAmount('');
+    setPayableInitialDesc('');
     setEditingPayableId(null);
     setIsPayableModalOpen(false);
   };
@@ -889,16 +1002,27 @@ export function MonthlyDebitsView() {
           StorageService.saveAccountsPayable(updated);
         }
       } else {
+        const initAmt = parseFloat(payableInitialAmount) || 0;
+        const initDesc = payableInitialDesc.trim() || 'Lançamento Inicial / Cadastro';
+        const initialTransactions: AccountsPayableTransaction[] = initAmt > 0 ? [{
+          id: 'tx-' + Date.now(),
+          type: 'DEBIT',
+          description: initDesc,
+          amount: initAmt,
+          date: new Date().toISOString()
+        }] : [];
+
         const newPayable: AccountsPayable = {
           id: 'pay-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
           name: payableName.trim(),
           dueDate: payableDueDate,
-          currentBalance: 0,
+          currentBalance: initAmt,
           createdAt: new Date().toISOString(),
-          transactions: []
+          transactions: initialTransactions
         };
         StorageService.saveAccountsPayable(newPayable);
       }
+      setPayables(StorageService.getAccountsPayable());
       handleClosePayableModal();
     } catch (err) {
       console.error('Error saving accounts payable:', err);
@@ -908,13 +1032,14 @@ export function MonthlyDebitsView() {
   };
 
   const handleDeletePayableTransaction = (payable: AccountsPayable, txId: string) => {
-    const targetTx = payable.transactions.find((t) => t.id === txId);
+    const txs = Array.isArray(payable.transactions) ? payable.transactions : [];
+    const targetTx = txs.find((t) => t.id === txId);
     if (!targetTx) return;
 
-    const filteredTx = payable.transactions.filter((t) => t.id !== txId);
+    const filteredTx = txs.filter((t) => t.id !== txId);
     // Recalculate balance
     const delta = targetTx.type === 'DEBIT' ? -targetTx.amount : targetTx.amount;
-    const newBalance = Math.max(0, payable.currentBalance + delta);
+    const newBalance = Math.max(0, (Number(payable.currentBalance) || 0) + delta);
 
     const updatedPayable: AccountsPayable = {
       ...payable,
@@ -961,16 +1086,18 @@ export function MonthlyDebitsView() {
     };
 
     // Calculate new currentBalance running totals
+    const currentTxs = Array.isArray(payable.transactions) ? payable.transactions : [];
     const delta = payableTxType === 'DEBIT' ? amountNum : -amountNum;
-    const newBalance = Math.max(0, payable.currentBalance + delta);
+    const newBalance = Math.max(0, (Number(payable.currentBalance) || 0) + delta);
 
     const updatedPayable: AccountsPayable = {
       ...payable,
       currentBalance: newBalance,
-      transactions: [newTx, ...payable.transactions] // prepend newest transactions
+      transactions: [newTx, ...currentTxs]
     };
 
     StorageService.saveAccountsPayable(updatedPayable);
+    setPayables(StorageService.getAccountsPayable());
 
     // Reset tx Form State
     setActivePayableIdForTx(null);
@@ -979,7 +1106,7 @@ export function MonthlyDebitsView() {
   };
 
   return (
-    <div className="space-y-6 relative pb-10">
+    <div className="space-y-3 relative pb-10">
       {/* Absolute Confetti Overlay Canvas */}
       <canvas 
         ref={canvasRef} 
@@ -987,59 +1114,83 @@ export function MonthlyDebitsView() {
       />
 
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-1.5">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.3)]">
-              <CreditCard className="w-5 h-5 animate-pulse" />
+            <div className="w-7 h-7 rounded-xl bg-pink-500/15 border border-pink-500/30 flex items-center justify-center text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.2)]">
+              <CreditCard className="w-3.5 h-3.5 animate-pulse" />
             </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">
-                ADMINISTRAÇÃO FINANCEIRA
-              </h1>
-              <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">
-                Gestão Geral de Contas, Parcelas e Despesas Diárias
-              </p>
-            </div>
+            <h1 className="text-sm md:text-base font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400">
+              ADMINISTRAÇÃO FINANCEIRA
+            </h1>
           </div>
         </div>
 
-        {/* TAB SWITCHER (3 ABAS: PARCELADOS, CONTAS A PAGAR, CUSTO FIXO REAL) */}
-        <div className="p-1 rounded-2xl bg-[#08152e] border border-blue-900/60 flex items-center gap-1 w-full md:w-auto overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 w-full md:w-auto flex-wrap">
+          {activeMainTab === 'FINANCAS' && (
+            <button
+              type="button"
+              onClick={() => {
+                const btn = document.getElementById('btn-novo-caixa-action');
+                if (btn) btn.click();
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/40 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 shrink-0 active:scale-95 shadow-md"
+              title="Criar novo caixa"
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              <span>Novo Caixa</span>
+            </button>
+          )}
+
+          {/* TAB SWITCHER */}
+          <div className="p-0.5 rounded-xl bg-[#08152e] border border-blue-900/60 grid grid-cols-4 gap-1 w-full md:w-auto">
           <button
             type="button"
             onClick={() => setActiveMainTab('PARCELADOS')}
-            className={`flex-1 min-w-[120px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 ${
+            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate ${
               activeMainTab === 'PARCELADOS'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Débitos Parcelados
+            Parcelados
           </button>
           <button
             type="button"
             onClick={() => setActiveMainTab('CONTAS_PAGAR')}
-            className={`flex-1 min-w-[120px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 ${
+            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate ${
               activeMainTab === 'CONTAS_PAGAR'
                 ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Contas a Pagar
+            A Pagar
           </button>
           <button
             type="button"
             onClick={() => setActiveMainTab('CUSTO_FIXO')}
-            className={`flex-1 min-w-[130px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer text-center shrink-0 flex items-center justify-center gap-1.5 ${
+            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
               activeMainTab === 'CUSTO_FIXO'
                 ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 text-white shadow-md shadow-amber-500/20'
                 : 'text-amber-400/80 hover:text-amber-300'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5 shrink-0" />
-            <span>Custo Fixo Real</span>
+            <Building2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 hidden sm:inline" />
+            <span className="truncate">Custo Fixo</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveMainTab('FINANCAS')}
+            className={`w-full px-1 py-1.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer text-center truncate flex items-center justify-center gap-0.5 ${
+              activeMainTab === 'FINANCAS'
+                ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 text-white shadow-md shadow-emerald-500/25 ring-1 ring-emerald-400/40'
+                : 'text-emerald-400/80 hover:text-emerald-300'
+            }`}
+          >
+            <Wallet className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 hidden sm:inline" />
+            <span className="truncate">Finanças</span>
+          </button>
+          </div>
         </div>
       </div>
 
@@ -1169,44 +1320,104 @@ export function MonthlyDebitsView() {
                     <span className="text-[10px] text-slate-400 font-bold block mt-0.5">
                       {baixaFeedback.remainingInstallments <= 0 ? 'Todas as parcelas pagas' : `Restam ${baixaFeedback.remainingInstallments} parcela(s)`}
                     </span>
-                  </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = debits.find(item => item.id === baixaFeedback.debitId);
+                          if (d) handleUndoBaixa(d);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        title="Desfazer e estornar esta última baixa"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Desfazer / Estornar</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setBaixaFeedback(null)}
-                    className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
-                    title="Fechar aviso"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => setBaixaFeedback(null)}
+                        className="p-2 sm:p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0 flex items-center justify-center"
+                        title="Fechar aviso"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
+          {/* CONTROLS BAR FOR TAB 1: SEARCH, STATUS FILTER & NOVO DEBITO */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#081224] p-3 rounded-2xl border border-slate-800">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* Search */}
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={debitSearch}
+                  onChange={(e) => setDebitSearch(e.target.value)}
+                  placeholder="Buscar débito ou dia de vencimento..."
+                  className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-pink-500"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="relative shrink-0">
+                <select
+                  value={debitStatusFilter}
+                  onChange={(e) => setDebitStatusFilter(e.target.value as any)}
+                  className="p-2 pr-7 bg-black/40 border border-white/10 rounded-xl text-xs text-pink-300 font-bold focus:outline-hidden appearance-none cursor-pointer"
+                >
+                  <option value="TODOS">Todos os Débitos ({debits.length})</option>
+                  <option value="PENDENTES">⏳ Em Aberto / Pendentes</option>
+                  <option value="VENCIDOS">🔥 Vencidas / Em Atraso</option>
+                  <option value="QUITADOS">✅ 100% Quitados</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenAddDebit}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(236,72,153,0.45)] hover:shadow-[0_0_30px_rgba(236,72,153,0.65)] hover:scale-[1.02] active:scale-95 cursor-pointer transition-all border border-pink-400/40 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Débito Parcelado</span>
+            </button>
+          </div>
+
           {/* MAIN GRID */}
-          {debits.length === 0 ? (
+          {filteredDebits.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-pink-955/40 rounded-3xl bg-[#030712]/50 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-pink-500/5 border border-pink-500/10 flex items-center justify-center text-pink-500/30">
                 <CreditCard className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-200">Nenhum débito cadastrado</h3>
+                <h3 className="text-base font-bold text-slate-200">
+                  {debits.length === 0 ? 'Nenhum débito cadastrado' : 'Nenhum débito encontrado com esse filtro'}
+                </h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                  Cadastre suas parcelas, faturas e contas fixas para acompanhar a evolução dos seus pagamentos e parcelas de forma visual.
+                  {debits.length === 0
+                    ? 'Cadastre suas parcelas, faturas e contas fixas para acompanhar a evolução dos seus pagamentos e parcelas de forma visual.'
+                    : 'Tente alterar os termos da busca ou selecione "Todos os Débitos".'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-pink-500/10 border border-pink-500/30 hover:bg-pink-500/20 text-pink-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-              >
-                Cadastrar Primeiro Débito
-              </button>
+              {debits.length === 0 && (
+                <button
+                  type="button"
+                  onClick={handleOpenAddDebit}
+                  className="px-4 py-2 bg-pink-500/10 border border-pink-500/30 hover:bg-pink-500/20 text-pink-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cadastrar Primeiro Débito
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {debits.map((debit) => {
+              {filteredDebits.map((debit) => {
                 const cardPaidPercent = debit.totalAmount > 0 
                   ? (debit.paidInstallments / debit.installmentsCount) * 100 
                   : 0;
@@ -1404,16 +1615,30 @@ export function MonthlyDebitsView() {
                     {isExpanded && (
                       <div className="px-5 pb-4 border-t border-slate-800/50 bg-black/25 text-xs">
                         <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest pt-3 pb-2">Histórico de Parcelas</h4>
-                        {debit.payments.length === 0 ? (
+                        {(debit.payments || []).length === 0 ? (
                           <p className="text-[11px] text-slate-500 italic py-1">Nenhuma parcela paga ainda.</p>
                         ) : (
                           <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                            {debit.payments.map((p, idx) => (
+                            {(debit.payments || []).map((p, idx) => (
                               <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 text-[11px]">
-                                <span className="text-slate-400 font-bold">{p.installmentIndex}ª Parcela ({formatMonthYear(getInstallmentMonth(debit.startMonth || currentMonthYear, p.installmentIndex))})</span>
-                                <div className="text-right">
-                                  <span className="text-emerald-400 font-black block">{formatCurrency(p.amount)}</span>
-                                  <span className="text-[9px] text-slate-500 block leading-tight">{new Date(p.paidAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+                                <span className="text-slate-400 font-bold">
+                                  {p.installmentIndex}ª Parcela ({formatMonthYear(getInstallmentMonth(debit.startMonth || currentMonthYear, p.installmentIndex))})
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-right">
+                                    <span className="text-emerald-400 font-black block">{formatCurrency(p.amount)}</span>
+                                    <span className="text-[9px] text-slate-500 block leading-tight">
+                                      {new Date(p.paidAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUndoBaixa(debit, idx)}
+                                    className="p-1 rounded-md bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/20 hover:border-rose-500/50 transition-all cursor-pointer"
+                                    title="Estornar / Cancelar esta parcela"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -1435,11 +1660,23 @@ export function MonthlyDebitsView() {
                           </>
                         ) : (
                           <>
-                            <span>Parcelas ({debit.payments.length})</span>
+                            <span>Parcelas ({(debit.payments || []).length})</span>
                             <ChevronDown className="w-3.5 h-3.5" />
                           </>
                         )}
                       </button>
+
+                      {debit.paidInstallments > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleUndoBaixa(debit)}
+                          className="py-2 px-2.5 rounded-xl border border-rose-500/30 text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900 text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                          title="Estornar a última parcela paga"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Estornar</span>
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -1546,12 +1783,39 @@ export function MonthlyDebitsView() {
             </div>
           </div>
 
-          {/* ACTION BAR FOR TAB 2 */}
-          <div className="flex justify-end pt-2">
+          {/* CONTROLS BAR FOR TAB 2: SEARCH, STATUS FILTER & NOVA FATURA */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#081224] p-3 rounded-2xl border border-slate-800">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {/* Search */}
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={payableSearch}
+                  onChange={(e) => setPayableSearch(e.target.value)}
+                  placeholder="Buscar credor ou previsão de acerto..."
+                  className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-500"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="relative shrink-0">
+                <select
+                  value={payableStatusFilter}
+                  onChange={(e) => setPayableStatusFilter(e.target.value as any)}
+                  className="p-2 pr-7 bg-black/40 border border-white/10 rounded-xl text-xs text-cyan-300 font-bold focus:outline-hidden appearance-none cursor-pointer"
+                >
+                  <option value="TODOS">Todas as Fichas ({payables.length})</option>
+                  <option value="COM_SALDO">⚠️ Com Saldo Devedor</option>
+                  <option value="ZERADOS">✅ Quitadas / Zeradas</option>
+                </select>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={() => setIsPayableModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(6,182,212,0.45)] hover:shadow-[0_0_30px_rgba(6,182,212,0.65)] hover:scale-[1.02] active:scale-95 cursor-pointer transition-all border border-cyan-400/40"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(6,182,212,0.45)] hover:shadow-[0_0_30px_rgba(6,182,212,0.65)] hover:scale-[1.02] active:scale-95 cursor-pointer transition-all border border-cyan-400/40 shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Nova Fatura / Credor</span>
@@ -1559,28 +1823,34 @@ export function MonthlyDebitsView() {
           </div>
 
           {/* MAIN RUNNING LEDGER GRID */}
-          {payables.length === 0 ? (
+          {filteredPayables.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-cyan-950/40 rounded-3xl bg-[#030712]/50 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-cyan-500/5 border border-cyan-500/10 flex items-center justify-center text-cyan-500/30">
                 <FileText className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-200">Nenhuma conta diária cadastrada</h3>
+                <h3 className="text-base font-bold text-slate-200">
+                  {payables.length === 0 ? 'Nenhuma conta diária cadastrada' : 'Nenhuma conta encontrada com esse filtro'}
+                </h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                  Crie fichas financeiras ou fichas de credores para controlar despesas diárias de forma flexível: adicione novas compras e realize abates parciais de forma integrada.
+                  {payables.length === 0
+                    ? 'Crie fichas financeiras ou fichas de credores para controlar despesas diárias de forma flexível: adicione novas compras e realize abates parciais de forma integrada.'
+                    : 'Tente alterar os termos da busca ou selecione "Todas as Fichas".'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPayableModalOpen(true)}
-                className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
-              >
-                Cadastrar Ficha de Credor
-              </button>
+              {payables.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsPayableModalOpen(true)}
+                  className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cadastrar Ficha de Credor
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {payables.map((payable) => {
+              {filteredPayables.map((payable) => {
                 const isExpanded = expandedPayables[payable.id] || false;
                 const isTxFormOpen = activePayableIdForTx === payable.id;
                 const isOverdue = isPayableOverdue(payable);
@@ -1761,11 +2031,11 @@ export function MonthlyDebitsView() {
                           <History className="w-3.5 h-3.5 text-cyan-400" />
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Extrato da Conta / Histórico de Lançamentos</h4>
                         </div>
-                        {payable.transactions.length === 0 ? (
+                        {(payable.transactions || []).length === 0 ? (
                           <p className="text-[11px] text-slate-500 italic py-3 text-center">Nenhum lançamento registrado nesta ficha.</p>
                         ) : (
                           <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 mt-2.5 scrollbar-thin">
-                            {payable.transactions.map((tx) => (
+                            {(payable.transactions || []).map((tx) => (
                               <div 
                                 key={tx.id} 
                                 className="flex items-start justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-[11px] hover:bg-white/10 transition-colors"
@@ -1819,7 +2089,7 @@ export function MonthlyDebitsView() {
                           </>
                         ) : (
                           <>
-                            <span>Descer Cortina / Extrato ({payable.transactions.length})</span>
+                            <span>Descer Cortina / Extrato ({(payable.transactions || []).length})</span>
                             <ChevronDown className="w-3.5 h-3.5 text-cyan-400 animate-bounce" />
                           </>
                         )}
@@ -2138,6 +2408,11 @@ export function MonthlyDebitsView() {
         </>
       )}
 
+      {/* RENDER TAB 4: FINANÇAS & GESTÃO DE CAIXAS */}
+      {activeMainTab === 'FINANCAS' && (
+        <FinanceRegistersView />
+      )}
+
       {/* MODAL 1: DÉBITO PARCELADO (ADD / EDIT) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -2319,6 +2594,33 @@ export function MonthlyDebitsView() {
                   className="w-full p-3 bg-black border border-white/10 focus:border-cyan-500 focus:outline-hidden rounded-xl text-xs text-white placeholder-slate-600 font-medium transition-all"
                 />
               </div>
+
+              {!editingPayableId && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Valor Inicial (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={payableInitialAmount}
+                      onChange={(e) => setPayableInitialAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-3 bg-black border border-white/10 focus:border-cyan-500 focus:outline-hidden rounded-xl text-xs text-white font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1 text-left">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Motivo / Descrição Inicial</label>
+                    <input
+                      type="text"
+                      value={payableInitialDesc}
+                      onChange={(e) => setPayableInitialDesc(e.target.value)}
+                      placeholder="Ex: Compra inicial"
+                      className="w-full p-3 bg-black border border-white/10 focus:border-cyan-500 focus:outline-hidden rounded-xl text-xs text-white"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-white/5 flex items-center justify-end gap-3">
                 <button
