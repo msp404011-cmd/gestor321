@@ -135,18 +135,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Device fields
   const [deviceId, setDeviceId] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceType>('Smartphone');
+  
+  // Password Options (Moved to 2nd position, highlighted)
+  const [passwordType, setPasswordType] = useState<'NONE' | 'PIN' | 'PATTERN'>('NONE');
+  const [passwordPin, setPasswordPin] = useState('');
+  const [patternNodes, setPatternNodes] = useState<number[]>([]);
+  const [patternNote, setPatternNote] = useState('');
+
   const [brand, setBrand] = useState('Samsung');
   const [model, setModel] = useState('');
   const [imei, setImei] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [physicalState, setPhysicalState] = useState('');
   const [hasNoDamages, setHasNoDamages] = useState(true);
-
-  // Password Options
-  const [passwordType, setPasswordType] = useState<'NONE' | 'PIN' | 'PATTERN'>('NONE');
-  const [passwordPin, setPasswordPin] = useState('');
-  const [patternNodes, setPatternNodes] = useState<number[]>([]);
-  const [patternNote, setPatternNote] = useState('');
 
   // Dynamic Accessories Checklist State
   const [customAccMap, setCustomAccMap] = useState<Record<string, { present: boolean; details: string }>>({});
@@ -1034,9 +1035,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         </div>
 
         {/* Main 3-Column Proportional Grid Body - Mobile displays selected step with scroll, Desktop displays all 3 columns simultaneously */}
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-2.5 p-2 sm:p-2.5 overflow-y-auto lg:overflow-hidden bg-[#030814]">
+        <div className="flex-1 overflow-y-auto bg-[#030814] p-2 sm:p-2.5 lg:overflow-hidden lg:grid lg:grid-cols-3 lg:gap-2.5">
           {/* COLUMN 1: CLIENTE & EQUIPAMENTO */}
-          <div className={`${mobileStep === 'CLIENTE' ? 'block' : 'hidden lg:block'} h-full min-h-0`}>
+          <div className={`${mobileStep === 'CLIENTE' ? 'block' : 'hidden lg:block'} h-auto lg:h-full`}>
           <OrderClientDeviceSection
             isDark={isDark}
             customers={customers}
@@ -1084,7 +1085,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS vs CHECKLIST TÉCNICO */}
-          <div className={`${mobileStep === 'SERVICO' ? 'flex' : 'hidden lg:flex'} flex-col h-full min-h-0 overflow-hidden`}>
+          <div className={`${mobileStep === 'SERVICO' ? 'flex' : 'hidden lg:flex'} flex-col h-auto lg:h-full overflow-hidden`}>
             {/* Column 2 Sub-Tabs - 1. Defeito (apenas problema relatado), 2. Serviço & Diagnóstico, 3. Checklist de Acessórios */}
             <div className="flex items-center gap-1 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
               <button
@@ -1172,7 +1173,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* COLUMN 3: PEÇAS, VALORES & PAGAMENTO */}
-          <div className={`${mobileStep === 'FINANCEIRO' ? 'block' : 'hidden lg:block'} h-full min-h-0`}>
+          <div className={`${mobileStep === 'FINANCEIRO' ? 'block' : 'hidden lg:block'} h-auto lg:h-full`}>
           <OrderPartsFinancialSection
             isDark={isDark}
             parts={parts}

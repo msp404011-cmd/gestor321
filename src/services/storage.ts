@@ -612,12 +612,6 @@ export function setRamItem<T>(key: string, value: T, notify: boolean = true): vo
     const scopedKey = getScopedKey(key);
     RAM_STORE.set(scopedKey, value);
     RAM_STORE.set(key, value);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        window.localStorage.setItem(scopedKey, JSON.stringify(value));
-        window.localStorage.setItem(key, JSON.stringify(value));
-      } catch (_) {}
-    }
     if (notify) {
       notifyListeners();
     }
@@ -631,17 +625,6 @@ export function getRamItem<T>(key: string, fallback: T): T {
     const scopedKey = getScopedKey(key);
     if (RAM_STORE.has(scopedKey)) return RAM_STORE.get(scopedKey);
     if (RAM_STORE.has(key)) return RAM_STORE.get(key);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const raw = window.localStorage.getItem(scopedKey) || window.localStorage.getItem(key);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          RAM_STORE.set(scopedKey, parsed);
-          RAM_STORE.set(key, parsed);
-          return parsed;
-        } catch (_) {}
-      }
-    }
     return fallback;
   } catch (e) {
     return fallback;

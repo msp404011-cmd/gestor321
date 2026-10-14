@@ -83,6 +83,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const { isDark } = useTheme();
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const currentUser = StorageService.getCurrentUser();
+  const [activeTab, setActiveTab] = useState<'geral' | 'checklist' | 'financeiro' | 'historico'>('geral');
 
   // Local Reactive Order State (keeps status and items updated in real time)
   const [currentOrder, setCurrentOrder] = useState<ServiceOrder | null>(order || null);
@@ -914,571 +915,594 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
           )}
 
+          {/* Tab Navigation Header */}
+          <div className="px-4 sm:px-5 py-2 border-b border-slate-800 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+             {(['geral', 'checklist', 'financeiro', 'historico'] as const).map((tab) => (
+                <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${activeTab === tab ? 'bg-cyan-600 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+             ))}
+          </div>
+
           {/* 2. Scrollable Drawer Content */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4">
-            {/* 1. Cliente */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                  <User className="w-4 h-4 text-cyan-400" />
-                  <span>Cliente</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {targetOrder.customerPhone && (
-                    <a
-                      href={`tel:${targetOrder.customerPhone}`}
-                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1"
-                      title="Ligar para cliente"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  {whatsappUrl && (
-                    <a
-                      href={whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 border border-emerald-500/40"
-                      title="Enviar WhatsApp"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">WhatsApp</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1">
-                <div className="w-10 h-10 rounded-full bg-cyan-600 text-white font-black flex items-center justify-center text-sm shadow-md shrink-0">
-                  {targetOrder.customerName ? targetOrder.customerName[0].toUpperCase() : 'C'}
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-white">{targetOrder.customerName}</h3>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">{targetOrder.customerPhone}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Aparelho */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                  <Smartphone className="w-4 h-4 text-cyan-400" />
-                  <span>Aparelho</span>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                  Garantia: {targetOrder.warrantyDays || 90} dias
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <img
-                  src={getDeviceThumbnail(targetOrder)}
-                  alt={targetOrder.model}
-                  className="w-14 h-14 rounded-xl object-cover border border-slate-700/80 bg-slate-900 shrink-0 shadow-sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-black text-sm text-white">{targetOrder.brand} {targetOrder.model}</h4>
-                  {targetOrder.imei && <p className="text-xs font-mono text-slate-400 mt-0.5">IMEI: {targetOrder.imei}</p>}
-                  {targetOrder.serialNumber && <p className="text-xs font-mono text-slate-400">S/N: {targetOrder.serialNumber}</p>}
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Defeito relatado */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
-              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                <Wrench className="w-4 h-4 text-amber-400" />
-                <span>Defeito relatado</span>
-              </div>
-              <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
-                {targetOrder.clientDefect || 'Nenhum defeito detalhado informado pelo cliente.'}
-              </p>
-            </div>
-
-            {/* NOVO: ORÇAMENTO COM DOIS VALORES DE PEÇA (1ª LINHA VS PREMIUM) & COPIAR P/ WHATSAPP */}
-            <div className="p-3.5 rounded-2xl bg-[#051814] border-2 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.2)] space-y-2.5">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400">
-                    <Box className="w-3.5 h-3.5" />
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                    <User className="w-4 h-4 text-cyan-400" />
+                    <span>Cliente</span>
                   </div>
-                  <span className="text-amber-300 font-extrabold text-xs uppercase tracking-wider flex items-center gap-1">
-                    ⭐💎 Orçamento: Peça 1ª Linha vs Premium
-                  </span>
-                </div>
-                {copiedBudgetFeedback && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500 text-white animate-pulse shadow-sm">
-                    ✓ {copiedBudgetFeedback}
-                  </span>
-                )}
-              </div>
-
-              {/* Informação dos valores */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className={`p-2.5 rounded-xl border transition-all ${
-                  targetOrder.selectedPartTier === 'FIRST_LINE'
-                    ? 'bg-amber-950/60 border-amber-400 ring-1 ring-amber-400/50 shadow-md'
-                    : 'bg-[#030d0b] border-slate-800'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-amber-300 text-xs">⭐ Opção 1ª Linha</span>
-                    {targetOrder.selectedPartTier === 'FIRST_LINE' && (
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-black">
-                        ESCOLHIDA (NA NOTA)
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 flex items-baseline justify-between">
-                    <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
-                    <span className="font-mono font-black text-amber-300 text-sm">{formatCurrency(targetOrder.partPriceFirstLine || 0)}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                    Custo-benefício com total funcionamento testado e garantia da loja.
-                  </p>
-                </div>
-
-                <div className={`p-2.5 rounded-xl border transition-all ${
-                  targetOrder.selectedPartTier === 'PREMIUM'
-                    ? 'bg-cyan-950/60 border-cyan-400 ring-1 ring-cyan-400/50 shadow-md'
-                    : 'bg-[#030d0b] border-slate-800'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-cyan-300 text-xs">💎 Opção Premium</span>
-                    {targetOrder.selectedPartTier === 'PREMIUM' && (
-                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-500 text-black">
-                        ESCOLHIDA (NA NOTA)
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 flex items-baseline justify-between">
-                    <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
-                    <span className="font-mono font-black text-cyan-300 text-sm">{formatCurrency(targetOrder.partPricePremium || 0)}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                    Qualidade superior: a qualidade da peça Premium sempre é mais próxima da original em cores, toque e brilho.
-                  </p>
-                </div>
-              </div>
-
-              {/* Seletor de Opção do Cliente */}
-              <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-black text-slate-300 uppercase">Cliente optou por:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateSelectedPartTier('FIRST_LINE')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
-                      targetOrder.selectedPartTier === 'FIRST_LINE'
-                        ? 'bg-amber-600 text-white border-amber-400 shadow-md'
-                        : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    <span>⭐ 1ª Linha {targetOrder.partPriceFirstLine ? `(${formatCurrency(targetOrder.partPriceFirstLine)})` : ''}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateSelectedPartTier('PREMIUM')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
-                      targetOrder.selectedPartTier === 'PREMIUM'
-                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-md'
-                        : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
-                    }`}
-                  >
-                    <span>💎 Premium {targetOrder.partPricePremium ? `(${formatCurrency(targetOrder.partPricePremium)})` : ''}</span>
-                  </button>
-
-                  {targetOrder.selectedPartTier && targetOrder.selectedPartTier !== 'NONE' && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateSelectedPartTier('NONE')}
-                      className="px-2 py-1 rounded-lg text-[10px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-                      title="Desmarcar opção de peça"
-                    >
-                      (Remover escolha)
-                    </button>
-                  )}
-                </div>
-
-                <span className="text-[9px] text-emerald-400/90 font-medium italic">
-                  * Apenas a opção marcada sai no cupom fiscal/comprovante impresso. A não marcada não sai.
-                </span>
-              </div>
-
-              {/* Botões para Copiar Texto para o WhatsApp */}
-              <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-                  <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  Copiar p/ WhatsApp:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleCopyBudgetFromDetail('FIRST_LINE')}
-                  className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                >
-                  <span>📋 Orçamento 1ª Linha</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCopyBudgetFromDetail('PREMIUM')}
-                  className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                >
-                  <span>📋 Orçamento Premium</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCopyBudgetFromDetail('COMPARATIVE')}
-                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded-lg text-[10px] font-black cursor-pointer transition-all active:scale-95 shadow-md flex items-center gap-1"
-                >
-                  <span>📋 Comparativo Completo (Explicação de Qualidade)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* CHECKLIST TÉCNICO DO APARELHO */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
-                    <CheckSquare className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-slate-300 font-extrabold text-xs uppercase tracking-wider">
-                    Checklist Técnico do Aparelho
-                  </span>
-                  {(() => {
-                    const chk = targetOrder.technicalChecklist;
-                    if (!chk) return null;
-                    const c = [
-                      chk.ligar,
-                      chk.toqueTela,
-                      chk.flash,
-                      chk.wifi,
-                      chk.cameraFrontal,
-                      chk.cameraTraseira,
-                      chk.microfone,
-                      chk.audio,
-                      chk.volumeMais,
-                      chk.volumeMenos,
-                      chk.biometriaPresenca,
-                      chk.botaoAuxiliarPresenca,
-                      chk.gavetaChip,
-                      chk.cartaoMemoria,
-                      chk.chip1,
-                      chk.chip2,
-                      chk.sinalArea,
-                    ].filter(Boolean).length;
-                    return (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
-                        {c}/17 testados
-                      </span>
-                    );
-                  })()}
-                </div>
-
-                {!isEditingChecklist ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocalChecklist(targetOrder.technicalChecklist || {});
-                      setIsEditingChecklist(true);
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 hover:text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
-                  >
-                    <Edit2 className="w-3 h-3 text-emerald-400" />
-                    <span>{targetOrder.technicalChecklist ? 'Alterar Checklist' : 'Preencher Checklist'}</span>
-                  </button>
-                ) : (
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingChecklist(false)}
-                      className="px-2 py-1 text-[11px] font-bold text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSaveChecklist(localChecklist)}
-                      className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm cursor-pointer transition-all"
-                    >
-                      Salvar Checklist
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {isEditingChecklist ? (
-                <div className="pt-2 animate-in fade-in space-y-2">
-                  <div className="max-h-[380px] overflow-y-auto rounded-xl border border-slate-700/80">
-                    <OrderTechnicalChecklistSection
-                      isDark={isDark}
-                      checklist={localChecklist}
-                      onChange={setLocalChecklist}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingChecklist(false)}
-                      className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800 cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSaveChecklist(localChecklist)}
-                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md cursor-pointer transition-all"
-                    >
-                      Salvar Alterações do Checklist
-                    </button>
+                    {targetOrder.customerPhone && (
+                      <a
+                        href={`tel:${targetOrder.customerPhone}`}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1"
+                        title="Ligar para cliente"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {whatsappUrl && (
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1 border border-emerald-500/40"
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </a>
+                    )}
                   </div>
                 </div>
-              ) : (
-                (() => {
-                  const summary = formatTechnicalChecklistSummary(targetOrder.technicalChecklist);
-                  if (summary.length === 0) {
-                    return (
-                      <div className="p-3 rounded-xl bg-[#07132a]/60 border border-slate-800 text-center space-y-1.5">
-                        <p className="text-xs text-slate-400">
-                          Nenhum teste de checklist registrado para este aparelho.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLocalChecklist({});
-                            setIsEditingChecklist(true);
-                          }}
-                          className="px-3 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/50 text-emerald-300 hover:text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Preencher Checklist Agora</span>
-                        </button>
-                      </div>
-                    );
-                  }
 
-                  return (
-                    <div className="space-y-2 pt-1">
-                      <div className="flex flex-wrap gap-1.5">
-                        {summary
-                          .filter((s) => !s.startsWith('Obs:'))
-                          .map((line, idx) => {
-                            const isPositive =
-                              line.includes(': SIM') ||
-                              line.includes(': FUNCIONA') ||
-                              line.includes(': DÁ ÁREA') ||
-                              line.includes(': TEM (FUNCIONA');
-                            const isNegative =
-                              line.includes(': NÃO') ||
-                              line.includes(': NÃO FUNCIONA') ||
-                              line.includes(': NÃO DÁ ÁREA') ||
-                              line.includes(': NÃO TEM');
-                            const isWarning =
-                              line.includes('DIFICULDADE') ||
-                              line.includes('MAU TOQUE') ||
-                              line.includes('DETALHE') ||
-                              line.includes('PROBLEMA');
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="w-10 h-10 rounded-full bg-cyan-600 text-white font-black flex items-center justify-center text-sm shadow-md shrink-0">
+                    {targetOrder.customerName ? targetOrder.customerName[0].toUpperCase() : 'C'}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-white">{targetOrder.customerName}</h3>
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">{targetOrder.customerPhone}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                            let pillColor =
-                              'bg-slate-800 text-slate-300 border-slate-700';
-                            if (isPositive) {
-                              pillColor =
-                                'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-xs';
-                            } else if (isNegative) {
-                              pillColor =
-                                'bg-rose-950/70 text-rose-300 border-rose-500/50 shadow-xs';
-                            } else if (isWarning) {
-                              pillColor =
-                                'bg-amber-950/70 text-amber-300 border-amber-500/50 shadow-xs';
-                            }
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                    <Smartphone className="w-4 h-4 text-cyan-400" />
+                    <span>Aparelho</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                    Garantia: {targetOrder.warrantyDays || 90} dias
+                  </span>
+                </div>
 
-                            return (
-                              <span
-                                key={idx}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-bold border leading-none ${pillColor}`}
-                              >
-                                {line}
-                              </span>
-                            );
-                          })}
-                      </div>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={getDeviceThumbnail(targetOrder)}
+                    alt={targetOrder.model}
+                    className="w-14 h-14 rounded-xl object-cover border border-slate-700/80 bg-slate-900 shrink-0 shadow-sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-black text-sm text-white">{targetOrder.brand} {targetOrder.model}</h4>
+                    {targetOrder.imei && <p className="text-xs font-mono text-slate-400 mt-0.5">IMEI: {targetOrder.imei}</p>}
+                    {targetOrder.serialNumber && <p className="text-xs font-mono text-slate-400">S/N: {targetOrder.serialNumber}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
 
-                      {targetOrder.technicalChecklist?.observacoes && (
-                        <div className="p-2 rounded-xl bg-[#07132a] border border-slate-800 text-xs text-slate-300">
-                          <span className="font-bold text-cyan-400 block mb-0.5">
-                            Observações do Checklist:
-                          </span>
-                          <p className="whitespace-pre-line leading-relaxed">
-                            {targetOrder.technicalChecklist.observacoes}
-                          </p>
-                        </div>
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <Wrench className="w-4 h-4 text-amber-400" />
+                  <span>Defeito relatado</span>
+                </div>
+                <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
+                  {targetOrder.clientDefect || 'Nenhum defeito detalhado informado pelo cliente.'}
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'financeiro' && (
+              <div className="p-3.5 rounded-2xl bg-[#051814] border-2 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.2)] space-y-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400">
+                      <Box className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-amber-300 font-extrabold text-xs uppercase tracking-wider flex items-center gap-1">
+                      ⭐💎 Orçamento: Peça 1ª Linha vs Premium
+                    </span>
+                  </div>
+                  {copiedBudgetFeedback && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-500 text-white animate-pulse shadow-sm">
+                      ✓ {copiedBudgetFeedback}
+                    </span>
+                  )}
+                </div>
+
+                {/* Informação dos valores */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className={`p-2.5 rounded-xl border transition-all ${
+                    targetOrder.selectedPartTier === 'FIRST_LINE'
+                      ? 'bg-amber-950/60 border-amber-400 ring-1 ring-amber-400/50 shadow-md'
+                      : 'bg-[#030d0b] border-slate-800'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-amber-300 text-xs">⭐ Opção 1ª Linha</span>
+                      {targetOrder.selectedPartTier === 'FIRST_LINE' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500 text-black">
+                          ESCOLHIDA (NA NOTA)
+                        </span>
                       )}
                     </div>
-                  );
-                })()
-              )}
-            </div>
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
+                      <span className="font-mono font-black text-amber-300 text-sm">{formatCurrency(targetOrder.partPriceFirstLine || 0)}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                      Custo-benefício com total funcionamento testado e garantia da loja.
+                    </p>
+                  </div>
 
-            {/* 4. Serviço executado */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                  <Settings className="w-4 h-4 text-cyan-400" />
-                  <span>Serviço executado</span>
+                  <div className={`p-2.5 rounded-xl border transition-all ${
+                    targetOrder.selectedPartTier === 'PREMIUM'
+                      ? 'bg-cyan-950/60 border-cyan-400 ring-1 ring-cyan-400/50 shadow-md'
+                      : 'bg-[#030d0b] border-slate-800'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-cyan-300 text-xs">💎 Opção Premium</span>
+                      {targetOrder.selectedPartTier === 'PREMIUM' && (
+                        <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-500 text-black">
+                          ESCOLHIDA (NA NOTA)
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className="text-[11px] text-slate-300">{targetOrder.partTierDescription || 'Peça / Componente'}</span>
+                      <span className="font-mono font-black text-cyan-300 text-sm">{formatCurrency(targetOrder.partPricePremium || 0)}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                      Qualidade superior: a qualidade da peça Premium sempre é mais próxima da original em cores, toque e brilho.
+                    </p>
+                  </div>
                 </div>
-                {!isEditingService && (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingService(true)}
-                    className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded-lg cursor-pointer"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                    <span>Alterar</span>
-                  </button>
-                )}
-              </div>
 
-              {isEditingService ? (
-                <div className="space-y-2 animate-in fade-in">
-                  <textarea
-                    rows={2}
-                    value={localService}
-                    onChange={(e) => setLocalService(e.target.value)}
-                    placeholder="Informe o serviço executado na OS..."
-                    className="w-full p-2.5 bg-[#040815] border border-cyan-500/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden"
-                  />
-                  <div className="flex justify-end gap-2">
+                {/* Seletor de Opção do Cliente */}
+                <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black text-slate-300 uppercase">Cliente optou por:</span>
                     <button
                       type="button"
-                      onClick={() => setIsEditingService(false)}
-                      className="px-2.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer"
+                      onClick={() => handleUpdateSelectedPartTier('FIRST_LINE')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                        targetOrder.selectedPartTier === 'FIRST_LINE'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                          : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
+                      }`}
                     >
-                      Cancelar
+                      <span>⭐ 1ª Linha {targetOrder.partPriceFirstLine ? `(${formatCurrency(targetOrder.partPriceFirstLine)})` : ''}</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSelectedPartTier('PREMIUM')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                        targetOrder.selectedPartTier === 'PREMIUM'
+                          ? 'bg-cyan-600 text-white border-cyan-400 shadow-md'
+                          : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <span>💎 Premium {targetOrder.partPricePremium ? `(${formatCurrency(targetOrder.partPricePremium)})` : ''}</span>
+                    </button>
+
+                    {targetOrder.selectedPartTier && targetOrder.selectedPartTier !== 'NONE' && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSelectedPartTier('NONE')}
+                        className="px-2 py-1 rounded-lg text-[10px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                        title="Desmarcar opção de peça"
+                      >
+                        (Remover escolha)
+                      </button>
+                    )}
+                  </div>
+
+                  <span className="text-[9px] text-emerald-400/90 font-medium italic">
+                    * Apenas a opção marcada sai no cupom fiscal/comprovante impresso. A não marcada não sai.
+                  </span>
+                </div>
+
+                {/* Botões para Copiar Texto para o WhatsApp */}
+                <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 mr-1 flex items-center gap-1">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    Copiar p/ WhatsApp:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyBudgetFromDetail('FIRST_LINE')}
+                    className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                  >
+                    <span>📋 Orçamento 1ª Linha</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyBudgetFromDetail('PREMIUM')}
+                    className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 rounded-lg text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                  >
+                    <span>📋 Orçamento Premium</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyBudgetFromDetail('COMPARATIVE')}
+                    className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded-lg text-[10px] font-black cursor-pointer transition-all active:scale-95 shadow-md flex items-center gap-1"
+                  >
+                    <span>📋 Comparativo Completo (Explicação de Qualidade)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'checklist' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                      <CheckSquare className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-slate-300 font-extrabold text-xs uppercase tracking-wider">
+                      Checklist Técnico do Aparelho
+                    </span>
+                    {(() => {
+                      const chk = targetOrder.technicalChecklist;
+                      if (!chk) return null;
+                      const c = [
+                        chk.ligar,
+                        chk.toqueTela,
+                        chk.flash,
+                        chk.wifi,
+                        chk.cameraFrontal,
+                        chk.cameraTraseira,
+                        chk.microfone,
+                        chk.audio,
+                        chk.volumeMais,
+                        chk.volumeMenos,
+                        chk.biometriaPresenca,
+                        chk.botaoAuxiliarPresenca,
+                        chk.gavetaChip,
+                        chk.cartaoMemoria,
+                        chk.chip1,
+                        chk.chip2,
+                        chk.sinalArea,
+                      ].filter(Boolean).length;
+                      return (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-500/50">
+                          {c}/17 testados
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  {!isEditingChecklist ? (
                     <button
                       type="button"
                       onClick={() => {
-                        setIsEditingService(false);
-                        saveUpdatedOrder(localParts, localCustomPrice, localDiscount, localService);
-                        showToast('Serviço atualizado!');
+                        setLocalChecklist(targetOrder.technicalChecklist || {});
+                        setIsEditingChecklist(true);
                       }}
-                      className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 hover:text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                     >
-                      Salvar
+                      <Edit2 className="w-3 h-3 text-emerald-400" />
+                      <span>{targetOrder.technicalChecklist ? 'Alterar Checklist' : 'Preencher Checklist'}</span>
                     </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
-                  {localService || targetOrder.requestedService || targetOrder.performedService || targetOrder.technicalDiagnosis || 'Nenhum serviço registrado.'}
-                </p>
-              )}
-            </div>
-
-            {/* 5. Valor do serviço */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                  <DollarSign className="w-4 h-4 text-emerald-400" />
-                  <span>Valor do serviço</span>
-                </div>
-                <p className="text-xl font-black text-emerald-400 font-mono mt-1">
-                  {formatCurrency(currentTotal)}
-                </p>
-              </div>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                  className={`px-3 py-1.5 text-xs font-black rounded-full border flex items-center gap-1.5 cursor-pointer shadow-xs ${badge.bg} ${badge.text} ${badge.border}`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${badge.dot || 'bg-current'}`} />
-                  <span>{getOrderStatusLabel(targetOrder.status)}</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* 6. Observações */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
-              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                <FileText className="w-4 h-4 text-slate-300" />
-                <span>Observações</span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed pl-6">
-                {targetOrder.internalNotes || (targetOrder as any).notes || 'Sem observações adicionais.'}
-              </p>
-            </div>
-
-            {/* 7. Fotos anexas com upload [+] */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                  <Camera className="w-4 h-4 text-cyan-400" />
-                  <span>Fotos anexas</span>
-                </div>
-
-                <label className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Anexar Foto</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoUpload}
-                  />
-                </label>
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                {((targetOrder.photosBefore || []).concat(targetOrder.photosAfter || [])).length > 0 ? (
-                  (targetOrder.photosBefore || []).concat(targetOrder.photosAfter || []).map((imgUrl, i) => (
-                    <img
-                      key={i}
-                      src={imgUrl}
-                      alt={`Foto ${i + 1}`}
-                      className="w-16 h-16 rounded-xl object-cover border border-slate-700 hover:scale-105 transition-transform cursor-pointer shadow-xs"
-                      onClick={() => window.open(imgUrl, '_blank')}
-                    />
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-500 italic">Nenhuma foto anexada a esta OS.</p>
-                )}
-              </div>
-            </div>
-
-            {/* 8. Histórico da OS */}
-            <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
-              <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
-                <Clock className="w-4 h-4 text-cyan-400" />
-                <span>Histórico da OS</span>
-              </div>
-
-              <div className="space-y-2 pl-2 border-l-2 border-slate-800 ml-2 pt-1">
-                {((targetOrder.history && targetOrder.history.length > 0) || (targetOrder.statusHistory && targetOrder.statusHistory.length > 0)) ? (
-                  (targetOrder.history && targetOrder.history.length > 0 ? targetOrder.history : (targetOrder.statusHistory || [])).map((h: any, i: number) => (
-                    <div key={i} className="relative pl-4 text-xs space-y-0.5">
-                      <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
-                      <p className="font-bold text-white">
-                        {getOrderStatusLabel(h.status || h.toStatus)}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
-                      </p>
-                      {h.notes && <p className="text-[11px] text-slate-300">{h.notes}</p>}
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingChecklist(false)}
+                        className="px-2 py-1 text-[11px] font-bold text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveChecklist(localChecklist)}
+                        className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm cursor-pointer transition-all"
+                      >
+                        Salvar Checklist
+                      </button>
                     </div>
-                  ))
-                ) : (
-                  <div className="relative pl-4 text-xs">
-                    <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
-                    <p className="font-bold text-white">OS criada</p>
-                    <p className="text-[10px] text-slate-400">{formatDate(targetOrder.createdAt)}</p>
+                  )}
+                </div>
+
+                {isEditingChecklist ? (
+                  <div className="pt-2 animate-in fade-in space-y-2">
+                    <div className="max-h-[380px] overflow-y-auto rounded-xl border border-slate-700/80">
+                      <OrderTechnicalChecklistSection
+                        isDark={isDark}
+                        checklist={localChecklist}
+                        onChange={setLocalChecklist}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingChecklist(false)}
+                        className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveChecklist(localChecklist)}
+                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md cursor-pointer transition-all"
+                      >
+                        Salvar Alterações do Checklist
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  (() => {
+                    const summary = formatTechnicalChecklistSummary(targetOrder.technicalChecklist);
+                    if (summary.length === 0) {
+                      return (
+                        <div className="p-3 rounded-xl bg-[#07132a]/60 border border-slate-800 text-center space-y-1.5">
+                          <p className="text-xs text-slate-400">
+                            Nenhum teste de checklist registrado para este aparelho.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLocalChecklist({});
+                              setIsEditingChecklist(true);
+                            }}
+                            className="px-3 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/50 text-emerald-300 hover:text-white text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Preencher Checklist Agora</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex flex-wrap gap-1.5">
+                          {summary
+                            .filter((s) => !s.startsWith('Obs:'))
+                            .map((line, idx) => {
+                              const isPositive =
+                                line.includes(': SIM') ||
+                                line.includes(': FUNCIONA') ||
+                                line.includes(': DÁ ÁREA') ||
+                                line.includes(': TEM (FUNCIONA');
+                              const isNegative =
+                                line.includes(': NÃO') ||
+                                line.includes(': NÃO FUNCIONA') ||
+                                line.includes(': NÃO DÁ ÁREA') ||
+                                line.includes(': NÃO TEM');
+                              const isWarning =
+                                line.includes('DIFICULDADE') ||
+                                line.includes('MAU TOQUE') ||
+                                line.includes('DETALHE') ||
+                                line.includes('PROBLEMA');
+
+                              let pillColor =
+                                'bg-slate-800 text-slate-300 border-slate-700';
+                              if (isPositive) {
+                                pillColor =
+                                  'bg-emerald-950/70 text-emerald-300 border-emerald-500/50 shadow-xs';
+                              } else if (isNegative) {
+                                pillColor =
+                                  'bg-rose-950/70 text-rose-300 border-rose-500/50 shadow-xs';
+                              } else if (isWarning) {
+                                pillColor =
+                                  'bg-amber-950/70 text-amber-300 border-amber-500/50 shadow-xs';
+                              }
+
+                              return (
+                                <span
+                                  key={idx}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold border leading-none ${pillColor}`}
+                                >
+                                  {line}
+                                </span>
+                              );
+                            })}
+                        </div>
+
+                        {targetOrder.technicalChecklist?.observacoes && (
+                          <div className="p-2 rounded-xl bg-[#07132a] border border-slate-800 text-xs text-slate-300">
+                            <span className="font-bold text-cyan-400 block mb-0.5">
+                              Observações do Checklist:
+                            </span>
+                            <p className="whitespace-pre-line leading-relaxed">
+                              {targetOrder.technicalChecklist.observacoes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
-            </div>
+            )}
+
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                    <Settings className="w-4 h-4 text-cyan-400" />
+                    <span>Serviço executado</span>
+                  </div>
+                  {!isEditingService && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingService(true)}
+                      className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 bg-cyan-950/60 border border-cyan-800/50 px-2 py-0.5 rounded-lg cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Alterar</span>
+                    </button>
+                  )}
+                </div>
+
+                {isEditingService ? (
+                  <div className="space-y-2 animate-in fade-in">
+                    <textarea
+                      rows={2}
+                      value={localService}
+                      onChange={(e) => setLocalService(e.target.value)}
+                      placeholder="Informe o serviço executado na OS..."
+                      className="w-full p-2.5 bg-[#040815] border border-cyan-500/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingService(false)}
+                        className="px-2.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingService(false);
+                          saveUpdatedOrder(localParts, localCustomPrice, localDiscount, localService);
+                          showToast('Serviço atualizado!');
+                        }}
+                        className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs font-semibold text-slate-200 leading-relaxed pl-6">
+                    {localService || targetOrder.requestedService || targetOrder.performedService || targetOrder.technicalDiagnosis || 'Nenhum serviço registrado.'}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    <span>Valor do serviço</span>
+                  </div>
+                  <p className="text-xl font-black text-emerald-400 font-mono mt-1">
+                    {formatCurrency(currentTotal)}
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                    className={`px-3 py-1.5 text-xs font-black rounded-full border flex items-center gap-1.5 cursor-pointer shadow-xs ${badge.bg} ${badge.text} ${badge.border}`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${badge.dot || 'bg-current'}`} />
+                    <span>{getOrderStatusLabel(targetOrder.status)}</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'geral' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-1.5">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <FileText className="w-4 h-4 text-slate-300" />
+                  <span>Observações</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed pl-6">
+                  {targetOrder.internalNotes || (targetOrder as any).notes || 'Sem observações adicionais.'}
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'historico' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                    <Camera className="w-4 h-4 text-cyan-400" />
+                    <span>Fotos anexas</span>
+                  </div>
+
+                  <label className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer transition-all">
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Anexar Foto</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoUpload}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {((targetOrder.photosBefore || []).concat(targetOrder.photosAfter || [])).length > 0 ? (
+                    (targetOrder.photosBefore || []).concat(targetOrder.photosAfter || []).map((imgUrl, i) => (
+                      <img
+                        key={i}
+                        src={imgUrl}
+                        alt={`Foto ${i + 1}`}
+                        className="w-16 h-16 rounded-xl object-cover border border-slate-700 hover:scale-105 transition-transform cursor-pointer shadow-xs"
+                        onClick={() => window.open(imgUrl, '_blank')}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">Nenhuma foto anexada a esta OS.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'historico' && (
+              <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-2.5">
+                <div className="flex items-center gap-2 text-slate-400 font-extrabold text-xs uppercase tracking-wider">
+                  <Clock className="w-4 h-4 text-cyan-400" />
+                  <span>Histórico da OS</span>
+                </div>
+
+                <div className="space-y-2 pl-2 border-l-2 border-slate-800 ml-2 pt-1">
+                  {((targetOrder.history && targetOrder.history.length > 0) || (targetOrder.statusHistory && targetOrder.statusHistory.length > 0)) ? (
+                    (targetOrder.history && targetOrder.history.length > 0 ? targetOrder.history : (targetOrder.statusHistory || [])).map((h: any, i: number) => (
+                      <div key={i} className="relative pl-4 text-xs space-y-0.5">
+                        <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
+                        <p className="font-bold text-white">
+                          {getOrderStatusLabel(h.status || h.toStatus)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {formatDate(h.timestamp || h.changedAt)} por {h.userName || h.changedBy || 'Sistema'}
+                        </p>
+                        {h.notes && <p className="text-[11px] text-slate-300">{h.notes}</p>}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="relative pl-4 text-xs">
+                      <span className="absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full bg-cyan-400 ring-4 ring-[#0b1428]" />
+                      <p className="font-bold text-white">OS criada</p>
+                      <p className="text-[10px] text-slate-400">{formatDate(targetOrder.createdAt)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 9. Gestão Detalhada de Peças e Valores (Collapsible) */}
             <div className="p-3.5 rounded-2xl bg-[#0b1428] border border-slate-800/90 space-y-3">

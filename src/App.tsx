@@ -207,6 +207,13 @@ export default function App() {
 
   // Automatically restore and maintain Firebase Auth session across all machines/browsers
   useEffect(() => {
+    // Force clear any potential stale local storage data
+    try {
+      localStorage.clear();
+    } catch (e) {
+      console.warn('Failed to clear localStorage:', e);
+    }
+    
     if (!auth) {
       setIsAuthChecking(false);
       return;

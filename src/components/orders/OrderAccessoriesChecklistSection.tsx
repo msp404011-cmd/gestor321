@@ -4,16 +4,9 @@ import {
   Check,
   X,
   RotateCcw,
-  Search,
-  Sparkles,
-  ArrowRight,
-  ArrowLeft,
   Tag,
   FileText,
-  Smartphone,
-  Filter,
-  CheckCircle2,
-  AlertTriangle,
+  Plus,
 } from 'lucide-react';
 import { CustomAccessoryItem, DeviceType } from '../../types';
 import { isAccessoryForDeviceType } from '../../services/storage';
@@ -49,469 +42,128 @@ export const OrderAccessoriesChecklistSection: React.FC<
   customAccessories = [],
   customAccMap = {},
   setCustomAccMap,
-  onNavigateToTab,
-  checklistFilledCount = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'ALL' | 'PRESENT' | 'NOT_PRESENT'>('ALL');
+  const [extraItems, setExtraItems] = useState<{id: string, name: string, details: string}[]>([]);
 
-  // Filter accessories relevant for this device type
+  const handleAddExtraItem = () => {
+    setExtraItems(prev => [...prev, { id: `extra-${Date.now()}`, name: '', details: '' }]);
+  };
+
+  const handleUpdateExtraItem = (id: string, field: 'name' | 'details', value: string) => {
+    setExtraItems(prev => prev.map(item => item.id === id ? {...item, [field]: value} : item));
+  };
+
+  const handleRemoveExtraItem = (id: string) => {
+    setExtraItems(prev => prev.filter(item => item.id !== id));
+  };
+
   const activeAccessories = useMemo(() => {
     return (customAccessories || []).filter((acc) =>
       isAccessoryForDeviceType(acc, deviceType)
     );
   }, [customAccessories, deviceType]);
 
-  // Count how many are marked as SIM
   const presentCount = useMemo(() => {
     return activeAccessories.filter(
       (acc) => customAccMap?.[acc.id]?.present
     ).length;
   }, [activeAccessories, customAccMap]);
 
-  // Filtered by search and mode
   const filteredAccessories = useMemo(() => {
     return activeAccessories.filter((acc) => {
       const isPresent = Boolean(customAccMap[acc.id]?.present);
-      if (filterMode === 'PRESENT' && !isPresent) return false;
-      if (filterMode === 'NOT_PRESENT' && isPresent) return false;
-
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
-      const matchName = acc.name.toLowerCase().includes(q);
-      const matchDetails = (customAccMap[acc.id]?.details || '').toLowerCase().includes(q);
-      return matchName || matchDetails;
+      return acc.name.toLowerCase().includes(q) || (customAccMap[acc.id]?.details || '').toLowerCase().includes(q);
     });
-  }, [activeAccessories, customAccMap, filterMode, searchQuery]);
+  }, [activeAccessories, customAccMap, searchQuery]);
 
-  // Compiled summary text for print
   const accessoriesSummary = useMemo(() => {
     const list: string[] = [];
     activeAccessories.forEach((acc) => {
       const state = customAccMap[acc.id];
       if (state?.present) {
-        const details = state.details?.trim();
-        list.push(`${acc.name}${details ? ` (${details})` : ''}`);
+        list.push(`${acc.name}${state.details ? ` (${state.details})` : ''}`);
       }
     });
+    extraItems.forEach(item => {
+        if (item.name) list.push(`${item.name}${item.details ? ` (${item.details})` : ''}`);
+    });
 
-    if (list.length === 0) {
-      return 'Nenhum acessório adicional entregue (Aparelho avulso)';
-    }
-    return list.join(' • ');
-  }, [activeAccessories, customAccMap]);
+    return list.length === 0 ? 'Nenhum acessório entregue (Aparelho avulso)' : list.join(' • ');
+  }, [activeAccessories, customAccMap, extraItems]);
 
   const handleToggleAccessory = (accId: string, present: boolean) => {
     setCustomAccMap((prev) => ({
       ...prev,
-      [accId]: {
-        present,
-        details: prev[accId]?.details || '',
-      },
+      [accId]: { present, details: prev[accId]?.details || '' },
     }));
   };
 
   const handleUpdateAccessoryDetail = (accId: string, details: string) => {
     setCustomAccMap((prev) => ({
       ...prev,
-      [accId]: {
-        present: prev[accId]?.present ?? true,
-        details,
-      },
+      [accId]: { present: prev[accId]?.present ?? true, details },
     }));
   };
 
-  const handleAppendTag = (accId: string, tag: string) => {
-    const current = customAccMap[accId]?.details || '';
-    if (!current.trim()) {
-      handleUpdateAccessoryDetail(accId, tag);
-    } else if (!current.toLowerCase().includes(tag.toLowerCase())) {
-      handleUpdateAccessoryDetail(accId, `${current.trim()}, ${tag}`);
-    }
-  };
-
-  // Quick Action: Mark all active accessories as NÃO (Aparelho avulso)
-  const handleMarkAllNone = () => {
-    setCustomAccMap((prev) => {
-      const updated = { ...prev };
-      activeAccessories.forEach((acc) => {
-        updated[acc.id] = {
-          present: false,
-          details: '',
-        };
-      });
-      return updated;
-    });
-  };
-
-  // Quick Action: Reset / clear all
   const handleClearAll = () => {
-    setCustomAccMap((prev) => {
-      const updated = { ...prev };
-      activeAccessories.forEach((acc) => {
-        delete updated[acc.id];
-      });
-      return updated;
-    });
+    setCustomAccMap({});
+    setExtraItems([]);
   };
 
   return (
-    <div
-      className={`rounded-2xl border-2 flex flex-col h-full min-h-0 overflow-hidden transition-all ${
-        isDark
-          ? 'bg-gradient-to-b from-[#140722]/95 via-[#0c0316]/90 to-[#07010d]/95 border-purple-500/60 shadow-[0_0_30px_rgba(168,85,247,0.25)] text-white'
-          : 'bg-white border-purple-400 shadow-xl text-slate-900'
-      }`}
-    >
-      {/* 1. TOP HEADER: CHECKLIST DE ACESSÓRIOS */}
+    <div className={`rounded-2xl border-2 flex flex-col h-full min-h-0 overflow-hidden transition-all ${isDark ? 'bg-gradient-to-b from-[#140722]/95 via-[#0c0316]/90 to-[#07010d]/95 border-purple-500/60 shadow-[0_0_30px_rgba(168,85,247,0.25)] text-white' : 'bg-white border-purple-400 shadow-xl text-slate-900'}`}>
       <div className="p-2.5 sm:p-3 border-b border-purple-500/30 shrink-0 bg-[#090212] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-xl bg-purple-600/30 border border-purple-400/60 flex items-center justify-center text-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.45)] shrink-0">
-            <Headphones className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-xs sm:text-sm font-black tracking-wide leading-none text-white">
-              CHECKLIST DE ACESSÓRIOS
-            </h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Identifique se o cliente deixou carregador, chip, cartão, capinha ou outros itens
-            </p>
-          </div>
-        </div>
-
-        {/* Quick Clear Action */}
-        <button
-          type="button"
-          onClick={handleClearAll}
-          className="px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-bold bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-          title="Limpar seleções"
-        >
-          <RotateCcw className="w-3 h-3" />
-          <span>Limpar</span>
+        <h3 className="text-xs sm:text-sm font-black tracking-wide text-white">CHECKLIST DE ACESSÓRIOS</h3>
+        <button type="button" onClick={handleClearAll} className="px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-bold bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-all cursor-pointer flex items-center gap-1 active:scale-95">
+          <RotateCcw className="w-3 h-3" /> Limpar
         </button>
       </div>
 
-      {/* 3. SCROLLABLE ACCESSORIES LIST - ERGONOMIC, UNIFORM ON ALL DESKTOP SIZES */}
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin p-2 sm:p-2.5 space-y-2">
-        {filteredAccessories.length === 0 ? (
-          <div className="py-8 px-4 text-center space-y-2 bg-[#090214] rounded-2xl border border-slate-800">
-            <Headphones className="w-8 h-8 text-purple-400 mx-auto opacity-50" />
-            <p className="text-xs text-slate-300 font-bold">
-              {searchQuery
-                ? `Nenhum acessório encontrado para "${searchQuery}"`
-                : `Nenhum acessório configurado para o tipo "${deviceType}"`}
-            </p>
-            <p className="text-[11px] text-slate-500">
-              Você pode cadastrar novos itens nas configurações do sistema.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {filteredAccessories.map((acc) => {
-              const isPresent = Boolean(customAccMap[acc.id]?.present);
-              const details = customAccMap[acc.id]?.details || '';
-
-              return (
-                <div
-                  key={acc.id}
-                  className={`p-2.5 rounded-2xl border-2 transition-all ${
-                    isPresent
-                      ? 'bg-gradient-to-r from-[#170529] to-[#0f031b] border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.25)] ring-1 ring-purple-500/30'
-                      : 'bg-[#090213]/90 border-slate-800/90 hover:border-slate-700'
-                  }`}
-                >
-                  {/* Top Item Row: Title & SIM/NÃO Segmented Control */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                        isPresent
-                          ? 'bg-purple-500 text-white shadow-[0_0_8px_rgba(168,85,247,0.8)]'
-                          : 'bg-slate-800 border border-slate-700'
-                      }`}>
-                        {isPresent && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                      </div>
-                      <div className="min-w-0">
-                        <span className={`text-xs sm:text-sm font-extrabold truncate block ${
-                          isPresent ? 'text-white' : 'text-slate-300'
-                        }`}>
-                          {acc.name}
-                        </span>
-                        {acc.placeholder && !details && (
-                          <span className="text-[10px] text-slate-500 truncate block">
-                            Dica: {acc.placeholder}
-                          </span>
-                        )}
-                      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {filteredAccessories.map((acc) => {
+            const isPresent = Boolean(customAccMap[acc.id]?.present);
+            const details = customAccMap[acc.id]?.details || '';
+            return (
+              <div key={acc.id} onClick={() => handleToggleAccessory(acc.id, !isPresent)} className={`p-2.5 rounded-2xl border-2 transition-all cursor-pointer ${isPresent ? 'bg-gradient-to-r from-[#170529] to-[#0f031b] border-purple-500 ring-1 ring-purple-500/30' : 'bg-[#090213]/90 border-slate-800/90'}`}>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full flex items-center justify-center ${isPresent ? 'bg-purple-500' : 'bg-slate-800'}`}>
+                      {isPresent && <Check className="w-2 h-2 stroke-[4]" />}
                     </div>
-
-                    {/* High-visibility SIM / NÃO Toggle */}
-                    <div className="flex items-center bg-[#05010a] p-1 rounded-xl border border-slate-700/80 text-[10px] sm:text-[11px] shrink-0 font-black shadow-inner">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleAccessory(acc.id, false)}
-                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                          !isPresent
-                            ? 'bg-slate-700 text-white shadow-xs'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <X className="w-3 h-3" />
-                        <span>NÃO</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleAccessory(acc.id, true)}
-                        className={`px-3.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 font-black ${
-                          isPresent
-                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.6)] ring-1 ring-purple-300'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        <span>SIM</span>
-                      </button>
-                    </div>
+                    <span className="text-[11px] font-bold truncate">{acc.name}</span>
                   </div>
-
-                  {/* Expandable Details Container when SIM is active */}
                   {isPresent && (
-                    <div className="mt-2 pt-2 border-t border-purple-900/50 space-y-2 animate-in fade-in duration-150">
-                      {/* 1. CAPA */}
-                      {acc.name.toLowerCase().includes('capa') && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
-                            <span>🎨 Cor da Capa:</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={details.startsWith('Cor: ') ? details.replace('Cor: ', '') : details}
-                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value ? `Cor: ${e.target.value}` : '')}
-                              placeholder="Digite a cor da capa (ex: Transparente, Preto, Vermelho)..."
-                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
-                            />
-                            {details && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                                title="Limpar"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                            {['Preto', 'Transparente', 'Vermelho', 'Azul', 'Rosa', 'Silicone'].map((cor) => (
-                              <button
-                                key={cor}
-                                type="button"
-                                onClick={() => handleUpdateAccessoryDetail(acc.id, `Cor: ${cor}`)}
-                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
-                              >
-                                {cor}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 2. CHIP */}
-                      {acc.name.toLowerCase().includes('chip') && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] text-purple-300 font-bold flex items-center justify-between">
-                            <span>📶 Operadora do Chip:</span>
-                            {details && (
-                              <span className="text-[9px] text-purple-300 font-normal">
-                                {details.replace('Operadora: ', '')}
-                              </span>
-                            )}
-                          </label>
-                          <div className="grid grid-cols-5 gap-1">
-                            {(['TIM', 'Vivo', 'Brisanet', 'Claro', 'Outro'] as const).map((op) => {
-                              const isSelected = details === `Operadora: ${op}` || details.startsWith(`Operadora: ${op}:`) || (op === 'Outro' && details.startsWith('Operadora: Outro'));
-                              return (
-                                <button
-                                  key={op}
-                                  type="button"
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      handleUpdateAccessoryDetail(acc.id, '');
-                                    } else if (op === 'Outro') {
-                                      handleUpdateAccessoryDetail(acc.id, 'Operadora: Outro: ');
-                                    } else {
-                                      handleUpdateAccessoryDetail(acc.id, `Operadora: ${op}`);
-                                    }
-                                  }}
-                                  className={`px-1 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer border text-center ${
-                                    isSelected
-                                      ? 'bg-purple-600 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.5)] ring-1 ring-purple-300'
-                                      : 'bg-[#07010e] hover:bg-slate-800 text-slate-300 border-slate-700/80'
-                                  }`}
-                                >
-                                  {op}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {(details.startsWith('Operadora: Outro') || details === 'Operadora: Outro') && (
-                            <input
-                              type="text"
-                              value={details.replace(/^Operadora:\s*Outro:\s*/i, '').replace(/^Operadora:\s*Outro/i, '')}
-                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, `Operadora: Outro: ${e.target.value}`)}
-                              placeholder="Digite o nome da operadora..."
-                              className="w-full mt-1 px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium"
-                              autoFocus
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      {/* 3. CARTÃO */}
-                      {acc.name.toLowerCase().includes('cart') && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
-                            <span>💾 Informações do Cartão de Memória:</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={details}
-                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
-                              placeholder="Informações do cartão (ex: 32GB SanDisk, 64GB Kingston)..."
-                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
-                            />
-                            {details && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                                title="Limpar"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                            {['16GB', '32GB', '64GB', '128GB', 'SanDisk', 'Kingston'].map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => handleAppendTag(acc.id, tag)}
-                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
-                              >
-                                + {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 4. CARREGADOR */}
-                      {acc.name.toLowerCase().includes('carregador') && (
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-purple-300 font-bold flex items-center gap-1">
-                            <span>🔌 Informações do Carregador:</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={details}
-                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
-                              placeholder="Informações do carregador (ex: Original Turbo 67W, com cabo Tipo C)..."
-                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
-                            />
-                            {details && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                                title="Limpar"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                            {['Original', 'Paralelo', 'Turbo', 'Com cabo Tipo-C', 'Com cabo Lightning', 'Sem cabo'].map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => handleAppendTag(acc.id, tag)}
-                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
-                              >
-                                + {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 5. DEMAIS ACESSÓRIOS */}
-                      {!acc.name.toLowerCase().match(/(capa|chip|cart|carregador)/) && (
-                        <>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={details}
-                              onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)}
-                              placeholder={acc.placeholder || `Descreva ${acc.name.toLowerCase()} (ex: cor, marca, voltagem, avaria)...`}
-                              className="w-full px-2.5 py-1.5 bg-[#07010e] border border-purple-500/50 focus:border-purple-400 rounded-xl text-xs text-purple-100 placeholder-slate-500 focus:outline-hidden font-medium transition-colors shadow-inner"
-                            />
-                            {details && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateAccessoryDetail(acc.id, '')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                                title="Limpar detalhe"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[9px] text-purple-300 font-bold flex items-center gap-0.5">
-                              <Tag className="w-2.5 h-2.5" />
-                              <span>Dica rápida:</span>
-                            </span>
-                            {COMMON_DETAIL_TAGS.map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => handleAppendTag(acc.id, tag)}
-                                className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#11041d] hover:bg-purple-900/60 text-purple-200 hover:text-white border border-purple-500/30 hover:border-purple-400 transition-all cursor-pointer"
-                              >
-                                + {tag}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                    <div className="mt-2 pt-2 border-t border-purple-900/50" onClick={(e) => e.stopPropagation()}>
+                      <input type="text" value={details} onChange={(e) => handleUpdateAccessoryDetail(acc.id, e.target.value)} placeholder="Detalhes..." className="w-full px-2 py-1.5 bg-[#07010e] border border-purple-500/50 rounded-lg text-xs text-purple-100" />
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+          {extraItems.map((item) => (
+            <div key={item.id} className="p-2.5 rounded-2xl border-2 border-purple-500/30 bg-[#090213]/90">
+              <div className="flex gap-2 mb-2">
+                <input type="text" value={item.name} onChange={(e) => handleUpdateExtraItem(item.id, 'name', e.target.value)} placeholder="Nome do item..." className="flex-1 bg-[#07010e] border border-slate-700 rounded-lg p-1 text-xs text-white" />
+                <button onClick={() => handleRemoveExtraItem(item.id)} className="text-rose-400 hover:text-rose-300"><X className="w-4 h-4"/></button>
+              </div>
+              <input type="text" value={item.details} onChange={(e) => handleUpdateExtraItem(item.id, 'details', e.target.value)} placeholder="Detalhes..." className="w-full bg-[#07010e] border border-slate-700 rounded-lg p-1 text-xs text-white" />
+            </div>
+          ))}
+          <button onClick={handleAddExtraItem} className="p-2.5 rounded-2xl border-2 border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-purple-500 transition-all cursor-pointer flex items-center justify-center gap-2 text-xs font-bold">
+            <Plus className="w-4 h-4" /> Adicionar Outro Item
+          </button>
+        </div>
       </div>
 
-      {/* 4. FOOTER: SUMMARY */}
-      <div className="p-2 sm:p-2.5 border-t border-purple-500/30 bg-[#090212] shrink-0">
-        {/* Live summary display for ticket */}
-        <div className="px-2.5 py-1.5 rounded-xl bg-[#06010a] border border-purple-900/60 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-            <span className="text-[10px] text-slate-400 font-bold shrink-0">Saída na OS:</span>
-            <span className="text-[11px] text-purple-200 truncate font-semibold">
-              {accessoriesSummary}
-            </span>
-          </div>
-          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-500/40 shrink-0">
-            {presentCount} item{presentCount === 1 ? '' : 'ns'}
-          </span>
+      <div className="p-2 sm:p-2.5 border-t border-purple-500/30 bg-[#090212]">
+        <div className="px-2.5 py-1.5 rounded-xl bg-[#06010a] border border-purple-900/60 flex items-center justify-between">
+          <span className="text-[11px] text-purple-200 truncate">{accessoriesSummary}</span>
+          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-purple-950 text-purple-300">{presentCount + extraItems.length} itens</span>
         </div>
       </div>
     </div>
