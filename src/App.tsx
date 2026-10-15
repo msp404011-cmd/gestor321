@@ -46,6 +46,7 @@ const SupplierOrdersManagement = lazy(() => import('./components/master/Supplier
 const ExclusiveOrdersManagement = lazy(() => import('./components/master/ExclusiveOrdersManagement').then(m => ({ default: m.ExclusiveOrdersManagement })));
 const MessageBudgetsView = lazy(() => import('./components/master/MessageBudgetsView').then(m => ({ default: m.MessageBudgetsView })));
 const DailyTasksView = lazy(() => import('./components/master/DailyTasksView').then(m => ({ default: m.DailyTasksView })));
+const TechnicianServicesView = lazy(() => import('./components/master/TechnicianServicesView').then(m => ({ default: m.TechnicianServicesView })));
 const SuperAdminEarningsView = lazy(() => import('./components/master/SuperAdminEarningsView').then(m => ({ default: m.SuperAdminEarningsView })));
 const GlobalSearchModal = lazy(() => import('./components/common/GlobalSearchModal').then(m => ({ default: m.GlobalSearchModal })));
 const NotificationDrawer = lazy(() => import('./components/common/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
@@ -91,6 +92,7 @@ export default function App() {
     if (['ACCESSES', 'ACESSOS', 'CAMERAS_ACCESS'].includes(h)) return 'ACCESSES';
     if (['TASKS', 'TAREFAS', 'TAREFA', 'TAREFAS_DIARIAS'].includes(h)) return 'TASKS';
     if (['EARNINGS', 'GANHOS', 'GANHO', 'LUCRO', 'LUCROS'].includes(h)) return 'EARNINGS';
+    if (['SERVICE_LIST', 'SERVICOS_LISTA', 'SERVICOS'].includes(h)) return 'SERVICE_LIST';
     if (['DASHBOARD', 'HOME', 'INICIO'].includes(h)) return 'DASHBOARD';
     return null;
   };
@@ -753,6 +755,9 @@ export default function App() {
 
             {activeTab === 'TASKS' && (
               <DailyTasksView />
+            )}
+            {activeTab === 'SERVICE_LIST' && (
+              <TechnicianServicesView />
             )}
 
             {activeTab === 'RECEIVABLES' && (

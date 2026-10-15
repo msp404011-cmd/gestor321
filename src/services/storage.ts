@@ -4803,6 +4803,15 @@ export const StorageService = {
     }
   },
 
+  // TEMP: Forçar limpeza profunda para depuração
+  forceClearAllFinanceData(): void {
+    console.log("!!! FORÇANDO LIMPEZA PROFUNDA DE DADOS DE FINANÇAS !!!");
+    this.clearAllMonthlyDebitsAndFinanceData();
+    // Limpeza extra para garantir
+    localStorage.removeItem('msp_finance_registers_initialized');
+    window.location.reload();
+  },
+
   clearAllMonthlyDebitsAndFinanceData(): void {
     try {
       const monthly = this.getMonthlyDebits();

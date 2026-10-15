@@ -470,7 +470,7 @@ export const SupplierOrdersManagement: React.FC = () => {
     setIsSettingsModalOpen(true);
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'HISTORICO' | 'DEBITOS' | 'DEVOLUCOES' | 'SERVICOS'>('PEDIDOS');
+  const [activeSubTab, setActiveSubTab] = useState<'PEDIDOS' | 'HISTORICO' | 'DEBITOS' | 'DEVOLUCOES'>('PEDIDOS');
 
   const [currentItem, setCurrentItem] = useState<Partial<SupplierOrderItem>>({
     title: '', typeName: 'Tela', marca: '', modelo: '', estrutura: '', qualidade: '', tecnologia: '', cor: '', quantity: 1, price: 0
@@ -2250,17 +2250,6 @@ export const SupplierOrdersManagement: React.FC = () => {
             <span>3. Devoluções ({supplierPurchases.filter(p => p.isReturned && p.paymentStatus === 'Pendente').length})</span>
           </button>
 
-          <button 
-            onClick={() => setActiveSubTab('SERVICOS')}
-            className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              activeSubTab === 'SERVICOS' 
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50 bg-[#0B1221]/50 sm:bg-transparent'
-            }`}
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>4. Serviços</span>
-          </button>
 
           <button 
             onClick={() => setActiveSubTab('HISTORICO')}

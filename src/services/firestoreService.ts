@@ -64,6 +64,7 @@ export function getTenantId(): string {
 
   if (!tid || tid === 'default_tenant') tid = 'mmspmartins62@gmail.com';
   if (tid === 'msp404011@gmail.com') tid = 'mmspmartins62@gmail.com';
+  console.log(`[FirestoreService] getTenantId retornando: ${tid}`);
   return tid;
 }
 

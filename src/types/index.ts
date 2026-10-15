@@ -25,7 +25,8 @@ export type NavigationTab =
   | 'COMPATIBILITY'
   | 'SETTINGS'
   | 'MONTHLY_DEBITS'
-  | 'EARNINGS';
+  | 'EARNINGS'
+  | 'SERVICE_LIST';
 
 export interface EarningItem {
   id: string;

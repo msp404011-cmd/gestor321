@@ -183,6 +183,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Build Sections with Exact Styling from Image
   const sections: MenuSectionDef[] = [
+    {
+      id: 'TECH_SUPPORT',
+      title: 'ASSISTÊNCIA TÉCNICA',
+      icon: Wrench,
+      colorTheme: 'rose' as const,
+      items: [
+        {
+          id: 'ORDERS',
+          title: 'Ordens de Serviço',
+          subtitle: 'Abertas, em andamento e finalizadas',
+          icon: Wrench,
+          badge: openOrdersCount > 0 ? openOrdersCount : 13,
+          badgeType: 'count-blue' as const,
+        },
+      ],
+    },
+    {
+      id: 'SERVICE_SECTION',
+      title: 'SERVIÇOS',
+      icon: Wrench,
+      colorTheme: 'cyan' as const,
+      items: [
+        {
+          id: 'SERVICE_LIST',
+          title: 'Serviços',
+          subtitle: 'Gestão de serviços',
+          icon: Wrench,
+        },
+      ],
+    },
     ...(isSuper
       ? [
           {
@@ -211,22 +241,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           },
         ]
       : []),
-    {
-      id: 'TECH_SUPPORT',
-      title: 'ASSISTÊNCIA TÉCNICA',
-      icon: Wrench,
-      colorTheme: 'rose' as const,
-      items: [
-        {
-          id: 'ORDERS',
-          title: 'Ordens de Serviço',
-          subtitle: 'Abertas, em andamento e finalizadas',
-          icon: Wrench,
-          badge: openOrdersCount > 0 ? openOrdersCount : 13,
-          badgeType: 'count-blue' as const,
-        },
-      ],
-    },
     {
       id: 'SALES_PAYMENTS',
       title: 'VENDAS E PAGAMENTOS',

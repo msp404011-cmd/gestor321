@@ -146,6 +146,7 @@ class MegaCloudEngine {
         const unsub = onSnapshot(
           colRef,
           (snap) => {
+            console.log(`[MegaCloudEngine] Snapshot recebido para ${colName}. docs: ${snap.docs.length}`);
             const list: any[] = [];
             snap.forEach((d) => {
               const data = d.data();
@@ -159,6 +160,7 @@ class MegaCloudEngine {
 
             // Atualiza status e memória
             this.status.collections[statusKey] = list.length;
+            console.log(`[MegaCloudEngine] Atualizando ${storageKey} com ${list.length} itens.`);
             this.status.isConnected = true;
             this.status.status = 'ONLINE_NUVEM';
 
@@ -180,7 +182,9 @@ class MegaCloudEngine {
                 }
                 StorageService.recalculateFinanceRegisterBalances();
               }
-            } catch (_) {}
+            } catch (err) {
+              console.warn(`[MegaCloudEngine] Erro ao salvar RAM para ${colName}:`, err);
+            }
 
             notifyStorageListeners();
             this.notify();
@@ -191,6 +195,7 @@ class MegaCloudEngine {
           }
         );
         this.activeUnsubs.push(unsub);
+        console.log(`[MegaCloudEngine] Listener registrado com sucesso para ${colName}.`);
       } catch (err) {
         console.warn(`[MegaCloudEngine] Falha ao registrar ${colName}:`, err);
       }
