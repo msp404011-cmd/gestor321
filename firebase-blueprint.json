@@ -97,7 +97,7 @@
     },
     "AccountsPayable": {
       "title": "AccountsPayable",
-      "description": "Day-to-day accounts payable running balance ledger for tenant (Super Admin only)",
+      "description": "Day-to-day accounts payable ledger cards for tenant (Super Admin only)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -108,6 +108,67 @@
         "transactions": { "type": "array" }
       },
       "required": ["id", "name"]
+    },
+    "FinanceCashRegister": {
+      "title": "FinanceCashRegister",
+      "description": "Finance cash register cards for tenant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "initialBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "totalWithdrawn": { "type": "number" },
+        "totalDeposited": { "type": "number" },
+        "color": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "FinanceCashMovement": {
+      "title": "FinanceCashMovement",
+      "description": "Cash movements (withdrawals, additions, payback) for cash registers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cashRegisterId": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "reason": { "type": "string" },
+        "date": { "type": "string" },
+        "paidBackAmount": { "type": "number" },
+        "isPaid": { "type": "boolean" }
+      },
+      "required": ["id", "cashRegisterId", "type", "amount", "reason"]
+    },
+    "DefinitiveExpense": {
+      "title": "DefinitiveExpense",
+      "description": "Definitive expenses deducted from a cash register",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cashRegisterId": { "type": "string" },
+        "amount": { "type": "number" },
+        "reason": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "cashRegisterId", "amount", "reason"]
+    },
+    "RealFixedCost": {
+      "title": "RealFixedCost",
+      "description": "Real fixed store costs (electricity, rent, water, etc.)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "isPaidThisMonth": { "type": "boolean" }
+      },
+      "required": ["id", "name", "category", "amount"]
     }
   },
   "firestore": {
@@ -142,6 +203,22 @@
     "/accounts/{accountId}/accounts_payable/{payableId}": {
       "schema": "AccountsPayable",
       "description": "Day-to-day accounts payable ledger cards for tenant"
+    },
+    "/accounts/{accountId}/finance_cash_registers/{registerId}": {
+      "schema": "FinanceCashRegister",
+      "description": "Cash register cards in finances"
+    },
+    "/accounts/{accountId}/finance_cash_movements/{movementId}": {
+      "schema": "FinanceCashMovement",
+      "description": "Cash movements and repayments in finances"
+    },
+    "/accounts/{accountId}/definitive_expenses/{expenseId}": {
+      "schema": "DefinitiveExpense",
+      "description": "Definitive expenses deducted from registers in finances"
+    },
+    "/accounts/{accountId}/real_fixed_costs/{costId}": {
+      "schema": "RealFixedCost",
+      "description": "Real fixed monthly costs"
     }
   }
 }
