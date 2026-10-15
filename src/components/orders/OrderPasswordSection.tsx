@@ -26,14 +26,14 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
   setPatternNote,
 }) => {
   return (
-    <div className={`p-3 rounded-2xl border-2 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.3)] ${isDark ? 'bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95' : 'bg-white'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-[10px] font-black uppercase text-cyan-400 flex items-center gap-1">
-          <Lock className="w-3 h-3 text-cyan-400" />
+    <div className={`p-4 rounded-3xl border-2 border-purple-500/50 shadow-[0_0_25px_rgba(168,85,247,0.35)] ${isDark ? 'bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95' : 'bg-white'}`}>
+      <div className="flex items-center justify-between mb-2.5">
+        <label className="text-xs sm:text-sm font-black uppercase text-cyan-400 flex items-center gap-2">
+          <Lock className="w-4 h-4 text-cyan-400" />
           <span>Senha / Desbloqueio</span>
         </label>
 
-        <div className="flex items-center bg-[#040c1e] p-0.5 rounded-lg border border-slate-800 gap-0.5 text-[9px]">
+        <div className="flex items-center bg-[#060309] p-1 rounded-xl border border-slate-800 gap-1 text-[11px]">
           <button
             type="button"
             onClick={() => {
@@ -41,9 +41,9 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
               setPasswordPin('');
               setPatternNodes([]);
             }}
-            className={`px-2 py-0.5 rounded font-black transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
               passwordType === 'NONE'
-                ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.5)]'
+                ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.5)]'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -53,26 +53,26 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
           <button
             type="button"
             onClick={() => setPasswordType('PIN')}
-            className={`px-2 py-0.5 rounded font-black transition-all flex items-center gap-0.5 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer ${
               passwordType === 'PIN'
-                ? 'bg-blue-600 text-white shadow-[0_0_8px_rgba(37,99,235,0.5)]'
+                ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.5)]'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <KeyRound className="w-2.5 h-2.5" />
+            <KeyRound className="w-3 h-3" />
             <span>PIN</span>
           </button>
 
           <button
             type="button"
             onClick={() => setPasswordType('PATTERN')}
-            className={`px-2 py-0.5 rounded font-black transition-all flex items-center gap-0.5 cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer ${
               passwordType === 'PATTERN'
-                ? 'bg-cyan-600 text-white shadow-[0_0_8px_rgba(6,182,212,0.5)]'
+                ? 'bg-cyan-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.5)]'
                 : 'text-slate-400 hover:text-cyan-300'
             }`}
           >
-            <Grid className="w-2.5 h-2.5" />
+            <Grid className="w-3 h-3" />
             <span>Desenho</span>
           </button>
         </div>
@@ -84,33 +84,33 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
           value={passwordPin}
           onChange={(e) => setPasswordPin(e.target.value)}
           placeholder="Senha / PIN de desbloqueio..."
-          className="w-full px-2 py-1.5 bg-[#040c1e] border border-cyan-500/50 rounded-lg text-xs font-mono text-cyan-300 placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
+          className="w-full px-3 py-2 bg-[#060309] border border-cyan-500/50 rounded-xl text-xs sm:text-sm font-mono text-cyan-300 placeholder-slate-500 focus:outline-hidden focus:border-cyan-400 shadow-inner"
         />
       )}
 
       {passwordType === 'PATTERN' && (
-        <div className="p-2 rounded-xl bg-[#040c1e] border border-cyan-500/50 flex items-center gap-2 animate-in fade-in">
+        <div className="p-4 rounded-2xl bg-[#040c1e] border border-cyan-500/50 flex items-center gap-4 animate-in fade-in">
           <div className="shrink-0">
             <PatternLock
               value={patternNodes}
               onChange={setPatternNodes}
-              size={90}
+              size={100}
               theme="dark"
             />
           </div>
-          <div className="flex-1 min-w-0 space-y-1 text-xs">
-            <div className="p-1 rounded-lg bg-[#07132a] border border-slate-800">
+          <div className="flex-1 min-w-0 space-y-2 text-sm">
+            <div className="p-3 rounded-xl bg-[#07132a] border border-slate-800">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-300">Sequência:</span>
+                <span className="text-xs font-bold text-slate-300">Sequência:</span>
                 <button
                   type="button"
                   onClick={() => setPatternNodes([])}
-                  className="text-[9px] text-slate-400 hover:text-amber-400 flex items-center gap-0.5 cursor-pointer"
+                  className="text-xs text-slate-400 hover:text-amber-400 flex items-center gap-1 cursor-pointer"
                 >
-                  <RotateCcw className="w-2.5 h-2.5" /> Limpar
+                  <RotateCcw className="w-3.5 h-3.5" /> Limpar
                 </button>
               </div>
-              <p className="text-[10px] font-mono font-black text-cyan-300 truncate">
+              <p className="text-sm font-mono font-black text-cyan-300 truncate mt-1">
                 {patternNodes.length > 0 ? patternNodes.join(' ➔ ') : 'Arraste nos pontos'}
               </p>
             </div>
@@ -119,7 +119,7 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
       )}
 
       {passwordType === 'NONE' && (
-        <p className="text-[10px] text-slate-400 italic">
+        <p className="text-xs text-slate-400 italic">
           Aparelho liberado sem senha de desbloqueio.
         </p>
       )}

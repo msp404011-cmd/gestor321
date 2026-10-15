@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getTenantId, DEMO_ORDER_IDS } from './firestoreService';
-import { STORAGE_KEYS, setRamItem, notifyStorageListeners } from './storage';
+import { STORAGE_KEYS, setRamItem, notifyStorageListeners, StorageService } from './storage';
 
 export interface CloudEngineStatus {
   isConnected: boolean;
@@ -37,6 +37,12 @@ export interface CloudEngineStatus {
     stock_movements: number;
     resellers: number;
     reseller_transactions: number;
+    finance_cash_registers: number;
+    finance_cash_movements: number;
+    definitive_expenses: number;
+    monthly_debits: number;
+    accounts_payable: number;
+    real_fixed_costs: number;
   };
 }
 
@@ -70,6 +76,12 @@ class MegaCloudEngine {
       stock_movements: 0,
       resellers: 0,
       reseller_transactions: 0,
+      finance_cash_registers: 0,
+      finance_cash_movements: 0,
+      definitive_expenses: 0,
+      monthly_debits: 0,
+      accounts_payable: 0,
+      real_fixed_costs: 0,
     },
   };
 
@@ -156,6 +168,18 @@ class MegaCloudEngine {
               setRamItem(storageKey, list, false);
               setRamItem(`${scope}_${storageKey}`, list, false);
               setRamItem(`${scope}__${storageKey}`, list, false);
+
+              if (
+                storageKey === STORAGE_KEYS.FINANCE_CASH_REGISTERS ||
+                storageKey === STORAGE_KEYS.FINANCE_CASH_MOVEMENTS ||
+                storageKey === STORAGE_KEYS.DEFINITIVE_EXPENSES
+              ) {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('msp_finance_registers_initialized', 'true');
+                  localStorage.setItem(`tenant_${scope}_finance_init`, 'true');
+                }
+                StorageService.recalculateFinanceRegisterBalances();
+              }
             } catch (_) {}
 
             notifyStorageListeners();
@@ -207,6 +231,18 @@ class MegaCloudEngine {
     syncCollection('resellers', STORAGE_KEYS.RESELLERS, 'resellers');
     // 15. Transações de Revendedores
     syncCollection('reseller_transactions', STORAGE_KEYS.RESELLER_TRANSACTIONS, 'reseller_transactions');
+    // 16. Finanças - Caixas (Cards de Caixa na aba Finanças)
+    syncCollection('finance_cash_registers', STORAGE_KEYS.FINANCE_CASH_REGISTERS, 'finance_cash_registers');
+    // 17. Finanças - Movimentações de Caixa (Retiradas / Colocações / Devoluções)
+    syncCollection('finance_cash_movements', STORAGE_KEYS.FINANCE_CASH_MOVEMENTS, 'finance_cash_movements');
+    // 18. Finanças - Despesas Definitivas
+    syncCollection('definitive_expenses', STORAGE_KEYS.DEFINITIVE_EXPENSES, 'definitive_expenses');
+    // 19. Débitos Parcelados (Débitos Mensais)
+    syncCollection('monthly_debits', STORAGE_KEYS.MONTHLY_DEBITS, 'monthly_debits');
+    // 20. Contas a Pagar / Credores
+    syncCollection('accounts_payable', STORAGE_KEYS.ACCOUNTS_PAYABLE, 'accounts_payable');
+    // 21. Custos Fixos Reais (Luz, Água, Aluguel, Internet, etc.)
+    syncCollection('real_fixed_costs', STORAGE_KEYS.REAL_FIXED_COSTS, 'real_fixed_costs');
 
     // 16. Configurações Globais da Conta no Firestore
     try {

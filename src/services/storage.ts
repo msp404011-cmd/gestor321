@@ -612,6 +612,12 @@ export function setRamItem<T>(key: string, value: T, notify: boolean = true): vo
     const scopedKey = getScopedKey(key);
     RAM_STORE.set(scopedKey, value);
     RAM_STORE.set(key, value);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(scopedKey, JSON.stringify(value));
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (_) {}
+    }
     if (notify) {
       notifyListeners();
     }
@@ -625,6 +631,17 @@ export function getRamItem<T>(key: string, fallback: T): T {
     const scopedKey = getScopedKey(key);
     if (RAM_STORE.has(scopedKey)) return RAM_STORE.get(scopedKey);
     if (RAM_STORE.has(key)) return RAM_STORE.get(key);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = localStorage.getItem(scopedKey) || localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          RAM_STORE.set(scopedKey, parsed);
+          RAM_STORE.set(key, parsed);
+          return parsed;
+        } catch (_) {}
+      }
+    }
     return fallback;
   } catch (e) {
     return fallback;
@@ -4927,8 +4944,12 @@ export const StorageService = {
   // Finance Cash Registers (Cards de Caixa na aba Finanças)
   getFinanceCashRegisters(): FinanceCashRegister[] {
     let list = getItem<FinanceCashRegister[]>(STORAGE_KEYS.FINANCE_CASH_REGISTERS, []);
-    if (!list || list.length === 0) {
-      // Seed initial default Caixa Principal
+    const isInit = typeof window !== 'undefined' && (
+      localStorage.getItem('msp_finance_registers_initialized') === 'true' ||
+      localStorage.getItem(`tenant_${getActiveTenantScope()}_finance_init`) === 'true'
+    );
+    if ((!list || list.length === 0) && !isInit) {
+      // Seed initial default Caixa Principal ONLY ONCE if never initialized
       const defaultRegister: FinanceCashRegister = {
         id: 'freg-default-1',
         name: 'Caixa Principal',
@@ -4943,11 +4964,20 @@ export const StorageService = {
       };
       list = [defaultRegister];
       setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, list);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('msp_finance_registers_initialized', 'true');
+        localStorage.setItem(`tenant_${getActiveTenantScope()}_finance_init`, 'true');
+      }
+      FirestoreSyncService.saveFinanceCashRegister(defaultRegister);
     }
-    return list;
+    return list || [];
   },
 
   saveFinanceCashRegisters(registers: FinanceCashRegister[]): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('msp_finance_registers_initialized', 'true');
+      localStorage.setItem(`tenant_${getActiveTenantScope()}_finance_init`, 'true');
+    }
     setItem(STORAGE_KEYS.FINANCE_CASH_REGISTERS, registers);
     registers.forEach(r => FirestoreSyncService.saveFinanceCashRegister(r));
     notifyListeners();

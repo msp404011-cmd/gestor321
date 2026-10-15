@@ -118,6 +118,8 @@ interface OrderPartsFinancialSectionProps {
     laborPrice?: number;
     warrantyDays?: number;
   };
+  activeTab?: 'ESTOQUE' | 'AVULSO' | 'TIERS' | 'VALORES' | 'DATAS' | 'TODOS';
+  onTabChange?: (tab: 'ESTOQUE' | 'AVULSO' | 'TIERS' | 'VALORES' | 'DATAS' | 'TODOS') => void;
 }
 
 export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProps> = ({
@@ -201,6 +203,8 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
   setShowPaymentNotesInput,
   customerPhone = '',
   orderSummaryForCopy,
+  activeTab: propActiveTab,
+  onTabChange,
 }) => {
   const [copiedFeedback, React_setCopiedFeedback] = React.useState<string | null>(null);
 
@@ -224,15 +228,125 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
       setTimeout(() => React_setCopiedFeedback(null), 3000);
     }
   };
-  const [activeTab, setActiveTab] = React.useState<'ESTOQUE' | 'AVULSO' | 'VALORES' | 'DATAS'>(
+
+  const [internalTab, setInternalTab] = React.useState<'ESTOQUE' | 'AVULSO' | 'TIERS' | 'VALORES' | 'DATAS' | 'TODOS'>(
     partInputMode === 'AVULSO' ? 'AVULSO' : 'ESTOQUE'
+  );
+  const activeTab = propActiveTab || internalTab;
+  const setActiveTab = (t: 'ESTOQUE' | 'AVULSO' | 'TIERS' | 'VALORES' | 'DATAS' | 'TODOS') => {
+    setInternalTab(t);
+    onTabChange?.(t);
+  };
+
+  // Reusable Parts Table Element
+  const renderPartsTable = () => (
+    <div className="rounded-xl border border-slate-800/80 bg-[#030d0b] overflow-hidden">
+      <div className="px-3 py-1.5 bg-[#051614] border-b border-slate-800 flex items-center justify-between">
+        <span className="text-[10px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
+          <Box className="w-3.5 h-3.5" />
+          <span>Peças Vinculadas à OS ({parts.length})</span>
+        </span>
+        <span className="text-xs font-black text-emerald-400 font-mono">
+          Total: {formatCurrency(partsTotal)}
+        </span>
+      </div>
+
+      {parts.length === 0 ? (
+        <div className="p-4 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-1">
+          <Box className="w-6 h-6 text-cyan-400/50" />
+          <span className="text-slate-400 text-[10px]">
+            Nenhuma peça vinculada. Busque no estoque ou adicione peça avulsa.
+          </span>
+        </div>
+      ) : (
+        <div className="max-h-48 overflow-y-auto scrollbar-thin">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#051614] text-slate-400 text-[9px] border-b border-slate-800 sticky top-0 font-bold uppercase tracking-wider">
+              <tr>
+                <th className="px-2 py-1">Peça</th>
+                <th className="px-1 py-1 text-center w-16">Qtd</th>
+                <th className="px-1 py-1 text-right w-16">Unit.</th>
+                <th className="px-1 py-1 text-right w-16">Subtotal</th>
+                <th className="px-1 py-1 text-center w-6"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80">
+              {parts.map((p, idx) => {
+                const sub =
+                  p.totalPrice ||
+                  p.total ||
+                  p.quantity * p.unitPrice - (p.discount || 0);
+                return (
+                  <tr key={p.id || idx} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="px-2 py-1.5">
+                      <span className="font-bold text-white text-[11px] truncate block max-w-[140px]">
+                        {p.name || p.productName}
+                      </span>
+                    </td>
+                    <td className="px-1 py-1.5 text-center">
+                      <div className="inline-flex items-center gap-0.5 bg-[#020807] border border-slate-700 rounded-md p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdatePartQty(idx, p.quantity - 1)}
+                          className="p-0.5 text-slate-400 hover:text-white"
+                        >
+                          <Minus className="w-2 h-2" />
+                        </button>
+                        <span className="w-4 text-center font-black text-white text-[10px] font-mono">
+                          {p.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdatePartQty(idx, p.quantity + 1)}
+                          className="p-0.5 text-slate-400 hover:text-white"
+                        >
+                          <Plus className="w-2 h-2" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-1 py-1.5 text-right text-[10px] text-slate-300 font-mono">
+                      {isPriceUnlocked ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={p.unitPrice}
+                          onChange={(e) =>
+                            handleUpdatePartPrice(idx, parseFloat(e.target.value) || 0)
+                          }
+                          className="w-14 px-1 py-0.2 bg-[#020807] border border-amber-500/50 rounded text-right text-[9px] text-amber-300 font-bold font-mono"
+                        />
+                      ) : (
+                        formatCurrency(p.unitPrice)
+                      )}
+                    </td>
+                    <td className="px-1 py-1.5 text-right font-black text-emerald-400 text-[10px] font-mono">
+                      {formatCurrency(sub)}
+                    </td>
+                    <td className="px-1 py-1.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePart(idx)}
+                        className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
+                        title="Remover peça"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
-      {/* 5. PEÇAS & SECTORES - AURORA EMERALD GLOW */}
+    <div className="flex flex-col h-full gap-2.5 overflow-y-auto scrollbar-thin pb-28 pr-1 min-h-0">
+      {/* CARD PRINCIPAL DE PEÇAS & NAVEGAÇÃO DE ABAS */}
       <div
-        className={`p-3 rounded-2xl border-2 flex-1 min-h-0 flex flex-col space-y-2 overflow-hidden transition-all ${
+        className={`p-3.5 rounded-3xl border-2 shrink-0 space-y-3 transition-all ${
           isDark
             ? 'bg-gradient-to-b from-[#051814]/95 via-[#030e0c]/90 to-[#020705]/95 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.35),0_0_50px_rgba(16,185,129,0.15)] text-white'
             : 'bg-white border-emerald-400 shadow-lg text-slate-900'
@@ -241,26 +355,31 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
         {/* Header */}
         <div className="flex items-center justify-between shrink-0 gap-2 pb-1 border-b border-emerald-500/30">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.4)] shrink-0">
-              <Box className="w-3.5 h-3.5" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-600/30 border border-emerald-400/60 flex items-center justify-center text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.4)] shrink-0">
+              <Box className="w-4 h-4" />
             </div>
-            <h3 className="text-xs font-black tracking-wide leading-none text-white truncate">
-              PEÇAS & VALORES DA OS <span className="text-emerald-400">({formatCurrency(partsTotal)})</span>
-            </h3>
+            <div>
+              <h3 className="text-xs sm:text-sm font-black tracking-wide leading-none text-white truncate">
+                PEÇAS & VALORES DA OS <span className="text-emerald-400">({formatCurrency(partsTotal)})</span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Peças utilizadas, orçamentos e financeiro
+              </p>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={() => onOpenNewProductModal(partSearch || manualPartName || '')}
-            className="px-2.5 py-1 bg-[#062c33] hover:bg-[#083e48] text-cyan-300 border border-cyan-500/50 rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+            className="px-2.5 py-1.5 bg-[#062c33] hover:bg-[#083e48] text-cyan-300 border border-cyan-500/50 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
           >
-            <Plus className="w-3 h-3" />
+            <Plus className="w-3.5 h-3.5" />
             <span>Novo Produto</span>
           </button>
         </div>
 
-        {/* Spacious Sub-Tabs Navigation */}
-        <div className="grid grid-cols-4 gap-1 p-1 bg-[#020807] border border-emerald-500/40 rounded-xl shrink-0">
+        {/* Grid com TODAS as 6 Abas 100% Visíveis e Clicáveis Simultaneamente (Zero abas escondidas) */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#020807] border border-emerald-500/40 rounded-xl shrink-0 select-none">
           <button
             type="button"
             onClick={() => {
@@ -268,59 +387,94 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
               setPartInputMode('ESTOQUE');
               setShowStockCatalog(false);
             }}
-            className={`py-2 px-1 rounded-lg text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               activeTab === 'ESTOQUE'
-                ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.5)]'
+                ? 'bg-blue-600 text-white shadow-[0_0_12px_rgba(37,99,235,0.6)] border border-blue-400'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
+            title="Peças em estoque"
           >
-            <span>📦</span>
+            <span className="shrink-0">📦</span>
             <span className="truncate">Estoque</span>
           </button>
+
           <button
             type="button"
             onClick={() => {
               setActiveTab('AVULSO');
               setPartInputMode('AVULSO');
             }}
-            className={`py-2 px-1 rounded-lg text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               activeTab === 'AVULSO'
-                ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.6)] border border-amber-400'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
+            title="Pedido exclusivo ou peça avulsa"
           >
-            <span>⭐</span>
-            <span className="truncate">Pedido Exclusivo</span>
+            <span className="shrink-0">⭐</span>
+            <span className="truncate">Avulso</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('TIERS')}
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
+              activeTab === 'TIERS'
+                ? 'bg-teal-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.6)] border border-teal-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Comparativo 1ª Linha vs Premium"
+          >
+            <span className="shrink-0">💎</span>
+            <span className="truncate">1ªL / Prem</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('VALORES')}
-            className={`py-2 px-1 rounded-lg text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               activeTab === 'VALORES'
-                ? 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                ? 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.6)] border border-emerald-400'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
+            title="Valores, mão de obra e pagamento"
           >
-            <span>💰</span>
-            <span className="truncate">Valores & Pag</span>
+            <span className="shrink-0">💰</span>
+            <span className="truncate">Valores</span>
           </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('DATAS')}
-            className={`py-2 px-1 rounded-lg text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               activeTab === 'DATAS'
-                ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+                ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.6)] border border-purple-400'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
+            title="Status, datas, agendamento e entrega"
           >
-            <span>📅</span>
-            <span className="truncate">Datas & Status</span>
+            <span className="shrink-0">📅</span>
+            <span className="truncate">Prazos</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('TODOS')}
+            className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
+              activeTab === 'TODOS'
+                ? 'bg-indigo-600 text-white shadow-[0_0_12px_rgba(99,102,241,0.6)] border border-indigo-400'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+            title="Visualização completa de todas as seções"
+          >
+            <span className="shrink-0">📑</span>
+            <span className="truncate">Ver Tudo</span>
           </button>
         </div>
 
         {/* Tab 1: ESTOQUE */}
-        {activeTab === 'ESTOQUE' && (
-          <div className="space-y-2 relative shrink-0 animate-in fade-in duration-150" ref={partSearchRef}>
+        {(activeTab === 'ESTOQUE' || activeTab === 'TODOS') && (
+          <div className="space-y-2.5 relative shrink-0 animate-in fade-in duration-150" ref={partSearchRef}>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -435,11 +589,14 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                 </div>
               </div>
             )}
+
+            {/* Render Parts Table inside Estoque tab */}
+            {renderPartsTable()}
           </div>
         )}
 
         {/* Tab 2: AVULSO / PEDIDO EXCLUSIVO */}
-        {activeTab === 'AVULSO' && (
+        {(activeTab === 'AVULSO' || (activeTab === 'TODOS' && false)) && (
           <div className="p-3 rounded-xl bg-[#030d0b] border-2 border-amber-500/60 space-y-3 shrink-0 animate-in fade-in duration-150 shadow-md">
             <div className="flex items-center gap-2 border-b border-amber-500/30 pb-2">
               <span className="text-base">⭐</span>
@@ -503,7 +660,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
               type="button"
               onClick={() => {
                 handleAddManualPart();
-                setActiveTab('ESTOQUE'); // switch to see added item in parts table
+                setActiveTab('ESTOQUE');
               }}
               disabled={!manualPartName.trim()}
               className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 text-white text-xs font-black rounded-xl cursor-pointer transition-all shadow-lg shadow-amber-900/40 flex items-center justify-center gap-1.5"
@@ -511,584 +668,415 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
               <Plus className="w-4 h-4" />
               <span>Adicionar Pedido Exclusivo / Peça Avulsa</span>
             </button>
+
+            {renderPartsTable()}
           </div>
         )}
 
-        {/* Tab 3: VALORES & PAGAMENTO */}
-        {activeTab === 'VALORES' && (
-          <div className="p-3 rounded-xl bg-[#030d0b] border-2 border-emerald-500/50 space-y-3 shrink-0 animate-in fade-in duration-150 shadow-md">
-            <h4 className="text-xs font-black text-emerald-300 uppercase tracking-tight border-b border-emerald-500/30 pb-1.5">
-              💰 Valores, Mão de Obra & Pagamento
-            </h4>
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Total de Peças:</span>
-                <strong className="text-emerald-400 font-mono">{formatCurrency(partsTotal)}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Mão de Obra (Serviço):</span>
-                <strong className="text-cyan-400 font-mono">{formatCurrency(effectiveBasePrice)}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Desconto:</span>
-                <strong className="text-rose-400 font-mono">-{formatCurrency(discount)}</strong>
-              </div>
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-sm">
-                <span className="font-black text-white uppercase">Valor Final da OS:</span>
-                <strong className="font-black text-emerald-400 font-mono text-base">{formatCurrency(finalOrderTotal)}</strong>
-              </div>
+        {/* Tab 3: TIERS (1ª LINHA VS PREMIUM & COPIAR ORÇAMENTO) */}
+        {(activeTab === 'TIERS' || activeTab === 'TODOS') && (
+          <div className="p-3 rounded-xl bg-[#041210] border border-emerald-500/50 space-y-2 shrink-0 shadow-inner animate-in fade-in duration-150">
+            <div className="flex items-center justify-between gap-1 flex-wrap">
+              <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                ⭐💎 Dois Valores de Peça (1ª Linha / Premium)
+              </span>
+              {copiedFeedback && (
+                <span className="text-[9px] font-black px-2 py-0.5 rounded bg-emerald-500 text-white animate-pulse">
+                  ✓ {copiedFeedback}
+                </span>
+              )}
             </div>
-          </div>
-        )}
+            <p className="text-[10px] text-slate-400">
+              Cadastre duas cotações para enviar ao cliente e escolha qual ele aprovou.
+            </p>
 
-        {/* Tab 4: DATAS & STATUS */}
-        {activeTab === 'DATAS' && (
-          <div className="p-3 rounded-xl bg-[#030d0b] border-2 border-purple-500/50 space-y-3 shrink-0 animate-in fade-in duration-150 shadow-md">
-            <h4 className="text-xs font-black text-purple-300 uppercase tracking-tight border-b border-purple-500/30 pb-1.5">
-              📅 Datas, Garantia & Status Inicial
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Data de Entrada / Criação:</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 block mb-0.5">Nome / Tipo da Peça</label>
                 <input
-                  type="date"
-                  value={entryDate || new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full h-8 px-2 bg-[#020807] border border-purple-500/50 rounded-xl text-white font-mono"
+                  type="text"
+                  value={partTierDescription}
+                  onChange={(e) => setPartTierDescription && setPartTierDescription(e.target.value)}
+                  placeholder="Ex: Tela Frontal, Bateria..."
+                  className="w-full px-2 py-1.5 bg-[#020807] border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Garantia (Dias):</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={warrantyDays}
-                  onChange={(e) => setWarrantyDays?.(parseInt(e.target.value) || 90)}
-                  className="w-full h-8 px-2 bg-[#020807] border border-purple-500/50 rounded-xl text-white font-bold"
-                />
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Parts Table / Empty State */}
-        <div className="flex-1 min-h-[50px] overflow-y-auto scrollbar-thin rounded-xl border border-slate-800/80 bg-[#030d0b]">
-          {parts.length === 0 ? (
-            <div className="p-3 text-center text-xs text-slate-400 flex flex-col items-center justify-center h-full gap-1">
-              <Box className="w-6 h-6 text-cyan-400/50" />
-              <span className="text-slate-400 text-[10px]">
-                Nenhuma peça vinculada. Busque no estoque ou adicione avulsa acima.
-              </span>
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#051614] text-slate-400 text-[9px] border-b border-slate-800 sticky top-0 font-bold uppercase tracking-wider">
-                <tr>
-                  <th className="px-2 py-1">Peça</th>
-                  <th className="px-1 py-1 text-center w-16">Qtd</th>
-                  <th className="px-1 py-1 text-right w-16">Unit.</th>
-                  <th className="px-1 py-1 text-right w-16">Subtotal</th>
-                  <th className="px-1 py-1 text-center w-6"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {parts.map((p, idx) => {
-                  const sub =
-                    p.totalPrice ||
-                    p.total ||
-                    p.quantity * p.unitPrice - (p.discount || 0);
-                  return (
-                    <tr key={p.id || idx} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-2 py-1">
-                        <span className="font-bold text-white text-[11px] truncate block max-w-[140px]">
-                          {p.name || p.productName}
-                        </span>
-                      </td>
-                      <td className="px-1 py-1 text-center">
-                        <div className="inline-flex items-center gap-0.5 bg-[#020807] border border-slate-700 rounded-md p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePartQty(idx, p.quantity - 1)}
-                            className="p-0.5 text-slate-400 hover:text-white"
-                          >
-                            <Minus className="w-2 h-2" />
-                          </button>
-                          <span className="w-4 text-center font-black text-white text-[10px] font-mono">
-                            {p.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePartQty(idx, p.quantity + 1)}
-                            className="p-0.5 text-slate-400 hover:text-white"
-                          >
-                            <Plus className="w-2 h-2" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-1 py-1 text-right text-[10px] text-slate-300 font-mono">
-                        {isPriceUnlocked ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={p.unitPrice}
-                            onChange={(e) =>
-                              handleUpdatePartPrice(idx, parseFloat(e.target.value) || 0)
-                            }
-                            className="w-14 px-1 py-0.2 bg-[#020807] border border-amber-500/50 rounded text-right text-[9px] text-amber-300 font-bold font-mono"
-                          />
-                        ) : (
-                          formatCurrency(p.unitPrice)
-                        )}
-                      </td>
-                      <td className="px-1 py-1 text-right font-black text-emerald-400 text-[10px] font-mono">
-                        {formatCurrency(sub)}
-                      </td>
-                      <td className="px-1 py-1 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePart(idx)}
-                          className="p-0.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* DOIS VALORES DE PEÇA (1ª LINHA VS PREMIUM) & COPIAR ORÇAMENTO */}
-        <div className="p-2 rounded-xl bg-[#041210] border border-emerald-500/50 space-y-1.5 shrink-0 shadow-inner">
-          <div className="flex items-center justify-between gap-1 flex-wrap">
-            <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1">
-              ⭐💎 Dois Valores de Peça (1ª Linha / Premium)
-            </span>
-            {copiedFeedback && (
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-white animate-pulse">
-                ✓ {copiedFeedback}
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-            <div>
-              <label className="text-[9px] font-bold text-slate-400 block mb-0.5">Nome / Tipo da Peça</label>
-              <input
-                type="text"
-                value={partTierDescription}
-                onChange={(e) => setPartTierDescription && setPartTierDescription(e.target.value)}
-                placeholder="Ex: Tela Frontal, Bateria..."
-                className="w-full px-2 py-1 bg-[#020807] border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-400"
-              />
-            </div>
-
-            <div>
-              <label className="text-[9px] font-bold text-amber-300 block mb-0.5">⭐ Valor 1ª Linha (R$)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={partPriceFirstLine || ''}
-                onChange={(e) => setPartPriceFirstLine && setPartPriceFirstLine(parseFloat(e.target.value) || 0)}
-                placeholder="0,00"
-                className="w-full px-2 py-1 bg-[#020807] border border-amber-500/50 rounded-lg text-xs text-amber-300 font-bold font-mono focus:outline-hidden focus:border-amber-400"
-              />
-            </div>
-
-            <div>
-              <label className="text-[9px] font-bold text-cyan-300 block mb-0.5">💎 Valor Premium (R$)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={partPricePremium || ''}
-                onChange={(e) => setPartPricePremium && setPartPricePremium(parseFloat(e.target.value) || 0)}
-                placeholder="0,00"
-                className="w-full px-2 py-1 bg-[#020807] border border-cyan-500/50 rounded-lg text-xs text-cyan-300 font-bold font-mono focus:outline-hidden focus:border-cyan-400"
-              />
-            </div>
-          </div>
-
-          {/* Qual o cliente optou? */}
-          <div className="pt-1 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[9px] font-black text-slate-300 uppercase">Cliente optou por:</span>
-              <button
-                type="button"
-                onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'FIRST_LINE' ? 'NONE' : 'FIRST_LINE')}
-                className={`px-2 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
-                  selectedPartTier === 'FIRST_LINE'
-                    ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
-                    : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
-                }`}
-              >
-                <span>⭐ 1ª Linha {partPriceFirstLine > 0 ? `(${formatCurrency(partPriceFirstLine)})` : ''}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'PREMIUM' ? 'NONE' : 'PREMIUM')}
-                className={`px-2 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
-                  selectedPartTier === 'PREMIUM'
-                    ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]'
-                    : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
-                }`}
-              >
-                <span>💎 Premium {partPricePremium > 0 ? `(${formatCurrency(partPricePremium)})` : ''}</span>
-              </button>
-            </div>
-
-            <span className="text-[8.5px] text-slate-400 italic">
-              * Apenas a opção marcada sai na nota/ordem. A não marcada não sai.
-            </span>
-          </div>
-
-          {/* Botões para copiar texto para mandar para o cliente */}
-          <div className="pt-1 border-t border-slate-800/80 flex items-center gap-1 flex-wrap">
-            <span className="text-[9px] font-bold text-slate-400 mr-1">Copiar p/ WhatsApp:</span>
-            <button
-              type="button"
-              onClick={() => handleCopyBudget('FIRST_LINE')}
-              className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
-              title="Copiar mensagem com peça 1ª Linha"
-            >
-              📋 Copiar c/ 1ª Linha
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCopyBudget('PREMIUM')}
-              className="px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
-              title="Copiar mensagem com peça Premium"
-            >
-              📋 Copiar c/ Premium
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCopyBudget('COMPARATIVE')}
-              className="px-2 py-0.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded text-[9.5px] font-black cursor-pointer transition-all active:scale-95 shadow-sm"
-              title="Copiar mensagem comparativa completa com explicação sobre a qualidade da peça Premium ser mais próxima da original"
-            >
-              📋 Copiar Ambas c/ Explicação de Qualidade
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. STATUS, PAGAMENTO & VALORES - AURORA BLUE GLOW */}
-      <div
-        className={`p-2.5 rounded-2xl border-2 shrink-0 space-y-2 transition-all ${
-          isDark
-            ? 'bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95 border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.35),0_0_50px_rgba(6,182,212,0.15)] text-white'
-            : 'bg-white border-blue-400 shadow-lg text-slate-900'
-        }`}
-      >
-        {/* Row 1: STATUS INICIAL, FORMA DE PAGAMENTO, PREVISÃO ENTREGA */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-          {/* Status Inicial */}
-          <div className="space-y-0.5">
-            <label className="block text-[9px] font-black text-amber-400 uppercase tracking-wider">
-              STATUS INICIAL
-            </label>
-            <div className="relative">
-              <select
-                value={initialStatus}
-                onChange={(e) => setInitialStatus(e.target.value as OrderStatus)}
-                className="w-full h-7.5 px-2 bg-[#040c1e] border border-amber-500/50 rounded-xl text-xs font-black text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer appearance-none pr-7 shadow-inner truncate"
-              >
-                {statusChoices.map((s) => (
-                  <option key={s.status} value={s.status}>
-                    {s.icon} {s.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-amber-400 absolute right-2 top-2 pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Forma de Pagamento with Tiny Icon Toggle Buttons */}
-          <div className="space-y-1.5 sm:col-span-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-[9px] font-black text-slate-300 uppercase tracking-wider">
-                FORMA DE PAGAMENTO
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowPaidAmountInput?.(!showPaidAmountInput)}
-                  className={`px-2 py-0.5 rounded-lg text-xs border flex items-center gap-1 transition-all cursor-pointer font-bold ${
-                    showPaidAmountInput || (paidAmount !== undefined && paidAmount > 0)
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] font-black'
-                      : 'bg-slate-900/90 text-slate-400 border-slate-700 hover:text-white'
-                  }`}
-                  title="Registrar valor pago / sinal pelo cliente"
-                >
-                  <span>💵</span>
-                  <span className="text-[9px] hidden sm:inline">Valor Pago</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentNotesInput?.(!showPaymentNotesInput)}
-                  className={`px-2 py-0.5 rounded-lg text-xs border flex items-center gap-1 transition-all cursor-pointer font-bold ${
-                    showPaymentNotesInput || (paymentNotes && paymentNotes.trim().length > 0)
-                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] font-black'
-                      : 'bg-slate-900/90 text-slate-400 border-slate-700 hover:text-white'
-                  }`}
-                  title="Adicionar observação ou marca de serviço pago"
-                >
-                  <span>📝</span>
-                  <span className="text-[9px] hidden sm:inline">Obs / Quitação</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="relative">
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full h-7.5 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-white focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-7 shadow-inner truncate"
-              >
-                <option value="Não informado">Não informado</option>
-                <option value="A_PRAZO">⏳ A Prazo / Fiado</option>
-                <option value="DINHEIRO">💵 Dinheiro</option>
-                <option value="PIX">⚡ PIX</option>
-                <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
-                <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
-                {customPaymentMethods
-                  .filter(
-                    (pm) =>
-                      !['Não informado', 'A_PRAZO', 'DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(
-                        pm.name
-                      )
-                  )
-                  .map((pm) => (
-                    <option key={pm.id} value={pm.name}>
-                      {pm.name}
-                    </option>
-                  ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
-            </div>
-
-            {/* Collapsible Paid Amount Section */}
-            {showPaidAmountInput && (
-              <div className="p-2.5 rounded-xl bg-emerald-950/25 border border-emerald-500/50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150 mt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-emerald-300 uppercase flex items-center gap-1">
-                    <span>💵</span>
-                    <span>Valor Pago / Sinal (R$):</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPaidAmount?.(finalOrderTotal)}
-                    className="text-[9px] text-emerald-400 hover:underline cursor-pointer font-bold"
-                  >
-                    Cobrir Total (Quitado)
-                  </button>
-                </div>
+              <div>
+                <label className="text-[9px] font-bold text-amber-300 block mb-0.5">⭐ Valor 1ª Linha (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  value={paidAmount !== undefined && paidAmount > 0 ? paidAmount : ''}
-                  onChange={(e) => setPaidAmount?.(parseFloat(e.target.value) || 0)}
+                  value={partPriceFirstLine || ''}
+                  onChange={(e) => setPartPriceFirstLine && setPartPriceFirstLine(parseFloat(e.target.value) || 0)}
                   placeholder="0,00"
-                  className="w-full h-8 px-2 bg-[#040c1e] border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-300 font-mono shadow-inner"
-                />
-
-                <div className="mt-2 space-y-1">
-                  <span className="text-[10px] font-black text-emerald-300 uppercase flex items-center gap-1">
-                    <span>📅</span>
-                    <span>Data do Pagamento:</span>
-                  </span>
-                  <input
-                    type="date"
-                    value={paymentDate || new Date().toISOString().split('T')[0]}
-                    onChange={(e) => setPaymentDate?.(e.target.value)}
-                    className="w-full h-8 px-2 bg-[#040c1e] border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-300 font-mono shadow-inner cursor-pointer"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Collapsible Payment Notes / Quitação Observation Section */}
-            {showPaymentNotesInput && (
-              <div className="p-2.5 rounded-xl bg-cyan-950/25 border border-cyan-500/50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150 mt-1">
-                <span className="text-[10px] font-black text-cyan-300 uppercase flex items-center gap-1">
-                  <span>📝</span>
-                  <span>Observação de Pagamento / Quitação:</span>
-                </span>
-                <input
-                  type="text"
-                  value={paymentNotes || ''}
-                  onChange={(e) => setPaymentNotes?.(e.target.value)}
-                  placeholder="Ex: Pago via Pix com desconto / Serviço quitado na entrada..."
-                  className="w-full h-8 px-2 bg-[#040c1e] border border-cyan-500/50 rounded-xl text-xs font-semibold text-cyan-200 shadow-inner"
+                  className="w-full px-2 py-1.5 bg-[#020807] border border-amber-500/50 rounded-lg text-xs text-amber-300 font-bold font-mono focus:outline-hidden focus:border-amber-400"
                 />
               </div>
-            )}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-800/80">
-          {/* Data de Entrada / Criação da OS */}
-          <div className="space-y-0.5">
-            <label className="block text-[9px] font-black text-slate-300 uppercase tracking-wider">
-              📅 DATA DE ENTRADA / CRIAÇÃO DA OS
-            </label>
-            <input
-              type="date"
-              value={entryDate || new Date().toISOString().split('T')[0]}
-              onChange={(e) => setEntryDate(e.target.value)}
-              className="w-full h-7.5 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-white focus:outline-hidden focus:border-cyan-400 font-mono shadow-inner cursor-pointer"
-            />
-          </div>
-
-          {/* Previsão de Entrega */}
-          <div className="space-y-0.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[9px] font-black text-slate-300 uppercase tracking-wider">
-                PREVISÃO ENTREGA
-              </label>
-              <label className="flex items-center gap-1 text-[9px] text-cyan-300 font-bold cursor-pointer select-none">
+              <div>
+                <label className="text-[9px] font-bold text-cyan-300 block mb-0.5">💎 Valor Premium (R$)</label>
                 <input
-                  type="checkbox"
-                  checked={isDeliveryOptional}
-                  onChange={(e) => {
-                    setIsDeliveryOptional(e.target.checked);
-                    if (e.target.checked) setDeliveryDate('');
-                  }}
-                  className="w-3 h-3 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={partPricePremium || ''}
+                  onChange={(e) => setPartPricePremium && setPartPricePremium(parseFloat(e.target.value) || 0)}
+                  placeholder="0,00"
+                  className="w-full px-2 py-1.5 bg-[#020807] border border-cyan-500/50 rounded-lg text-xs text-cyan-300 font-bold font-mono focus:outline-hidden focus:border-cyan-400"
                 />
-                <span>A combinar</span>
-              </label>
+              </div>
             </div>
-            {!isDeliveryOptional ? (
-              <input
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                className="w-full h-7.5 px-2 bg-[#040c1e] border border-cyan-500/50 rounded-xl text-xs text-white focus:outline-hidden focus:border-cyan-400 font-mono shadow-inner"
-              />
-            ) : (
-              <div className="h-7.5 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-cyan-300 font-bold flex items-center justify-center shadow-inner">
-                📅 A combinar com o cliente
+
+            {/* Qual o cliente optou? */}
+            <div className="pt-1.5 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] font-black text-slate-300 uppercase">Cliente optou por:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'FIRST_LINE' ? 'NONE' : 'FIRST_LINE')}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                    selectedPartTier === 'FIRST_LINE'
+                      ? 'bg-amber-600 text-white border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                      : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                >
+                  <span>⭐ 1ª Linha {partPriceFirstLine > 0 ? `(${formatCurrency(partPriceFirstLine)})` : ''}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPartTier && setSelectedPartTier(selectedPartTier === 'PREMIUM' ? 'NONE' : 'PREMIUM')}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-black transition-all cursor-pointer border flex items-center gap-1 ${
+                    selectedPartTier === 'PREMIUM'
+                      ? 'bg-cyan-600 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]'
+                      : 'bg-[#030d0b] text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                >
+                  <span>💎 Premium {partPricePremium > 0 ? `(${formatCurrency(partPricePremium)})` : ''}</span>
+                </button>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* DYNAMIC STATUS ACTION PANELS FOR ARQUIVADO, PRONTO, AND ENTREGUE */}
-
-        {/* 1. PAINEL DE DISPOSITIVO ARQUIVADO */}
-        {(initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || getCanonicalStatus(initialStatus as string) === 'ARQUIVADO' || !!archivedLocation) && (
-          <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-[#040c1e] border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Box className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>📍 ONDE O DISPOSITIVO ESTÁ GUARDADO? (LOCAL NO ARQUIVO)</span>
-              </label>
-              <span className="text-[9.5px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black uppercase">
-                Status Arquivado
+              <span className="text-[8.5px] text-slate-400 italic">
+                * Apenas a opção marcada sai no comprovante da OS.
               </span>
             </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <input
-                type="text"
-                autoFocus={initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV')}
-                value={archivedLocation}
-                onChange={(e) => setArchivedLocation?.(e.target.value)}
-                placeholder="Ex: Gaveta 1, Prateleira B, Armário 2, Caixa 5..."
-                className="flex-1 h-9 px-3 bg-[#080f1e] border-2 border-amber-400/80 rounded-xl text-xs font-black text-amber-300 placeholder-zinc-500 focus:outline-hidden focus:border-amber-300 shadow-inner"
-              />
-              <div className="flex items-center gap-1 flex-wrap">
-                {['Gaveta 1', 'Gaveta 2', 'Gaveta 3', 'Prateleira A', 'Prateleira B', 'Armário 1', 'Caixa 1'].map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => setArchivedLocation?.(tag)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                      archivedLocation === tag
-                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm scale-105'
-                        : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            {/* Agendamento Opcional de Conserto na OS Arquivada */}
-            <div className="pt-2.5 border-t border-amber-500/25 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-black text-amber-200 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                  <span>CLIENTE INFORMOU QUE VAI CONSERTAR EM TAL DIA? (OPCIONAL)</span>
-                </label>
-                {promisedRepairDate && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPromisedRepairDate?.('');
-                      setPromisedRepairNotes?.('');
-                    }}
-                    className="text-[10px] text-rose-300 hover:text-rose-200 underline cursor-pointer"
-                  >
-                    Limpar data
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <span className="text-[9.5px] text-slate-400 block mb-0.5">Data Marcada (Dia / Mês / Ano):</span>
-                  <input
-                    type="date"
-                    value={promisedRepairDate}
-                    onChange={(e) => setPromisedRepairDate?.(e.target.value)}
-                    className="w-full h-9 px-3 bg-[#080f1e] border-2 border-amber-400/70 focus:border-amber-300 rounded-xl text-xs font-black text-amber-300 focus:outline-hidden shadow-inner"
-                  />
-                </div>
-                <div>
-                  <span className="text-[9.5px] text-slate-400 block mb-0.5">Observação (Opcional):</span>
-                  <input
-                    type="text"
-                    value={promisedRepairNotes}
-                    onChange={(e) => setPromisedRepairNotes?.(e.target.value)}
-                    placeholder="Ex: Vai vir após o almoço / aguardando pagamento..."
-                    className="w-full h-9 px-3 bg-[#080f1e] border border-amber-400/50 focus:border-amber-300 rounded-xl text-xs text-amber-200 placeholder-zinc-500 focus:outline-hidden shadow-inner"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-amber-300/80">
-                💡 Ao marcar esta data, o sistema exibirá uma <strong>mensagem bem grandona na tela inicial</strong> no dia marcado com o botão <strong>OK Visto</strong>.
-              </p>
+            {/* Botões para copiar texto para mandar para o cliente */}
+            <div className="pt-1.5 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[9px] font-bold text-slate-400 mr-1">Copiar p/ WhatsApp:</span>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('FIRST_LINE')}
+                className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
+                title="Copiar mensagem com peça 1ª Linha"
+              >
+                📋 Copiar c/ 1ª Linha
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('PREMIUM')}
+                className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded text-[9.5px] font-bold cursor-pointer transition-all active:scale-95"
+                title="Copiar mensagem com peça Premium"
+              >
+                📋 Copiar c/ Premium
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCopyBudget('COMPARATIVE')}
+                className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400 rounded text-[9.5px] font-black cursor-pointer transition-all active:scale-95 shadow-sm"
+                title="Copiar mensagem comparativa completa com explicação sobre a qualidade da peça Premium"
+              >
+                📋 Copiar Ambas c/ Explicação
+              </button>
             </div>
           </div>
         )}
 
-        {/* 2. PAINEL DE APARELHO PRONTO PARA RETIRADA */}
-        {(initialStatus === 'PRONTO' || (initialStatus as string)?.toUpperCase()?.includes('PRONT') || getCanonicalStatus(initialStatus as string) === 'PRONTO') && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-emerald-600/10 to-[#040c1e] border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-emerald-300 font-black text-xs uppercase tracking-wider">
-                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400 shrink-0" />
-                <span>🎉 APARELHO PRONTO PARA RETIRADA!</span>
-              </div>
-              <span className="text-[9.5px] px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black uppercase tracking-wide">
-                Aguardando Cliente
+        {/* Tab 4: VALORES & FORMA DE PAGAMENTO */}
+        {(activeTab === 'VALORES' || activeTab === 'TODOS') && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95 border-2 border-emerald-500/70 shadow-[0_0_20px_rgba(16,185,129,0.25)] space-y-3 shrink-0 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/30">
+              <span className="text-xs font-black text-emerald-300 uppercase tracking-tight flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>VALORES, MÃO DE OBRA & FORMA DE PAGAMENTO</span>
               </span>
+              <span className="text-[10px] text-slate-400">Total: {formatCurrency(finalOrderTotal)}</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {/* Garantia Selector */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-black uppercase text-emerald-300">
-                  🛡️ Garantia do Serviço (Dias):
+            {/* Forma de Pagamento */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[9px] font-black text-slate-300 uppercase tracking-wider">
+                  FORMA DE PAGAMENTO
                 </label>
-                <div className="flex items-center gap-1 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaidAmountInput?.(!showPaidAmountInput)}
+                    className={`px-2 py-0.5 rounded-lg text-xs border flex items-center gap-1 transition-all cursor-pointer font-bold ${
+                      showPaidAmountInput || (paidAmount !== undefined && paidAmount > 0)
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] font-black'
+                        : 'bg-slate-900/90 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                    title="Registrar valor pago / sinal pelo cliente"
+                  >
+                    <span>💵</span>
+                    <span className="text-[9px]">Valor Pago</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentNotesInput?.(!showPaymentNotesInput)}
+                    className={`px-2 py-0.5 rounded-lg text-xs border flex items-center gap-1 transition-all cursor-pointer font-bold ${
+                      showPaymentNotesInput || (paymentNotes && paymentNotes.trim().length > 0)
+                        ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)] font-black'
+                        : 'bg-slate-900/90 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                    title="Adicionar observação ou marca de serviço pago"
+                  >
+                    <span>📝</span>
+                    <span className="text-[9px]">Obs / Quitação</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full h-8 px-2.5 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-white focus:outline-hidden focus:border-cyan-400 cursor-pointer appearance-none pr-7 shadow-inner truncate"
+                >
+                  <option value="Não informado">Não informado</option>
+                  <option value="A_PRAZO">⏳ A Prazo / Fiado</option>
+                  <option value="DINHEIRO">💵 Dinheiro</option>
+                  <option value="PIX">⚡ PIX</option>
+                  <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                  <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                  {customPaymentMethods
+                    .filter(
+                      (pm) =>
+                        !['Não informado', 'A_PRAZO', 'DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(
+                          pm.name
+                        )
+                    )
+                    .map((pm) => (
+                      <option key={pm.id} value={pm.name}>
+                        {pm.name}
+                      </option>
+                    ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+
+              {/* Collapsible Paid Amount Section */}
+              {showPaidAmountInput && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/25 border border-emerald-500/50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150 mt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-emerald-300 uppercase flex items-center gap-1">
+                      <span>💵</span>
+                      <span>Valor Pago / Sinal (R$):</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPaidAmount?.(finalOrderTotal)}
+                      className="text-[9px] text-emerald-400 hover:underline cursor-pointer font-bold"
+                    >
+                      Cobrir Total (Quitado)
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={paidAmount !== undefined && paidAmount > 0 ? paidAmount : ''}
+                    onChange={(e) => setPaidAmount?.(parseFloat(e.target.value) || 0)}
+                    placeholder="0,00"
+                    className="w-full h-8 px-2 bg-[#040c1e] border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-300 font-mono shadow-inner"
+                  />
+
+                  <div className="mt-2 space-y-1">
+                    <span className="text-[10px] font-black text-emerald-300 uppercase flex items-center gap-1">
+                      <span>📅</span>
+                      <span>Data do Pagamento:</span>
+                    </span>
+                    <input
+                      type="date"
+                      value={paymentDate || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setPaymentDate?.(e.target.value)}
+                      className="w-full h-8 px-2 bg-[#040c1e] border border-emerald-500/50 rounded-xl text-xs font-black text-emerald-300 font-mono shadow-inner cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Collapsible Payment Notes / Quitação Observation Section */}
+              {showPaymentNotesInput && (
+                <div className="p-2.5 rounded-xl bg-cyan-950/25 border border-cyan-500/50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150 mt-1">
+                  <span className="text-[10px] font-black text-cyan-300 uppercase flex items-center gap-1">
+                    <span>📝</span>
+                    <span>Observação de Pagamento / Quitação:</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={paymentNotes || ''}
+                    onChange={(e) => setPaymentNotes?.(e.target.value)}
+                    placeholder="Ex: Pago via Pix com desconto / Serviço quitado na entrada..."
+                    className="w-full h-8 px-2 bg-[#040c1e] border border-cyan-500/50 rounded-xl text-xs font-semibold text-cyan-200 shadow-inner"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Mão de Obra e Desconto Inline Edits */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9.5px] font-black uppercase text-amber-400 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3 text-amber-400" />
+                    MÃO DE OBRA (SERVIÇO)
+                  </span>
+                  {!isPriceUnlocked && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManagerPassError('');
+                        setManagerPassInput('');
+                        setShowManagerAuthModal(true);
+                      }}
+                      className="text-amber-400 hover:text-amber-300 cursor-pointer p-0.5 rounded hover:bg-amber-950/40"
+                      title="Liberar edição"
+                    >
+                      <Lock className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+                {isPriceUnlocked ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={customTotalPrice !== null ? customTotalPrice : effectiveBasePrice}
+                    onChange={(e) => setCustomTotalPrice(parseFloat(e.target.value) || 0)}
+                    className="w-full h-8 px-2 bg-[#07132c] border border-amber-500/50 rounded-xl text-xs font-black text-amber-300 font-mono shadow-inner"
+                  />
+                ) : (
+                  <div
+                    onClick={() => {
+                      setManagerPassError('');
+                      setManagerPassInput('');
+                      setShowManagerAuthModal(true);
+                    }}
+                    className="h-8 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs font-black text-white flex items-center justify-between cursor-pointer hover:border-amber-400/60 font-mono"
+                    title="Clique para editar mão de obra"
+                  >
+                    <span>{formatCurrency(effectiveBasePrice)}</span>
+                    <span className="text-[9px] text-amber-400">🔒 Editar</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[9.5px] font-black uppercase text-rose-400 flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-rose-400" />
+                  DESCONTO APLICADO (R$)
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={discount || ''}
+                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                  placeholder="0,00"
+                  className="w-full h-8 px-2 bg-[#040c1e] border border-rose-950 rounded-xl text-xs font-black text-rose-400 font-mono shadow-inner focus:border-rose-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: DATAS & STATUS */}
+        {(activeTab === 'DATAS' || activeTab === 'TODOS') && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95 border-2 border-purple-500/70 shadow-[0_0_20px_rgba(168,85,247,0.25)] space-y-3 shrink-0 animate-in fade-in duration-150">
+            <h4 className="text-xs font-black text-purple-300 uppercase tracking-tight border-b border-purple-500/30 pb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-purple-400" />
+              <span>STATUS DA OS, PRAZOS & LOCALIZAÇÃO</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {/* Status Inicial */}
+              <div className="space-y-1 sm:col-span-2">
+                <label className="block text-[9px] font-black text-amber-400 uppercase tracking-wider">
+                  STATUS INICIAL DA OS
+                </label>
+                <div className="relative">
+                  <select
+                    value={initialStatus}
+                    onChange={(e) => setInitialStatus(e.target.value as OrderStatus)}
+                    className="w-full h-8 px-2.5 bg-[#040c1e] border border-amber-500/50 rounded-xl text-xs font-black text-amber-300 focus:outline-hidden focus:border-amber-400 cursor-pointer appearance-none pr-7 shadow-inner truncate"
+                  >
+                    {statusChoices.map((s) => (
+                      <option key={s.status} value={s.status}>
+                        {s.icon} {s.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-amber-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Data de Entrada */}
+              <div className="space-y-1">
+                <label className="block text-[9px] font-black text-slate-300 uppercase tracking-wider">
+                  📅 DATA DE ENTRADA / CRIAÇÃO
+                </label>
+                <input
+                  type="date"
+                  value={entryDate || new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setEntryDate(e.target.value)}
+                  className="w-full h-8 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-white focus:outline-hidden focus:border-purple-400 font-mono shadow-inner cursor-pointer"
+                />
+              </div>
+
+              {/* Previsão de Entrega */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-black text-slate-300 uppercase tracking-wider">
+                    PREVISÃO ENTREGA
+                  </label>
+                  <label className="flex items-center gap-1 text-[9px] text-cyan-300 font-bold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isDeliveryOptional}
+                      onChange={(e) => {
+                        setIsDeliveryOptional(e.target.checked);
+                        if (e.target.checked) setDeliveryDate('');
+                      }}
+                      className="w-3 h-3 rounded bg-[#040c1e] border-slate-700 text-blue-500 cursor-pointer accent-blue-500"
+                    />
+                    <span>A combinar</span>
+                  </label>
+                </div>
+                {!isDeliveryOptional ? (
+                  <input
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    className="w-full h-8 px-2 bg-[#040c1e] border border-cyan-500/50 rounded-xl text-xs text-white focus:outline-hidden focus:border-cyan-400 font-mono shadow-inner"
+                  />
+                ) : (
+                  <div className="h-8 px-2 bg-[#040c1e] border border-slate-800 rounded-xl text-xs text-cyan-300 font-bold flex items-center justify-center shadow-inner">
+                    📅 A combinar com o cliente
+                  </div>
+                )}
+              </div>
+
+              {/* Garantia Selector */}
+              <div className="space-y-1 sm:col-span-2 pt-1 border-t border-slate-800">
+                <label className="block text-[9px] font-black text-slate-300 uppercase">
+                  🛡️ GARANTIA DO SERVIÇO:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {[30, 60, 90, 180, 365].map((dias) => (
                     <button
                       key={dias}
@@ -1096,7 +1084,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                       onClick={() => setWarrantyDays?.(dias)}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border transition-all cursor-pointer ${
                         warrantyDays === dias
-                          ? 'bg-emerald-400 text-slate-950 border-emerald-300 font-black shadow-sm scale-105'
+                          ? 'bg-purple-600 text-white border-purple-400 font-black shadow-sm scale-105'
                           : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
                       }`}
                     >
@@ -1105,9 +1093,98 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Ready Notification WhatsApp helper */}
-              <div className="space-y-1 flex flex-col justify-end">
+            {/* PAINEL DINÂMICO 1: DISPOSITIVO ARQUIVADO */}
+            {(initialStatus === 'ARQUIVADO' || (initialStatus as string)?.toUpperCase()?.includes('ARQUIV') || getCanonicalStatus(initialStatus as string) === 'ARQUIVADO' || !!archivedLocation) && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-[#040c1e] border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Box className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>📍 LOCAL NO ARQUIVO (ONDE ESTÁ GUARDADO?)</span>
+                  </label>
+                  <span className="text-[9.5px] px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black uppercase">
+                    Status Arquivado
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <input
+                    type="text"
+                    value={archivedLocation}
+                    onChange={(e) => setArchivedLocation?.(e.target.value)}
+                    placeholder="Ex: Gaveta 1, Prateleira B, Armário 2, Caixa 5..."
+                    className="flex-1 h-8 px-3 bg-[#080f1e] border-2 border-amber-400/80 rounded-xl text-xs font-black text-amber-300 placeholder-zinc-500 focus:outline-hidden focus:border-amber-300 shadow-inner"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {['Gaveta 1', 'Gaveta 2', 'Gaveta 3', 'Prateleira A', 'Prateleira B', 'Armário 1', 'Caixa 1'].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setArchivedLocation?.(tag)}
+                        className={`px-2 py-0.5 rounded-lg text-[9.5px] font-bold border transition-all cursor-pointer ${
+                          archivedLocation === tag
+                            ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm'
+                            : 'bg-zinc-800/90 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Agendamento Opcional de Conserto na OS Arquivada */}
+                <div className="pt-2 border-t border-amber-500/25 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-amber-200 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-amber-400" />
+                      <span>CLIENTE INFORMOU QUE VAI CONSERTAR EM TAL DIA? (OPCIONAL)</span>
+                    </label>
+                    {promisedRepairDate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromisedRepairDate?.('');
+                          setPromisedRepairNotes?.('');
+                        }}
+                        className="text-[9px] text-rose-300 hover:text-rose-200 underline cursor-pointer"
+                      >
+                        Limpar data
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <input
+                      type="date"
+                      value={promisedRepairDate}
+                      onChange={(e) => setPromisedRepairDate?.(e.target.value)}
+                      className="w-full h-8 px-2 bg-[#080f1e] border border-amber-400/70 rounded-xl text-xs font-black text-amber-300"
+                    />
+                    <input
+                      type="text"
+                      value={promisedRepairNotes}
+                      onChange={(e) => setPromisedRepairNotes?.(e.target.value)}
+                      placeholder="Ex: Vai vir após o almoço..."
+                      className="w-full h-8 px-2 bg-[#080f1e] border border-amber-400/50 rounded-xl text-xs text-amber-200 placeholder-zinc-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PAINEL DINÂMICO 2: APARELHO PRONTO PARA RETIRADA */}
+            {(initialStatus === 'PRONTO' || (initialStatus as string)?.toUpperCase()?.includes('PRONT') || getCanonicalStatus(initialStatus as string) === 'PRONTO') && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-emerald-600/10 to-[#040c1e] border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-emerald-300 font-black text-xs uppercase tracking-wider">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>🎉 APARELHO PRONTO PARA RETIRADA!</span>
+                  </div>
+                  <span className="text-[9.5px] px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black uppercase tracking-wide">
+                    Aguardando Cliente
+                  </span>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1131,70 +1208,31 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                   className="w-full h-8.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Avisar Cliente ("Aparelho Pronto")</span>
+                  <span>Avisar Cliente no WhatsApp ("Aparelho Pronto")</span>
                 </button>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* 3. PAINEL DE CONCLUSÃO E ENTREGA DO DISPOSITIVO */}
-        {(initialStatus === 'ENTREGUE' || (initialStatus as string)?.toUpperCase()?.includes('ENTREG') || (initialStatus as string)?.toUpperCase()?.includes('CONCLU') || getCanonicalStatus(initialStatus as string) === 'ENTREGUE') && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-blue-600/10 to-[#040c1e] border-2 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-cyan-300 font-black text-xs uppercase tracking-wider">
-                <Package className="w-4.5 h-4.5 text-cyan-400 shrink-0" />
-                <span>📦 ENTREGA E QUITAÇÃO DO APARELHO</span>
-              </div>
-              <span className="text-[9.5px] px-2 py-0.5 rounded bg-cyan-400 text-slate-950 font-black uppercase tracking-wide">
-                Finalizar OS
-              </span>
-            </div>
+            {/* PAINEL DINÂMICO 3: CONCLUSÃO E ENTREGA DO DISPOSITIVO */}
+            {(initialStatus === 'ENTREGUE' || (initialStatus as string)?.toUpperCase()?.includes('ENTREG') || (initialStatus as string)?.toUpperCase()?.includes('CONCLU') || getCanonicalStatus(initialStatus as string) === 'ENTREGUE') && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-cyan-500/20 via-blue-600/10 to-[#040c1e] border-2 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.25)] animate-in fade-in zoom-in-95 duration-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-cyan-300 font-black text-xs uppercase tracking-wider">
+                    <Package className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>📦 ENTREGA E QUITAÇÃO DO APARELHO</span>
+                  </div>
+                  <span className="text-[9.5px] px-2 py-0.5 rounded bg-cyan-400 text-slate-950 font-black uppercase tracking-wide">
+                    Finalizar OS
+                  </span>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {/* Forma de Pagamento */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-black uppercase text-cyan-300">
-                  💳 Forma de Pagamento Utilizada:
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPaymentMethod(val);
-                    if (val === 'A_PRAZO') {
-                      setPaymentStatus?.('PENDENTE');
-                    } else if (val !== 'Não informado') {
-                      setPaymentStatus?.('PAGO');
-                    }
-                  }}
-                  className="w-full h-8 px-2.5 bg-[#030918] border border-cyan-500/50 rounded-xl text-xs font-black text-cyan-300 focus:outline-hidden focus:border-cyan-300 shadow-inner cursor-pointer"
-                >
-                  <option value="DINHEIRO">💵 Dinheiro</option>
-                  <option value="PIX">⚡ PIX</option>
-                  <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
-                  <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
-                  <option value="A_PRAZO">⏳ A Prazo / Fiado</option>
-                  {customPaymentMethods
-                    .filter((pm) => !['A_PRAZO', 'DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(pm.name))
-                    .map((pm) => (
-                      <option key={pm.id} value={pm.name}>{pm.name}</option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Status do Pagamento (PAGO vs FIADO / A PRAZO) */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-black uppercase text-cyan-300">
-                  💰 Situação Financeira da Entrega:
-                </label>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPaymentStatus?.('PAGO')}
                     className={`h-8 rounded-xl text-xs font-black border flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       paymentStatus === 'PAGO'
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black scale-102'
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black'
                         : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
                     }`}
                   >
@@ -1209,7 +1247,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                     }}
                     className={`h-8 rounded-xl text-xs font-black border flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       paymentStatus === 'PENDENTE'
-                        ? 'bg-rose-500 text-white border-rose-400 shadow-md font-black scale-102'
+                        ? 'bg-rose-500 text-white border-rose-400 shadow-md font-black'
                         : 'bg-slate-900/80 text-slate-300 border-slate-700 hover:bg-slate-800'
                     }`}
                   >
@@ -1218,14 +1256,22 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
                   </button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
+      </div>
 
-        {/* Row 2: 4 Summary Metric Boxes */}
+      {/* 4 SUMMARY METRIC BOXES - ALWAYS VISIBLE AT BOTTOM WITH AURORA GLOW */}
+      <div
+        className={`p-2.5 rounded-2xl border-2 shrink-0 transition-all ${
+          isDark
+            ? 'bg-gradient-to-b from-[#08152e]/95 to-[#040c1e]/95 border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.35),0_0_50px_rgba(6,182,212,0.15)] text-white'
+            : 'bg-white border-blue-400 shadow-lg text-slate-900'
+        }`}
+      >
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {/* 1. PEÇAS */}
-          <div className="p-2 rounded-xl bg-[#040c1e] border border-blue-900/80 flex flex-col justify-between h-[58px]">
+          <div className="p-2 rounded-xl bg-[#040c1e] border border-blue-900/80 flex flex-col justify-between h-[56px]">
             <span className="text-[9px] font-black uppercase text-slate-400 flex items-center gap-1">
               <Box className="w-3 h-3 text-cyan-400" />
               PEÇAS
@@ -1236,7 +1282,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
           </div>
 
           {/* 2. MÃO DE OBRA */}
-          <div className="p-2 rounded-xl bg-[#040c1e] border border-slate-800 relative flex flex-col justify-between h-[58px]">
+          <div className="p-2 rounded-xl bg-[#040c1e] border border-slate-800 relative flex flex-col justify-between h-[56px]">
             <div className="flex items-center justify-between">
               <span className="text-[9px] font-black uppercase text-amber-400 flex items-center gap-1">
                 <DollarSign className="w-3 h-3 text-amber-400" />
@@ -1283,7 +1329,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
           </div>
 
           {/* 3. DESCONTO */}
-          <div className="p-2 rounded-xl bg-[#040c1e] border border-rose-950/80 flex flex-col justify-between h-[58px]">
+          <div className="p-2 rounded-xl bg-[#040c1e] border border-rose-950/80 flex flex-col justify-between h-[56px]">
             <span className="text-[9px] font-black uppercase text-rose-400 flex items-center gap-1">
               <Tag className="w-3 h-3 text-rose-400" />
               DESCONTO
@@ -1303,7 +1349,7 @@ export const OrderPartsFinancialSection: React.FC<OrderPartsFinancialSectionProp
           </div>
 
           {/* 4. TOTAL DA OS */}
-          <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-950/90 to-emerald-900/60 border border-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.3)] flex flex-col justify-between h-[58px]">
+          <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-950/90 to-emerald-900/60 border border-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.3)] flex flex-col justify-between h-[56px]">
             <span className="text-[9px] font-black uppercase text-emerald-400 flex items-center gap-1">
               <DollarSign className="w-3 h-3 text-emerald-400" />
               TOTAL DA OS

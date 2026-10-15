@@ -158,6 +158,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   // Mobile dedicated 3-step navigation (Step 1: Cliente & Aparelho, Step 2: Defeito & Checklist, Step 3: Peças & Valores)
   const [mobileStep, setMobileStep] = useState<'CLIENTE' | 'SERVICO' | 'FINANCEIRO'>('CLIENTE');
+  const [partActiveTab, setPartActiveTab] = useState<'ESTOQUE' | 'AVULSO' | 'TIERS' | 'VALORES' | 'DATAS' | 'TODOS'>('ESTOQUE');
 
   // Problems & Services
   const [clientDefect, setClientDefect] = useState('');
@@ -992,44 +993,44 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
         )}
 
-        {/* Mobile Step Navigator Bar (shown only on mobile < lg, preserving desktop 3-columns) */}
-        <div className="lg:hidden flex items-center gap-1 px-2.5 py-1.5 bg-[#061129] border-b border-blue-900/60 shrink-0">
+        {/* Mobile Step Navigator Bar (100% Visível na tela sem rolagem - 3 Pilares Principais) */}
+        <div className="lg:hidden grid grid-cols-3 gap-1.5 p-2 bg-[#061129] border-b border-blue-900/60 shrink-0 select-none">
           <button
             type="button"
             onClick={() => setMobileStep('CLIENTE')}
-            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full min-w-0 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               mobileStep === 'CLIENTE'
-                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)] border border-blue-400'
-                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.6)] border border-blue-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950/80'
             }`}
           >
-            <span className="w-4 h-4 rounded-full bg-blue-900/80 text-[10px] flex items-center justify-center font-bold">1</span>
-            <span className="truncate">Cliente & Aparelho</span>
+            <span className="shrink-0">👤</span>
+            <span className="truncate">Cliente</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMobileStep('SERVICO')}
-            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full min-w-0 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               mobileStep === 'SERVICO'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)] border border-purple-400'
-                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.6)] border border-purple-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950/80'
             }`}
           >
-            <span className="w-4 h-4 rounded-full bg-purple-900/80 text-[10px] flex items-center justify-center font-bold">2</span>
-            <span className="truncate">Defeito & Checklist</span>
+            <span className="shrink-0">⚠️</span>
+            <span className="truncate">Defeito</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMobileStep('FINANCEIRO')}
-            className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full min-w-0 py-2 px-1 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
               mobileStep === 'FINANCEIRO'
-                ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)] border border-emerald-400'
-                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950'
+                ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] border border-emerald-400'
+                : 'text-slate-400 hover:text-white bg-[#030917] border border-blue-950/80'
             }`}
           >
-            <span className="w-4 h-4 rounded-full bg-emerald-900/80 text-[10px] flex items-center justify-center font-bold">3</span>
+            <span className="shrink-0">💰</span>
             <span className="truncate">Peças & Valores</span>
           </button>
         </div>
@@ -1037,7 +1038,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         {/* Main 3-Column Proportional Grid Body - Mobile displays selected step with scroll, Desktop displays all 3 columns simultaneously */}
         <div className="flex-1 overflow-y-auto bg-[#030814] p-2 sm:p-2.5 lg:overflow-hidden lg:grid lg:grid-cols-3 lg:gap-2.5">
           {/* COLUMN 1: CLIENTE & EQUIPAMENTO */}
-          <div className={`${mobileStep === 'CLIENTE' ? 'block' : 'hidden lg:block'} h-auto lg:h-full`}>
+          <div className={`${mobileStep === 'CLIENTE' ? 'flex' : 'hidden lg:flex'} flex-col h-auto lg:h-full lg:min-h-0 lg:overflow-hidden`}>
           <OrderClientDeviceSection
             isDark={isDark}
             customers={customers}
@@ -1085,51 +1086,51 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* COLUMN 2: PROBLEMA, SERVIÇO & ACESSÓRIOS vs CHECKLIST TÉCNICO */}
-          <div className={`${mobileStep === 'SERVICO' ? 'flex' : 'hidden lg:flex'} flex-col h-auto lg:h-full overflow-hidden`}>
-            {/* Column 2 Sub-Tabs - 1. Defeito (apenas problema relatado), 2. Serviço & Diagnóstico, 3. Checklist de Acessórios */}
-            <div className="flex items-center gap-1 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0">
+          <div className={`${mobileStep === 'SERVICO' ? 'flex' : 'hidden lg:flex'} flex-col h-auto lg:h-full lg:min-h-0 lg:overflow-hidden`}>
+            {/* Column 2 Sub-Tabs - Todas 100% visíveis e clicáveis em grid sem overflow horizontal */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#061026] border border-blue-900/40 rounded-xl mb-1.5 shrink-0 select-none">
               <button
                 type="button"
                 onClick={() => setCol2Tab('PROBLEMA')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
                   col2Tab === 'PROBLEMA'
-                    ? 'bg-rose-600 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)]'
+                    ? 'bg-rose-600 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)] border border-rose-400'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
                 title="Apenas o problema e defeito relatado pelo cliente"
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-300 shrink-0" />
-                <span className="truncate">Defeito Reclamado</span>
+                <span className="truncate">Defeito</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setCol2Tab('SERVICO')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
                   col2Tab === 'SERVICO'
-                    ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                    ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.4)] border border-amber-400'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
                 title="Serviço previsto e diagnóstico técnico"
               >
                 <Settings className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span className="truncate">Serviço & Diagnóstico</span>
+                <span className="truncate">Serviço</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setCol2Tab('ACESSORIOS')}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`w-full min-w-0 py-2 px-1 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
                   col2Tab === 'ACESSORIOS'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)] border border-purple-400'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
                 title="Checklist de acessórios entregues com o aparelho"
               >
                 <Headphones className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                <span className="truncate">Checklist de Acessórios</span>
+                <span className="truncate">Checklist</span>
                 {accessoriesPresentCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-purple-950 text-purple-300 border border-purple-500/50 shrink-0">
+                  <span className="px-1 py-0.2 rounded-full text-[9px] font-black bg-purple-950 text-purple-300 border border-purple-500/50 shrink-0">
                     {accessoriesPresentCount}
                   </span>
                 )}
@@ -1173,9 +1174,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* COLUMN 3: PEÇAS, VALORES & PAGAMENTO */}
-          <div className={`${mobileStep === 'FINANCEIRO' ? 'block' : 'hidden lg:block'} h-auto lg:h-full`}>
+          <div className={`${mobileStep === 'FINANCEIRO' ? 'flex' : 'hidden lg:flex'} flex-col h-auto lg:h-full lg:min-h-0 lg:overflow-hidden`}>
           <OrderPartsFinancialSection
             isDark={isDark}
+            activeTab={partActiveTab}
+            onTabChange={setPartActiveTab}
             parts={parts}
             partInputMode={partInputMode}
             setPartInputMode={setPartInputMode}

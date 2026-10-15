@@ -131,7 +131,7 @@ export const OrderTechnicalChecklistSection: React.FC<
 
   return (
     <div
-      className={`rounded-2xl border-2 flex flex-col h-full min-h-0 overflow-hidden transition-all ${
+      className={`rounded-3xl border-2 flex flex-col h-full min-h-0 overflow-hidden transition-all ${
         isDark
           ? 'bg-gradient-to-b from-[#09152b]/95 via-[#060e1d]/90 to-[#03070f]/95 border-emerald-500/60 shadow-[0_0_30px_rgba(16,185,129,0.25)] text-white'
           : 'bg-white border-emerald-500 shadow-xl text-slate-900'
