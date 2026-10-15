@@ -84,6 +84,82 @@ export function FinanceRegistersView() {
   // Form State: Devolução / Pagamento parcial ou total ao Caixa
   const [payBackAmount, setPayBackAmount] = useState('');
 
+  // Edição de Histórico de Saldo Inicial
+  const [isHistoryEditModalOpen, setIsHistoryEditModalOpen] = useState(false);
+  const [editingHistoryRegId, setEditingHistoryRegId] = useState<string | null>(null);
+  const [editingHistoryItem, setEditingHistoryItem] = useState<any | null>(null);
+  const [editHistoryAmount, setEditHistoryAmount] = useState('');
+  const [editHistoryReason, setEditHistoryReason] = useState('');
+
+  const handleOpenEditHistory = (regId: string, item: any) => {
+    setEditingHistoryRegId(regId);
+    setEditingHistoryItem(item);
+    setEditHistoryAmount(item.amountAdded.toString());
+    setEditHistoryReason(item.reason || '');
+    setIsHistoryEditModalOpen(true);
+  };
+
+  const handleSaveEditHistory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingHistoryRegId || !editingHistoryItem) return;
+    const newAmt = parseFloat(editHistoryAmount);
+    if (isNaN(newAmt) || newAmt < 0) return;
+
+    const reg = registers.find(r => r.id === editingHistoryRegId);
+    if (!reg || !reg.initialBalanceHistory) return;
+
+    const oldAmt = editingHistoryItem.amountAdded;
+    const diff = newAmt - oldAmt;
+
+    const updatedHistory = reg.initialBalanceHistory.map(h => {
+      if (h.id === editingHistoryItem.id) {
+        return {
+          ...h,
+          amountAdded: newAmt,
+          reason: editHistoryReason.trim() || h.reason,
+          newBalance: h.previousBalance + newAmt
+        };
+      }
+      return h;
+    });
+
+    const newInitialBalance = Math.max(0, (reg.initialBalance || 0) + diff);
+
+    const updatedReg: FinanceCashRegister = {
+      ...reg,
+      initialBalance: newInitialBalance,
+      initialBalanceHistory: updatedHistory,
+      updatedAt: new Date().toISOString(),
+    };
+
+    StorageService.saveFinanceCashRegister(updatedReg);
+    loadData();
+    setIsHistoryEditModalOpen(false);
+    setEditingHistoryRegId(null);
+    setEditingHistoryItem(null);
+  };
+
+  const handleDeleteHistory = (regId: string, historyId: string) => {
+    const reg = registers.find(r => r.id === regId);
+    if (!reg || !reg.initialBalanceHistory) return;
+    const itemDel = reg.initialBalanceHistory.find(h => h.id === historyId);
+    if (!itemDel) return;
+
+    const updatedHistory = reg.initialBalanceHistory.filter(h => h.id !== historyId);
+    const newInitialBalance = Math.max(0, (reg.initialBalance || 0) - itemDel.amountAdded);
+
+    const updatedReg: FinanceCashRegister = {
+      ...reg,
+      initialBalance: newInitialBalance,
+      initialBalanceHistory: updatedHistory,
+      updatedAt: new Date().toISOString(),
+    };
+
+    StorageService.saveFinanceCashRegister(updatedReg);
+    loadData();
+  };
+
+
   // Filtros de Movimentações
   const [filterRegisterId, setFilterRegisterId] = useState<string>('TODOS');
   const [filterType, setFilterType] = useState<'TODOS' | 'WITHDRAWAL' | 'DEPOSIT'>('TODOS');
@@ -131,6 +207,7 @@ export function FinanceRegistersView() {
   // Totais Gerais
   const totals = useMemo(() => {
     let totalBalance = 0;
+    let totalInitialBalance = 0;
     let totalWithdrawnPending = 0; // Total Faltando para preencher os caixas
     let totalWithdrawnGross = 0;   // Total Tirado
     let totalPaidBack = 0;         // Total Devolvido / Reposto
@@ -144,6 +221,7 @@ export function FinanceRegistersView() {
       const faltandoNesteCaixa = Math.max(0, targetInitial - currBal);
 
       totalBalance += currBal;
+      totalInitialBalance += (r.initialBalance || 0);
       totalWithdrawnPending += faltandoNesteCaixa;
       totalDeposited += r.totalDeposited || 0;
     });
@@ -165,6 +243,7 @@ export function FinanceRegistersView() {
 
     return {
       totalBalance,
+      totalInitialBalance,
       totalWithdrawnGross,
       totalWithdrawnPending,
       totalPaidBack,
@@ -555,7 +634,7 @@ export function FinanceRegistersView() {
       />
 
       {/* 2. STATS BANNER DE RESUMO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Stat 1: Saldo Disponível em Todos os Caixas */}
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-emerald-500/30 bg-[#02130e] p-3 sm:p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] group hover:border-emerald-400/50 transition-all">
           <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/10 blur-xl group-hover:scale-125 transition-transform" />
@@ -574,6 +653,27 @@ export function FinanceRegistersView() {
             <span className="text-[8px] sm:text-[9px] text-emerald-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5 shrink-0" />
               <span>{totals.registersCount} {totals.registersCount === 1 ? 'caixa cadastrado' : 'caixas cadastrados'}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Stat 2: TOTAL SALDO INICIAL */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-teal-500/30 bg-[#021814] p-3 sm:p-5 shadow-[0_0_20px_rgba(20,184,166,0.15)] group hover:border-teal-400/50 transition-all">
+          <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-teal-500/10 blur-xl group-hover:scale-125 transition-transform" />
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] sm:text-[10px] font-black text-teal-300 uppercase tracking-widest truncate">
+              Total Saldo Inicial
+            </span>
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 shadow-[0_0_8px_rgba(20,184,166,0.3)] shrink-0">
+              <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <span className="text-base sm:text-2xl font-black text-teal-300 block tracking-wide truncate font-mono">
+              {formatCurrency(totals.totalInitialBalance)}
+            </span>
+            <span className="text-[8px] sm:text-[9px] text-teal-400 font-bold block mt-0.5 sm:mt-1 uppercase tracking-wider truncate">
+              Incluindo adições e aportes
             </span>
           </div>
         </div>
@@ -875,6 +975,49 @@ export function FinanceRegistersView() {
                             {regTotalFaltando > 0 ? 'Para preencher o saldo inicial' : 'Saldo inicial 100% preenchido'}
                           </span>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Histórico de Adições / Aportes ao Saldo Inicial dentro do Card */}
+                    <div className="space-y-1.5 my-1.5 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider">Histórico de Adições de Saldo Inicial</span>
+                        <span className="text-[9px] text-slate-400">{reg.initialBalanceHistory?.length || 0} registros</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1 scrollbar-thin">
+                        {(!reg.initialBalanceHistory || reg.initialBalanceHistory.length === 0) ? (
+                          <p className="text-[11px] text-slate-500 italic py-1 text-center">Nenhuma adição de saldo inicial registrada.</p>
+                        ) : (
+                          reg.initialBalanceHistory.map((h: any) => (
+                            <div key={h.id} className="p-2 rounded-xl bg-emerald-950/40 border border-emerald-900/50 text-xs flex items-center justify-between">
+                              <div className="min-w-0 pr-2">
+                                <div className="font-bold text-emerald-200 truncate">{h.reason || 'Adição de Saldo Inicial'}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  {new Date(h.date).toLocaleDateString('pt-BR')} {new Date(h.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="font-black text-emerald-400 font-mono">+{formatCurrency(h.amountAdded)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditHistory(reg.id, h)}
+                                  className="p-1 rounded text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                  title="Editar adição"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteHistory(reg.id, h.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                  title="Apagar adição"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
 
@@ -1857,6 +2000,81 @@ export function FinanceRegistersView() {
                 Confirmar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL 4: EDITAR ADIÇÃO / HISTÓRICO DE SALDO INICIAL            */}
+      {/* ============================================================== */}
+      {isHistoryEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#091024] border border-teal-500/40 p-5 sm:p-6 shadow-[0_0_40px_rgba(20,184,166,0.25)] space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/40 flex items-center justify-center">
+                  <Edit className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm sm:text-base font-black text-white uppercase">
+                  Editar Adição / Aporte de Saldo Inicial
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryEditModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditHistory} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Valor Adicionado (R$) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={editHistoryAmount}
+                  onChange={(e) => setEditHistoryAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-950 border border-slate-700 text-teal-300 font-bold font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Motivo / Descrição *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editHistoryReason}
+                  onChange={(e) => setEditHistoryReason(e.target.value)}
+                  placeholder="Ex: Reforço de troco"
+                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-950 border border-slate-700 text-white"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-black bg-teal-600 hover:bg-teal-500 text-white shadow-lg cursor-pointer"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

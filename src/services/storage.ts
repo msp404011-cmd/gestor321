@@ -4804,6 +4804,28 @@ export const StorageService = {
   },
 
   clearAllMonthlyDebitsAndFinanceData(): void {
+    try {
+      const monthly = this.getMonthlyDebits();
+      monthly.forEach(d => { try { FirestoreSyncService.deleteMonthlyDebit(d.id); } catch (_) {} });
+
+      const payable = this.getAccountsPayable();
+      payable.forEach(a => { try { FirestoreSyncService.deleteAccountsPayable(a.id); } catch (_) {} });
+
+      const costs = this.getRealFixedCosts();
+      costs.forEach(c => { try { FirestoreSyncService.deleteRealFixedCost(c.id); } catch (_) {} });
+
+      const registers = this.getFinanceCashRegisters();
+      registers.forEach(r => { try { FirestoreSyncService.deleteFinanceCashRegister(r.id); } catch (_) {} });
+
+      const movements = this.getFinanceCashMovements();
+      movements.forEach(m => { try { FirestoreSyncService.deleteFinanceCashMovement(m.id); } catch (_) {} });
+
+      const expenses = this.getDefinitiveExpenses();
+      expenses.forEach(e => { try { FirestoreSyncService.deleteDefinitiveExpense(e.id); } catch (_) {} });
+    } catch (e) {
+      console.warn('Error deleting finance/debits from Firestore during clear:', e);
+    }
+
     setItem(STORAGE_KEYS.MONTHLY_DEBITS, []);
     setItem(STORAGE_KEYS.ACCOUNTS_PAYABLE, []);
     setItem(STORAGE_KEYS.REAL_FIXED_COSTS, []);
@@ -4813,6 +4835,7 @@ export const StorageService = {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         localStorage.removeItem('msp_fixed_costs_initialized');
+        localStorage.removeItem('msp_finance_registers_initialized');
       } catch (_) {}
     }
     this.logAction('Todos os dados de Débitos e Finanças foram zerados.');

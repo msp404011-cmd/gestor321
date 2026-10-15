@@ -41,47 +41,30 @@ export const DEMO_ORDER_IDS = new Set([
 ]);
 
 export function getTenantId(): string {
+  let tid = 'mmspmartins62@gmail.com';
   try {
     if (typeof window !== 'undefined') {
       const rawSession1 = sessionStorage.getItem('msp_auth_session_v1') || localStorage.getItem('msp_auth_session_v1');
       if (rawSession1) {
         const session = JSON.parse(rawSession1);
         if (session && session.email && session.email.includes('@')) {
-          let email = session.email.trim().toLowerCase();
-          if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
-          return email;
+          tid = session.email.trim().toLowerCase();
         }
-      }
-      const rawSession2 = sessionStorage.getItem('msp_auth_session') || localStorage.getItem('msp_auth_session');
-      if (rawSession2) {
-        const session = JSON.parse(rawSession2);
-        if (session && session.email && session.email.includes('@')) {
-          let email = session.email.trim().toLowerCase();
-          if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
-          return email;
-        }
-      }
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.includes('current_user')) {
-          try {
-            const raw = localStorage.getItem(k);
-            if (raw) {
-              const u = JSON.parse(raw);
-              if (u && u.email && u.email.includes('@')) {
-                let email = u.email.trim().toLowerCase();
-                if (email === 'msp404011@gmail.com' || email === 'mmspmartins62@gmail.com') return 'mmspmartins62@gmail.com';
-                return email;
-              }
-            }
-          } catch (_) {}
+      } else {
+        const rawSession2 = sessionStorage.getItem('msp_auth_session') || localStorage.getItem('msp_auth_session');
+        if (rawSession2) {
+          const session = JSON.parse(rawSession2);
+          if (session && session.email && session.email.includes('@')) {
+            tid = session.email.trim().toLowerCase();
+          }
         }
       }
     }
-  } catch (e) {
-    // fallback
-  }
-  return 'mmspmartins62@gmail.com';
+  } catch (_) {}
+
+  if (!tid || tid === 'default_tenant') tid = 'mmspmartins62@gmail.com';
+  if (tid === 'msp404011@gmail.com') tid = 'mmspmartins62@gmail.com';
+  return tid;
 }
 
 function getTenantStorageScope(): string {
