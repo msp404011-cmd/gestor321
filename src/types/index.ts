@@ -520,12 +520,19 @@ export interface ServiceOrder {
 export interface EulisDispatchInfo {
   hasChipTray: boolean; // Gaveta de Chip
   chip1: boolean; // Chip 1
+  chip1Qty?: number;
   chip2: boolean; // Chip 2
+  chip2Qty?: number;
   memoryCard: boolean; // Cartão de Memória
+  memoryCardQty?: number;
   caseCover: boolean; // Capa
+  caseCoverQty?: number;
   screenFilm: boolean; // Película
+  screenFilmQty?: number;
   charger: boolean; // Carregador
+  chargerQty?: number;
   battery: boolean; // Bateria
+  batteryQty?: number;
   accessoriesNotes?: string; // Outros acessórios / detalhes de envio
   assemblyState: 'COMPLETO' | 'DESMONTADO' | 'SO_PARTE' | string; // Aparelho completo ou desmontado ou só uma parte
   assemblyStateDescription: string; // Espaço pra descrever o estado / partes enviadas

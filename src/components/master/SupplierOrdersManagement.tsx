@@ -1583,6 +1583,15 @@ export const SupplierOrdersManagement: React.FC = () => {
           if (item.returnReason) text += `📝 Motivo da Devolução: ${item.returnReason}\n`;
         } else {
           text += `${globalIndex}. 📱 ${typePrefix}${cleanTitle}${estBadge}\n`;
+          if (item.quantity && item.quantity > 1) {
+            text += `📦 Quantidade: ${item.quantity} unidades\n`;
+            text += `💰 Valor Unitário: R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
+            text += `💲 Valor Total: R$ ${((Number(item.price) || 0) * (Number(item.quantity) || 1)).toFixed(2).replace('.', ',')}\n`;
+            if (withPrice) total += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          } else if (withPrice && (Number(item.price) || 0) > 0) {
+            text += `💵 R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
+            total += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+          }
           
           if (itemFields.showMarca && item.marca) text += `🏷️ Marca: ${item.marca}\n`;
           if (itemFields.showModelo && item.modelo) text += `📱 Modelo: ${item.modelo}\n`;
@@ -1591,10 +1600,6 @@ export const SupplierOrdersManagement: React.FC = () => {
           if (itemFields.showTecnologia && item.tecnologia) text += `🔬 Tecnologia: ${item.tecnologia}\n`;
           if (itemFields.showCor && item.cor) text += `🎨 Cor: ${item.cor}\n`;
           
-          if (withPrice && (Number(item.price) || 0) > 0) {
-            text += `💵 R$ ${(Number(item.price) || 0).toFixed(2).replace('.', ',')}\n`;
-            total += (Number(item.price) || 0) * (Number(item.quantity) || 1);
-          }
           totalPieces += (Number(item.quantity) || 1);
         }
         text += `\n`;
@@ -1614,9 +1619,7 @@ export const SupplierOrdersManagement: React.FC = () => {
       text += `-----------------------------------\n`;
     }
     
-    text += `🔢 *Total:* ${items.length} modelos (${totalPieces} peças a cobrar)\n`;
-    text += `Se tiver todas confirma pra mim, e as que não tiver descreve abaixo.\n`;
-    text += `Por favor, confirma se está certo o valor e as peças.`;
+    text += ``;
     
     return encodeURIComponent(text);
   };
@@ -2706,9 +2709,6 @@ export const SupplierOrdersManagement: React.FC = () => {
             </div>
           </div>
         )
-      ) : activeSubTab === 'SERVICOS' ? (
-        /* ABA 5: SERVIÇOS DE TÉCNICOS & REPASSES */
-        <TechnicianServicesView />
       ) : (
         /* ABA 2, 3, 4, 5: FORNECEDOR, DÉBITOS, DEVOLUÇÕES, HISTÓRICO */
         <SupplierPurchasesView 

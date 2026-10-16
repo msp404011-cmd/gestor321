@@ -156,31 +156,45 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.chip1 ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.chip1 ? 'font-black' : 'text-slate-500'}>Chip 1 (SIM)</span>
+            <span className={dispatchInfo.chip1 ? 'font-black' : 'text-slate-500'}>
+              Chip 1 (SIM) {dispatchInfo.chip1Qty && dispatchInfo.chip1Qty > 1 ? `- ${dispatchInfo.chip1Qty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.chip2 ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.chip2 ? 'font-black' : 'text-slate-500'}>Chip 2 (SIM)</span>
+            <span className={dispatchInfo.chip2 ? 'font-black' : 'text-slate-500'}>
+              Chip 2 (SIM) {dispatchInfo.chip2Qty && dispatchInfo.chip2Qty > 1 ? `- ${dispatchInfo.chip2Qty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.memoryCard ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.memoryCard ? 'font-black' : 'text-slate-500'}>Cartão Memória</span>
+            <span className={dispatchInfo.memoryCard ? 'font-black' : 'text-slate-500'}>
+              Cartão Memória {dispatchInfo.memoryCardQty && dispatchInfo.memoryCardQty > 1 ? `- ${dispatchInfo.memoryCardQty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.caseCover ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.caseCover ? 'font-black' : 'text-slate-500'}>Capa / Case</span>
+            <span className={dispatchInfo.caseCover ? 'font-black' : 'text-slate-500'}>
+              Capa / Case {dispatchInfo.caseCoverQty && dispatchInfo.caseCoverQty > 1 ? `- ${dispatchInfo.caseCoverQty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.screenFilm ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.screenFilm ? 'font-black' : 'text-slate-500'}>Película</span>
+            <span className={dispatchInfo.screenFilm ? 'font-black' : 'text-slate-500'}>
+              Película {dispatchInfo.screenFilmQty && dispatchInfo.screenFilmQty > 1 ? `- ${dispatchInfo.screenFilmQty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.charger ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.charger ? 'font-black' : 'text-slate-500'}>Carregador / Cabo</span>
+            <span className={dispatchInfo.charger ? 'font-black' : 'text-slate-500'}>
+              Carregador / Cabo {dispatchInfo.chargerQty && dispatchInfo.chargerQty > 1 ? `- ${dispatchInfo.chargerQty} unidades` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-mono font-bold">{dispatchInfo.battery ? '[X]' : '[  ]'}</span>
-            <span className={dispatchInfo.battery ? 'font-black' : 'text-slate-500'}>Bateria</span>
+            <span className={dispatchInfo.battery ? 'font-black' : 'text-slate-500'}>
+              Bateria {dispatchInfo.batteryQty && dispatchInfo.batteryQty > 1 ? `- ${dispatchInfo.batteryQty} unidades` : ''}
+            </span>
           </div>
         </div>
 
@@ -247,8 +261,7 @@ export const ThermalEulisReceipt: React.FC<ThermalEulisReceiptProps> = ({
           className={`p-1.5 min-h-[32px] ${isMini ? 'text-[8px]' : 'text-[9px]'} leading-relaxed whitespace-pre-line`}
           style={{ border: '1px solid #000000', backgroundColor: '#ffffff' }}
         >
-          {dispatchInfo.assemblyStateDescription?.trim() ||
-            'Aparelho enviado para reparo especializado com o parceiro Euklis.'}
+          {dispatchInfo.assemblyStateDescription?.trim()}
         </div>
 
         {/* Observações adicionais exclusivas para C/ Euklis */}

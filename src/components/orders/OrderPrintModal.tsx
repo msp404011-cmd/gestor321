@@ -920,7 +920,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.chip1 ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.chip1 ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Chip 1 (SIM)
+                            Chip 1 (SIM) {dispatchInfo.chip1Qty && dispatchInfo.chip1Qty > 1 ? `- ${dispatchInfo.chip1Qty} unidades` : ''}
                           </span>
                         </div>
 
@@ -929,7 +929,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.chip2 ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.chip2 ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Chip 2 (SIM)
+                            Chip 2 (SIM) {dispatchInfo.chip2Qty && dispatchInfo.chip2Qty > 1 ? `- ${dispatchInfo.chip2Qty} unidades` : ''}
                           </span>
                         </div>
 
@@ -938,7 +938,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.memoryCard ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.memoryCard ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Cartão de Memória
+                            Cartão de Memória {dispatchInfo.memoryCardQty && dispatchInfo.memoryCardQty > 1 ? `- ${dispatchInfo.memoryCardQty} unidades` : ''}
                           </span>
                         </div>
 
@@ -947,7 +947,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.caseCover ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.caseCover ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Capa de Proteção
+                            Capa de Proteção {dispatchInfo.caseCoverQty && dispatchInfo.caseCoverQty > 1 ? `- ${dispatchInfo.caseCoverQty} unidades` : ''}
                           </span>
                         </div>
 
@@ -956,7 +956,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.screenFilm ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.screenFilm ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Película na Tela
+                            Película na Tela {dispatchInfo.screenFilmQty && dispatchInfo.screenFilmQty > 1 ? `- ${dispatchInfo.screenFilmQty} unidades` : ''}
                           </span>
                         </div>
 
@@ -965,7 +965,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.charger ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.charger ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Carregador / Cabo
+                            Carregador / Cabo {dispatchInfo.chargerQty && dispatchInfo.chargerQty > 1 ? `- ${dispatchInfo.chargerQty} unidades` : ''}
                           </span>
                         </div>
 
@@ -974,7 +974,7 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             {dispatchInfo.battery ? '[X]' : '[  ]'}
                           </span>
                           <span className={dispatchInfo.battery ? 'font-black text-slate-900' : 'text-slate-500'}>
-                            Bateria
+                            Bateria {dispatchInfo.batteryQty && dispatchInfo.batteryQty > 1 ? `- ${dispatchInfo.batteryQty} unidades` : ''}
                           </span>
                         </div>
                       </div>
@@ -1419,15 +1419,6 @@ export const OrderPrintModal: React.FC<OrderPrintModalProps> = ({
                             <span className="text-[10px] text-slate-500">Ciente dos Termos e Condições</span>
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Footer & Disclaimer */}
-                    {(company.osFooterTerms || company.receiptDisclaimer) && (
-                      <div className="pt-3 border-t border-slate-300">
-                        <p className="text-[10px] text-slate-500 text-justify leading-tight whitespace-pre-line">
-                          {company.osFooterTerms || company.receiptDisclaimer}
-                        </p>
                       </div>
                     )}
                   </div>
