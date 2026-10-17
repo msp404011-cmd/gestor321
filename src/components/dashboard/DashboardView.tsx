@@ -191,17 +191,17 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
   const circumference = 2 * Math.PI * radius;
 
   return (
-    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all duration-300 relative overflow-hidden h-full shadow-lg ${
-      isDark ? 'bg-gradient-to-b from-[#0b1329] via-[#090f20] to-[#060a17] border-purple-500/40 shadow-[0_0_25px_rgba(168,85,247,0.18)] text-white hover:border-purple-400/60' : 'bg-white border-slate-200 shadow-sm text-slate-900 hover:border-purple-300'
+    <div className={`rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all duration-300 relative overflow-hidden h-full shadow-[0_6px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.12)] ${
+      isDark ? 'bg-gradient-to-b from-[#0b1329] via-[#090f20] to-[#060a17] border-purple-500/40 text-white hover:border-purple-400/60' : 'bg-white border-slate-200 shadow-sm text-slate-900 hover:border-purple-300'
     }`}>
-      <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className={`p-1.5 rounded-lg border shrink-0 ${isDark ? 'bg-purple-950/70 border-purple-500/50 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-600'}`}>
             <Wrench className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold tracking-tight truncate">Ordens de Serviço por Status</h2>
-            <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Distribuição e fluxo</p>
+            <h2 className="text-sm font-bold tracking-tight truncate">Ordens por Status</h2>
+            <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Distribuição e fluxo</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -223,7 +223,7 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
               {isBlurred ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           )}
-          <button type="button" onClick={() => onNavigate('ORDERS')} className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border ${
+          <button type="button" onClick={() => onNavigate('ORDERS')} className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer shrink-0 border ${
             isDark ? 'bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 border-purple-500/30' : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
           }`}>
             <span>Ver OS</span>
@@ -257,22 +257,22 @@ export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
         </div>
       </div>
 
-      <div className="space-y-2 w-full mt-2">
+      <div className="space-y-1.5 w-full mt-1.5">
         {segments.map((seg) => {
           const isHovered = hoveredKey === seg.key;
           return (
-            <div key={seg.key} onMouseEnter={() => setHoveredKey(seg.key)} onMouseLeave={() => setHoveredKey(null)} onClick={() => onNavigate('ORDERS')} className={`p-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+            <div key={seg.key} onMouseEnter={() => setHoveredKey(seg.key)} onMouseLeave={() => setHoveredKey(null)} onClick={() => onNavigate('ORDERS')} className={`p-1.5 rounded-xl border transition-all duration-200 cursor-pointer ${
               isHovered ? (isDark ? 'bg-purple-950/80 border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)] scale-[1.01]' : 'bg-purple-50 border-purple-400 shadow-sm scale-[1.01]') : (isDark ? 'bg-[#0f172a]/70 border-slate-800/80 hover:border-slate-700' : 'bg-slate-50/90 border-slate-200')
             }`}>
-              <div className="flex items-center justify-between gap-2 text-xs mb-1.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+              <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
                   <span className="shrink-0">{seg.icon}</span>
                   <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{seg.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className={`text-xs font-black ${isDark ? 'text-white' : 'text-slate-900'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{seg.count} OS</span>
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{seg.pct}%</span>
+                  <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{seg.pct}%</span>
                 </div>
               </div>
               <div className={`w-full h-1.5 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/90' : 'bg-slate-200'}`}>
@@ -367,13 +367,13 @@ export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({
   }, [sales, orders]);
 
   return (
-    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all relative overflow-hidden group shadow-xl ${
+    <div className={`rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all relative overflow-hidden group shadow-[0_6px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.12)] ${
       isDark ? 'bg-gradient-to-b from-[#071927]/95 via-[#051420]/90 to-[#020b12] border-teal-500/50 text-white' : 'bg-white border-teal-200 shadow-lg text-slate-900'
     }`}>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm sm:text-base font-black tracking-wide flex items-center gap-2">
+        <h2 className="text-sm font-black tracking-wide flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse" />
-          Formas de Pagamento (Mês)
+          Formas de Pagamento
         </h2>
         <div className="flex items-center gap-1.5 shrink-0">
           {onToggleBlur && (
@@ -394,24 +394,24 @@ export const AnimatedPaymentMethods: React.FC<AnimatedPaymentMethodsProps> = ({
               {isBlurred ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           )}
-          <span className="text-xs font-bold text-teal-400">Distribuição</span>
+          <span className="text-[11px] font-bold text-teal-400">Mês Atual</span>
         </div>
       </div>
 
-      <div className="space-y-2.5 my-auto">
+      <div className="space-y-1.5 my-auto">
         {methodsData.map((item) => (
-          <div key={item.name} className={`p-1.5 rounded-xl transition-all duration-200 cursor-pointer ${hoveredMethod === item.name ? 'bg-slate-800/80 border border-teal-500/40' : ''}`} onMouseEnter={() => setHoveredMethod(item.name)} onMouseLeave={() => setHoveredMethod(null)}>
+          <div key={item.name} className={`p-1.5 rounded-xl border border-transparent transition-all duration-200 cursor-pointer ${hoveredMethod === item.name ? 'bg-slate-800/80 border-teal-500/40' : 'hover:bg-white/5'}`} onMouseEnter={() => setHoveredMethod(item.name)} onMouseLeave={() => setHoveredMethod(null)}>
             <div className="flex items-center justify-between gap-2 text-xs mb-1">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 border ${isDark ? 'bg-[#061422] border-slate-700' : 'bg-slate-100 border-slate-200'}`}>{item.icon}</div>
                 <span className={`text-xs font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{item.name}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[11px] text-slate-400 font-mono ${isBlurred ? 'blur-sm select-none' : ''}`}>{formatCurrency(item.amount)}</span>
-                <span className={`font-black text-xs w-9 text-right text-white ${isBlurred ? 'blur-sm select-none' : ''}`}>{item.pct}%</span>
+                <span className={`font-black text-xs w-9 text-right ${isDark ? 'text-white' : 'text-slate-900'} ${isBlurred ? 'blur-sm select-none' : ''}`}>{item.pct}%</span>
               </div>
             </div>
-            <div className={`w-full h-2 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/80' : 'bg-slate-200'}`}>
+            <div className={`w-full h-1.5 rounded-full overflow-hidden relative ${isDark ? 'bg-slate-800/80' : 'bg-slate-200'}`}>
               <motion.div initial={{ width: 0 }} animate={{ width: `${item.pct}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className={`h-full rounded-full bg-gradient-to-r ${item.gradient}`} />
             </div>
           </div>
@@ -573,7 +573,7 @@ export const AnimatedRevenueChart: React.FC<AnimatedRevenueChartProps> = ({
   const hoveredData = hoveredIndex !== null ? points[hoveredIndex] : null;
 
   return (
-    <div className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border-2 transition-all relative overflow-hidden group shadow-xl ${
+    <div className={`rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all relative overflow-hidden group shadow-[0_6px_20px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.12)] ${
       isDark ? 'bg-gradient-to-b from-[#0a152d]/95 via-[#071024]/90 to-[#040a18] border-cyan-500/50 text-white' : 'bg-white border-blue-200 shadow-lg text-slate-900'
     }`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2 relative z-10">
@@ -600,16 +600,33 @@ export const AnimatedRevenueChart: React.FC<AnimatedRevenueChartProps> = ({
             )}
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs">
-            <span className="text-slate-400 font-medium">Total:</span>
+            <span className="text-slate-400 font-medium">Total do Período:</span>
             <span className={`font-extrabold text-emerald-400 text-sm tracking-tight ${isBlurred ? 'blur-sm select-none' : ''}`}>
               <AnimatedCountNumber value={totalRevenueSum} prefix="R$ " decimals={2} />
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-[#050f24] p-1 rounded-xl border border-blue-900/60">
-          {(['today', '7days', '15days', '30days', 'year'] as ChartTimeframe[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTimeframe(t)} className={`px-2 py-1 rounded-lg text-xs font-bold ${timeframe === t ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>{t}</button>
+        <div className="flex items-center gap-1 bg-[#050f24] p-1 rounded-xl border border-blue-900/60 shadow-inner">
+          {[
+            { id: 'today' as ChartTimeframe, label: 'Hoje' },
+            { id: '7days' as ChartTimeframe, label: '7D' },
+            { id: '15days' as ChartTimeframe, label: '15D' },
+            { id: '30days' as ChartTimeframe, label: '30D' },
+            { id: 'year' as ChartTimeframe, label: 'Ano' },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTimeframe(t.id)}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                timeframe === t.id
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
       </div>
@@ -1389,47 +1406,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     : [];
 
   return (
-    <div className="space-y-4 pb-8">
-      {/* MSP EXECUTIVE TOP HERO BANNER (Inspired by reference image) */}
-      <section className={`rounded-3xl p-4 sm:p-5 border transition-all shadow-xl relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+    <div className="space-y-2 sm:space-y-2.5 pb-6">
+      {/* MSP EXECUTIVE TOP HERO BANNER (3D Compact Executive Header) */}
+      <section className={`rounded-2xl p-3 sm:p-3.5 border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.15)] ${
         isDark
-          ? 'bg-gradient-to-r from-[#070e1b] via-[#0b162c] to-[#061022] border-blue-900/60 shadow-[0_10px_30px_rgba(0,0,0,0.5)] text-white'
+          ? 'bg-gradient-to-r from-[#070e1b] via-[#0b162c] to-[#061022] border-blue-900/60 text-white'
           : 'bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border-blue-800 text-white shadow-lg'
       }`}>
-        {/* Background decorative office image overlay simulation */}
-        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+        {/* Background decorative pattern */}
+        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:14px_14px] pointer-events-none" />
         
-        <div className="relative z-10 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
-              <span>{greetingText},</span>
-              <span className="text-cyan-400 font-black">{userDisplayName}</span>
-            </h1>
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-700 text-white flex items-center justify-center font-black text-sm shadow-[0_4px_10px_rgba(6,182,212,0.4)] border-t border-t-white/30 border-b border-b-black/40 shrink-0">
+            MSP
           </div>
-          <p className="text-xs sm:text-sm text-slate-300 font-medium italic">
-            “Organização hoje, resultado sempre.”
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+              <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 flex-wrap">
+                <span>{greetingText},</span>
+                <span className="text-cyan-400 font-black">{userDisplayName}</span>
+              </h1>
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium">
+              MSP INFORMÁTICA • <span className="italic text-cyan-300/90 font-semibold">“Organização hoje, resultado sempre.”</span>
+            </p>
+          </div>
         </div>
 
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 bg-black/40 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-md">
+        {/* Right Action Cluster: Master Blur Eye Toggle + Clock + Date */}
+        <div className="relative z-10 flex flex-wrap items-center gap-2 sm:gap-3 bg-black/40 border border-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md self-start md:self-auto">
+          {/* Master Blur Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleAllBlur}
+            className={`flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-lg border-t border-t-white/30 border-b-2 border-b-black/70 transition-all cursor-pointer shadow-[0_3px_8px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 active:translate-y-0.5 ${
+              isAnyBlurred
+                ? isDark
+                  ? 'bg-gradient-to-r from-amber-950/80 to-amber-900/80 text-amber-300 border-x border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
+                  : 'bg-amber-100 text-amber-900 border-x border-amber-300'
+                : isDark
+                  ? 'bg-gradient-to-r from-emerald-950/80 to-teal-900/80 text-emerald-300 border-x border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                  : 'bg-emerald-100 text-emerald-900 border-x border-emerald-300'
+            }`}
+            title={isAnyBlurred ? 'Mostrar todos os números do sistema' : 'Ocultar / Borrar todos os números'}
+          >
+            {isAnyBlurred ? <EyeOff className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+            <span className="whitespace-nowrap">{isAnyBlurred ? 'Mostrar Números' : 'Borrar Números'}</span>
+          </button>
+
+          <div className="hidden sm:block w-px h-6 bg-white/15" />
+
           <div className="text-left sm:text-right">
-            <span className="text-[10px] sm:text-xs text-slate-400 font-bold block capitalize tracking-wider">
+            <span className="text-[10px] text-slate-400 font-bold block capitalize tracking-wider leading-tight">
               {capitalizedWeekday}, {formattedDate}
             </span>
-            <span className="text-lg sm:text-xl font-black font-mono text-cyan-300 tracking-tight">
+            <span className="text-sm sm:text-base font-black font-mono text-cyan-300 tracking-tight leading-tight">
               {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </span>
-          </div>
-          <div className="hidden sm:block w-px h-8 bg-white/15" />
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-xs shadow-md border border-cyan-400/40">
-              MSP
-            </div>
-            <div>
-              <span className="text-xs font-black tracking-wider block text-white">MSP INFORMÁTICA</span>
-              <span className="text-[9px] text-slate-400 block font-semibold">A Tecnologia Simplificada</span>
-            </div>
           </div>
         </div>
       </section>
@@ -1570,29 +1604,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </section>
       )}
 
-      {/* 2. TOP EXECUTIVE QUICK ACTIONS BAR (Inspired by reference image) */}
-      <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      {/* 2. TOP EXECUTIVE QUICK ACTIONS BAR (6 Módulos em 1 linha no desktop / 2 linhas no mobile) */}
+      <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-1.5 sm:gap-2">
         {/* Button 1: Nova OS */}
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <button
             type="button"
             onClick={handleNovaOS}
-            className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+            className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
               isDark
-                ? 'bg-gradient-to-br from-[#0c1f44] via-[#08152e] to-[#040a18] border border-blue-500/50 shadow-lg hover:border-cyan-400'
-                : 'bg-white border border-blue-200 shadow-sm hover:border-blue-400'
+                ? 'bg-gradient-to-br from-[#0c2347] via-[#081730] to-[#040b19] border-blue-500/60 hover:border-cyan-400'
+                : 'bg-white border-blue-200 shadow-sm hover:border-blue-400'
             }`}
           >
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
-              <Plus className="w-4 h-4" />
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(37,99,235,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+                <Plus className="w-4 h-4 stroke-[3]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Nova OS
+                </span>
+                <span className={`text-[10px] block truncate ${isDark ? 'text-cyan-300' : 'text-blue-600 font-medium'}`}>
+                  Registrar equip.
+                </span>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                Nova OS
-              </span>
-              <span className={`text-[10px] block truncate ${isDark ? 'text-blue-300' : 'text-blue-600 font-medium'}`}>
-                Reg. equipamento
-              </span>
+            <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors shrink-0">
+              <ChevronRight className="w-3 h-3" />
             </div>
           </button>
         )}
@@ -1601,22 +1640,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleNovaVenda}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
             isDark
-              ? 'bg-gradient-to-br from-[#062c22] via-[#041d17] to-[#020d0b] border border-emerald-500/50 shadow-lg hover:border-emerald-400'
+              ? 'bg-gradient-to-br from-[#053526] via-[#03231a] to-[#010e0b] border-emerald-500/60 hover:border-emerald-400'
               : 'bg-white border border-emerald-200 shadow-sm hover:border-emerald-400'
           }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
-            <ShoppingCart className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(16,185,129,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+              <ShoppingCart className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                Nova Venda
+              </span>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-600 font-medium'}`}>
+                PDV da loja
+              </span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              Nova Venda
-            </span>
-            <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-600 font-medium'}`}>
-              PDV da loja
-            </span>
+          <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors shrink-0">
+            <ChevronRight className="w-3 h-3" />
           </div>
         </button>
 
@@ -1624,22 +1668,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleAbrirCaixa}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
             isDark
-              ? 'bg-gradient-to-br from-[#3b0d17] via-[#24060e] to-[#120205] border border-rose-500/50 shadow-lg hover:border-rose-400'
+              ? 'bg-gradient-to-br from-[#4a0d1b] via-[#2f0710] to-[#140205] border-rose-500/60 hover:border-rose-400'
               : 'bg-white border border-rose-200 shadow-sm hover:border-rose-400'
           }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-rose-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
-            <Wallet className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-600 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(244,63,94,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+              <Wallet className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {isCashOpen ? 'Caixa Aberto' : 'Abrir Caixa'}
+              </span>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-rose-300' : 'text-rose-600 font-medium'}`}>
+                Movimentação
+              </span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-              {isCashOpen ? 'Caixa Aberto' : 'Abrir Caixa'}
-            </span>
-            <span className={`text-[10px] block truncate ${isDark ? 'text-rose-300' : 'text-rose-600 font-medium'}`}>
-              Movimentação
-            </span>
+          <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-rose-500 group-hover:text-slate-950 transition-colors shrink-0">
+            <ChevronRight className="w-3 h-3" />
           </div>
         </button>
 
@@ -1647,18 +1696,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('STREAMING')}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
             isDark
-              ? 'bg-gradient-to-br from-[#381a08] via-[#241004] to-[#120702] border border-orange-500/50 shadow-lg hover:border-orange-400'
-              : 'bg-white border border-orange-200 shadow-sm hover:border-orange-400'
+              ? 'bg-gradient-to-br from-[#4a1f07] via-[#2e1203] to-[#140601] border-amber-500/60 hover:border-amber-400'
+              : 'bg-white border border-amber-200 shadow-sm hover:border-amber-400'
           }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-orange-600 flex items-center justify-center text-white shrink-0 shadow-md">
-            <Tv className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-600 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(245,158,11,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+              <Tv className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Streaming</span>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-amber-300' : 'text-amber-600 font-medium'}`}>MAC / Senha</span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Streaming</span>
-            <span className={`text-[10px] block truncate ${isDark ? 'text-orange-300' : 'text-orange-600 font-medium'}`}>MAC / Senha</span>
+          <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors shrink-0">
+            <ChevronRight className="w-3 h-3" />
           </div>
         </button>
 
@@ -1666,18 +1720,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('CAMERAS')}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
             isDark
-              ? 'bg-gradient-to-br from-[#0c1f44] via-[#08152e] to-[#040a18] border border-blue-500/50 shadow-lg hover:border-blue-400'
-              : 'bg-white border border-blue-200 shadow-sm hover:border-blue-400'
+              ? 'bg-gradient-to-br from-[#1e1b4b] via-[#0f172a] to-[#020617] border-purple-500/60 hover:border-purple-400'
+              : 'bg-white border border-purple-200 shadow-sm hover:border-purple-400'
           }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-blue-700 flex items-center justify-center text-white shrink-0 shadow-md">
-            <Video className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(168,85,247,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+              <Video className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Câmeras</span>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-purple-300' : 'text-purple-600 font-medium'}`}>Monitoramento</span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Câmeras</span>
-            <span className={`text-[10px] block truncate ${isDark ? 'text-blue-300' : 'text-blue-600 font-medium'}`}>Monitoramento</span>
+          <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-purple-500 group-hover:text-slate-950 transition-colors shrink-0">
+            <ChevronRight className="w-3 h-3" />
           </div>
         </button>
 
@@ -1685,56 +1744,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('CAMERA_INSTALLATIONS')}
-          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
+          className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 transition-all cursor-pointer text-left group hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-inner relative overflow-hidden border-t border-t-white/25 border-b-2 border-b-black/60 border-x shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] ${
             isDark
-              ? 'bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#020617] border border-slate-600/60 shadow-lg hover:border-slate-400'
+              ? 'bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#020617] border-slate-600/60 hover:border-slate-400'
               : 'bg-white border border-slate-200 shadow-sm hover:border-slate-400'
           }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center text-white shrink-0 shadow-md">
-            <Settings className="w-4 h-4" />
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-700 flex items-center justify-center text-white shrink-0 shadow-[0_3px_8px_rgba(100,116,139,0.4)] border-t border-t-white/30 border-b border-b-black/40 group-hover:scale-105 transition-transform">
+              <Settings className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Instalações</span>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-slate-300' : 'text-slate-600 font-medium'}`}>Serviço externo</span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Instalações</span>
-            <span className={`text-[10px] block truncate ${isDark ? 'text-slate-300' : 'text-slate-600 font-medium'}`}>Câmeras</span>
+          <div className="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-white/70 group-hover:bg-slate-400 group-hover:text-slate-950 transition-colors shrink-0">
+            <ChevronRight className="w-3 h-3" />
           </div>
         </button>
       </section>
 
-      {/* 3. TOP 5 3D KPI METRIC CARDS WITH MASTER EYE BAR */}
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+      {/* 3. TOP 5 3D KPI METRIC CARDS HEADER */}
+      <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(6,182,212,0.8)]" />
+          <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             Indicadores & Métricas Principais
           </span>
         </div>
-        <button
-          type="button"
-          onClick={toggleAllBlur}
-          className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 ${
-            isAnyBlurred
-              ? isDark
-                ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-              : isDark
-                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-          }`}
-          title={isAnyBlurred ? 'Mostrar todos os dados borrados' : 'Ocultar todos os dados'}
-        >
-          {isAnyBlurred ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-emerald-400" />}
-          <span>{isAnyBlurred ? 'Mostrar Todos os Números' : 'Ocultar Todos os Números'}</span>
-        </button>
+        <span className="text-[10px] text-cyan-400/80 font-mono font-medium hidden sm:inline">
+          Tempo Real • PDV & Ordens de Serviço
+        </span>
       </div>
 
-      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-1.5 sm:gap-2">
         {/* Card 1: Faturamento Hoje (Green 3D Glass) */}
         <div
           onClick={() => onNavigate('CASH')}
-          className={`rounded-2xl p-2.5 sm:p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all cursor-pointer relative overflow-hidden group shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-y-0.5 ${
             isDark
-              ? 'bg-gradient-to-br from-[#06241a] via-[#081f18] to-[#04130f] border-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.35)] hover:shadow-[0_0_35px_rgba(16,185,129,0.65)] hover:border-emerald-400'
+              ? 'bg-gradient-to-br from-[#06241a] via-[#081f18] to-[#04130f] border-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.25)] hover:border-emerald-400'
               : 'bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border-emerald-400 shadow-sm hover:shadow-md'
           }`}
           title="Ver movimentações e fluxo do Caixa de hoje"
@@ -1774,8 +1824,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-emerald-400 font-semibold whitespace-nowrap truncate">
               <span className={blurToday ? 'blur-sm select-none' : ''}>{todaySalesCount}</span> {todaySalesCount === 1 ? 'venda' : 'vendas'}
             </span>
-            <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]">
-              <span className="text-[10px] sm:text-xs">💰</span>
+            <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.5)]">
+              <span className="text-[10px]">💰</span>
             </div>
           </div>
         </div>
@@ -1783,9 +1833,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 2: Faturamento Mês (Cyan/Blue 3D Glass) */}
         <div
           onClick={() => onNavigate('FINANCE')}
-          className={`rounded-2xl p-2.5 sm:p-3 border-2 transition-all cursor-pointer relative overflow-hidden group shadow-lg hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all cursor-pointer relative overflow-hidden group shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-y-0.5 ${
             isDark
-              ? 'bg-gradient-to-br from-[#07203a] via-[#061a30] to-[#041020] border-cyan-500 shadow-[0_0_22px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.65)] hover:border-cyan-400'
+              ? 'bg-gradient-to-br from-[#07203a] via-[#061a30] to-[#041020] border-cyan-500 shadow-[0_0_22px_rgba(6,182,212,0.25)] hover:border-cyan-400'
               : 'bg-gradient-to-br from-cyan-50 via-white to-blue-50/50 border-cyan-400 shadow-sm hover:shadow-md'
           }`}
           title="Ver Gestão Financeira Completa"
@@ -1816,8 +1866,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-cyan-400 font-medium whitespace-nowrap truncate">
               <span className={blurMonth ? 'blur-sm select-none' : ''}>{sales.length + orders.filter(o => o.status === 'ENTREGUE').length}</span> vendas/OS
             </span>
-            <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-cyan-500/20 border border-cyan-500/60 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.5)]">
-              <span className="text-[10px] sm:text-xs">📊</span>
+            <div className="w-5 h-5 rounded-full bg-cyan-500/20 border border-cyan-500/60 flex items-center justify-center text-cyan-400 shrink-0 shadow-[0_0_8px_rgba(6,182,212,0.5)]">
+              <span className="text-[10px]">📊</span>
             </div>
           </div>
         </div>
@@ -1826,9 +1876,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <div
             onClick={() => onNavigate('ORDERS')}
-            className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
+            className={`rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-y-0.5 ${
               isDark
-                ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.35)] hover:shadow-[0_0_35px_rgba(168,85,247,0.65)] hover:border-purple-400'
+                ? 'bg-gradient-to-br from-[#230d36] via-[#1a0a29] to-[#10051a] border-purple-500 shadow-[0_0_22px_rgba(168,85,247,0.25)] hover:border-purple-400'
                 : 'bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-purple-400 shadow-sm hover:shadow-md'
             }`}
           >
@@ -1868,9 +1918,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 4: Estoque Baixo (Red/Crimson 3D Glass) */}
         <div
           onClick={() => onNavigate('PRODUCTS')}
-          className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-y-0.5 ${
             isDark
-              ? 'bg-gradient-to-br from-[#300c17] via-[#240811] to-[#170409] border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.35)] hover:shadow-[0_0_35px_rgba(244,63,94,0.65)] hover:border-rose-400'
+              ? 'bg-gradient-to-br from-[#300c17] via-[#240811] to-[#170409] border-rose-500 shadow-[0_0_22px_rgba(244,63,94,0.25)] hover:border-rose-400'
               : 'bg-gradient-to-br from-rose-50 via-white to-rose-50/50 border-rose-400 shadow-sm hover:shadow-md'
           }`}
         >
@@ -1897,9 +1947,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Card 5: Clientes (Teal 3D Glass) */}
         <div
           onClick={() => onNavigate('CUSTOMERS')}
-          className={`rounded-2xl p-2.5 sm:p-3 border-2 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-lg hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer group shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:translate-y-0.5 ${
             isDark
-              ? 'bg-gradient-to-br from-[#062429] via-[#051b1f] to-[#031114] border-teal-400 shadow-[0_0_22px_rgba(20,184,166,0.35)] hover:shadow-[0_0_35px_rgba(20,184,166,0.65)] hover:border-teal-300'
+              ? 'bg-gradient-to-br from-[#062429] via-[#051b1f] to-[#031114] border-teal-400 shadow-[0_0_22px_rgba(20,184,166,0.25)] hover:border-teal-300'
               : 'bg-gradient-to-br from-teal-50 via-white to-teal-50/50 border-teal-400 shadow-sm hover:shadow-md'
           }`}
         >
@@ -1925,138 +1975,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </section>
 
       {/* 4. CHARTS & ANALYTICS ROW (3 INTERACTIVE ANIMATED MODULES) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-1.5 sm:gap-2 items-stretch">
         {/* Column 1: Faturamento (Últimos 30 dias / Selecionável) SVG Area Chart (lg:col-span-12 xl:col-span-6) */}
         <div className="lg:col-span-12 xl:col-span-6 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Faturamento (Gráfico)
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setBlurChart(prev => !prev);
-              }}
-              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                blurChart
-                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                  : isDark ? 'bg-cyan-950/50 text-cyan-300 border-cyan-500/30 hover:bg-cyan-900/60' : 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100'
-              }`}
-              title={blurChart ? 'Mostrar números do gráfico' : 'Ocultar números do gráfico'}
-            >
-              {blurChart ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-          </div>
           <AnimatedRevenueChart sales={sales} orders={orders} isDark={isDark} isBlurred={blurChart} onToggleBlur={() => setBlurChart(prev => !prev)} />
         </div>
 
         {/* Column 2: Ordens de Serviço por Status (Donut Chart) (lg:col-span-6 xl:col-span-3) */}
         <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Ordens de Serviço por Status
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setBlurOrders(prev => !prev);
-              }}
-              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                blurOrders
-                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                  : isDark ? 'bg-purple-950/50 text-purple-300 border-purple-500/30 hover:bg-purple-900/60' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-              }`}
-              title={blurOrders ? 'Mostrar números de OS' : 'Ocultar números de OS'}
-            >
-              {blurOrders ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-          </div>
           <AnimatedDonutChart orders={orders} isDark={isDark} onNavigate={onNavigate} isBlurred={blurOrders} onToggleBlur={() => setBlurOrders(prev => !prev)} />
         </div>
 
         {/* Column 3: Formas de Pagamento (Mês) (lg:col-span-6 xl:col-span-3) */}
         <div className="lg:col-span-6 xl:col-span-3 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Formas de Pagamento (Mês)
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setBlurPayments(prev => !prev);
-              }}
-              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                blurPayments
-                  ? isDark ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60' : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                  : isDark ? 'bg-teal-950/50 text-teal-300 border-teal-500/30 hover:bg-teal-900/60' : 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100'
-              }`}
-              title={blurPayments ? 'Mostrar números de pagamentos' : 'Ocultar números de pagamentos'}
-            >
-              {blurPayments ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-          </div>
           <AnimatedPaymentMethods sales={sales} orders={orders} isDark={isDark} isBlurred={blurPayments} onToggleBlur={() => setBlurPayments(prev => !prev)} />
         </div>
       </section>
-      
-      {/* Botão Mestre de Blur (Olhinho Geral) */}
-      <div className="flex justify-end p-2">
-        <button
-          type="button"
-          onClick={toggleAllBlur}
-          className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-xl border transition-all cursor-pointer shadow-md hover:scale-[1.02] active:scale-95 ${
-            isAnyBlurred
-              ? isDark
-                ? 'bg-amber-950/50 text-amber-300 border-amber-500/50 hover:bg-amber-900/60 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
-                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-              : isDark
-                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/60 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-          }`}
-          title={isAnyBlurred ? 'Mostrar todos os números de uma vez' : 'Ocultar todos os números de uma vez'}
-        >
-          {isAnyBlurred ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
-          <span>{isAnyBlurred ? 'Mostrar Todos os Números' : 'Ocultar Todos os Números'}</span>
-        </button>
-      </div>
 
-      {/* Live Interactive Dashboard Status Bar (Inspired by the Reference Image) */}
-      <div className={`p-3 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3 text-xs shadow-lg transition-all ${
+      {/* Live Interactive Dashboard Status Ribbon */}
+      <div className={`py-1.5 px-3 rounded-xl border-t border-t-white/15 border-b border-b-black/60 border-x flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] shadow-[0_3px_10px_rgba(0,0,0,0.3)] transition-all ${
         isDark
-          ? 'bg-[#071328]/90 border-cyan-500/30 text-slate-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
+          ? 'bg-[#071328]/90 border-cyan-500/30 text-slate-300'
           : 'bg-blue-50/80 border-blue-200 text-slate-700'
       }`}>
-        <div className="flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
           <span className="font-extrabold text-emerald-400">Tempo Real:</span>
-          <span className="font-medium">Faturamento e gráficos sincronizados com PDV e Ordens de Serviço.</span>
+          <span className="font-medium text-slate-300">Faturamento e gráficos sincronizados com PDV e Ordens de Serviço.</span>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)] flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3 text-cyan-400" />
-            Gráfico Interativo com Filtros
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.25)] flex items-center gap-1">
+            <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+            Filtro Interativo
           </span>
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-950/80 border border-purple-500/50 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.3)] flex items-center gap-1.5">
-            <Zap className="w-3 h-3 text-purple-400" />
-            Efeitos Animados & Glow Neon
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-950/80 border border-purple-500/40 text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.25)] flex items-center gap-1">
+            <Zap className="w-2.5 h-2.5 text-purple-400" />
+            Efeitos 3D
           </span>
         </div>
       </div>
 
       {/* 5. BOTTOM 3 CARDS IN ONE ROW: ULTIMAS ORDENS (col-5) + PRODUTOS MAIS VENDIDOS (col-3) + ALERTAS (col-4) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-1.5 sm:gap-2 items-stretch">
         {/* Card 1: Últimas Ordens de Serviço (lg:col-span-12 xl:col-span-5) */}
         <div
-          className={`lg:col-span-12 xl:col-span-5 rounded-2xl p-3.5 sm:p-4 border-2 flex flex-col justify-between transition-all ${
+          className={`lg:col-span-12 xl:col-span-5 rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex flex-col justify-between transition-all shadow-[0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.1)] ${
             isDark
-              ? 'bg-[#0c1626]/90 border-blue-500/70 shadow-[0_0_24px_rgba(59,130,246,0.22)] text-white'
+              ? 'bg-[#0c1626]/90 border-blue-500/70 text-white'
               : 'bg-white border-blue-300 shadow-sm text-slate-900'
           }`}
         >
@@ -2184,9 +2150,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Card 2: Produtos Mais Vendidos (lg:col-span-6 xl:col-span-3) */}
         <div
-          className={`lg:col-span-6 xl:col-span-3 rounded-2xl p-3.5 sm:p-4 border-2 flex flex-col justify-between transition-all ${
+          className={`lg:col-span-6 xl:col-span-3 rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex flex-col justify-between transition-all shadow-[0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.1)] ${
             isDark
-              ? 'bg-[#0c1626]/90 border-cyan-500/70 shadow-[0_0_24px_rgba(6,182,212,0.22)] text-white'
+              ? 'bg-[#0c1626]/90 border-cyan-500/70 text-white'
               : 'bg-white border-cyan-300 shadow-sm text-slate-900'
           }`}
         >
@@ -2262,9 +2228,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Card 3: Alertas e Notificações (lg:col-span-6 xl:col-span-4) */}
         <div
-          className={`lg:col-span-6 xl:col-span-4 rounded-2xl p-3.5 sm:p-4 border-2 flex flex-col justify-between transition-all ${
+          className={`lg:col-span-6 xl:col-span-4 rounded-2xl p-2.5 sm:p-3 border-t border-t-white/20 border-b-2 border-b-black/60 border-x flex flex-col justify-between transition-all shadow-[0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.1)] ${
             isDark
-              ? 'bg-[#0c1626]/90 border-rose-500/70 shadow-[0_0_24px_rgba(244,63,94,0.22)] text-white'
+              ? 'bg-[#0c1626]/90 border-rose-500/70 text-white'
               : 'bg-white border-rose-300 shadow-sm text-slate-900'
           }`}
         >
@@ -2327,7 +2293,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Quick Access to Earnings Management for Super Admin */}
       {isSuperAdmin && (
-        <section className={`p-4 sm:p-5 rounded-2xl border-2 space-y-4 transition-all ${
+        <section className={`p-3 sm:p-3.5 rounded-2xl border-t border-t-white/20 border-b-2 border-b-black/60 border-x transition-all shadow-[0_6px_16px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.1)] ${
           isDark
             ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900/90 to-[#0c1626]/90 border-emerald-500/30 text-white'
             : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200 text-slate-900 shadow-sm'

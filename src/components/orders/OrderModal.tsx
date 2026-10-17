@@ -743,7 +743,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (passwordType === 'PIN') {
         finalPassword = passwordPin.trim();
       } else if (passwordType === 'PATTERN' && patternNodes.length > 0) {
-        finalPassword = `Desenho: [${patternNodes.join('-')}]${
+        finalPassword = `Desenho: [${patternNodes.join(' ')}]${
           patternNote.trim() ? ` (${patternNote.trim()})` : ''
         }`;
       } else {

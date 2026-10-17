@@ -89,32 +89,22 @@ export const OrderPasswordSection: React.FC<OrderPasswordSectionProps> = ({
       )}
 
       {passwordType === 'PATTERN' && (
-        <div className="p-4 rounded-2xl bg-[#040c1e] border border-cyan-500/50 flex items-center gap-4 animate-in fade-in">
+        <div className="p-4 rounded-2xl bg-[#040c1e] border border-cyan-500/50 flex flex-col items-center gap-4 animate-in fade-in">
           <div className="shrink-0">
             <PatternLock
               value={patternNodes}
               onChange={setPatternNodes}
-              size={100}
+              size={120}
               theme="dark"
             />
           </div>
-          <div className="flex-1 min-w-0 space-y-2 text-sm">
-            <div className="p-3 rounded-xl bg-[#07132a] border border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300">Sequência:</span>
-                <button
-                  type="button"
-                  onClick={() => setPatternNodes([])}
-                  className="text-xs text-slate-400 hover:text-amber-400 flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Limpar
-                </button>
-              </div>
-              <p className="text-sm font-mono font-black text-cyan-300 truncate mt-1">
-                {patternNodes.length > 0 ? patternNodes.join(' ➔ ') : 'Arraste nos pontos'}
-              </p>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setPatternNodes([])}
+            className="text-xs text-slate-400 hover:text-amber-400 flex items-center gap-1 cursor-pointer font-bold"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Limpar Desenho
+          </button>
         </div>
       )}
 

@@ -1624,40 +1624,40 @@ export const SupplierPurchasesView: React.FC<SupplierPurchasesViewProps> = ({
     <div className="flex-1 flex flex-col space-y-3 sm:space-y-4 overflow-hidden">
 
       {subTab === 'DEBITOS' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 shrink-0">
-          <div className="bg-[#161B2B] rounded-xl border border-amber-500/30 p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl shrink-0">
-              <DollarSign className="w-4 h-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
+          <div className="bg-[#161B2B] rounded-2xl border border-amber-500/40 p-3 flex items-center gap-3 shadow-lg">
+            <div className="p-2.5 bg-amber-500/15 text-amber-400 rounded-xl shrink-0">
+              <DollarSign className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm sm:text-base font-black text-amber-400 truncate">
+              <div className="text-base sm:text-lg font-black text-amber-400 tracking-tight">
                 R$ {totalPendingAmount.toFixed(2).replace('.', ',')}
               </div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Total em Débito (A Prazo)</div>
+              <div className="text-[10px] text-slate-300 uppercase font-bold tracking-wide mt-0.5">Total em Débito (A Prazo)</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl shrink-0">
-              <Package className="w-4 h-4" />
+          <div className="bg-[#161B2B] rounded-2xl border border-indigo-500/30 p-3 flex items-center gap-3 shadow-lg">
+            <div className="p-2.5 bg-indigo-500/15 text-indigo-400 rounded-xl shrink-0">
+              <Package className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm sm:text-base font-black text-white truncate">
+              <div className="text-base sm:text-lg font-black text-white tracking-tight">
                 {items.filter(i => i.paymentStatus === 'Pendente').reduce((acc, i) => acc + (Number(i.quantity) || 1), 0)}
               </div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Peças Aguardando Pagamento</div>
+              <div className="text-[10px] text-slate-300 uppercase font-bold tracking-wide mt-0.5">Peças Aguardando Pagamento</div>
             </div>
           </div>
 
-          <div className="bg-[#161B2B] rounded-xl border border-slate-800 p-2.5 flex items-center gap-2.5 shadow-md">
-            <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl shrink-0">
-              <Truck className="w-4 h-4" />
+          <div className="bg-[#161B2B] rounded-2xl border border-purple-500/30 p-3 flex items-center gap-3 shadow-lg">
+            <div className="p-2.5 bg-purple-500/15 text-purple-400 rounded-xl shrink-0">
+              <Truck className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm sm:text-base font-black text-purple-400 truncate">
+              <div className="text-base sm:text-lg font-black text-purple-400 tracking-tight">
                 {Object.keys(debtsBySupplier).length}
               </div>
-              <div className="text-[9px] text-slate-400 uppercase font-bold truncate">Fornecedores com Débito</div>
+              <div className="text-[10px] text-slate-300 uppercase font-bold tracking-wide mt-0.5">Fornecedores com Débito</div>
             </div>
           </div>
         </div>

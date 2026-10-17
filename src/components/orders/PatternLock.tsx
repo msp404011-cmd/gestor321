@@ -132,26 +132,6 @@ export const PatternLock: React.FC<PatternLockProps> = ({
             strokeLinecap="round"
             className="transition-all duration-150"
           />
-          {/* Number on the connecting line (risquinho) starting at 1 to the end */}
-          <circle
-            cx={midX}
-            cy={midY}
-            r="9"
-            fill={isDark ? '#08152e' : '#ffffff'}
-            stroke={isDark ? '#22d3ee' : '#000000'}
-            strokeWidth="2.5"
-          />
-          <text
-            x={midX}
-            y={midY + 3.5}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="900"
-            fontFamily="monospace"
-            fill={isDark ? '#22d3ee' : '#000000'}
-          >
-            {stepNum}
-          </text>
         </g>
       );
     }
@@ -191,7 +171,8 @@ export const PatternLock: React.FC<PatternLockProps> = ({
         <svg
           ref={svgRef}
           viewBox="0 0 180 180"
-          className="w-full h-full cursor-crosshair touch-none"
+          className="w-full h-full cursor-crosshair"
+          style={{ touchAction: 'none' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

@@ -69,7 +69,7 @@ export function generateFirstLineBudgetMessage(order: ServiceOrder, company: Com
   const defectOrService = order.performedService || order.technicalDiagnosis || order.clientDefect || 'Manutenção';
   const warrantyDays = order.warrantyDays || 90;
 
-  let msg = `Olá *${order.customerName}*, tudo bem?\n`;
+  let msg = `Segue o orçamento abaixo:\n`;
   msg += `Aqui é da *${company.commercialName || company.name || 'Assistência Técnica'}* informando sobre sua OS *#${order.orderNumber}*.\n\n`;
   msg += `📱 *Aparelho:* ${order.brand} ${order.model}\n`;
   msg += `🔧 *Defeito/Serviço:* ${defectOrService}\n\n`;
@@ -102,7 +102,7 @@ export function generatePremiumBudgetMessage(order: ServiceOrder, company: Compa
   const defectOrService = order.performedService || order.technicalDiagnosis || order.clientDefect || 'Manutenção';
   const warrantyDays = order.warrantyDays || 90;
 
-  let msg = `Olá *${order.customerName}*, tudo bem?\n`;
+  let msg = `Segue o orçamento abaixo:\n`;
   msg += `Aqui é da *${company.commercialName || company.name || 'Assistência Técnica'}* informando sobre sua OS *#${order.orderNumber}*.\n\n`;
   msg += `📱 *Aparelho:* ${order.brand} ${order.model}\n`;
   msg += `🔧 *Defeito/Serviço:* ${defectOrService}\n\n`;
@@ -137,7 +137,7 @@ export function generateComparisonBudgetMessage(order: ServiceOrder, company: Co
   const defectOrService = order.performedService || order.technicalDiagnosis || order.clientDefect || 'Manutenção';
   const warrantyDays = order.warrantyDays || 90;
 
-  let msg = `Olá *${order.customerName}*, tudo bem?\n`;
+  let msg = `Segue o orçamento abaixo:\n`;
   msg += `Aqui é da *${company.commercialName || company.name || 'Assistência Técnica'}* informando sobre sua OS *#${order.orderNumber}*.\n\n`;
   msg += `📱 *Aparelho:* ${order.brand} ${order.model}\n`;
   msg += `🔧 *Defeito/Serviço:* ${defectOrService}\n\n`;
@@ -193,8 +193,8 @@ export const generateOrderBudgetWhatsAppText = (
   const totalPremium = laborPrice + pricePremium;
 
   if (copyType === 'FIRST_LINE') {
-    return `👋 Olá, *${clientName}*!
-🏢 Aqui é da *${shopName}*!
+    return `Segue o orçamento abaixo:
+🏢 *${shopName}*
 📋 Seguem as informações da sua Ordem de Serviço *${orderNum}*:
 
 📱 *Aparelho / Equipamento:* ${device}
@@ -211,8 +211,8 @@ export const generateOrderBudgetWhatsAppText = (
   }
 
   if (copyType === 'PREMIUM') {
-    return `👋 Olá, *${clientName}*!
-🏢 Aqui é da *${shopName}*!
+    return `Segue o orçamento abaixo:
+🏢 *${shopName}*
 📋 Seguem as informações da sua Ordem de Serviço *${orderNum}*:
 
 📱 *Aparelho / Equipamento:* ${device}
@@ -229,8 +229,8 @@ export const generateOrderBudgetWhatsAppText = (
   }
 
   // COMPARATIVE (BOTH OPTIONS) - Premium FIRST
-  return `👋 Olá, *${clientName}*!
-🏢 Aqui é da *${shopName}*!
+  return `Segue o orçamento abaixo:
+🏢 *${shopName}*
 📋 Seguem as informações da sua Ordem de Serviço *${orderNum}*:
 
 📱 *Aparelho / Equipamento:* ${device}

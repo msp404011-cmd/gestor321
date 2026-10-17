@@ -2347,14 +2347,14 @@ export const SupplierOrdersManagement: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-48 sm:pb-28">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+            <div className="flex flex-col gap-6 max-w-4xl mx-auto">
               {filteredGroups.map(group => {
                 const groupItems = group.items || [];
                 const activeGroupItems = groupItems.filter(i => !i.isReturned);
                 const returnedGroupItems = groupItems.filter(i => !!i.isReturned);
                 const groupTotal = activeGroupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
                 const returnedGroupTotal = returnedGroupItems.reduce((acc, i) => acc + ((Number(i.quantity) || 1) * (Number(i.price) || 0)), 0);
-                const isExpanded = !!expandedCards[group.id]; // curtain closed by default
+                const isExpanded = expandedCards[group.id] !== false; // curtain open by default
                 const activeCategoryFilter = cardCategoryFilter[group.id] || 'TODAS';
 
                 // Filter items by category inside card
@@ -2367,83 +2367,53 @@ export const SupplierOrdersManagement: React.FC = () => {
                 const categoriesInGroup = Array.from(new Set(groupItems.map(i => i.typeName || 'Outros')));
 
                 return (
-                  <div key={group.id} className="bg-[#161B2B] rounded-2xl border border-slate-800 p-3 sm:p-3.5 flex flex-col justify-between shadow-xl hover:border-slate-700 transition-all">
+                  <div key={group.id} className="bg-[#161B2B] rounded-3xl border border-slate-700 p-6 sm:p-8 flex flex-col justify-between shadow-2xl hover:border-indigo-500/50 transition-all">
                     <div>
                       {/* Card Header & Curtain Toggle */}
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
                         <div 
-                          className="cursor-pointer group flex-1 pr-2"
+                          className="cursor-pointer group flex-1 min-w-[200px]"
                           onClick={() => setExpandedCards(prev => ({ ...prev, [group.id]: !isExpanded }))}
                         >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-black text-white truncate max-w-[200px] group-hover:text-indigo-400 transition-colors" title={group.title}>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <h3 className="text-lg font-black text-white truncate max-w-[200px] group-hover:text-indigo-400 transition-colors" title={group.title}>
                               {group.title}
                             </h3>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${isExpanded ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-700 text-slate-300'} border border-indigo-500/30 flex items-center gap-1`}>
                               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              <span>{isExpanded ? 'Ocultar' : `Ver Peças (${groupItems.length})`}</span>
+                              <span>{isExpanded ? 'Ocultar' : `Peças (${groupItems.length})`}</span>
                             </span>
-                            {returnedGroupItems.length > 0 && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1" title={`${returnedGroupItems.length} peça(s) devolvida(s) - não cobrado`}>
-                                <RotateCcw className="w-2.5 h-2.5 text-rose-400" /> {returnedGroupItems.length} devolução
-                              </span>
-                            )}
-                          </div>
-                          
-                          {/* Outside Summary Row: Total Value & Total Pieces */}
-                          <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 flex-wrap">
-                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-indigo-400" />
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-400 font-black text-[10px] border border-emerald-500/30">
+                              R$ {groupTotal.toFixed(2).replace('.', ',')}
+                            </span>
+                            <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-400" />
                               {group.createdAt && !isNaN(new Date(group.createdAt).getTime())
                                 ? new Date(group.createdAt).toLocaleDateString()
                                 : 'Recente'}
                             </span>
-                            <span className="text-slate-600">•</span>
-                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-black text-[11px] border border-emerald-500/30">
-                              R$ {groupTotal.toFixed(2).replace('.', ',')}
-                            </span>
-                            <span className="text-slate-600">•</span>
-                            <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 font-bold text-[10px] border border-indigo-500/30">
-                              {activeGroupItems.length} a cobrar{activeGroupItems.length !== 1 ? 's' : ''}
-                            </span>
                           </div>
                         </div>
 
-                        <div className="relative flex items-center gap-1.5 shrink-0">
-                          <button 
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === group.id ? null : group.id);
+                              handleOpenModal(group);
                             }}
-                            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-2 rounded-xl hover:bg-slate-800"
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 hover:border-indigo-500"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" /> Editar
                           </button>
-                          
-                          {openDropdownId === group.id && (
-                            <div className="absolute right-0 top-full mt-1 w-36 bg-[#0B1221] border border-slate-700 rounded-xl shadow-xl overflow-hidden z-20 animate-in fade-in">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(null);
-                                  handleOpenModal(group);
-                                }}
-                                className="w-full px-3 py-2 text-left text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors cursor-pointer"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" /> Editar
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(null);
-                                  handleDeleteGroup(group.id);
-                                }}
-                                className="w-full px-3 py-2 text-left text-xs font-bold text-rose-400 hover:bg-rose-950/50 flex items-center gap-2 transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" /> Excluir
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteGroup(group.id);
+                            }}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 hover:border-rose-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Excluir
+                          </button>
                         </div>
                       </div>
 

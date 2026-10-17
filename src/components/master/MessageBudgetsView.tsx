@@ -140,6 +140,7 @@ export const MessageBudgetsView: React.FC = () => {
   const [customersList, setCustomersList] = useState<Customer[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [showExtraFields, setShowExtraFields] = useState(false);
 
   useEffect(() => {
     setCustomersList(StorageService.getCustomers());
@@ -290,15 +291,22 @@ export const MessageBudgetsView: React.FC = () => {
   const hasBothPrices = hasGoodPrice && hasCheapPrice;
   const hasAnyPrice = hasGoodPrice || hasCheapPrice;
 
-  // Build Default Text for Peça Boa (Exact as user requested with client name support)
-  const generateGoodMessage = (c: BudgetCard): string => {
-    const headerGreeting = c.clientName?.trim()
-      ? `Olá, ${c.clientName.trim()}! Tudo bem? Segue o orçamento:\n\n`
-      : `Olá! Tudo bem? Segue o orçamento:\n\n`;
+  // Helper to remove any obsolete "Olá... Tudo bem" from previously cached custom texts
+  const cleanOldGreeting = (text?: string): string | undefined => {
+    if (!text) return undefined;
+    if (/olá/i.test(text) && /tudo bem/i.test(text)) {
+      return text.replace(/^Olá[^\n]*\n+/i, 'Segue o orçamento abaixo:\n\n');
+    }
+    return text;
+  };
 
+  // Build Default Text for Peça Boa (Inicia diretamente com "Segue o orçamento abaixo:")
+  const generateGoodMessage = (c: BudgetCard): string => {
     const modelLine = c.deviceModel?.trim() ? ` para *${c.deviceModel.trim()}*` : '';
 
-    return `${headerGreeting}📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*${modelLine}
+    return `Segue o orçamento abaixo:
+
+📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*${modelLine}
 
 ⭐ *TELA DE BOA QUALIDADE*
 💰 *R$ ${formatPriceNumber(c.goodPrice)}*
@@ -315,15 +323,13 @@ export const MessageBudgetsView: React.FC = () => {
 📲 *${c.storeName || defaultStoreName}*`;
   };
 
-  // Build Default Text for Peça Mais em Conta (Exact as user requested with client name support)
+  // Build Default Text for Peça Mais em Conta (Inicia diretamente com "Segue o orçamento abaixo:")
   const generateCheapMessage = (c: BudgetCard): string => {
-    const headerGreeting = c.clientName?.trim()
-      ? `Olá, ${c.clientName.trim()}! Tudo bem? Segue o orçamento:\n\n`
-      : `Olá! Tudo bem? Segue o orçamento:\n\n`;
-
     const modelLine = c.deviceModel?.trim() ? ` para *${c.deviceModel.trim()}*` : '';
 
-    return `${headerGreeting}📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*${modelLine}
+    return `Segue o orçamento abaixo:
+
+📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*${modelLine}
 
 💰 *TELA MAIS EM CONTA*
 💵 *R$ ${formatPriceNumber(c.cheapPrice)}*
@@ -340,13 +346,13 @@ export const MessageBudgetsView: React.FC = () => {
 📲 *${c.storeName || defaultStoreName}*`;
   };
 
-  // Build Default Full Comparison Message (Both options together for client to choose)
+  // Build Default Full Comparison Message (Both options together, inicia diretamente com "Segue o orçamento abaixo:")
   const generateFullComparisonMessage = (c: BudgetCard): string => {
-    const headerGreeting = c.clientName?.trim()
-      ? `Olá, ${c.clientName.trim()}! Tudo bem? Segue as duas opções de tela${c.deviceModel?.trim() ? ` para seu *${c.deviceModel.trim()}*` : ''}:\n\n`
-      : `Olá! Tudo bem? Segue as duas opções de tela${c.deviceModel?.trim() ? ` para seu *${c.deviceModel.trim()}*` : ''}:\n\n`;
+    const modelLine = c.deviceModel?.trim() ? ` para *${c.deviceModel.trim()}*` : '';
 
-    return `${headerGreeting}📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*
+    return `Segue o orçamento abaixo:
+
+📱🔧 *${c.serviceType || 'VALOR DA TROCA DE TELA'}*${modelLine}
 
 ⭐ *OPÇÃO 1: TELA DE BOA QUALIDADE*
 💰 *R$ ${formatPriceNumber(c.goodPrice)}*
@@ -375,15 +381,15 @@ ${priceDifference > 0 ? `💡 *Diferença de apenas R$ ${formatPriceNumber(price
 
   // Editable live texts: uses custom text if edited, or default template
   const currentGoodText = activeCard.customGoodText !== undefined 
-    ? activeCard.customGoodText 
+    ? (cleanOldGreeting(activeCard.customGoodText) || generateGoodMessage(activeCard))
     : generateGoodMessage(activeCard);
 
   const currentCheapText = activeCard.customCheapText !== undefined 
-    ? activeCard.customCheapText 
+    ? (cleanOldGreeting(activeCard.customCheapText) || generateCheapMessage(activeCard))
     : generateCheapMessage(activeCard);
 
   const currentComparisonText = activeCard.customComparisonText !== undefined 
-    ? activeCard.customComparisonText 
+    ? (cleanOldGreeting(activeCard.customComparisonText) || generateFullComparisonMessage(activeCard))
     : generateFullComparisonMessage(activeCard);
 
   // Copy handler
@@ -496,14 +502,14 @@ ${priceDifference > 0 ? `💡 *Diferença de apenas R$ ${formatPriceNumber(price
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-blue-950/60">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/40 text-cyan-400 flex items-center justify-center font-bold">
-              <Edit3 className="w-4 h-4" />
+              <Smartphone className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
               <h3 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                1. Preencha os Espaços do Orçamento
+                1. Modelo do Celular
               </h3>
               <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                As opções de mensagens só aparecem abaixo quando o seu respectivo preço for preenchido.
+                Preencha o modelo do celular acima e os valores logo abaixo para gerar o orçamento.
               </p>
             </div>
           </div>
@@ -523,127 +529,127 @@ ${priceDifference > 0 ? `💡 *Diferença de apenas R$ ${formatPriceNumber(price
           </div>
         </div>
 
-        {/* Form Inputs Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4">
-          
-          {/* Campo 1: Nome do Cliente */}
-          <div className="relative">
-            <label className={`block text-xs font-black uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Nome do Cliente</span>
+        {/* PARTE DE CIMA: APENAS O MODELO DO CELULAR */}
+        <div className="pt-4 space-y-3">
+          <div>
+            <label className={`block text-xs font-black uppercase tracking-wider mb-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+              <span className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm font-black">Modelo do Celular</span>
               </span>
             </label>
-            <input
-              type="text"
-              value={activeCard.clientName || ''}
-              onChange={(e) => {
-                handleUpdateActiveCard('clientName', e.target.value);
-                setCustomerSearchQuery(e.target.value);
-              }}
-              onFocus={() => setIsCustomerDropdownOpen(true)}
-              placeholder="Ex: Carlos Eduardo, Dra. Camila..."
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all ${
-                isDark 
-                  ? 'bg-[#020612] border-blue-900 text-white placeholder-slate-600 focus:border-cyan-400' 
-                  : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-              }`}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={activeCard.deviceModel || ''}
+                onChange={(e) => handleUpdateActiveCard('deviceModel', e.target.value)}
+                placeholder="Ex: iPhone 11, Samsung A54, Moto G52, Redmi Note 12..."
+                className={`w-full px-4 py-3 sm:py-3.5 rounded-2xl border-2 text-sm sm:text-base font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all ${
+                  isDark 
+                    ? 'bg-[#020612] border-cyan-500/50 text-white placeholder-slate-600 focus:border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.15)]' 
+                    : 'bg-slate-50 border-cyan-300 text-slate-900 placeholder-slate-400'
+                }`}
+                autoFocus
+              />
+              {activeCard.deviceModel && (
+                <button
+                  type="button"
+                  onClick={() => handleUpdateActiveCard('deviceModel', '')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
+                  title="Limpar modelo"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+          </div>
 
-            {/* Quick autocomplete dropdown for registered customers */}
-            {isCustomerDropdownOpen && filteredCustomers.length > 0 && (
-              <div className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border p-2 shadow-2xl space-y-1 ${
-                isDark ? 'bg-[#061126] border-cyan-500/40 text-white' : 'bg-white border-slate-300 text-slate-900'
-              }`}>
-                <div className="text-[10px] font-bold text-slate-400 px-2 py-1">
-                  Clientes cadastrados encontrados:
-                </div>
-                {filteredCustomers.map(cust => (
-                  <button
-                    key={cust.id}
-                    type="button"
-                    onClick={() => {
-                      handleUpdateActiveCard('clientName', cust.name);
-                      if (cust.phone || cust.whatsapp) {
-                        handleUpdateActiveCard('clientPhone', cust.whatsapp || cust.phone || '');
-                      }
-                      setIsCustomerDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors ${
-                      isDark ? 'hover:bg-blue-950 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
+          {/* Atalhos Rápidos de Modelos */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-0.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap pr-1 flex items-center gap-1">
+              <Zap className="w-3 h-3 text-cyan-400" />
+              <span>Modelos rápidos:</span>
+            </span>
+            {quickModels.map(m => {
+              const isSelected = activeCard.deviceModel?.toLowerCase() === m.toLowerCase();
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => handleUpdateActiveCard('deviceModel', m)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border active:scale-95 ${
+                    isSelected
+                      ? 'bg-cyan-500 text-white border-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.5)]'
+                      : isDark
+                      ? 'bg-blue-950/60 hover:bg-blue-900 border-blue-900/80 text-cyan-300 hover:text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Opções extras colapsadas (WhatsApp do cliente para envio direto, nome da loja) */}
+          <div className="pt-0.5">
+            <button
+              type="button"
+              onClick={() => setShowExtraFields(!showExtraFields)}
+              className="text-[11px] font-bold text-slate-400 hover:text-cyan-300 flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <span>{showExtraFields ? '− Ocultar campos adicionais' : '+ Adicionar WhatsApp ou Nome (opcional)'}</span>
+            </button>
+
+            {showExtraFields && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 mt-2 border-t border-blue-950/40 animate-in fade-in slide-in-from-top-2">
+                <div>
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    WhatsApp do Cliente (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={activeCard.clientPhone || ''}
+                    onChange={(e) => handleUpdateActiveCard('clientPhone', e.target.value)}
+                    placeholder="Ex: (11) 98765-4321"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                      isDark ? 'bg-[#020612] border-blue-900 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
-                  >
-                    <span>{cust.name}</span>
-                    <span className="text-[10px] font-mono text-cyan-400">{cust.whatsapp || cust.phone || ''}</span>
-                  </button>
-                ))}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Nome do Cliente (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={activeCard.clientName || ''}
+                    onChange={(e) => handleUpdateActiveCard('clientName', e.target.value)}
+                    placeholder="Ex: Carlos Eduardo"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                      isDark ? 'bg-[#020612] border-blue-900 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Nome da Loja no Rodapé
+                  </label>
+                  <input
+                    type="text"
+                    value={activeCard.storeName || defaultStoreName}
+                    onChange={(e) => handleUpdateActiveCard('storeName', e.target.value)}
+                    placeholder="Ex: MSP Informática"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:ring-1 focus:ring-cyan-500 ${
+                      isDark ? 'bg-[#020612] border-blue-900 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
               </div>
             )}
           </div>
-
-          {/* Campo 2: WhatsApp / Telefone */}
-          <div>
-            <label className={`block text-xs font-black uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                <span>WhatsApp do Cliente</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              value={activeCard.clientPhone || ''}
-              onChange={(e) => handleUpdateActiveCard('clientPhone', e.target.value)}
-              placeholder="Ex: (11) 98765-4321"
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all ${
-                isDark 
-                  ? 'bg-[#020612] border-blue-900 text-white placeholder-slate-600 focus:border-emerald-400' 
-                  : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-              }`}
-            />
-          </div>
-
-          {/* Campo 3: Modelo do Aparelho / Serviço */}
-          <div>
-            <label className={`block text-xs font-black uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Modelo do Aparelho</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              value={activeCard.deviceModel || ''}
-              onChange={(e) => handleUpdateActiveCard('deviceModel', e.target.value)}
-              placeholder="Ex: iPhone 11, Moto G52, Galaxy A54..."
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all ${
-                isDark 
-                  ? 'bg-[#020612] border-blue-900 text-white placeholder-slate-600 focus:border-cyan-400' 
-                  : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-              }`}
-            />
-          </div>
-
-          {/* Campo 4: Nome da Loja / Assinatura */}
-          <div>
-            <label className={`block text-xs font-black uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Nome da Loja (Rodapé)</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              value={activeCard.storeName || defaultStoreName}
-              onChange={(e) => handleUpdateActiveCard('storeName', e.target.value)}
-              placeholder="Ex: MSP Informática"
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
-                isDark 
-                  ? 'bg-[#020612] border-blue-900 text-white placeholder-slate-600 focus:border-indigo-400' 
-                  : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-              }`}
-            />
-          </div>
-
         </div>
 
         {/* Row 2: PREÇO PEÇA BOA & PREÇO PEÇA ECONÔMICA (OS ESPAÇOS QUE LIBERAM AS OPÇÕES) */}
@@ -809,23 +815,6 @@ ${priceDifference > 0 ? `💡 *Diferença de apenas R$ ${formatPriceNumber(price
             </p>
           </div>
 
-        </div>
-
-        {/* Quick Model Pills */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-blue-950/60 overflow-x-auto scrollbar-none">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
-            Modelos Rápidos:
-          </span>
-          {quickModels.map(m => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => handleUpdateActiveCard('deviceModel', m)}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-950/60 hover:bg-blue-900 border border-blue-900 text-cyan-300 hover:text-white transition-all cursor-pointer whitespace-nowrap"
-            >
-              {m}
-            </button>
-          ))}
         </div>
       </section>
 
