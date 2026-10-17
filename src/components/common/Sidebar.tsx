@@ -190,6 +190,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       colorTheme: 'rose' as const,
       items: [
         {
+          id: 'MESSAGE_BUDGETS',
+          title: 'Orçamentos',
+          subtitle: 'Central de orçamentos WhatsApp',
+          icon: MessageCircle,
+        },
+        {
           id: 'ORDERS',
           title: 'Ordens de Serviço',
           subtitle: 'Abertas, em andamento e finalizadas',
@@ -319,13 +325,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Wallet,
           badge: isCashOpen ? 'Aberto' : 'Fechado',
           badgeType: isCashOpen ? 'pill-green' : 'pill-gray',
-        },
-        {
-          id: 'FINANCIAL_REPORTS',
-          title: 'Relatórios Financeiros',
-          subtitle: 'Fluxo de caixa e resultados',
-          icon: BarChart3,
-          action: () => handleSelect('FINANCE'),
         },
       ],
     },

@@ -620,10 +620,13 @@ const ReceivablePayModal: React.FC<ReceivablePayModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    onSuccess();
+                    onClose();
+                  }}
                   className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors cursor-pointer"
                 >
-                  Fechar
+                  Concluir / Fechar
                 </button>
               </div>
             </div>
@@ -886,11 +889,14 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
       const isOverdue = !isPaid && r.dueDate && r.dueDate < todayStr;
       const isPartial = !isPaid && (r.paidAmount || 0) > 0;
 
-      // Status Filter
-      if (statusFilter === 'PENDING' && (isPaid || isPartial)) return false;
-      if (statusFilter === 'PARTIAL' && !isPartial) return false;
-      if (statusFilter === 'OVERDUE' && !isOverdue) return false;
-      if (statusFilter === 'PAID' && !isPaid) return false;
+      // Status Filter (2 Abas: FALTA_PAGAR vs PAGO / HISTORICO)
+      if (statusFilter === 'PAID') {
+        // Aba Histórico de Venda e Pago: Apenas quitados (isPaid)
+        if (!isPaid) return false;
+      } else {
+        // Aba Falta Pagar: Apenas o que falta pagar (não quitados: em aberto, parciais, vencidos)
+        if (isPaid) return false;
+      }
 
       // Search term
       if (searchTerm.trim()) {
@@ -1063,27 +1069,34 @@ export const ReceivablesView: React.FC<ReceivablesViewProps> = ({ onOpenOrder })
           />
         </div>
 
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+        {/* Status Filter Tabs (2 Abas Principais) */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {[
-            { id: 'ALL', label: 'Todos' },
-            { id: 'PENDING', label: 'Em Aberto' },
-            { id: 'PARTIAL', label: 'Com Entrada / Parcial' },
-            { id: 'OVERDUE', label: 'Vencidos' },
-            { id: 'PAID', label: 'Quitados' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                statusFilter === tab.id
-                  ? 'bg-amber-500/20 border border-amber-500 text-amber-300 shadow-sm'
-                  : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-transparent'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+            { id: 'FALTA_PAGAR', label: 'Falta Pagar (Em Aberto / Vencidos)' },
+            { id: 'PAGO_HISTORICO', label: 'Histórico de Venda e Pago' },
+          ].map((tab) => {
+            const isActive = (statusFilter === 'PAID' && tab.id === 'PAGO_HISTORICO') ||
+                             (statusFilter !== 'PAID' && tab.id === 'FALTA_PAGAR');
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (tab.id === 'PAGO_HISTORICO') {
+                    setStatusFilter('PAID');
+                  } else {
+                    setStatusFilter('ALL');
+                  }
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 border border-amber-400'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

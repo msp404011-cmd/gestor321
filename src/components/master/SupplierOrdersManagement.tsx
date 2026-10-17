@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { 
   Plus, Edit2, Trash2, Check, ShoppingCart, 
   MessageSquare, MoreVertical, Search, Send, Settings, X, Box, DollarSign, Copy, Calendar, Filter,
@@ -108,12 +108,14 @@ export const addDeletedGroupId = (id: string) => {
   } catch (_) {}
 };
 
-export const isPedido2Group = (g: { title?: string; id?: string }): boolean => {
-  if (!g) return false;
-  const t = (g.title || '').trim().toLowerCase();
-  if (t === 'pedido 2' || t === 'pedido #2' || t === 'pedido 02') return true;
-  if (g.id === 'pedido-2' || g.id === '2') return true;
-  return false;
+export const removeDeletedGroupId = (id: string) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const s = getDeletedGroupIds();
+      s.delete(id);
+      window.localStorage.setItem(DELETED_GROUPS_STORAGE_KEY, JSON.stringify(Array.from(s)));
+    }
+  } catch (_) {}
 };
 
 const DEFAULT_SUPPLIERS: RegisteredSupplier[] = [
@@ -141,7 +143,7 @@ export const SupplierOrdersManagement: React.FC = () => {
   // Safe initial state loaded synchronously from RAM store or localStorage
   const [groups, setGroups] = useState<SupplierOrderGroup[]>(() => {
     const deletedIds = getDeletedGroupIds();
-    const filterValid = (list: SupplierOrderGroup[]) => list.filter(g => !deletedIds.has(g.id) && !isPedido2Group(g));
+    const filterValid = (list: SupplierOrderGroup[]) => list.filter(g => !deletedIds.has(g.id));
     const inRam = getRamItem<SupplierOrderGroup[]>(STORAGE_KEY_GROUPS, []);
     if (inRam && inRam.length > 0) return filterValid(inRam);
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -709,15 +711,6 @@ export const SupplierOrdersManagement: React.FC = () => {
       snapshot.forEach(d => {
         const data = d.data();
         const g = { id: d.id, ...data } as SupplierOrderGroup;
-        if (isPedido2Group(g)) {
-          // Permanently purge from Firestore
-          const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
-          emails.forEach(em => {
-            deleteDoc(doc(db, `accounts/${em}/supplier_orders`, d.id)).catch(() => {});
-          });
-          addDeletedGroupId(d.id);
-          return;
-        }
         if (!deletedIds.has(d.id)) {
           loaded.push(g);
         }
@@ -737,44 +730,24 @@ export const SupplierOrdersManagement: React.FC = () => {
       setLoading(false);
     });
 
-    // Secondary superadmin listener to also load any orders stored under msp404011@gmail.com
-    let unsubSecondaryGroups: (() => void) | null = null;
+    // One-time safe migration from legacy msp404011@gmail.com if needed
     if (userEmail === 'mmspmartins62@gmail.com') {
       try {
         const secColRef = collection(db, 'accounts/msp404011@gmail.com/supplier_orders');
-        unsubSecondaryGroups = onSnapshot(secColRef, (snapshot) => {
+        getDocs(secColRef).then((snapshot) => {
           if (!isSubscribed || snapshot.empty) return;
-          const extra: SupplierOrderGroup[] = [];
           const deletedIds = getDeletedGroupIds();
-          snapshot.forEach(d => {
-            const data = d.data();
-            const g = { id: d.id, ...data } as SupplierOrderGroup;
-            if (isPedido2Group(g)) {
+          snapshot.forEach(async (d) => {
+            if (deletedIds.has(d.id)) {
               deleteDoc(doc(db, 'accounts/msp404011@gmail.com/supplier_orders', d.id)).catch(() => {});
-              deleteDoc(doc(db, 'accounts/mmspmartins62@gmail.com/supplier_orders', d.id)).catch(() => {});
-              addDeletedGroupId(d.id);
               return;
             }
-            if (!deletedIds.has(d.id)) {
-              extra.push(g);
-            }
+            const data = d.data();
+            const targetDocRef = doc(db, 'accounts/mmspmartins62@gmail.com/supplier_orders', d.id);
+            await setDoc(targetDocRef, data, { merge: true });
+            await deleteDoc(doc(db, 'accounts/msp404011@gmail.com/supplier_orders', d.id)).catch(() => {});
           });
-          setGroups(prev => {
-            const map = new Map<string, SupplierOrderGroup>();
-            prev.forEach(g => {
-              if (!deletedIds.has(g.id) && !isPedido2Group(g)) map.set(g.id, g);
-            });
-            extra.forEach(g => {
-              if (!deletedIds.has(g.id) && !isPedido2Group(g)) map.set(g.id, g);
-            });
-            const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-            setRamItem(STORAGE_KEY_GROUPS, merged);
-            try {
-              localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(merged));
-            } catch (_) {}
-            return merged;
-          });
-        }, () => {});
+        }).catch(() => {});
       } catch (_) {}
     }
 
@@ -800,7 +773,6 @@ export const SupplierOrdersManagement: React.FC = () => {
       unsubSettings();
       unsubPurchases();
       unsubGroups();
-      if (unsubSecondaryGroups) unsubSecondaryGroups();
       unsubSuppliers();
     };
   }, [getUserAccountEmail()]);
@@ -977,24 +949,46 @@ export const SupplierOrdersManagement: React.FC = () => {
 
     // REMOVE TRANSFERRED ITEMS FROM MEUS PEDIDOS (ABA 1) SO THEY LEAVE THE ORDER CARD
     const transferredItemIds = new Set(supplierSendModal.itemsWithGroups.map(({ item }) => item.id));
-    const updatedGroups = groups.map(g => {
-      const remainingItems = (g.items || []).filter(item => !transferredItemIds.has(item.id));
-      return {
-        ...g,
-        items: remainingItems
-      };
-    });
+    const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
+
+    // Groups that had items moved
+    const affectedOriginalGroups = groups.filter(g =>
+      (g.items || []).some(item => transferredItemIds.has(item.id))
+    );
+
+    const updatedGroups = groups
+      .map(g => {
+        const remainingItems = (g.items || []).filter(item => !transferredItemIds.has(item.id));
+        return {
+          ...g,
+          items: remainingItems
+        };
+      })
+      .filter(g => {
+        // Se todas as peças deste pedido foram transferidas para débitos/fornecedor, o card é removido de Meus Pedidos
+        return g.items.length > 0;
+      });
 
     setGroups(updatedGroups);
     setRamItem(STORAGE_KEY_GROUPS, updatedGroups);
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedGroups));
+    } catch (_) {}
 
-    // Update in Firestore asynchronously for groups whose items changed
-    for (const g of updatedGroups) {
-      const orig = groups.find(og => og.id === g.id);
-      if (orig && orig.items.length !== g.items.length) {
+    // Update in Firestore asynchronously across all admin emails
+    for (const orig of affectedOriginalGroups) {
+      const remainingItems = (orig.items || []).filter(item => !transferredItemIds.has(item.id));
+      for (const em of emails) {
         try {
-          const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, g.id);
-          await updateDoc(docRef, { items: g.items });
+          if (remainingItems.length === 0) {
+            // Pedido 100% movido para débitos: excluir o card de pedidos
+            addDeletedGroupId(orig.id);
+            await deleteDoc(doc(db, `accounts/${em}/supplier_orders`, orig.id));
+          } else {
+            // Algumas peças continuam no pedido: atualizar itens restantes
+            const docRef = doc(db, `accounts/${em}/supplier_orders`, orig.id);
+            await updateDoc(docRef, { items: remainingItems });
+          }
         } catch (e) {
           console.warn('Sync order group removal error:', e);
         }
@@ -1246,8 +1240,13 @@ export const SupplierOrdersManagement: React.FC = () => {
       });
     } else {
       setEditingGroup(null);
+      let nextNum = groups.length + 1;
+      const existingTitles = new Set(groups.map(g => (g.title || '').trim().toLowerCase()));
+      while (existingTitles.has(`pedido ${nextNum}`)) {
+        nextNum++;
+      }
       setFormData({
-        title: `Pedido ${groups.length + 1}`,
+        title: `Pedido ${nextNum}`,
         whatsapp: '',
         createdAt: new Date().toISOString().split('T')[0],
         items: []
@@ -1335,12 +1334,18 @@ export const SupplierOrdersManagement: React.FC = () => {
     
     let groupTitle = formData.title?.trim();
     if (!groupTitle) {
-      groupTitle = `Pedido ${groups.length + 1}`;
+      let nextNum = groups.length + 1;
+      const existingTitles = new Set(groups.map(g => (g.title || '').trim().toLowerCase()));
+      while (existingTitles.has(`pedido ${nextNum}`)) {
+        nextNum++;
+      }
+      groupTitle = `Pedido ${nextNum}`;
     }
 
     isSavingRef.current = true;
     setIsSaving(true);
     const userEmail = getUserAccountEmail();
+    const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
 
     try {
       // Auto-include any piece currently typed or marked in the form that wasn't added via the button yet
@@ -1412,18 +1417,10 @@ export const SupplierOrdersManagement: React.FC = () => {
           localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updatedList));
         } catch (_) {}
 
-        const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, editingGroup.id);
-        await updateDoc(docRef, {
-          title: groupTitle,
-          whatsapp: formData.whatsapp.trim(),
-          createdAt: finalDate,
-          items: itemsToSave
-        });
-
-        if (userEmail === 'mmspmartins62@gmail.com') {
+        for (const em of emails) {
           try {
-            const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', editingGroup.id);
-            await updateDoc(secRef, {
+            const docRef = doc(db, `accounts/${em}/supplier_orders`, editingGroup.id);
+            await updateDoc(docRef, {
               title: groupTitle,
               whatsapp: formData.whatsapp.trim(),
               createdAt: finalDate,
@@ -1435,6 +1432,7 @@ export const SupplierOrdersManagement: React.FC = () => {
         showToast("Pedido atualizado com sucesso!", "success");
       } else {
         const newId = Date.now().toString();
+        removeDeletedGroupId(newId);
         const newGroup: SupplierOrderGroup = {
           id: newId,
           title: groupTitle,
@@ -1455,13 +1453,10 @@ export const SupplierOrdersManagement: React.FC = () => {
         setExpandedCards(prev => ({ ...prev, [newId]: true }));
         setSearchTerm(''); // Clear search filter so the order appears immediately
 
-        const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, newId);
-        await setDoc(docRef, newGroup);
-
-        if (userEmail === 'mmspmartins62@gmail.com') {
+        for (const em of emails) {
           try {
-            const secRef = doc(db, 'accounts/msp404011@gmail.com/supplier_orders', newId);
-            await setDoc(secRef, newGroup);
+            const docRef = doc(db, `accounts/${em}/supplier_orders`, newId);
+            await setDoc(docRef, newGroup);
           } catch (_) {}
         }
 
@@ -1502,8 +1497,48 @@ export const SupplierOrdersManagement: React.FC = () => {
     });
   };
 
+  const handleDeletePieceFromGroup = (groupId: string, pieceId: string) => {
+    setConfirmDialog({
+      message: "Deseja realmente excluir esta peça deste pedido?",
+      onConfirm: async () => {
+        const userEmail = getUserAccountEmail();
+        const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
+
+        const updated = groups.map(g => {
+          if (g.id === groupId) {
+            return {
+              ...g,
+              items: (g.items || []).filter(i => i.id !== pieceId)
+            };
+          }
+          return g;
+        });
+
+        setGroups(updated);
+        setRamItem(STORAGE_KEY_GROUPS, updated);
+        try {
+          localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
+        } catch (_) {}
+
+        const targetGroup = updated.find(g => g.id === groupId);
+        if (targetGroup) {
+          for (const em of emails) {
+            try {
+              await updateDoc(doc(db, `accounts/${em}/supplier_orders`, groupId), {
+                items: targetGroup.items
+              });
+            } catch (_) {}
+          }
+        }
+
+        showToast("Peça excluída com sucesso!", "success");
+      }
+    });
+  };
+
   const handleBulkDeleteSelectedItems = async () => {
     const userEmail = getUserAccountEmail();
+    const emails = Array.from(new Set([userEmail, 'mmspmartins62@gmail.com', 'msp404011@gmail.com']));
     const updated = groups.map(g => ({
       ...g,
       items: (g.items || []).filter(i => !selectedItems[i.id])
@@ -1511,12 +1546,17 @@ export const SupplierOrdersManagement: React.FC = () => {
 
     setGroups(updated);
     setRamItem(STORAGE_KEY_GROUPS, updated);
+    try {
+      localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
+    } catch (_) {}
 
     for (const g of updated) {
-      try {
-        const docRef = doc(db, `accounts/${userEmail}/supplier_orders`, g.id);
-        await updateDoc(docRef, { items: g.items });
-      } catch (_) {}
+      for (const em of emails) {
+        try {
+          const docRef = doc(db, `accounts/${em}/supplier_orders`, g.id);
+          await updateDoc(docRef, { items: g.items });
+        } catch (_) {}
+      }
     }
 
     setSelectedItems({});
@@ -2565,6 +2605,16 @@ export const SupplierOrdersManagement: React.FC = () => {
                                               <Send className="w-3 h-3" />
                                               <span>WhatsApp</span>
                                             </button>
+
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleDeletePieceFromGroup(group.id, item.id)}
+                                              className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Excluir esta peça deste pedido"
+                                            >
+                                              <Trash2 className="w-3 h-3 text-rose-400" />
+                                              <span>Excluir</span>
+                                            </button>
                                           </>
                                         ) : (
                                           <>
@@ -2609,6 +2659,16 @@ export const SupplierOrdersManagement: React.FC = () => {
                                             >
                                               <Send className="w-3 h-3" />
                                               <span>WhatsApp</span>
+                                            </button>
+
+                                            <button 
+                                              type="button"
+                                              onClick={() => handleDeletePieceFromGroup(group.id, item.id)}
+                                              className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                                              title="Excluir esta peça deste pedido"
+                                            >
+                                              <Trash2 className="w-3 h-3 text-rose-400" />
+                                              <span>Excluir</span>
                                             </button>
                                           </>
                                         )}

@@ -697,6 +697,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenPlans,
 }) => {
   const { isDark } = useTheme();
+
+  const currUser = StorageService.getCurrentUser();
+  const authSes = StorageService.getAuthSession();
+  const userDisplayName = currUser?.name || authSes?.name || 'João Silva';
+  const now = new Date();
+  const currentHour = now.getHours();
+  const greetingText = currentHour < 12 ? 'Bom dia' : currentHour < 18 ? 'Boa tarde' : 'Boa noite';
+  const weekdayName = now.toLocaleDateString('pt-BR', { weekday: 'long' });
+  const formattedDate = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const capitalizedWeekday = weekdayName.charAt(0).toUpperCase() + weekdayName.slice(1);
   // Real-time synchronization state
   const [tick, setTick] = useState(0);
   const [chartPeriod, setChartPeriod] = useState<'30days' | '7days' | '15days' | 'year'>('30days');
@@ -1380,6 +1390,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-4 pb-8">
+      {/* MSP EXECUTIVE TOP HERO BANNER (Inspired by reference image) */}
+      <section className={`rounded-3xl p-4 sm:p-5 border transition-all shadow-xl relative overflow-hidden flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+        isDark
+          ? 'bg-gradient-to-r from-[#070e1b] via-[#0b162c] to-[#061022] border-blue-900/60 shadow-[0_10px_30px_rgba(0,0,0,0.5)] text-white'
+          : 'bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border-blue-800 text-white shadow-lg'
+      }`}>
+        {/* Background decorative office image overlay simulation */}
+        <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
+        
+        <div className="relative z-10 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
+              <span>{greetingText},</span>
+              <span className="text-cyan-400 font-black">{userDisplayName}</span>
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-300 font-medium italic">
+            “Organização hoje, resultado sempre.”
+          </p>
+        </div>
+
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 bg-black/40 border border-white/10 px-4 py-3 rounded-2xl backdrop-blur-md">
+          <div className="text-left sm:text-right">
+            <span className="text-[10px] sm:text-xs text-slate-400 font-bold block capitalize tracking-wider">
+              {capitalizedWeekday}, {formattedDate}
+            </span>
+            <span className="text-lg sm:text-xl font-black font-mono text-cyan-300 tracking-tight">
+              {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+          <div className="hidden sm:block w-px h-8 bg-white/15" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-black text-xs shadow-md border border-cyan-400/40">
+              MSP
+            </div>
+            <div>
+              <span className="text-xs font-black tracking-wider block text-white">MSP INFORMÁTICA</span>
+              <span className="text-[9px] text-slate-400 block font-semibold">A Tecnologia Simplificada</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* MENSAGEM BEM GRANDONA NA TELA INICIAL: AVISO DE CONSERTO DE CELULAR MARCADO */}
       {todayPromisedRepairs.length > 0 && (
         <section className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
@@ -1516,37 +1570,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </section>
       )}
 
-
-
-      {/* 2. TOP QUICK ACTIONS BAR (MOVED TO TOP AS REQUESTED BY USER) */}
-      <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+      {/* 2. TOP EXECUTIVE QUICK ACTIONS BAR (Inspired by reference image) */}
+      <section className="grid grid-cols-2 min-[440px]:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {/* Button 1: Nova OS */}
         {SubscriptionService.isTabAllowed('ORDERS') && (
           <button
             type="button"
             onClick={handleNovaOS}
-            className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+            className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
               isDark
-                ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 border-2 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.55)] hover:shadow-[0_0_28px_rgba(59,130,246,0.8)]'
-                : 'bg-[#e8f1ff] border border-blue-200/90 shadow-2xs hover:shadow-md hover:bg-[#deebff]'
+                ? 'bg-gradient-to-br from-[#0c1f44] via-[#08152e] to-[#040a18] border border-blue-500/50 shadow-lg hover:border-cyan-400'
+                : 'bg-white border border-blue-200 shadow-sm hover:border-blue-400'
             }`}
           >
-            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-              isDark
-                ? 'bg-blue-800/70 border border-blue-300/80 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-                : 'bg-[#0066ff] shadow-sm'
-            }`}>
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
               <Plus className="w-4 h-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-                isDark ? 'text-white' : 'text-[#0a2540]'
-              }`}>
+              <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 Nova OS
               </span>
-              <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-                isDark ? 'text-blue-100' : 'text-blue-700 font-medium'
-              }`}>
+              <span className={`text-[10px] block truncate ${isDark ? 'text-blue-300' : 'text-blue-600 font-medium'}`}>
                 Reg. equipamento
               </span>
             </div>
@@ -1557,28 +1601,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleNovaVenda}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
             isDark
-              ? 'bg-gradient-to-r from-emerald-700 via-emerald-600 to-emerald-500 border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.55)] hover:shadow-[0_0_28px_rgba(16,185,129,0.8)]'
-              : 'bg-[#e6f8f3] border border-emerald-200/90 shadow-2xs hover:shadow-md hover:bg-[#d8f5ec]'
+              ? 'bg-gradient-to-br from-[#062c22] via-[#041d17] to-[#020d0b] border border-emerald-500/50 shadow-lg hover:border-emerald-400'
+              : 'bg-white border border-emerald-200 shadow-sm hover:border-emerald-400'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-emerald-800/70 border border-emerald-300/80 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
-              : 'bg-[#00c896] shadow-sm'
-          }`}>
+          <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
             <ShoppingCart className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#053b2d]'
-            }`}>
+            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
               Nova Venda
             </span>
-            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-emerald-100' : 'text-emerald-700 font-medium'
-            }`}>
+            <span className={`text-[10px] block truncate ${isDark ? 'text-emerald-300' : 'text-emerald-600 font-medium'}`}>
               PDV da loja
             </span>
           </div>
@@ -1588,28 +1624,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={handleAbrirCaixa}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
             isDark
-              ? 'bg-gradient-to-r from-rose-700 via-rose-600 to-rose-500 border-2 border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.55)] hover:shadow-[0_0_28px_rgba(244,63,94,0.8)]'
-              : 'bg-[#ffeef2] border border-rose-200/90 shadow-2xs hover:shadow-md hover:bg-[#ffdce4]'
+              ? 'bg-gradient-to-br from-[#3b0d17] via-[#24060e] to-[#120205] border border-rose-500/50 shadow-lg hover:border-rose-400'
+              : 'bg-white border border-rose-200 shadow-sm hover:border-rose-400'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform ${
-            isDark
-              ? 'bg-rose-800/70 border border-rose-300/80 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
-              : 'bg-[#ff2d55] shadow-sm'
-          }`}>
+          <div className="w-8 h-8 rounded-xl bg-rose-600 flex items-center justify-center text-white shrink-0 shadow-md group-hover:scale-105 transition-transform">
             <Wallet className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate whitespace-nowrap leading-tight ${
-              isDark ? 'text-white' : 'text-[#570014]'
-            }`}>
+            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
               {isCashOpen ? 'Caixa Aberto' : 'Abrir Caixa'}
             </span>
-            <span className={`text-[9px] sm:text-[10px] block truncate whitespace-nowrap ${
-              isDark ? 'text-rose-100' : 'text-rose-700 font-medium'
-            }`}>
+            <span className={`text-[10px] block truncate ${isDark ? 'text-rose-300' : 'text-rose-600 font-medium'}`}>
               Movimentação
             </span>
           </div>
@@ -1619,24 +1647,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('STREAMING')}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
             isDark
-              ? 'bg-gradient-to-r from-orange-950 via-orange-900 to-orange-800 border-2 border-orange-700 shadow-[0_0_20px_rgba(194,65,12,0.55)]'
-              : 'bg-[#fff7ed] border border-orange-200'
+              ? 'bg-gradient-to-br from-[#381a08] via-[#241004] to-[#120702] border border-orange-500/50 shadow-lg hover:border-orange-400'
+              : 'bg-white border border-orange-200 shadow-sm hover:border-orange-400'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
-            isDark ? 'bg-orange-900 border border-orange-500' : 'bg-orange-600'
-          }`}>
+          <div className="w-8 h-8 rounded-xl bg-orange-600 flex items-center justify-center text-white shrink-0 shadow-md">
             <Tv className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
-              isDark ? 'text-white' : 'text-orange-900'
-            }`}>Streaming</span>
-            <span className={`text-[9px] sm:text-[10px] block truncate ${
-              isDark ? 'text-orange-300' : 'text-orange-700'
-            }`}>MAC / Senha</span>
+            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Streaming</span>
+            <span className={`text-[10px] block truncate ${isDark ? 'text-orange-300' : 'text-orange-600 font-medium'}`}>MAC / Senha</span>
           </div>
         </button>
 
@@ -1644,24 +1666,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('CAMERAS')}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
             isDark
-              ? 'bg-gradient-to-r from-blue-950 via-blue-900 to-blue-800 border-2 border-blue-700 shadow-[0_0_20px_rgba(30,58,138,0.55)]'
-              : 'bg-[#eff6ff] border border-blue-200'
+              ? 'bg-gradient-to-br from-[#0c1f44] via-[#08152e] to-[#040a18] border border-blue-500/50 shadow-lg hover:border-blue-400'
+              : 'bg-white border border-blue-200 shadow-sm hover:border-blue-400'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
-            isDark ? 'bg-blue-900 border border-blue-500' : 'bg-blue-700'
-          }`}>
+          <div className="w-8 h-8 rounded-xl bg-blue-700 flex items-center justify-center text-white shrink-0 shadow-md">
             <Video className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
-              isDark ? 'text-white' : 'text-blue-900'
-            }`}>Câmeras</span>
-            <span className={`text-[9px] sm:text-[10px] block truncate ${
-              isDark ? 'text-blue-300' : 'text-blue-700'
-            }`}>Monitoramento</span>
+            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Câmeras</span>
+            <span className={`text-[10px] block truncate ${isDark ? 'text-blue-300' : 'text-blue-600 font-medium'}`}>Monitoramento</span>
           </div>
         </button>
 
@@ -1669,24 +1685,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('CAMERA_INSTALLATIONS')}
-          className={`rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 ${
+          className={`rounded-2xl p-2.5 flex items-center gap-2.5 transition-all cursor-pointer text-left group hover:scale-[1.02] active:scale-95 relative overflow-hidden ${
             isDark
-              ? 'bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 border-2 border-slate-500 shadow-[0_0_20px_rgba(71,85,105,0.55)]'
-              : 'bg-[#f8fafc] border border-slate-200'
+              ? 'bg-gradient-to-br from-[#1e293b] via-[#0f172a] to-[#020617] border border-slate-600/60 shadow-lg hover:border-slate-400'
+              : 'bg-white border border-slate-200 shadow-sm hover:border-slate-400'
           }`}
         >
-          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-white shrink-0 ${
-            isDark ? 'bg-slate-700 border border-slate-400' : 'bg-slate-600'
-          }`}>
+          <div className="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center text-white shrink-0 shadow-md">
             <Settings className="w-4 h-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <span className={`text-[11px] sm:text-xs font-bold block truncate leading-tight ${
-              isDark ? 'text-white' : 'text-slate-900'
-            }`}>Instalações</span>
-            <span className={`text-[9px] sm:text-[10px] block truncate ${
-              isDark ? 'text-slate-300' : 'text-slate-600'
-            }`}>Câmeras</span>
+            <span className={`text-xs font-black block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Instalações</span>
+            <span className={`text-[10px] block truncate ${isDark ? 'text-slate-300' : 'text-slate-600 font-medium'}`}>Câmeras</span>
           </div>
         </button>
       </section>
